@@ -1,0 +1,56 @@
+[
+  {
+    "type": "function",
+    "name": "constructMintCall",
+    "inputs": [
+      {
+        "name": "receiver",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "stateMutability": "pure"
+  },
+  {
+    "type": "function",
+    "name": "supportsInterface",
+    "inputs": [
+      {
+        "name": "interfaceId",
+        "type": "bytes4",
+        "internalType": "bytes4"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "error",
+    "name": "EVMIFTInvalidReceiver",
+    "inputs": [
+      {
+        "name": "receiver",
+        "type": "string",
+        "internalType": "string"
+      }
+    ]
+  }
+]
