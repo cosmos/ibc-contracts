@@ -57,6 +57,8 @@ generate-abi: build-contracts
 	jq -r '.bytecode.object' out/IFTOwnable.sol/IFTOwnable.json > tmp/abigen/IFTOwnable.bin
 	jq '.abi' out/ERC1967Proxy.sol/ERC1967Proxy.json > abi/ERC1967Proxy.json
 	jq -r '.bytecode.object' out/ERC1967Proxy.sol/ERC1967Proxy.json > tmp/abigen/ERC1967Proxy.bin
+	jq '.abi' out/EVMIFTSendCallConstructor.sol/EVMIFTSendCallConstructor.json > abi/EVMIFTSendCallConstructor.json
+	jq -r '.bytecode.object' out/EVMIFTSendCallConstructor.sol/EVMIFTSendCallConstructor.json > tmp/abigen/EVMIFTSendCallConstructor.bin
 	abigen --abi abi/ERC20.json --bin tmp/abigen/ERC20.bin --pkg erc20 --type Contract --out ../e2e/interchaintestv8/types/erc20/contract.go
 	abigen --abi abi/IFTOwnable.json --bin tmp/abigen/IFTOwnable.bin --pkg ift --type Contract --out ../packages/go-abigen/ift/contract.go
 	abigen --abi abi/SP1ICS07Tendermint.json --bin tmp/abigen/SP1ICS07Tendermint.bin --pkg sp1ics07tendermint --type Contract --out ../packages/go-abigen/sp1ics07tendermint/contract.go
@@ -68,6 +70,7 @@ generate-abi: build-contracts
 	abigen --abi abi/RelayerHelper.json --bin tmp/abigen/RelayerHelper.bin --pkg relayerhelper --type Contract --out ../packages/go-abigen/relayerhelper/contract.go
 	abigen --abi abi/AttestationLightClient.json --bin tmp/abigen/AttestationLightClient.bin --pkg attestation --type Contract --out ../packages/go-abigen/attestation/contract.go
 	abigen --abi abi/ERC1967Proxy.json --bin tmp/abigen/ERC1967Proxy.bin --pkg erc1967proxy --type Contract --out ../packages/go-abigen/erc1967proxy/contract.go
+	abigen --abi abi/EVMIFTSendCallConstructor.json --bin tmp/abigen/EVMIFTSendCallConstructor.bin --pkg evmiftsendcall --type Contract --out ../packages/go-abigen/evmiftsendcall/contract.go
 	rm -rf tmp/abigen
 
 # Generate the ABI files with bytecode for the required contracts
