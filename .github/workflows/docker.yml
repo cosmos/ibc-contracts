@@ -2,6 +2,8 @@ name: docker
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
     tags:
       - proof-api-v[0-9]+.[0-9]+.[0-9]+
   pull_request:
@@ -17,10 +19,9 @@ on:
       - 'programs/proof-api/Dockerfile'
       - 'scripts/proof_api_docker_entrypoint.sh'
 
-# Cancel the workflow if a new commit is pushed to the branch/PR
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   registry_url: ghcr.io/cosmos/proof-api
@@ -72,8 +73,8 @@ jobs:
           file: ./programs/proof-api/Dockerfile
           labels: ${{ steps.meta.outputs.labels }}
           outputs: type=image,name=${{ env.registry_url }},push-by-digest=true,name-canonical=true,push=true
-          cache-from: type=gha,scope=proof-api-${{ env.PLATFORM_PAIR }}
-          cache-to: type=gha,mode=max,scope=proof-api-${{ env.PLATFORM_PAIR }}
+          cache-from: type=registry,ref=${{ env.registry_url }}-buildcache:${{ env.PLATFORM_PAIR }}
+          cache-to: type=registry,ref=${{ env.registry_url }}-buildcache:${{ env.PLATFORM_PAIR }},mode=max,image-manifest=true,oci-mediatypes=true,ignore-error=true
       - name: Export digest
         run: |
           mkdir -p "${{ runner.temp }}/digests"
