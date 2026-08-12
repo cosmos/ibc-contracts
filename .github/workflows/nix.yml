@@ -1,5 +1,7 @@
 name: nix
 
+permissions: {}
+
 on:
   pull_request:
     paths:
@@ -9,6 +11,8 @@ on:
 jobs:
   develop-default:
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -24,6 +28,8 @@ jobs:
 
   develop-solana:
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
