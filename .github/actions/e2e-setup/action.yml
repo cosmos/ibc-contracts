@@ -10,7 +10,7 @@ runs:
   using: composite
   steps:
     - name: Login to GHCR
-      uses: nick-fields/retry@v3
+      uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
       env:
           GH_TOKEN: ${{ inputs.github_token }}
       with:
@@ -20,7 +20,7 @@ runs:
         command: docker login ghcr.io -u ${{ github.actor }} --password-stdin <<< "$GH_TOKEN"
 
     - name: Pre-pull private images
-      uses: nick-invision/retry@v3
+      uses: nick-invision/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
       with:
         timeout_minutes: 10
         max_attempts: 3
@@ -32,21 +32,21 @@ runs:
       uses: ./.github/actions/foundry-setup
 
     - name: Setup Go
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@7b8cf10d4e4a01d4992d18a89f4d7dc5a3e6d6f4 # v4.3.0
       with:
         go-version: 1.25
         check-latest: true
         cache-dependency-path: e2e/interchaintestv8/go.sum
 
     - name: Download build artifacts
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
       with:
         name: e2e-build-artifacts
         path: e2e-artifacts/
 
     - name: Cache Solana
       id: cache-solana
-      uses: actions/cache@v4
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
         path: |
           ~/.cache/solana/
@@ -57,7 +57,7 @@ runs:
         key: ${{ runner.os }}-solana-${{ env.SOLANA_VERSION }}-${{ env.ANCHOR_VERSION }}-${{ hashFiles('ibc-solana/**', 'packages/tendermint-light-client/**', 'packages/constrained_types/**', 'proto/**', 'ibc-solidity/abi/IFTOwnable.json', 'ibc-solidity/contracts/light-clients/attestation/msgs/**', 'ibc-solidity/contracts/msgs/**', 'scripts/build-solana-test-instance.sh', 'solana-keypairs/localnet/**', 'justfile') }}
 
     - name: Install just
-      uses: extractions/setup-just@v2
+      uses: extractions/setup-just@dd310ad5a97d8e7b41793f8ef055398d51ad4de6 # v2.0.0
 
     - name: Install artifacts
       shell: bash
@@ -85,7 +85,7 @@ runs:
     # Must match the kurtosis library version we use in the e2e tests
     - name: Install Kurtosis
       if: contains(fromJSON('["pos", "optimism", "arbitrum", "cosmos"]'), env.ETH_TESTNET_TYPE)
-      uses: nick-invision/retry@v3
+      uses: nick-invision/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
       with:
         timeout_minutes: 10
         max_attempts: 3
@@ -103,12 +103,12 @@ runs:
         echo "$(dirname $(which kurtosis))" >> $GITHUB_PATH
 
     - name: Setup Solana
-      uses: solana-developers/github-actions/setup-all@v0.2.5
+      uses: solana-developers/github-actions/setup-all@860d4e7d3afc9f180f3c5016593a1e86e77eede4 # v0.2.5
       with:
         solana_version: ${{ env.SOLANA_VERSION }}
 
     - name: Pull attestor Docker image
-      uses: nick-invision/retry@v3
+      uses: nick-invision/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
       with:
         timeout_minutes: 10
         max_attempts: 3

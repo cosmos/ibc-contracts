@@ -24,14 +24,14 @@ jobs:
   lint:
     runs-on: depot-ubuntu-24.04-4
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Set up environment
         uses: ./.github/actions/foundry-setup
 
       - name: Lint the code
         run: bun run lint:sol
 
-      - uses: srdtrk/natlint@main
+      - uses: srdtrk/natlint@94f472f15c25c18091b8532cfa660f46379e2a02 # main
         with:
           include: 'ibc-solidity/contracts/**/*.sol'
           config: 'ibc-solidity/natlint.toml'
@@ -44,7 +44,7 @@ jobs:
   build:
     runs-on: depot-ubuntu-24.04-4
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Set up environment
         uses: ./.github/actions/foundry-setup
 
@@ -60,7 +60,7 @@ jobs:
     needs: [lint, build]
     runs-on: depot-ubuntu-24.04-4
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Set up environment
         uses: ./.github/actions/foundry-setup
 
@@ -88,7 +88,7 @@ jobs:
     needs: [build]
     runs-on: depot-ubuntu-24.04-4
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Set up environment
         uses: ./.github/actions/foundry-setup
 
@@ -110,7 +110,7 @@ jobs:
     needs: [test]
     runs-on: depot-ubuntu-24.04-4
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Set up environment
         uses: ./.github/actions/foundry-setup
 
@@ -134,7 +134,7 @@ jobs:
       - name: Remove the test directory from the coverage report
         run: lcov --remove lcov.info "test/**" "scripts/**" -o lcov.info
 
-      - uses: codecov/codecov-action@v5
+      - uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5.5.5
         with:
           working-directory: ibc-solidity
           exclude: test
