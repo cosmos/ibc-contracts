@@ -13,7 +13,7 @@ runs:
 
     - name: Cache SP1 Toolchain
       id: cache-sp1-toolchain
-      uses: actions/cache@v4
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
         path: |
           ~/.sp1
@@ -22,7 +22,7 @@ runs:
 
     - name: Install SP1 toolchain
       if: steps.cache-sp1-toolchain.outputs.cache-hit != 'true'
-      uses: nick-invision/retry@v3
+      uses: nick-invision/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
       with:
         timeout_minutes: 10
         max_attempts: 3
@@ -33,14 +33,14 @@ runs:
 
     - name: Cache SP1 Programs
       id: cache-sp1-programs
-      uses: actions/cache@v4
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
         path: ibc-solidity/programs/sp1-programs/target/elf-compilation/riscv64im-succinct-zkvm-elf/release/*
         key: ${{ runner.os }}-sp1-programs-${{ hashFiles('ibc-solidity/programs/sp1-programs/**', 'Cargo.lock') }}
 
     - name: Install just
       if: steps.cache-sp1-programs.outputs.cache-hit != 'true'
-      uses: extractions/setup-just@v2
+      uses: extractions/setup-just@dd310ad5a97d8e7b41793f8ef055398d51ad4de6 # v2.0.0
 
     - name: Build SP1 Programs
       if: steps.cache-sp1-programs.outputs.cache-hit != 'true'
@@ -49,35 +49,35 @@ runs:
 
     - name: Cache Proof API
       id: cache-proof-api
-      uses: actions/cache@v4
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
         path: ~/.cargo/bin/proof-api
         key: ${{ runner.os }}-proof-api-${{ hashFiles('programs/proof-api/**', 'packages/**', 'ibc-solana/packages/solana-ibc-constants/**', 'ibc-solana/packages/solana-ibc-types/**', 'ibc-solidity/abi/bytecode/**', 'Cargo.lock') }}
 
     - name: Install proof API
       if: steps.cache-proof-api.outputs.cache-hit != 'true'
-      uses: actions-rs/cargo@v1
+      uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # v1.0.3
       with:
         command: install
         args: --bin proof-api --path programs/proof-api --locked
 
     - name: Cache Operator
       id: cache-operator
-      uses: actions/cache@v4
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
         path: ~/.cargo/bin/operator
         key: ${{ runner.os }}-operator-${{ hashFiles('ibc-solidity/programs/operator/**', 'packages/**', 'Cargo.lock') }}
 
     - name: Install operator
       if: steps.cache-operator.outputs.cache-hit != 'true'
-      uses: actions-rs/cargo@v1
+      uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # v1.0.3
       with:
         command: install
         args: --bin operator --path ibc-solidity/programs/operator --locked
 
     - name: Cache Solana Programs
       id: cache-solana
-      uses: actions/cache@v4
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
         path: |
           ~/.cache/solana/
@@ -89,14 +89,14 @@ runs:
 
     - name: Setup Solana and Anchor
       if: steps.cache-solana.outputs.cache-hit != 'true'
-      uses: solana-developers/github-actions/setup-all@v0.2.5
+      uses: solana-developers/github-actions/setup-all@860d4e7d3afc9f180f3c5016593a1e86e77eede4 # v0.2.5
       with:
         anchor_version: ${{ env.ANCHOR_VERSION }}
         solana_version: ${{ env.SOLANA_VERSION }}
 
     - name: Install just for Solana build
       if: steps.cache-solana.outputs.cache-hit != 'true'
-      uses: extractions/setup-just@v2
+      uses: extractions/setup-just@dd310ad5a97d8e7b41793f8ef055398d51ad4de6 # v2.0.0
 
     - name: Build Solana Programs
       if: steps.cache-solana.outputs.cache-hit != 'true'
@@ -115,7 +115,7 @@ runs:
         cp -r ibc-solana/target/deploy/* e2e-artifacts/solana-programs/
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
         name: e2e-build-artifacts
         path: e2e-artifacts/

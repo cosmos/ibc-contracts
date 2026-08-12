@@ -44,7 +44,7 @@ jobs:
   build-e2e-programs:
     runs-on: depot-ubuntu-24.04-4
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Build E2E artifacts
         uses: ./.github/actions/e2e-build
         with:
@@ -72,7 +72,7 @@ jobs:
 
     runs-on: depot-ubuntu-24.04-4
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Set up E2E environment
         uses: ./.github/actions/e2e-setup
         with:
