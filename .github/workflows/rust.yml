@@ -1,7 +1,7 @@
 # Based on https://github.com/actions-rs/example/blob/master/.github/workflows/quickstart.yml
 name: rust
-permissions:
-  contents: read
+
+permissions: {}
 
 on:
   push:
@@ -19,6 +19,8 @@ jobs:
   lints:
     name: fmt-and-clippy
     runs-on: depot-ubuntu-24.04-4
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Set up environment
@@ -45,6 +47,8 @@ jobs:
   tests:
     name: unit-tests
     runs-on: depot-ubuntu-24.04-4
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Set up environment
@@ -60,6 +64,8 @@ jobs:
   build-proof-api:
     name: build-proof-api
     runs-on: depot-ubuntu-24.04-4
+    permissions:
+      contents: read
     continue-on-error: true
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -74,6 +80,8 @@ jobs:
   build-operator:
     name: build-operator
     runs-on: depot-ubuntu-24.04-4
+    permissions:
+      contents: read
     continue-on-error: true
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0

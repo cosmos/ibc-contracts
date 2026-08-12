@@ -44,13 +44,13 @@ env:
   SOLANA_VERSION: "2.3.13"
   ANCHOR_VERSION: "0.32.1"
   E2E_IBC_GO_DOCKER_TAG: ${{ inputs.ibc-go-docker-tag || 'v11.0.0' }}
-permissions:
-  contents: read
-  packages: read
+permissions: {}
 
 jobs:
   generate-matrix:
     runs-on: depot-ubuntu-24.04-4
+    permissions:
+      contents: read
     outputs:
       matrix: ${{ steps.get-matrix.outputs.matrix }}
     steps:
@@ -63,6 +63,8 @@ jobs:
 
   build-e2e-programs:
     runs-on: depot-ubuntu-24.04-4
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Build E2E artifacts
@@ -77,6 +79,9 @@ jobs:
       matrix: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
     name: ${{ matrix.entrypoint }}/${{ matrix.test }}
     runs-on: depot-ubuntu-24.04-4
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Set up E2E environment

@@ -1,4 +1,7 @@
 name: docker
+
+permissions: {}
+
 on:
   workflow_dispatch:
   push:
