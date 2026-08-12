@@ -52,6 +52,8 @@ RUN cargo chef cook --release --recipe-path recipe.json \
     && rm -rf ibc-solana
 
 COPY --from=sources /app /app
+
+RUN find ibc-solana -name '*.rs' -exec touch {} +
 RUN cargo build --bin proof-api --release --locked
 RUN cargo build --bin operator --release --locked
 
