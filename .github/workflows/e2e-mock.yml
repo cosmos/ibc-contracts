@@ -44,14 +44,14 @@ jobs:
     name: lint
     runs-on: depot-ubuntu-24.04-4
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: 1.25.9
           cache-dependency-path: e2e/interchaintestv8/go.sum
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v9
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
           version: v2.11
           working-directory: e2e/interchaintestv8
@@ -61,7 +61,7 @@ jobs:
     outputs:
       matrix: ${{ steps.get-matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Generate Test Matrix
         id: get-matrix
         uses: ./.github/actions/e2e-matrix
@@ -71,7 +71,7 @@ jobs:
   build-e2e-programs:
     runs-on: depot-ubuntu-24.04-4
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Build E2E artifacts
         uses: ./.github/actions/e2e-build
         with:
@@ -91,7 +91,7 @@ jobs:
 
     runs-on: depot-ubuntu-24.04-4
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Set up E2E environment
         uses: ./.github/actions/e2e-setup
         with:

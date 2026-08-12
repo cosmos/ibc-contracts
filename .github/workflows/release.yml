@@ -16,9 +16,9 @@ jobs:
     runs-on: depot-ubuntu-24.04-4
     if: startsWith(github.ref_name, 'sp1-programs-')
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
         with:
           toolchain: 1.93.0
       - name: Install SP1 toolchain
@@ -28,14 +28,14 @@ jobs:
           ~/.sp1/bin/sp1up --version ${{ env.SP1_VERSION }} --token ${{ secrets.GITHUB_TOKEN }}
           ~/.sp1/bin/cargo-prove prove --version
       - name: Install just
-        uses: extractions/setup-just@v3
+        uses: extractions/setup-just@f8a3cce218d9f83db3a2ecd90e41ac3de6cdfd9b # v3.1.0
 
       - name: Build SP1 Programs
         shell: bash
         run: just build-sp1-programs
 
       - name: Upload SP1 programs to release
-        uses: svenstaro/upload-release-action@v2
+        uses: svenstaro/upload-release-action@29e53e917877a24fad85510ded594ab3c9ca12de # 2.11.5
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file_glob: true
@@ -47,10 +47,10 @@ jobs:
     runs-on: depot-ubuntu-24.04-4
     if: startsWith(github.ref_name, 'cw-ics08-wasm-eth-')
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
       - name: Upload cw-ics08-wasm-eth to release
-        uses: svenstaro/upload-release-action@v2
+        uses: svenstaro/upload-release-action@29e53e917877a24fad85510ded594ab3c9ca12de # 2.11.5
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file_glob: true
@@ -62,13 +62,13 @@ jobs:
     runs-on: depot-ubuntu-24.04-4
     if: startsWith(github.ref_name, 'solidity-')
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
+        uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
 
       - name: Install Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
 
       - name: Build and package the contracts
         env:
@@ -76,7 +76,7 @@ jobs:
         run: ./ibc-solidity/scripts/package-contracts.sh
 
       - name: Upload solidity contract artifacts to release
-        uses: svenstaro/upload-release-action@v2
+        uses: svenstaro/upload-release-action@29e53e917877a24fad85510ded594ab3c9ca12de # 2.11.5
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: ibc-solidity/solidity-contracts-${{ github.ref_name }}.tar.gz

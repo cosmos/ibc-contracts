@@ -35,7 +35,7 @@ jobs:
     name: build-and-test-solana
     runs-on: depot-ubuntu-24.04-4
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           submodules: recursive
 
@@ -43,7 +43,7 @@ jobs:
       # snapshots in solana-ibc-macros track nightly's diagnostic rendering, so build/test
       # must stay on nightly.
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@1.89.0
+        uses: dtolnay/rust-toolchain@1d1eb14921d9c2d8ea575663e5fe3a0b57868a05 # 1.89.0
         with:
           components: rustfmt, clippy
 
@@ -57,7 +57,7 @@ jobs:
           rustup component add --toolchain 1.89.0 clippy rustfmt
 
       - name: Cache Rust dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.cargo/bin/
@@ -69,13 +69,13 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-solana-
 
-      - uses: solana-developers/github-actions/setup-all@v0.2.5
+      - uses: solana-developers/github-actions/setup-all@860d4e7d3afc9f180f3c5016593a1e86e77eede4 # v0.2.5
         with:
           anchor_version: ${{ env.ANCHOR_VERSION }}
           solana_version: ${{ env.SOLANA_VERSION }}
 
       - name: Install just
-        uses: extractions/setup-just@v2
+        uses: extractions/setup-just@dd310ad5a97d8e7b41793f8ef055398d51ad4de6 # v2.0.0
 
       - name: Install protobuf compiler
         run: |

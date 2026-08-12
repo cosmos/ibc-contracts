@@ -55,7 +55,7 @@ jobs:
     outputs:
       matrix: ${{ steps.get-matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Generate Test Matrix
         id: get-matrix
         uses: ./.github/actions/e2e-matrix
@@ -65,7 +65,7 @@ jobs:
   build-e2e-programs:
     runs-on: depot-ubuntu-24.04-4
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Build E2E artifacts
         uses: ./.github/actions/e2e-build
         with:
@@ -79,7 +79,7 @@ jobs:
     name: ${{ matrix.entrypoint }}/${{ matrix.test }}
     runs-on: depot-ubuntu-24.04-4
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Set up E2E environment
         uses: ./.github/actions/e2e-setup
         with:
