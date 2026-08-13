@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! A program that verifies a misbehaviour evidence.
 
 #![deny(missing_docs, clippy::nursery, clippy::pedantic, warnings)]

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 #[cfg(feature = "rpc")]
 alloy_sol_types::sol!(
     #[sol(rpc)]

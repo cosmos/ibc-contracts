@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module contains functions to verify the header of the light client.
 
 use alloy_primitives::B256;

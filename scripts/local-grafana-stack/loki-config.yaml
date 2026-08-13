@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 
 # This is a complete configuration to deploy Loki backed by the filesystem.
 # The index will be shipped to the storage via tsdb-shipper.

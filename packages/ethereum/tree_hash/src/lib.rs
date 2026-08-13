@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 pub mod impls;
 mod merkle_hasher;
 mod merkleize_padded;

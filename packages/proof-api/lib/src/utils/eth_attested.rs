@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Utilities for attested relays targeting Ethereum chains.
 
 use std::{collections::HashMap, time::Duration};

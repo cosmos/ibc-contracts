@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module provides [`verify_misbehaviour`] function to check for misbehaviour
 
 use ethereum_types::consensus::light_client_header::LightClientUpdate;

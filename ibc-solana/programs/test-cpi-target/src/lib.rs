@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use anchor_lang::prelude::*;
 
 declare_id!("GHB99UGVmKFeNrtSLsuzL2QhZZgaqcASvTjotQd2dZzu");

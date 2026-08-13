@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! BLS12-381 signature types for Ethereum beacon chain.
 
 use alloy_primitives::FixedBytes;

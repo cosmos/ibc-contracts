@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! A program that verifies the next block header of a blockchain using an IBC tendermint light
 //! client.
 

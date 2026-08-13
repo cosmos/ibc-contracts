@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 // Package attestations provides local attestations light client types for codec registration.
 // These types mirror the ibc-go attestations light client types but are defined locally
 // to avoid upgrading the entire ibc-go dependency tree.

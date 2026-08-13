@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Borsh-serializable wrapper types for Tendermint Header
 //!
 //! These types mirror `ibc-client-tendermint::types::Header` and related types,

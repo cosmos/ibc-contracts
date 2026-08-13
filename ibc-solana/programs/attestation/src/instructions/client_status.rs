@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::program::set_return_data;
 

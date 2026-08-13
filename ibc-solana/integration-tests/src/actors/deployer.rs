@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Deployer / upgrade-authority actor.
 //!
 //! Orchestrates the full program initialization sequence (access manager,

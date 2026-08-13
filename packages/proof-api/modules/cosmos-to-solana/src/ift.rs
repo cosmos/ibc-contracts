@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! IFT `finalize_transfer` instruction builder for ack/timeout packets.
 //!
 //! After GMP processes ack/timeout and creates `GMPCallResultAccount`,

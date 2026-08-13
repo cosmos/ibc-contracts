@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module provides [`update_consensus_state`] function to update the consensus state
 
 use crate::{

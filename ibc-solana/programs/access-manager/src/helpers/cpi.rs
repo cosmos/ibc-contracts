@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! CPI helpers for calling another access-manager instance (e.g. during
 //! AM-to-AM upgrade authority migration).
 //!

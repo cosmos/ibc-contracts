@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Defines the client interface for the proof API server.
 
 use clap::Parser;

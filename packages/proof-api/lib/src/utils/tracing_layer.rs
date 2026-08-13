@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Tonic interceptor for automatic trace context extraction and trace ID recording.
 
 use opentelemetry::trace::TraceContextExt;

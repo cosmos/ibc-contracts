@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Procedural macros for IBC applications on Solana
 //!
 //! This crate provides:

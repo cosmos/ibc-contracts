@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Attestation light client integration tests.
 //!
 //! Exercises the full IBC router lifecycle with attestation-based proof

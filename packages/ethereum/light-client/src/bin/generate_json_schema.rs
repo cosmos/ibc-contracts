@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 #![allow(unused_crate_dependencies)]
 
 use ethereum_light_client::{

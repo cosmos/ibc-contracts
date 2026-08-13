@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use super::*;
 
 /// GMP timeout lifecycle: `send_call` on A -> `timeout_packet` on A.

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! The crate that contains the types and utilities for `tendermint-light-client-uc-and-membership` program.
 #![deny(missing_docs, clippy::nursery, clippy::pedantic, warnings)]
 #![cfg_attr(not(test), deny(unused_crate_dependencies))]

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module implements the `EthApiClient` to interact with the Ethereum RPC API.
 
 use std::str::FromStr;

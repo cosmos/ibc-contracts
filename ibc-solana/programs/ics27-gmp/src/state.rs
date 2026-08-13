@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use access_manager::AccessManagerState;
 use anchor_lang::prelude::*;
 use solana_ibc_types::{packet_acknowledgement_commitment_bytes32, MAX_CLIENT_ID_LENGTH};

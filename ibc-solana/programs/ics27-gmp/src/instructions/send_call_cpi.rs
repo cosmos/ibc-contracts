@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::constants::*;
 use crate::errors::GMPError;
 use crate::instructions::send_call::send_call_inner;

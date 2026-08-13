@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::errors::RouterError;
 use crate::state::{Delivery, MsgPayload, PayloadChunk, ProofChunk};
 use anchor_lang::prelude::*;

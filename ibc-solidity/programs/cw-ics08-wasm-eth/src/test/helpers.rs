@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use std::marker::PhantomData;
 
 use alloy_primitives::B256;

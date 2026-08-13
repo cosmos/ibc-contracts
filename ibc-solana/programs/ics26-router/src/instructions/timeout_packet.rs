@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::errors::RouterError;
 use crate::events::TimeoutPacketEvent;
 use crate::router_cpi::LightClientCpi;

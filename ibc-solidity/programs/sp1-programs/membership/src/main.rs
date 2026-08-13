@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! A program that verifies the membership or non-membership of a value in a commitment root.
 
 #![deny(missing_docs, clippy::nursery, clippy::pedantic, warnings)]

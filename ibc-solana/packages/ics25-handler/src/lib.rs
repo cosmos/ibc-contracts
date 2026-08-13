@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! ICS-25 Vector Commitments for IBC light clients on Solana
 //!
 //! This crate defines the standard interface that all IBC light clients must implement

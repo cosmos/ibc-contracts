@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module defines constants related to merkle trees in the Ethereum consensus.
 
 // New constants

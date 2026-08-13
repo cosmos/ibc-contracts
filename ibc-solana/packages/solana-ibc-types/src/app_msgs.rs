@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Message types for IBC application callbacks on Solana
 //!
 //! These types define the standard interface for IBC applications to handle

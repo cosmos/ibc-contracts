@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+
 {pkgs}: let
   toolchain = pkgs.rust-bin.stable.latest.default.override {
     extensions = ["rust-src" "rust-analyzer" "clippy" "rustfmt"];

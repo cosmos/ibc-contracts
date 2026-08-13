@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module defines the conversion functions between Tendermint and ICS Merkle proofs.
 
 use ibc_core_commitment_types::{merkle::MerkleProof, proto::ics23::CommitmentProof};

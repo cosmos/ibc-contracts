@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 package ics26router
 
 // IbcStoreStorageSlot is the storage slot for the IBC store

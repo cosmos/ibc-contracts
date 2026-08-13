@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Client operations - create/update client and signature verification.
 
 use anyhow::{Context, Result};

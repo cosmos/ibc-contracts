@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use super::*;
 
 /// Timing out the same packet twice fails — the commitment is already zeroed.

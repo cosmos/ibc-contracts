@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! The messages that are passed between the contract and the ibc-go module
 #![allow(clippy::module_name_repetitions)]
 

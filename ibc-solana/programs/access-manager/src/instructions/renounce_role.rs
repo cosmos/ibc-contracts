@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::errors::AccessManagerError;
 use crate::events::RoleRevokedEvent;
 use crate::state::AccessManager;

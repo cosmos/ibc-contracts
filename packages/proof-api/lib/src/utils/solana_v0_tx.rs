@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Shared Solana v0 transaction building utilities.
 //!
 //! These free functions encapsulate the common logic for building, compiling and

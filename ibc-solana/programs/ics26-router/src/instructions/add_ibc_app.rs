@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::errors::RouterError;
 use crate::events::IBCAppAdded;
 use crate::state::{AccountVersion, IBCApp, RouterState, MAX_PORT_ID_LENGTH, MIN_PORT_ID_LENGTH};

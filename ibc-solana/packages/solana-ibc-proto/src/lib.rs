@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Shared protobuf definitions for Solana IBC
 //!
 //! This crate provides protobuf-generated types used across Solana IBC programs and relayer.

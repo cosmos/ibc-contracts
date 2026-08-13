@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Runner for generating `update_client` fixtures
 
 use crate::{

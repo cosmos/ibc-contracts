@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! One-sided proof API module from Ethereum to Solana.
 //!
 //! Listens for IBC events on EVM and builds Solana transactions

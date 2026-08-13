@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+
 set dotenv-load
 
 # Solidity IBC implementation recipes (run from the ibc-solidity directory)
@@ -70,10 +72,22 @@ install-proof-api:
 [group('lint')]
 lint:
 	@echo "Running all linters..."
+	just lint-license
 	just solidity::lint-solidity
 	just lint-go
 	just lint-buf
 	just lint-rust
+
+# Check that every source file carries the repository's SPDX license header
+[group('lint')]
+lint-license:
+	@echo "Checking SPDX license headers..."
+	./scripts/check-license-headers.sh
+
+# Insert or correct SPDX license headers in place
+[group('lint')]
+lint-license-fix:
+	./scripts/check-license-headers.sh --fix
 
 # Lint the Go code using `golangci-lint`
 [group('lint')]

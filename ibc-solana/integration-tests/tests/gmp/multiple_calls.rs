@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use super::*;
 
 /// Two GMP calls from the same sender: the `UserCounter` state accumulates

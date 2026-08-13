@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module defines the chain listener for 'ibc-go-eureka'.
 
 use futures::future;

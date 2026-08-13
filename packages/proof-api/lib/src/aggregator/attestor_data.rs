@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use super::rpc::{AggregatedAttestation, Attestation};
 use anyhow::{ensure as anyhow_ensure, Context, Result};
 use std::collections::HashMap;

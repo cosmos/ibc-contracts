@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module defines a test implementation of the BLS verifier
 
 use ethereum_types::consensus::bls::{BlsPublicKey, BlsSignature};

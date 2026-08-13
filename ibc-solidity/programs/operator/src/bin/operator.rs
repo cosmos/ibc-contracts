@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use clap::Parser;
 use sp1_ics07_tendermint_operator::{
     cli::command::{fixtures, Commands, OperatorCli},

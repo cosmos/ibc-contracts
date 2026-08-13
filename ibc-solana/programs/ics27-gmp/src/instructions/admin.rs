@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::events::{GMPAppPaused, GMPAppUnpaused};
 use crate::state::GMPAppState;
 use anchor_lang::prelude::*;

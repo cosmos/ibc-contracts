@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+
 {pkgs}: let
   src = pkgs.lib.cleanSourceWith {
     src = ../.;

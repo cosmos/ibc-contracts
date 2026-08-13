@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::errors::GMPError;
 use crate::events::GMPCallTimeout;
 use crate::state::{GMPAppState, GMPCallResult, GMPCallResultAccount};

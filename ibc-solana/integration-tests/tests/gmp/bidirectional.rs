@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use super::*;
 
 /// Both chains send GMP calls to each other. Each chain has an independent

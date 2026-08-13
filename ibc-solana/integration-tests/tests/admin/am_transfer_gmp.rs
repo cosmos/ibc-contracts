@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use super::*;
 
 /// Full propose -> accept lifecycle for GMP AM transfer.

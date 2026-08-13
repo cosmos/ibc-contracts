@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module provides [`validate_merkle_branch`] function to validate a merkle branch.
 
 use alloy_primitives::B256;

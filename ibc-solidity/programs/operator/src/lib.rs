@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! The crate that contains the types and utilities for `sp1-ics07-tendermint-operator` executable.
 #![deny(missing_docs, clippy::nursery, clippy::pedantic, warnings)]
 

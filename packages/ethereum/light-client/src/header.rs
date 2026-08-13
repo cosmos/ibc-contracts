@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module defines types related to the Header we use for the Ethereum light client
 
 use schemars::JsonSchema;

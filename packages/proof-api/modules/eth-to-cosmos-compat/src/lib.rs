@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Ethereum to Cosmos backwards compatible proof API module.
 
 #![deny(

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Program constants for ICS27 IFT
 
 /// Default timeout duration (15 minutes in seconds)

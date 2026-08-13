@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module implements the sync protocol helpers defined in [consensus-specs](https://github.com/ethereum/consensus-specs)
 
 use alloy_primitives::B256;

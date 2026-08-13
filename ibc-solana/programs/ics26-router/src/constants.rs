@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Common constants used throughout the ICS26 router
 
 /// Size of Anchor instruction discriminator in bytes

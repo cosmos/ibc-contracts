@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Test fixtures types and ulitiies for the Ethereum light client
 
 use std::path::PathBuf;
