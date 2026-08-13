@@ -1,5 +1,5 @@
 error: Callback 'on_timeout_packet' must return 'Result<()>', found '-> Result < Vec < u8 > >'
-  --> tests/ui/timeout_returns_vec_u8.rs:14:65
+  --> tests/ui/timeout_returns_vec_u8.rs:16:65
    |
-14 |     pub fn on_timeout_packet(ctx: Ctx, msg: OnTimeoutPacketMsg) -> Result<Vec<u8>> {
+16 |     pub fn on_timeout_packet(ctx: Ctx, msg: OnTimeoutPacketMsg) -> Result<Vec<u8>> {
    |                                                                 ^^^^^^^^^^^^^^^^^^

@@ -1,5 +1,5 @@
 error: Callback 'on_recv_packet' second parameter must be of type 'OnRecvPacketMsg', found 'WrongMsgType'
- --> tests/ui/wrong_msg_type.rs:5:42
+ --> tests/ui/wrong_msg_type.rs:7:42
   |
-5 |     pub fn on_recv_packet(ctx: Ctx, msg: WrongMsgType) -> Result<Vec<u8>> {
+7 |     pub fn on_recv_packet(ctx: Ctx, msg: WrongMsgType) -> Result<Vec<u8>> {
   |                                          ^^^^^^^^^^^^
