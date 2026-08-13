@@ -26,13 +26,13 @@ env:
   IBC_ATTESTOR_IMAGE: ghcr.io/cosmos/ibc-attestor:v0.3.0
   SOLANA_VERSION: "2.3.13"
   ANCHOR_VERSION: "0.32.1"
-permissions:
-  contents: read
-  packages: read
+permissions: {}
 
 jobs:
   generate-matrix:
     runs-on: depot-ubuntu-24.04-4
+    permissions:
+      contents: read
     outputs:
       matrix: ${{ steps.get-matrix.outputs.matrix }}
     steps:
@@ -45,6 +45,8 @@ jobs:
 
   generate-matrix-eth-to-eth:
     runs-on: depot-ubuntu-24.04-4
+    permissions:
+      contents: read
     outputs:
       matrix: ${{ steps.get-matrix.outputs.matrix }}
     steps:
@@ -57,6 +59,8 @@ jobs:
 
   build-e2e-programs:
     runs-on: depot-ubuntu-24.04-4
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Build E2E artifacts
@@ -74,6 +78,9 @@ jobs:
       ETH_LC_ON_COSMOS: attestor-native
 
     runs-on: depot-ubuntu-24.04-4
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Set up E2E environment
@@ -97,6 +104,9 @@ jobs:
     name: attestor-native/${{ matrix.entrypoint }}/${{ matrix.test }}
 
     runs-on: depot-ubuntu-24.04-4
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Set up E2E environment
@@ -129,6 +139,9 @@ jobs:
       MULTI_ATTESTOR_ACTIVE: ${{ matrix.active_attestors }}
 
     runs-on: depot-ubuntu-24.04-4
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Set up E2E environment
@@ -151,6 +164,9 @@ jobs:
       MULTI_ATTESTOR_ACTIVE: 1
 
     runs-on: depot-ubuntu-24.04-4
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Set up E2E environment
