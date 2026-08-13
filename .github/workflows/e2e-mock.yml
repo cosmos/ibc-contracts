@@ -35,14 +35,14 @@ env:
   ANCHOR_VERSION: "0.32.1"
   E2E_IBC_GO_DOCKER_TAG: ${{ inputs.ibc-go-docker-tag || 'v11.0.0' }}
 
-permissions:
-  contents: read
-  packages: read
+permissions: {}
 
 jobs:
   golangci:
     name: lint
     runs-on: depot-ubuntu-24.04-4
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
@@ -58,6 +58,8 @@ jobs:
 
   generate-matrix:
     runs-on: depot-ubuntu-24.04-4
+    permissions:
+      contents: read
     outputs:
       matrix: ${{ steps.get-matrix.outputs.matrix }}
     steps:
@@ -70,6 +72,8 @@ jobs:
 
   build-e2e-programs:
     runs-on: depot-ubuntu-24.04-4
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Build E2E artifacts
@@ -90,6 +94,9 @@ jobs:
         IBC_ATTESTOR_IMAGE: ghcr.io/cosmos/ibc-attestor:v0.3.0
 
     runs-on: depot-ubuntu-24.04-4
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Set up E2E environment
