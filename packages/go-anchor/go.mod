@@ -1,6 +1,6 @@
 module github.com/cosmos/solidity-ibc-eureka/packages/go-anchor
 
-go 1.25.9
+go 1.26.5
 
 require (
 	github.com/gagliardetto/anchor-go v0.3.2

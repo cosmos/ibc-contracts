@@ -1,6 +1,6 @@
 module github.com/cosmos/solidity-ibc-eureka/e2e/interchaintestv8/solana/go-anchor
 
-go 1.25.0
+go 1.26.5
 
 require (
 	github.com/gagliardetto/anchor-go v0.3.2

@@ -32,7 +32,6 @@ import (
 	channeltypesv2 "github.com/cosmos/ibc-go/v11/modules/core/04-channel/v2/types"
 	ibchostv2 "github.com/cosmos/ibc-go/v11/modules/core/24-host/v2"
 	ibcexported "github.com/cosmos/ibc-go/v11/modules/core/exported"
-	ibctesting "github.com/cosmos/ibc-go/v11/testing"
 
 	"github.com/cosmos/interchaintest/v11/ibc"
 
@@ -46,6 +45,7 @@ import (
 	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/cosmos"
 	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/e2esuite"
 	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/ethereum"
+	ibctesting "github.com/srdtrk/solidity-ibc-eureka/e2e/v8/ibctesting"
 	proofapi "github.com/srdtrk/solidity-ibc-eureka/e2e/v8/proofapi"
 	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/testvalues"
 	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/types"

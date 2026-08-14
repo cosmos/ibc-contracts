@@ -32,7 +32,6 @@ import (
 	ibchostv2 "github.com/cosmos/ibc-go/v11/modules/core/24-host/v2"
 	ibcexported "github.com/cosmos/ibc-go/v11/modules/core/exported"
 	tmclient "github.com/cosmos/ibc-go/v11/modules/light-clients/07-tendermint"
-	ibctesting "github.com/cosmos/ibc-go/v11/testing"
 
 	"github.com/cosmos/solidity-ibc-eureka/packages/go-abigen/ics26router"
 	"github.com/cosmos/solidity-ibc-eureka/packages/go-abigen/sp1ics07tendermint"
@@ -40,6 +39,7 @@ import (
 	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/cosmos"
 	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/e2esuite"
 	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/ethereum"
+	ibctesting "github.com/srdtrk/solidity-ibc-eureka/e2e/v8/ibctesting"
 	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/operator"
 	proofapi "github.com/srdtrk/solidity-ibc-eureka/e2e/v8/proofapi"
 	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/testvalues"

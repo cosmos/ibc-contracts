@@ -1,6 +1,6 @@
 module github.com/cosmos/solidity-ibc-eureka/packages/go-abigen
 
-go 1.25.9
+go 1.26.5
 
 require github.com/ethereum/go-ethereum v1.17.2
 

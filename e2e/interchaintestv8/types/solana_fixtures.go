@@ -19,11 +19,11 @@ import (
 
 	clienttypes "github.com/cosmos/ibc-go/v11/modules/core/02-client/types"
 	ibctmtypes "github.com/cosmos/ibc-go/v11/modules/light-clients/07-tendermint"
-	ibctesting "github.com/cosmos/ibc-go/v11/testing"
 
 	"github.com/cosmos/interchaintest/v11/chain/cosmos"
 
 	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/e2esuite"
+	ibctesting "github.com/srdtrk/solidity-ibc-eureka/e2e/v8/ibctesting"
 	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/testvalues"
 )
 
