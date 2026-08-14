@@ -1,7 +1,7 @@
 # Based on https://github.com/actions-rs/example/blob/master/.github/workflows/quickstart.yml
 name: rust
-permissions:
-  contents: read
+
+permissions: {}
 
 on:
   push:
@@ -19,6 +19,8 @@ jobs:
   lints:
     name: fmt-and-clippy
     runs-on: depot-ubuntu-24.04-4
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Set up environment
@@ -45,13 +47,15 @@ jobs:
   tests:
     name: unit-tests
     runs-on: depot-ubuntu-24.04-4
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Set up environment
         uses: ./.github/actions/foundry-setup
 
       - name: Install just
-        uses: extractions/setup-just@f8a3cce218d9f83db3a2ecd90e41ac3de6cdfd9b # v3.1.0
+        uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
       - name: Run unit tests
         run: just test-cargo
         env:
@@ -60,6 +64,8 @@ jobs:
   build-proof-api:
     name: build-proof-api
     runs-on: depot-ubuntu-24.04-4
+    permissions:
+      contents: read
     continue-on-error: true
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -74,6 +80,8 @@ jobs:
   build-operator:
     name: build-operator
     runs-on: depot-ubuntu-24.04-4
+    permissions:
+      contents: read
     continue-on-error: true
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
