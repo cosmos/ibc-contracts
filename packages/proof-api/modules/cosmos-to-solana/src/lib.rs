@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! This is a one-sided proof API module from a Cosmos SDK chain to Solana.
 
 #![deny(clippy::nursery, clippy::pedantic, warnings, unused_crate_dependencies)]

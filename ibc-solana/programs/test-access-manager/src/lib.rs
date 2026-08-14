@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Second access-manager instance for AM-to-AM migration testing.
 //!
 //! Reuses all source files from `access-manager` via symlinks with a different

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Solana IFT (Inter-chain Fungible Token) integration tests.
 //!
 //! Each test spins up one or more `ProgramTest` chains with IFT + GMP and the

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module contains the custom `CosmWasm` query for the Ethereum light client
 
 use alloy_primitives::B256;

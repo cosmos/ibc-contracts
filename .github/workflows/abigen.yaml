@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+
 name: abigen
 
 permissions: {}
@@ -34,7 +36,7 @@ jobs:
       - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
 
       - name: Install abigen
-        run: go install github.com/ethereum/go-ethereum/cmd/abigen@latest
+        run: go install github.com/ethereum/go-ethereum/cmd/abigen@be4dc0c4be2fe316dbdd0a73e48421f64978232f # v1.17.2
 
       - name: Run abigen
         run: just solidity::generate-abi

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! RPC client for interacting with a Tendermint node.
 
 use core::str::FromStr;

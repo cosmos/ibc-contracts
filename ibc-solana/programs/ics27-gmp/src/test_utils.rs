@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::constants::ICS27_ENCODING_PROTOBUF;
 use crate::constants::{GMP_PORT_ID, ICS27_VERSION};
 use crate::proto::RawGmpPacketData;

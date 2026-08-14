@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::state::ConsensusStateStore;
 use crate::types::ClientState;
 use anchor_lang::prelude::*;

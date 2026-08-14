@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Generic utilities for attestor-based relays (chain-agnostic).
 
 use crate::aggregator::rpc::{AggregatedAttestation, CommitmentType};

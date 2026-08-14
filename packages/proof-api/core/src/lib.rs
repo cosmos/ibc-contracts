@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Contains the core traits and types used to build the proof API binary and modules.
 
 #![deny(

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! IBC App Interface
 //!
 //! This module provides CPI helpers for invoking IBC app callbacks.

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+
 # Recipes for the Solidity IBC implementation. Invoked from the repository
 # root justfile as the `solidity` module; recipes run with `ibc-solidity/`
 # as the working directory.

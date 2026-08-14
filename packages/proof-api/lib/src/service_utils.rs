@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Common service patterns and utilities for proof API modules
 //! This module provides shared functionality for `ProofApiService` implementations
 

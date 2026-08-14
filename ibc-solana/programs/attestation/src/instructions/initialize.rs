@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::error::ErrorCode;
 use crate::types::{AccountVersion, AppState, ClientState};
 use crate::ETH_ADDRESS_LEN;

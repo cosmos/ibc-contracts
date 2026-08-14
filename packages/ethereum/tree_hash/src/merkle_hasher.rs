@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::{get_zero_hash, sha256::HASH_LEN, Hash256, HASHSIZE};
 use sha2::{Digest, Sha256};
 use smallvec::{smallvec, SmallVec};

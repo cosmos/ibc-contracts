@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Defines the top level configuration for the proof API.
 
 use std::str::FromStr;

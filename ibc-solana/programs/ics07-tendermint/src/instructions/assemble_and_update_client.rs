@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::error::ErrorCode;
 use crate::helpers::deserialize_header;
 use crate::state::{ConsensusStateStore, HeaderChunk, CHUNK_DATA_SIZE};

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Metrics module for the proof API.
 
 #![allow(missing_docs)]

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! ICS27 General Message Passing (GMP) instruction builders.
 //!
 //! Wraps router primitives with GMP-specific port, version and protobuf

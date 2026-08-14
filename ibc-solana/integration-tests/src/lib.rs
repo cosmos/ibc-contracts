@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Shared test harness for Solana IBC integration tests.
 //!
 //! Re-exports actor types and provides common helpers for error extraction

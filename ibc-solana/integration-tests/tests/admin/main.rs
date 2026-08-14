@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! `AccessManager` transfer integration tests for ICS26 Router and ICS27 GMP.
 //!
 //! Each test loads a `TestAccessManager` alongside the default `access_manager`

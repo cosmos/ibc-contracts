@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 package ethereum
 
 // The Ethereum types to export to JSON Schema and used to generate types in other languages

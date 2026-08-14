@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module defines [`StorageProof`].
 
 use alloy_primitives::{Bytes, B256, U256};

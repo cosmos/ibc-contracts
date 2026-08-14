@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use solana_ibc_macros::ibc_app;
 
 // Multiple validation errors: wrong return type + wrong msg type + wrong param count

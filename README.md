@@ -1,4 +1,4 @@
-# IBC in Solidity  [![Full Actions][e2e-full-badge]][gha] [![Minimal Actions][e2e-minimal-badge]][gha] [![Foundry][foundry-badge]][foundry] [![License: MIT][license-badge]][license] [![Code Coverage][codecov-badge]][codecov]
+# IBC in Solidity  [![Full Actions][e2e-full-badge]][gha] [![Minimal Actions][e2e-minimal-badge]][gha] [![Foundry][foundry-badge]][foundry] [![License: Apache 2.0][license-badge]][license] [![Code Coverage][codecov-badge]][codecov]
 
 ![IBC in Solidity](.github/assets/cosmos-solidity-ibc-eureka-github.svg)
 
@@ -7,8 +7,8 @@
 [e2e-full-badge]: https://github.com/srdtrk/solidity-ibc-eureka/actions/workflows/e2e-full.yml/badge.svg
 [foundry]: https://getfoundry.sh/
 [foundry-badge]: https://img.shields.io/badge/Built%20with-Foundry-FFDB1C.svg
-[license]: https://opensource.org/licenses/MIT
-[license-badge]: https://img.shields.io/badge/License-MIT-blue.svg
+[license]: https://www.apache.org/licenses/LICENSE-2.0
+[license-badge]: https://img.shields.io/badge/License-Apache_2.0-blue.svg
 [codecov]: https://codecov.io/github/cosmos/solidity-ibc-eureka
 [codecov-badge]: https://codecov.io/github/cosmos/solidity-ibc-eureka/graph/badge.svg?token=lhplGORQxX
 
@@ -386,7 +386,7 @@ The release lines currently supported are: `solidity-v2.0.x`, `cw-ics08-wasm-eth
 
 ## License
 
-This project is licensed under MIT.
+This project is licensed under the Apache License, Version 2.0. See [LICENSE.md](./LICENSE.md) for the full text.
 
 ## Acknowledgements
 

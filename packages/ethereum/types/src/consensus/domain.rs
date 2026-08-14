@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module defines types and functions related to the signature domain.
 
 use alloy_primitives::{hex, FixedBytes, B256};

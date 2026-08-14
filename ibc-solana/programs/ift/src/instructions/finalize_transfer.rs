@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Finalize transfer instruction for IFT.
 //!
 //! This instruction is **permissionless** — anyone can call it, no sender signature

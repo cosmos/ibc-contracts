@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Utilities for attested relays targeting Solana chains.
 
 use crate::aggregator::rpc::{AggregatedAttestation, CommitmentType};

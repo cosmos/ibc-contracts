@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use super::*;
 use integration_tests::chain::attestation_lc_accounts as att_lc_accounts;
 use integration_tests::programs::{ATTESTATION_PROGRAM_ID, TEST_ATTESTATION_ID};

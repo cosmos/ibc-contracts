@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Reusable aggregator for attester proof API modules
 
 #[allow(clippy::all, clippy::pedantic, clippy::nursery)]

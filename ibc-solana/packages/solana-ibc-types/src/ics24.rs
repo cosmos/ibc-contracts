@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! ICS24 commitment path and hash utilities
 
 use crate::router::Packet;

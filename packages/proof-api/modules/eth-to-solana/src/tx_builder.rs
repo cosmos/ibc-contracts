@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Transaction building for Eth-to-Solana relay.
 //!
 //! Supports attestation-based light client mode.

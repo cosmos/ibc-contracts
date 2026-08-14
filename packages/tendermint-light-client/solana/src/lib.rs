@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Solana-optimized Tendermint light client verifier using precompiled Ed25519Program and brine-ed25519
 
 use ibc_core_commitment_types::proto::ics23::HostFunctionsManager;

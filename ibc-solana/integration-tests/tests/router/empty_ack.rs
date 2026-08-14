@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use super::*;
 
 /// Empty ack rejection: `mock_ibc_app` returns `vec![]` when payload starts

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! State management for the Ethereum light client
 
 use cosmwasm_std::Storage;

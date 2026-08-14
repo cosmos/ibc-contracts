@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Convert Solana misbehaviour from protobuf to Borsh format.
 
 use std::io::{self, Read};

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! End-user actor.
 //!
 //! Sends packets via `test_ibc_app`, initiates GMP calls through

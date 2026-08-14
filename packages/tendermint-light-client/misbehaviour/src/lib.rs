@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! The crate that contains the types and utilities for `tendermint-light-client-misbehaviour`
 //! program.
 #![deny(missing_docs, clippy::nursery, clippy::pedantic, warnings)]

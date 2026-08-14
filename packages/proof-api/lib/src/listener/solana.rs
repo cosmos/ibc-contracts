@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Solana chain listener implementation for IBC Eureka.
 
 use anyhow::{Context, Result};

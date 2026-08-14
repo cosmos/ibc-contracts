@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Events emitted by the ICS27 GMP program.
 
 use anchor_lang::prelude::*;

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use alloy_sol_types::SolCall;
 use anchor_lang::prelude::*;
 use anchor_lang::InstructionData;

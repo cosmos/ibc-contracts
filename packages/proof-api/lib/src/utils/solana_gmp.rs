@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! GMP (General Message Passing) account extraction utilities.
 //!
 //! Handles both protobuf-encoded (Cosmos-originated) and ABI-encoded

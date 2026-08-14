@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! IDL-generated instruction builders and event types for Solana IBC programs.
 //!
 //! This crate is auto-generated from Anchor IDL files by `build.rs`.

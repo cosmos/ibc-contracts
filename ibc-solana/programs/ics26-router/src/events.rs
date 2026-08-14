@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! IBC event types for ICS26 Router
 
 use crate::state::{ClientAccount, Packet};

@@ -1,5 +1,5 @@
 error: Callback 'on_acknowledgement_packet' must return 'Result<()>', found '-> Result < Vec < u8 > >'
- --> tests/ui/ack_returns_vec_u8.rs:9:81
-  |
-9 |     pub fn on_acknowledgement_packet(ctx: Ctx, msg: OnAcknowledgementPacketMsg) -> Result<Vec<u8>> {
-  |                                                                                 ^^^^^^^^^^^^^^^^^^
+  --> tests/ui/ack_returns_vec_u8.rs:11:81
+   |
+11 |     pub fn on_acknowledgement_packet(ctx: Ctx, msg: OnAcknowledgementPacketMsg) -> Result<Vec<u8>> {
+   |                                                                                 ^^^^^^^^^^^^^^^^^^

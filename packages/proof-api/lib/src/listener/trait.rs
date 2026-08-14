@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Defines the [`ChainListenerService`] trait.
 
 use anyhow::Result;

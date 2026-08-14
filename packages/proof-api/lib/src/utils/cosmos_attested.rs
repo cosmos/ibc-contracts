@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Utilities for attested relays targeting Cosmos SDK chains.
 
 use std::time::Duration;

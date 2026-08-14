@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module defines errors for `BeaconApiClient`.
 
 use reqwest::StatusCode;

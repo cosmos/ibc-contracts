@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 // Package ics07_tendermint_patches contains manually patched instruction builders to work around
 // bugs in anchor-go for the ics07_tendermint program.
 //

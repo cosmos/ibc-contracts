@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use anchor_lang::{
     error_code,
     prelude::{AccountInfo, Pubkey},

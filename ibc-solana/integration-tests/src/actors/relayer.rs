@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Relayer actor.
 //!
 //! Uploads payload/proof chunks and submits `recv_packet`, `ack_packet`

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Solidity types for ICS26Router.sol
 
 use alloy_primitives::hex;

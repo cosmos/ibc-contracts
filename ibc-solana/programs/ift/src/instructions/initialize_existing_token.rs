@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::spl_token_2022::instruction::AuthorityType;
 use anchor_spl::token_interface::{set_authority, Mint, SetAuthority, TokenInterface};

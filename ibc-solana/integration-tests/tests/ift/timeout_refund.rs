@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use super::*;
 
 /// IFT timeout refund: `ift_transfer` -> timeout -> `finalize_transfer`.

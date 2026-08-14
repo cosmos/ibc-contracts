@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Proof API utilities for `CosmosSDK` chains.
 
 use std::collections::HashMap;

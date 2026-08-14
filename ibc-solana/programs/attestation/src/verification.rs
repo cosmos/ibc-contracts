@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use anchor_lang::prelude::*;
 
 use crate::crypto::{recover_eth_address, tagged_signing_input, AttestationType};

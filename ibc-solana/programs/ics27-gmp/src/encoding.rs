@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::constants::{ICS27_ENCODING_ABI, ICS27_ENCODING_PROTOBUF};
 use crate::errors::GMPError;
 use anchor_lang::prelude::*;

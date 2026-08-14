@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module defines the response types for the Beacon API.
 
 use serde::{Deserialize, Serialize};

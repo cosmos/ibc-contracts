@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Low-level account construction utilities.
 //!
 //! Provides Anchor discriminator computation and rent-exempt account
