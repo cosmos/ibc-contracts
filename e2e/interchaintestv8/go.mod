@@ -15,8 +15,8 @@ require (
 	github.com/cosmos/cosmos-proto v1.0.0-beta.5
 	github.com/cosmos/cosmos-sdk v0.54.2
 	github.com/cosmos/gogoproto v1.7.2
-	github.com/cosmos/ibc-go/modules/light-clients/08-wasm/v11 v11.0.0
-	github.com/cosmos/ibc-go/v11 v11.0.0
+	github.com/cosmos/ibc-go/modules/light-clients/08-wasm/v11 v11.1.0
+	github.com/cosmos/ibc-go/v11 v11.1.0
 	github.com/cosmos/ics23/go v0.11.0
 	github.com/cosmos/interchaintest/v11 v11.0.0-20260325172338-08abe11c26f0
 	github.com/cosmos/solidity-ibc-eureka/e2e/interchaintestv8/solana/go-anchor v0.0.0-00010101000000-000000000000
@@ -33,7 +33,7 @@ require (
 	github.com/rs/zerolog v1.35.0
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/zap v1.27.1
-	golang.org/x/sync v0.20.0
+	golang.org/x/sync v0.22.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20260414002931-afd174a4e478
 	google.golang.org/grpc v1.82.1
 	google.golang.org/protobuf v1.36.11
@@ -55,7 +55,7 @@ require (
 	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect
 	github.com/99designs/keyring v1.2.2 // indirect
-	github.com/CosmWasm/wasmvm/v2 v2.3.2 // indirect
+	github.com/CosmWasm/wasmvm/v3 v3.0.5 // indirect
 	github.com/DataDog/datadog-go v4.8.3+incompatible // indirect
 	github.com/DataDog/zstd v1.5.7 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.32.0 // indirect
