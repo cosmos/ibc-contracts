@@ -163,7 +163,7 @@
       has been advised of the possibility of such damages.
 
    9. Accepting Warranty or Additional Liability. While redistributing
-      the Work or Derivahttps://github.com/cosmos/solidity-ibc-eureka/community/license/new?branch=maintive Works thereof, You may choose to offer,
+      the Work or Derivative Works thereof, You may choose to offer,
       and charge a fee for, acceptance of support, warranty, indemnity,
       or other liability obligations and/or rights consistent with this
       License. However, in accepting such obligations, You may act only

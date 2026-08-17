@@ -1,24 +1,68 @@
-# IBC in Solidity  [![Full Actions][e2e-full-badge]][gha] [![Minimal Actions][e2e-minimal-badge]][gha] [![Foundry][foundry-badge]][foundry] [![License: Apache 2.0][license-badge]][license] [![Code Coverage][codecov-badge]][codecov]
+# IBC in Solidity
 
-![IBC in Solidity](.github/assets/cosmos-solidity-ibc-eureka-github.svg)
+![IBC in Solidity](.github/assets/cosmos-ibc-contracts-github.svg)
 
-[gha]: https://github.com/srdtrk/solidity-ibc-eureka/actions
-[e2e-minimal-badge]: https://github.com/srdtrk/solidity-ibc-eureka/actions/workflows/e2e-minimal.yml/badge.svg
-[e2e-full-badge]: https://github.com/srdtrk/solidity-ibc-eureka/actions/workflows/e2e-full.yml/badge.svg
-[foundry]: https://getfoundry.sh/
-[foundry-badge]: https://img.shields.io/badge/Built%20with-Foundry-FFDB1C.svg
-[license]: https://www.apache.org/licenses/LICENSE-2.0
-[license-badge]: https://img.shields.io/badge/License-Apache_2.0-blue.svg
-[codecov]: https://codecov.io/github/cosmos/solidity-ibc-eureka
-[codecov-badge]: https://codecov.io/github/cosmos/solidity-ibc-eureka/graph/badge.svg?token=lhplGORQxX
+<div align="center">
+  <a href="https://github.com/cosmos/ibc-contracts/releases/latest">
+    <img alt="Version" src="https://img.shields.io/github/v/release/cosmos/ibc-contracts.svg" />
+  </a>
+  <a href="https://www.apache.org/licenses/LICENSE-2.0">
+    <img alt="License: Apache-2.0" src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" />
+  </a>
+  <a href="https://codecov.io/github/cosmos/ibc-contracts">
+    <img alt="Code Coverage" src="https://codecov.io/github/cosmos/ibc-contracts/graph/badge.svg?token=lhplGORQxX" />
+  </a>
+  <a href="https://github.com/cosmos/ibc-contracts/actions/workflows/e2e-full.yml">
+    <img alt="Full Actions" src="https://github.com/cosmos/ibc-contracts/actions/workflows/e2e-full.yml/badge.svg" />
+  </a>
+  <a href="https://github.com/cosmos/ibc-contracts/actions/workflows/e2e-minimal.yml">
+    <img alt="Minimal Actions" src="https://github.com/cosmos/ibc-contracts/actions/workflows/e2e-minimal.yml/badge.svg" />
+  </a>
+  <a href="https://getfoundry.sh/">
+    <img alt="Foundry" src="https://img.shields.io/badge/Built%20with-Foundry-FFDB1C.svg" />
+  </a>
+  <!--
+  Cosmos requires three badges directly below the title: License, OpenSSF Best
+  Practices, and OpenSSF Scorecard. Only License is present above. The other two
+  are commented out because both would currently render as an error, which is
+  worse than a missing badge. Each needs a prerequisite done first, not just an
+  uncomment.
+
+  OpenSSF Scorecard: api.scorecard.dev returns "invalid repo path" for this
+  repository, because there is no Scorecard workflow publishing results. Add
+  .github/workflows/scorecard.yml (ibc-go has one and scores 6.8), wait for the
+  first scheduled run, then uncomment this.
+
+  <a href="https://scorecard.dev/viewer/?uri=github.com/cosmos/ibc-contracts">
+    <img alt="OpenSSF Scorecard" src="https://api.scorecard.dev/projects/github.com/cosmos/ibc-contracts/badge" />
+  </a>
+
+  OpenSSF Best Practices: the project is not registered at
+  https://www.bestpractices.dev/ — a search returns nothing for either name.
+  Register it, then uncomment this and substitute the real id. Do not guess an
+  id: a badge pointing at a nonexistent project renders as an error.
+
+  <a href="https://bestpractices.coreinfrastructure.org/projects/PROJECT_ID">
+    <img alt="OpenSSF Best Practices" src="https://bestpractices.coreinfrastructure.org/projects/PROJECT_ID/badge" />
+  </a>
+
+  Not carried over from ibc-go: the GoDoc and Go report card badges, which cover
+  a published Go library. The only Go here is the end-to-end test module.
+
+  Also note the License badge above is a static shields badge, not ibc-go's
+  dynamic img.shields.io/github/license/... one. The dynamic badge renders
+  "license: not identifiable by github" for this repository, because GitHub's
+  license detection does not pick up LICENSE.md.
+  -->
+</div>
 
 This is an implementation of IBC v2 in Solidity and Solana. IBC v2 is a simplified version of the IBC protocol that is encoding agnostic. This enables a trust-minimized IBC connection between Ethereum and a Cosmos SDK chain.
 
 ## Overview
 
-`solidity-ibc-eureka` is an implementation of IBC in Solidity.
+`ibc-contracts` is an implementation of IBC in Solidity.
 
-- [IBC in Solidity](#ibc-in-solidity------)
+- [IBC in Solidity](#ibc-in-solidity)
   - [Overview](#overview)
     - [Project Structure](#project-structure)
     - [Solidity Contracts](#solidity-contracts)
@@ -42,6 +86,9 @@ This is an implementation of IBC v2 in Solidity and Solana. IBC v2 is a simplifi
       - [Key Distinction Between Admins](#key-distinction-between-admins)
     - [Roles and Permissions](#roles-and-permissions)
   - [Releases](#releases)
+  - [Contributing](#contributing)
+  - [Community and governance](#community-and-governance)
+  - [Adopters](#adopters)
   - [License](#license)
   - [Acknowledgements](#acknowledgements)
 
@@ -334,7 +381,7 @@ Additionally, the Security Council is responsible for:
 - **Upgrading IBC contracts** in the event of a security vulnerability.
 - **Introducing new features** while balancing security and decentralization.
 
-Ideally, the Security Council should mirror the validators of the counterparty Cosmos SDK chain for better decentralization. In the future, a mechanism called **`govAdmin`** will allow the Cosmos SDK chain’s governance to directly control Ethereum contract upgrades via IBC (tracked in [#278](https://github.com/cosmos/solidity-ibc-eureka/issues/278)).
+Ideally, the Security Council should mirror the validators of the counterparty Cosmos SDK chain for better decentralization. In the future, a mechanism called **`govAdmin`** will allow the Cosmos SDK chain’s governance to directly control Ethereum contract upgrades via IBC (tracked in [#278](https://github.com/cosmos/ibc-contracts/issues/278)).
 
 ### Security Council and Governance Admin
 
@@ -382,7 +429,34 @@ The IBC solidity contracts use [`AccessManager`](https://github.com/OpenZeppelin
 
 ## Releases
 
-The release lines currently supported are: `solidity-v2.0.x`, `cw-ics08-wasm-eth-v1.3.x`, and `proof-api-v0.7.x`. Please refer to our [versioning guide](./RELEASES.md) for more information on how to understand our release versioning.
+The release lines currently supported are: `solidity-v2.0.x`, `cw-ics08-wasm-eth-v1.3.x`, and `proof-api-v0.7.x`. Please refer to our [versioning guide](./RELEASES.md) for more information on how to understand our release versioning, and to [Supported versions](./RELEASES.md#supported-versions) for which lines receive fixes.
+
+## Contributing
+
+If you're interested in contributing to `ibc-contracts`, please take a look at the [contributing guidelines](./CONTRIBUTING.md). We welcome and appreciate community contributions! Everyone follows the same path: fork, branch, open a pull request against `main`, and sign off your commits for the [DCO](./DCO.md).
+
+To help contributors understand which issues are good to pick up, we have the following two categories:
+
+- Issues with the label [`good first issue`](https://github.com/cosmos/ibc-contracts/labels/good%20first%20issue) should be pretty well defined and are best suited for developers new to the project.
+- Issues with the label [`help wanted`](https://github.com/cosmos/ibc-contracts/labels/help%20wanted) are a bit more involved and they usually require some familiarity already with the codebase.
+
+If you are interested in working on an issue, please comment on it. We will be happy to answer any questions you may have and help you out while you work on the issue.
+
+## Community and governance
+
+- [Technical Charter](./CHARTER.md) — the authoritative governance document
+- [GOVERNANCE.md](./GOVERNANCE.md) — contributor-facing summary of the charter
+- [TSC_MEMBERS.md](./TSC_MEMBERS.md) — Technical Steering Committee roster
+- [MAINTAINERS.md](./MAINTAINERS.md) — merge rights, and how to earn them
+- [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) — applies in every project space
+- [SECURITY.md](./SECURITY.md) — how to report a vulnerability
+- [SUPPORT.md](./SUPPORT.md) — where to get help
+
+## Adopters
+
+Using `ibc-contracts`? Please add yourself to [ADOPTERS.md](./ADOPTERS.md) — a pull request adding one line is all it takes. Recorded, publicly verifiable adoption is what the community and prospective users rely on to judge whether the project is real, and it is assessed directly at project review.
+
+An overview of the wider ecosystem is in the [IBC technical resource catalogue](https://ibcprotocol.dev/technical-resource-catalog).
 
 ## License
 

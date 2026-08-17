@@ -44,7 +44,7 @@ name = "cw-ics08-wasm-eth"
 version = "1.3.0"
 edition = "2021"
 license = "Apache-2.0"
-repository = "https://github.com/cosmos/solidity-ibc-eureka"
+repository = "https://github.com/cosmos/ibc-contracts"
 # CosmWasm requires an older Rust toolchain (see ./Dockerfile). Declaring the MSRV together
 # with the `incompatible-rust-versions = "fallback"` resolver setting in ./.cargo/config.toml
 # makes `cargo` prefer dependency versions that still build on this toolchain.
