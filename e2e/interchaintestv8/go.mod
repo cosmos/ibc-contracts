@@ -23,7 +23,7 @@ require (
 	github.com/cosmos/solidity-ibc-eureka/packages/go-abigen v0.0.0
 	github.com/cosmos/solidity-ibc-eureka/packages/go-anchor v0.0.0
 	github.com/docker/docker v28.5.2+incompatible
-	github.com/docker/go-connections v0.6.0
+	github.com/docker/go-connections v0.8.1
 	github.com/ethereum/go-ethereum v1.17.2
 	github.com/gagliardetto/binary v0.8.0
 	github.com/gagliardetto/solana-go v1.13.0
