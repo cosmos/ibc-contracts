@@ -1,6 +1,6 @@
 module github.com/cosmos/solidity-ibc-eureka/tools/solana-ibc
 
-go 1.25.9
+go 1.26.5
 
 replace github.com/cosmos/solidity-ibc-eureka/packages/go-anchor => ../../packages/go-anchor
 
