@@ -78,13 +78,9 @@ runs:
         mkdir -p ibc-solana/target/deploy/
         cp -r e2e-artifacts/solana-programs/* ibc-solana/target/deploy/
 
-    - name: Setup Kurtosis APT repository
-      if: contains(fromJSON('["pos", "optimism", "arbitrum", "cosmos"]'), env.ETH_TESTNET_TYPE)
-      shell: bash
-      run: |
-        echo "deb [trusted=yes] https://apt.fury.io/kurtosis-tech/ /" | sudo tee /etc/apt/sources.list.d/kurtosis.list
-
-    # Must match the kurtosis library version we use in the e2e tests
+    # Must match the kurtosis library version we use in the e2e tests.
+    # The apt.fury.io repo stopped receiving releases after 1.15.2, so install
+    # the versioned .deb from the kurtosis-cli-release-artifacts releases.
     - name: Install Kurtosis
       if: contains(fromJSON('["pos", "optimism", "arbitrum", "cosmos"]'), env.ETH_TESTNET_TYPE)
       uses: nick-invision/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
@@ -93,8 +89,8 @@ runs:
         max_attempts: 3
         retry_wait_seconds: 5
         command: |
-          sudo apt update
-          sudo apt install -y kurtosis-cli=1.15.2
+          curl -fsSL -o /tmp/kurtosis-cli.deb https://github.com/kurtosis-tech/kurtosis-cli-release-artifacts/releases/download/1.20.0/kurtosis-cli_1.20.0_linux_amd64.deb
+          sudo apt install -y /tmp/kurtosis-cli.deb
 
     - name: Start Kurtosis
       if: contains(fromJSON('["pos", "optimism", "arbitrum", "cosmos"]'), env.ETH_TESTNET_TYPE)
