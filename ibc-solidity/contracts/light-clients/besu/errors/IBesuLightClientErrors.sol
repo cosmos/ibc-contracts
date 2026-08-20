@@ -13,10 +13,11 @@ interface IBesuLightClientErrors {
     /// @notice The submitted `extraData` field has an invalid RLP item count.
     /// @param itemsLength The decoded `extraData` item count.
     error InvalidExtraDataFormat(uint256 itemsLength);
-    /// @notice The submitted header height is zero.
+    /// @notice The submitted header height is zero, too large, or not after the selected trusted height.
     error InvalidHeaderHeight();
-    /// @notice The submitted header timestamp is zero.
-    error InvalidHeaderTimestamp();
+    /// @notice The trusted or submitted header timestamp is zero or does not fit the consensus-state representation.
+    /// @param actualTimestamp The decoded timestamp.
+    error InvalidHeaderTimestamp(uint256 actualTimestamp);
     /// @notice The submitted header timestamp is too far in the future.
     /// @param currentTimestamp The current block timestamp.
     /// @param headerTimestamp The submitted header timestamp.
@@ -42,6 +43,12 @@ interface IBesuLightClientErrors {
     /// @notice The ommers hash is invalid.
     /// @param actualOmmersHash The ommers hash found in the header.
     error InvalidOmmersHash(bytes32 actualOmmersHash);
+    /// @notice The tracked account does not exist in the submitted state trie.
+    /// @param account The missing tracked account.
+    error AccountNotFound(address account);
+    /// @notice The BFT vanity data must be exactly 32 bytes.
+    /// @param length The decoded vanity-data length.
+    error InvalidVanityDataLength(uint256 length);
     /// @notice The validator set is empty.
     error EmptyValidatorSet();
     /// @notice A validator address has an invalid byte length.

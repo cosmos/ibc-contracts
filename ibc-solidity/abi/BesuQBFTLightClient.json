@@ -450,6 +450,17 @@
   },
   {
     "type": "error",
+    "name": "AccountNotFound",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "ConflictingConsensusState",
     "inputs": [
       {
@@ -644,7 +655,13 @@
   {
     "type": "error",
     "name": "InvalidHeaderTimestamp",
-    "inputs": []
+    "inputs": [
+      {
+        "name": "actualTimestamp",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
   },
   {
     "type": "error",
@@ -741,6 +758,33 @@
         "name": "actualLength",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InvalidVanityDataLength",
+    "inputs": [
+      {
+        "name": "length",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "RLPInvalidEncoding",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "TrieProofTraversalError",
+    "inputs": [
+      {
+        "name": "err",
+        "type": "uint8",
+        "internalType": "enum MPTProof.ProofError"
       }
     ]
   },

@@ -4,6 +4,9 @@ pragma solidity ^0.8.28;
 // solhint-disable gas-struct-packing, named-parameters-mapping, gas-strict-inequalities, code-complexity
 
 import { AccessControl } from "@openzeppelin-contracts/access/AccessControl.sol";
+import { Memory } from "@openzeppelin-contracts/utils/Memory.sol";
+import { RLP } from "@openzeppelin-contracts/utils/RLP.sol";
+import { SlotDerivation } from "@openzeppelin-contracts/utils/SlotDerivation.sol";
 import { ECDSA } from "@openzeppelin-contracts/utils/cryptography/ECDSA.sol";
 
 import { ILightClient } from "../../interfaces/ILightClient.sol";
@@ -11,15 +14,16 @@ import { ILightClientMsgs } from "../../msgs/ILightClientMsgs.sol";
 import { IICS02ClientMsgs } from "../../msgs/IICS02ClientMsgs.sol";
 import { IBesuLightClientMsgs } from "./msgs/IBesuLightClientMsgs.sol";
 import { IBesuLightClientErrors } from "./errors/IBesuLightClientErrors.sol";
-import { RLPReader } from "./RLPReader.sol";
 import { MPTProof } from "./MPTProof.sol";
 
 /// @title Besu Light Client Base
 /// @notice Shared implementation for Besu BFT light clients that verify headers and EVM storage proofs.
 abstract contract BesuLightClientBase is ILightClient, IBesuLightClientErrors, IBesuLightClientMsgs, AccessControl {
     using MPTProof for bytes;
-    using RLPReader for RLPReader.RLPItem;
-    using RLPReader for bytes;
+    using Memory for Memory.Slice;
+    using RLP for Memory.Slice;
+    using RLP for bytes;
+    using SlotDerivation for bytes32;
 
     /// @notice Decoded fields from a submitted Besu header.
     /// @param headerItems Top-level RLP header fields.
@@ -30,8 +34,8 @@ abstract contract BesuLightClientBase is ILightClient, IBesuLightClientErrors, I
     /// @param validators Validator set from `extraData`.
     /// @param commitSeals Commit seals from `extraData`.
     struct ParsedHeader {
-        RLPReader.RLPItem[] headerItems;
-        RLPReader.RLPItem[] extraDataItems;
+        Memory.Slice[] headerItems;
+        Memory.Slice[] extraDataItems;
         uint64 height;
         bytes32 stateRoot;
         uint64 timestamp;
@@ -79,7 +83,7 @@ abstract contract BesuLightClientBase is ILightClient, IBesuLightClientErrors, I
             revert InvalidHeaderHeight();
         }
         if (initialTrustedTimestamp == 0) {
-            revert InvalidHeaderTimestamp();
+            revert InvalidHeaderTimestamp(initialTrustedTimestamp);
         }
 
         _validateValidators(initialTrustedValidators);
@@ -128,17 +132,14 @@ abstract contract BesuLightClientBase is ILightClient, IBesuLightClientErrors, I
         _requireZeroRevision(msg_.trustedHeight.revisionNumber);
 
         ParsedHeader memory header = _parseHeader(msg_.headerRlp);
-        if (header.height == 0) {
-            revert InvalidHeaderHeight();
-        }
-        if (header.timestamp == 0) {
-            revert InvalidHeaderTimestamp();
-        }
         if (block.timestamp + clientState.maxClockDrift < header.timestamp) {
             revert HeaderFromFuture(block.timestamp, header.timestamp, clientState.maxClockDrift);
         }
 
         ConsensusState storage trustedConsensusState = _getConsensusState(msg_.trustedHeight.revisionHeight);
+        if (header.height <= msg_.trustedHeight.revisionHeight) {
+            revert InvalidHeaderHeight();
+        }
         if (
             clientState.trustingPeriod != 0
                 && uint256(trustedConsensusState.timestamp) + clientState.trustingPeriod <= block.timestamp
@@ -190,13 +191,13 @@ abstract contract BesuLightClientBase is ILightClient, IBesuLightClientErrors, I
         ConsensusState storage consensusState = _getConsensusState(msg_.proofHeight.revisionHeight);
         bytes32 storageSlot = _commitmentStorageSlot(msg_.path[0]);
         bytes32 expectedValue = abi.decode(msg_.value, (bytes32));
-        bytes memory valueRlp =
+        (bool exists, bytes memory valueRlp) =
             msg_.proof.verifyRLPProof(consensusState.storageRoot, keccak256(abi.encodePacked(storageSlot)));
-        if (valueRlp.length == 0) {
+        if (!exists) {
             revert InvalidCommitmentValue(expectedValue, bytes32(0));
         }
 
-        bytes32 actualValue = bytes32(valueRlp.toRlpItem().toUint());
+        bytes32 actualValue = bytes32(valueRlp.decodeUint256());
         if (actualValue != expectedValue) {
             revert InvalidCommitmentValue(expectedValue, actualValue);
         }
@@ -217,10 +218,10 @@ abstract contract BesuLightClientBase is ILightClient, IBesuLightClientErrors, I
 
         ConsensusState storage consensusState = _getConsensusState(msg_.proofHeight.revisionHeight);
         bytes32 storageSlot = _commitmentStorageSlot(msg_.path[0]);
-        bytes memory valueRlp =
+        (bool exists, bytes memory valueRlp) =
             msg_.proof.verifyRLPProof(consensusState.storageRoot, keccak256(abi.encodePacked(storageSlot)));
-        if (valueRlp.length != 0) {
-            revert ValueExists(bytes32(valueRlp.toRlpItem().toUint()));
+        if (exists) {
+            revert ValueExists(bytes32(valueRlp.decodeUint256()));
         }
         return consensusState.timestamp;
     }
@@ -239,44 +240,50 @@ abstract contract BesuLightClientBase is ILightClient, IBesuLightClientErrors, I
     /// @param headerRlp RLP-encoded Besu block header.
     /// @return header The parsed header fields used by update and proof verification.
     function _parseHeader(bytes memory headerRlp) internal pure returns (ParsedHeader memory header) {
-        header.headerItems = headerRlp.toRlpItem().toList();
+        header.headerItems = headerRlp.decodeList();
         if (header.headerItems.length < 15) {
             revert InvalidHeaderFormat(header.headerItems.length);
         }
 
-        if (bytes32(header.headerItems[1].toUintStrict()) != EMPTY_OMMERS_HASH) {
-            revert InvalidOmmersHash(bytes32(header.headerItems[1].toUintStrict()));
+        if (_readBytes32Strict(header.headerItems[1]) != EMPTY_OMMERS_HASH) {
+            revert InvalidOmmersHash(_readBytes32Strict(header.headerItems[1]));
         }
-        if (header.headerItems[7].toUint() != 1) {
-            revert InvalidDifficulty(header.headerItems[7].toUint());
+        if (header.headerItems[7].readUint256() != 1) {
+            revert InvalidDifficulty(header.headerItems[7].readUint256());
         }
-        if (bytes32(header.headerItems[13].toUintStrict()) != BESU_BFT_MIX_HASH) {
-            revert InvalidMixHash(bytes32(header.headerItems[13].toUintStrict()));
+        if (_readBytes32Strict(header.headerItems[13]) != BESU_BFT_MIX_HASH) {
+            revert InvalidMixHash(_readBytes32Strict(header.headerItems[13]));
         }
 
-        bytes memory nonce = header.headerItems[14].toBytes();
+        bytes memory nonce = header.headerItems[14].readBytes();
         if (nonce.length != 8 || keccak256(nonce) != keccak256(hex"0000000000000000")) {
             revert InvalidNonce(nonce);
         }
 
-        header.height = uint64(header.headerItems[8].toUint());
-        header.stateRoot = bytes32(header.headerItems[3].toUintStrict());
-        header.timestamp = uint64(header.headerItems[11].toUint());
+        uint256 height = header.headerItems[8].readUint256();
+        if (height == 0 || height > type(uint64).max) revert InvalidHeaderHeight();
+        header.height = uint64(height);
+        header.stateRoot = _readBytes32Strict(header.headerItems[3]);
+        uint256 timestamp = header.headerItems[11].readUint256();
+        if (timestamp == 0 || timestamp > type(uint64).max) revert InvalidHeaderTimestamp(timestamp);
+        header.timestamp = uint64(timestamp);
 
-        bytes memory extraData = header.headerItems[12].toBytes();
-        header.extraDataItems = extraData.toRlpItem().toList();
+        bytes memory extraData = header.headerItems[12].readBytes();
+        header.extraDataItems = extraData.decodeList();
         if (header.extraDataItems.length != 5) {
             revert InvalidExtraDataFormat(header.extraDataItems.length);
         }
+        uint256 vanityDataLength = header.extraDataItems[0].readBytes().length;
+        if (vanityDataLength != 32) revert InvalidVanityDataLength(vanityDataLength);
 
-        RLPReader.RLPItem[] memory validatorItems = header.extraDataItems[1].toList();
+        Memory.Slice[] memory validatorItems = header.extraDataItems[1].readList();
         if (validatorItems.length == 0) {
             revert EmptyValidatorSet();
         }
 
         header.validators = new address[](validatorItems.length);
         for (uint256 i = 0; i < validatorItems.length; ++i) {
-            bytes memory validatorBytes = validatorItems[i].toBytes();
+            bytes memory validatorBytes = validatorItems[i].readBytes();
             if (validatorBytes.length != 20) {
                 revert InvalidValidatorAddressLength(validatorBytes.length);
             }
@@ -293,10 +300,10 @@ abstract contract BesuLightClientBase is ILightClient, IBesuLightClientErrors, I
             header.validators[i] = validator;
         }
 
-        RLPReader.RLPItem[] memory sealItems = header.extraDataItems[4].toList();
+        Memory.Slice[] memory sealItems = header.extraDataItems[4].readList();
         header.commitSeals = new bytes[](sealItems.length);
         for (uint256 i = 0; i < sealItems.length; ++i) {
-            header.commitSeals[i] = sealItems[i].toBytes();
+            header.commitSeals[i] = sealItems[i].readBytes();
         }
     }
 
@@ -314,16 +321,19 @@ abstract contract BesuLightClientBase is ILightClient, IBesuLightClientErrors, I
         pure
         returns (bytes32)
     {
-        bytes memory accountRlp = accountProof.verifyRLPProof(stateRoot, keccak256(abi.encodePacked(account)));
-        RLPReader.RLPItem[] memory accountItems = accountRlp.toRlpItem().toList();
-        return bytes32(accountItems[2].toUintStrict());
+        (bool exists, bytes memory accountRlp) =
+            accountProof.verifyRLPProof(stateRoot, keccak256(abi.encodePacked(account)));
+        if (!exists) revert AccountNotFound(account);
+
+        Memory.Slice[] memory accountItems = accountRlp.decodeList();
+        return _readBytes32Strict(accountItems[2]);
     }
 
     /// @notice Computes the storage slot used for an IBC commitment path.
     /// @param rawPath Raw commitment path bytes.
     /// @return The storage slot for the commitment.
     function _commitmentStorageSlot(bytes memory rawPath) internal pure returns (bytes32) {
-        return keccak256(abi.encode(keccak256(rawPath), IBCSTORE_STORAGE_SLOT));
+        return IBCSTORE_STORAGE_SLOT.deriveMapping(keccak256(rawPath));
     }
 
     /// @notice Recovers unique commit seal signers for a digest.
@@ -497,8 +507,30 @@ abstract contract BesuLightClientBase is ILightClient, IBesuLightClientErrors, I
     /// @notice Returns the full RLP bytes for an item.
     /// @param item The RLP item.
     /// @return The RLP-encoded bytes.
-    function _rlpItemBytes(RLPReader.RLPItem memory item) internal pure returns (bytes memory) {
-        return item.toRlpBytes();
+    function _rlpItemBytes(Memory.Slice item) internal pure returns (bytes memory) {
+        return item.toBytes();
+    }
+
+    /// @notice Encodes raw bytes as an RLP string.
+    /// @param raw Raw bytes to encode.
+    /// @return The RLP-encoded string.
+    function _encodeRlpBytes(bytes memory raw) internal pure returns (bytes memory) {
+        return RLP.encode(raw);
+    }
+
+    /// @notice Encodes pre-encoded RLP items as an RLP list.
+    /// @param items RLP-encoded list items.
+    /// @return The RLP-encoded list.
+    function _encodeRlpList(bytes[] memory items) internal pure returns (bytes memory) {
+        return RLP.encode(items);
+    }
+
+    /// @notice Decodes a fixed-width 32-byte RLP data item.
+    /// @param item The encoded RLP item.
+    /// @return The decoded 32-byte value.
+    function _readBytes32Strict(Memory.Slice item) private pure returns (bytes32) {
+        if (item.length() != 33) revert RLP.RLPInvalidEncoding();
+        return item.readBytes32();
     }
 
     /// @notice Restricts access to proof submitters unless submission is open to anyone.

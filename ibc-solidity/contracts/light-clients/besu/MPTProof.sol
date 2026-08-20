@@ -1,282 +1,344 @@
 // SPDX-License-Identifier: Apache-2.0
-// This file is copied from solidity-mpt library.
-// https://github.com/ibc-solidity/solidity-mpt/blob/d157b5fd0aafb0b1c23bc3a3eb5f5bc04b3fd0a3/src/MPTProof.sol
+// OpenZeppelin Contracts (last updated v5.6.0) (utils/cryptography/TrieProof.sol)
+// Derived from OpenZeppelin Contracts v5.6.1 TrieProof.sol:
+// https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.6.1/contracts/utils/cryptography/TrieProof.sol
 pragma solidity ^0.8.28;
 
-/* solhint-disable no-inline-assembly, function-max-lines, code-complexity, reason-string, gas-custom-errors,
-gas-increment-by-one, gas-strict-inequalities */
+// Keep the upstream traversal structure easy to diff when upgrading OpenZeppelin.
+// solhint-disable code-complexity, function-max-lines, gas-increment-by-one, gas-strict-inequalities,
+// solhint-disable no-inline-assembly
 
-import { RLPReader } from "./RLPReader.sol";
+import { Bytes } from "@openzeppelin-contracts/utils/Bytes.sol";
+import { Memory } from "@openzeppelin-contracts/utils/Memory.sol";
+import { RLP } from "@openzeppelin-contracts/utils/RLP.sol";
 
-/// @title Merkle Patricia Trie Proof
-/// @notice Verifies Ethereum Merkle Patricia Trie inclusion and exclusion proofs.
+/**
+ * @title Ethereum Merkle-Patricia trie proof verification
+ * @notice Library for verifying Ethereum Merkle-Patricia trie inclusion and exclusion proofs.
+ *
+ * This is a narrow fork of OpenZeppelin's `TrieProof` library. OpenZeppelin v5.6.1 only accepts
+ * inclusion proofs, while IBC non-membership verification also requires authenticated exclusion.
+ * The traversal therefore returns an explicit `exists` flag and accepts these exclusion terminals:
+ *
+ * * an empty trie,
+ * * an empty branch child or branch value, and
+ * * a compact leaf or extension path that diverges from the requested key.
+ *
+ * Exclusion is accepted only at the final supplied proof element. The proof wire format remains
+ * this light client's existing RLP-encoded list of RLP nodes.
+ */
 library MPTProof {
-    using RLPReader for RLPReader.RLPItem;
-    using RLPReader for bytes;
+    using Bytes for *;
+    using RLP for *;
+    using Memory for *;
 
-    /// @notice Verifies an RLP-encoded Merkle Patricia Trie proof.
-    /// @dev If the proof proves inclusion, the value is returned; for exclusion, an empty byte array is returned.
-    /// @param rlpProof is the stack of MPT nodes (starting with the root) that
-    ///        need to be traversed during verification. It's encoded with RLP.
-    /// @param rootHash is the Keccak-256 hash of the root node of the MPT.
-    /// @param mptKey is a trie key of the node whose
-    ///        inclusion/exclusion we are proving.
-    /// @return value whose inclusion is proved or an empty byte array for
-    ///         a proof of exclusion
+    /// @notice Hex-prefix encodings for extension and leaf paths.
+    enum Prefix {
+        EXTENSION_EVEN, // 0 - Extension node with even length path
+        EXTENSION_ODD, // 1 - Extension node with odd length path
+        LEAF_EVEN, // 2 - Leaf node with even length path
+        LEAF_ODD // 3 - Leaf node with odd length path
+    }
+
+    /// @notice Errors that can occur while traversing a trie proof.
+    enum ProofError {
+        NO_ERROR, // No error occurred during proof traversal
+        EMPTY_KEY, // The provided key is empty
+        INVALID_ROOT, // The validation of the root node failed
+        INVALID_LARGE_NODE, // The validation of a large node failed
+        INVALID_SHORT_NODE, // The validation of a short node failed
+        EMPTY_PATH, // The path in a leaf or extension node is empty
+        INVALID_PATH_REMAINDER, // The path remainder in a leaf or extension node is invalid
+        EMPTY_EXTENSION_PATH_REMAINDER, // The path remainder in an extension node is empty
+        INVALID_EXTRA_PROOF_ELEMENT, // A leaf value should be the last proof element
+        EMPTY_VALUE, // The leaf value is empty
+        MISMATCH_LEAF_PATH_KEY_REMAINDER, // The path remainder in a leaf node doesn't match the key remainder
+        UNKNOWN_NODE_PREFIX, // The node prefix is unknown
+        UNPARSEABLE_NODE, // The node cannot be parsed from RLP encoding
+        INVALID_PROOF // General failure during proof traversal
+    }
+
+    /// @notice Indicates that trie proof traversal failed.
+    /// @param err The traversal error.
+    error TrieProofTraversalError(ProofError err);
+
+    /// @notice The radix of the Ethereum trie.
+    uint256 internal constant EVM_TREE_RADIX = 16;
+
+    /// @notice Number of items in a branch node (16 children and one value).
+    uint256 internal constant BRANCH_NODE_LENGTH = EVM_TREE_RADIX + 1;
+
+    /// @notice Number of items in leaf or extension nodes.
+    uint256 internal constant LEAF_OR_EXTENSION_NODE_LENGTH = 2;
+
+    /// @notice Root hash of the empty Ethereum Merkle-Patricia trie.
+    bytes32 internal constant EMPTY_TRIE_ROOT = 0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421;
+
+    /// @notice Verifies an RLP-encoded proof and returns whether `key` exists and its value.
+    /// @dev Reverts with {TrieProofTraversalError} if the proof is malformed or not linked to `root`.
+    /// @param rlpProof An RLP list containing the encoded trie nodes.
+    /// @param root The expected trie root.
+    /// @param key The trie key to verify.
+    /// @return exists Whether the key is present in the trie.
+    /// @return value The value associated with the key, or empty bytes when it is absent.
     function verifyRLPProof(
         bytes memory rlpProof,
-        bytes32 rootHash,
-        bytes32 mptKey
+        bytes32 root,
+        bytes32 key
     )
         internal
         pure
-        returns (bytes memory value)
+        returns (bool exists, bytes memory value)
     {
-        bytes memory key = new bytes(32);
-        assembly {
-            mstore(add(key, 0x20), mptKey)
-        }
-        return verify(rlpProof.toRlpItem().toList(), rootHash, decodeNibbles(key, 0));
+        ProofError err;
+        (value, err) = _tryTraverse(root, abi.encodePacked(key), _decodeProof(rlpProof));
+        require(err == ProofError.NO_ERROR, TrieProofTraversalError(err));
+        exists = value.length != 0;
     }
 
-    /// @notice Verifies a decoded Merkle Patricia Trie proof.
-    /// @dev If the proof proves inclusion, the value is returned; for exclusion, an empty byte array is returned.
-    /// @param proof is the stack of MPT nodes (starting with the root) that
-    ///        need to be traversed during verification.
-    /// @param rootHash is the Keccak-256 hash of the root node of the MPT.
-    /// @param mptKeyNibbles is the key (consisting of nibbles) of the node whose
-    ///        inclusion/exclusion we are proving.
-    /// @return value whose inclusion is proved or an empty byte array for
-    ///         a proof of exclusion
-    function verify(
-        RLPReader.RLPItem[] memory proof,
-        bytes32 rootHash,
-        bytes memory mptKeyNibbles
+    /// @notice Traverses a proof and reports its value and error without reverting on traversal errors.
+    /// @dev This function may still revert if malformed input leads to RLP decoding errors.
+    /// @param root The expected trie root.
+    /// @param key The trie key to verify.
+    /// @param proof The encoded trie nodes, ordered from root to terminal node.
+    /// @return value The value associated with the key, or empty bytes when it is absent.
+    /// @return err The traversal error, or `NO_ERROR` for a valid inclusion or exclusion proof.
+    function _tryTraverse(
+        bytes32 root,
+        bytes memory key,
+        bytes[] memory proof
     )
-        internal
+        private
         pure
-        returns (bytes memory value)
+        returns (bytes memory, ProofError)
     {
-        uint256 mptKeyOffset = 0;
-        bytes32 nodeHashHash = bytes32(0);
-        RLPReader.RLPItem[] memory node;
-        RLPReader.RLPItem memory rlpValue;
-
+        if (key.length == 0) return (_emptyBytesMemory(), ProofError.EMPTY_KEY);
         if (proof.length == 0) {
-            // Root hash of empty Merkle-Patricia-Trie
-            require(rootHash == 0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421);
-            return new bytes(0);
+            return root == EMPTY_TRIE_ROOT
+                ? (_emptyBytesMemory(), ProofError.NO_ERROR)
+                : (_emptyBytesMemory(), ProofError.INVALID_PROOF);
         }
 
-        // Traverse stack of nodes starting at root.
-        for (uint256 i = 0; i < proof.length; i++) {
-            // The root node is hashed with Keccak-256 ...
-            if (i == 0 && rootHash != proof[i].rlpBytesKeccak256()) {
-                revert();
-            }
-            // ... whereas all other nodes are hashed with the MPT
-            // hash function.
-            if (i != 0 && nodeHashHash != mptHashHash(proof[i])) {
-                revert();
-            }
-            // We verified that proof[i] has the correct hash, so we
-            // may safely decode it.
-            node = proof[i].toList();
+        // Expand the key
+        bytes memory keyExpanded = key.toNibbles();
 
-            if (node.length == 2) {
-                // Extension or Leaf node
+        // These are assigned before use whenever traversal advances beyond the root.
+        // slither-disable-next-line uninitialized-local
+        bytes32 currentNodeId;
+        // slither-disable-next-line uninitialized-local
+        uint256 currentNodeIdLength;
 
-                bool isLeaf;
-                bytes memory nodeKey;
-                (isLeaf, nodeKey) = merklePatriciaCompactDecode(node[0].toBytes());
+        // Free memory pointer cache
+        Memory.Pointer fmp = Memory.getFreeMemoryPointer();
 
-                uint256 prefixLength = sharedPrefixLength(mptKeyOffset, mptKeyNibbles, nodeKey);
-                mptKeyOffset += prefixLength;
-
-                if (prefixLength < nodeKey.length) {
-                    // Proof claims divergent extension or leaf. (Only
-                    // relevant for proofs of exclusion.)
-                    // An Extension/Leaf node is divergent iff it "skips" over
-                    // the point at which a Branch node should have been had the
-                    // excluded key been included in the trie.
-                    // Example: Imagine a proof of exclusion for path [1, 4],
-                    // where the current node is a Leaf node with
-                    // path [1, 3, 3, 7]. For [1, 4] to be included, there
-                    // should have been a Branch node at [1] with a child
-                    // at 3 and a child at 4.
-
-                    // Sanity check
-                    if (i < proof.length - 1) {
-                        // divergent node must come last in proof
-                        revert();
-                    }
-
-                    return new bytes(0);
+        // Traverse proof
+        uint256 keyIndex = 0;
+        for (uint256 i = 0; i < proof.length; ++i) {
+            // validates the encoded node matches the expected node id
+            bytes memory encoded = proof[i];
+            if (keyIndex == 0) {
+                // Root node must match root hash
+                if (keccak256(encoded) != root) {
+                    return (_emptyBytesMemory(), ProofError.INVALID_ROOT);
                 }
-
-                if (isLeaf) {
-                    // Sanity check
-                    if (i < proof.length - 1) {
-                        // leaf node must come last in proof
-                        revert();
-                    }
-
-                    if (mptKeyOffset < mptKeyNibbles.length) {
-                        return new bytes(0);
-                    }
-
-                    rlpValue = node[1];
-                    return rlpValue.toBytes();
-                } else {
-                    // extension
-                    // Sanity check
-                    if (i == proof.length - 1) {
-                        // shouldn't be at last level
-                        revert();
-                    }
-
-                    if (!node[1].isList()) {
-                        // rlp(child) was at least 32 bytes. node[1] contains
-                        // Keccak256(rlp(child)).
-                        nodeHashHash = node[1].payloadKeccak256();
-                    } else {
-                        // rlp(child) was at less than 32 bytes. node[1] contains
-                        // rlp(child).
-                        nodeHashHash = node[1].rlpBytesKeccak256();
-                    }
-                }
-            } else if (node.length == 17) {
-                // Branch node
-
-                if (mptKeyOffset != mptKeyNibbles.length) {
-                    // we haven't consumed the entire path, so we need to look at a child
-                    uint256 nibble = uint256(uint8(mptKeyNibbles[mptKeyOffset]));
-                    mptKeyOffset += 1;
-                    if (nibble >= 16) {
-                        // each element of the path has to be a nibble
-                        revert();
-                    }
-
-                    if (isEmptyBytesequence(node[nibble])) {
-                        // Sanity
-                        if (i != proof.length - 1) {
-                            // leaf node should be at last level
-                            revert();
-                        }
-
-                        return new bytes(0);
-                    } else if (!node[nibble].isList()) {
-                        nodeHashHash = node[nibble].payloadKeccak256();
-                    } else {
-                        nodeHashHash = node[nibble].rlpBytesKeccak256();
-                    }
-                } else {
-                    // we have consumed the entire mptKey, so we need to look at what's contained in this node.
-
-                    // Sanity
-                    if (i != proof.length - 1) {
-                        // should be at last level
-                        revert();
-                    }
-
-                    return node[16].toBytes();
+            } else if (encoded.length >= 32) {
+                // Large nodes are stored as hashes
+                if (currentNodeIdLength != 32 || keccak256(encoded) != currentNodeId) {
+                    return (_emptyBytesMemory(), ProofError.INVALID_LARGE_NODE);
                 }
             } else {
-                revert("invalid node length");
+                // Short nodes must match directly
+                if (currentNodeIdLength != encoded.length || bytes32(encoded) != currentNodeId) {
+                    return (_emptyBytesMemory(), ProofError.INVALID_SHORT_NODE);
+                }
             }
-        }
-        // unreachable here
-        revert();
-    }
 
-    /// @notice Checks whether an RLP item is the empty byte sequence.
-    /// @param item The RLP item to check.
-    /// @return True if the item encodes an empty byte sequence.
-    function isEmptyBytesequence(RLPReader.RLPItem memory item) internal pure returns (bool) {
-        if (item.len != 1) {
-            return false;
-        }
-        uint8 b;
-        uint256 memPtr = item.memPtr;
-        assembly {
-            b := byte(0, mload(memPtr))
-        }
-        return b == 0x80; /* empty byte string */
-    }
+            // decode the current node as an RLP list, and process it
+            for (Memory.Slice[] memory decoded = encoded.decodeList();;) {
+                if (decoded.length == BRANCH_NODE_LENGTH) {
+                    // If we've consumed the entire key, the value must be in the last slot
+                    // Otherwise, continue down the branch specified by the next nibble in the key
+                    if (keyIndex == keyExpanded.length) {
+                        return _validateLastItem(decoded[EVM_TREE_RADIX], proof.length, i, true);
+                    } else {
+                        bytes1 branchKey = keyExpanded[keyIndex];
+                        Memory.Slice childNode = decoded[uint8(branchKey)];
+                        if (_isEmpty(childNode)) {
+                            return _validateExclusion(proof.length, i);
+                        }
 
-    /// @notice Expands bytes into nibbles starting at an offset.
-    /// @param bz The bytes to expand.
-    /// @param offset The nibble offset.
-    /// @return nibbles The expanded nibbles.
-    function decodeNibbles(bytes memory bz, uint256 offset) internal pure returns (bytes memory nibbles) {
-        uint256 length = bz.length * 2;
-        require(bz.length > 0 && offset <= length);
+                        (currentNodeId, currentNodeIdLength) = _getNodeId(childNode);
+                        keyIndex += 1;
 
-        nibbles = new bytes(length - offset);
-        uint256 i = offset;
-        if (offset & 1 == 1) {
-            nibbles[0] = bytes1((uint8(bz[offset / 2]) >> 0) & 0xF);
-            i++;
-        }
-        unchecked {
-            for (; i < length - 1; i += 2) {
-                nibbles[i - offset] = bytes1((uint8(bz[i / 2]) >> 4) & 0xF);
-                nibbles[i - offset + 1] = bytes1((uint8(bz[i / 2]) >> 0) & 0xF);
+                        if (currentNodeIdLength == 32 || _match(childNode, proof, i + 1)) {
+                            break;
+                        }
+                        decoded = childNode.readList();
+                    }
+                } else if (decoded.length == LEAF_OR_EXTENSION_NODE_LENGTH) {
+                    bytes[] memory proof_ = proof;
+
+                    bytes memory path = decoded[0].readBytes().toNibbles(); // expanded path
+                    // The following is equivalent to path.length < 2 because toNibbles can't return odd-length buffers
+                    if (path.length == 0) {
+                        return (_emptyBytesMemory(), ProofError.EMPTY_PATH);
+                    }
+                    uint8 prefix = uint8(path[0]); // path encoding nibble (node type + parity), see {Prefix}
+                    if (prefix > uint8(Prefix.LEAF_ODD)) {
+                        return (_emptyBytesMemory(), ProofError.UNKNOWN_NODE_PREFIX);
+                    }
+
+                    Memory.Slice keyRemainder = keyExpanded.asSlice().slice(keyIndex); // Remaining key to match
+                    Memory.Slice pathRemainder = path.asSlice().slice(2 - (prefix % 2)); // Path after the prefix
+                    uint256 pathRemainderLength = pathRemainder.length();
+
+                    // pathRemainder must not be longer than keyRemainder and must match the start of keyRemainder
+                    if (
+                        pathRemainderLength > keyRemainder.length()
+                            || !pathRemainder.equal(keyRemainder.slice(0, pathRemainderLength))
+                    ) {
+                        return _validateExclusion(proof_.length, i);
+                    }
+
+                    if (prefix <= uint8(Prefix.EXTENSION_ODD)) {
+                        // Eq to: prefix == EXTENSION_EVEN || prefix == EXTENSION_ODD
+                        if (pathRemainderLength == 0) {
+                            return (_emptyBytesMemory(), ProofError.EMPTY_EXTENSION_PATH_REMAINDER);
+                        }
+                        // Increment keyIndex by the number of nibbles consumed and continue traversal
+                        Memory.Slice childNode = decoded[1];
+                        (currentNodeId, currentNodeIdLength) = _getNodeId(childNode);
+                        keyIndex += pathRemainderLength;
+
+                        if (currentNodeIdLength == 32 || _match(childNode, proof_, i + 1)) {
+                            break;
+                        }
+                        decoded = childNode.readList();
+                    } else if (prefix <= uint8(Prefix.LEAF_ODD)) {
+                        // Eq to: prefix == LEAF_EVEN || prefix == LEAF_ODD
+                        //
+                        // Leaf node (terminal) - return its value if key matches completely
+                        // we already know that pathRemainder is a prefix of keyRemainder, so checking the length
+                        // sufficient
+                        return pathRemainderLength == keyRemainder.length()
+                            ? _validateLastItem(decoded[1], proof_.length, i, false)
+                            : _validateExclusion(proof_.length, i);
+                    }
+                } else {
+                    return (_emptyBytesMemory(), ProofError.UNPARSEABLE_NODE);
+                }
             }
+            // Reset memory before next iteration. Deallocates `decoded` and `path`.
+            Memory.unsafeSetFreeMemoryPointer(fmp);
+        }
+
+        // If we've gone through all proof elements without finding a value, the proof is invalid
+        return (_emptyBytesMemory(), ProofError.INVALID_PROOF);
+    }
+
+    /// @notice Validates that an exclusion terminal is the final proof element.
+    /// @param trieProofLength The total number of proof elements.
+    /// @param i The index of the current proof element.
+    /// @return value Always empty bytes because the key is absent.
+    /// @return err The validation error, or `NO_ERROR` for a valid exclusion terminal.
+    function _validateExclusion(
+        uint256 trieProofLength,
+        uint256 i
+    )
+        private
+        pure
+        returns (bytes memory value, ProofError err)
+    {
+        return i == trieProofLength - 1
+            ? (_emptyBytesMemory(), ProofError.NO_ERROR)
+            : (_emptyBytesMemory(), ProofError.INVALID_EXTRA_PROOF_ELEMENT);
+    }
+
+    /// @notice Validates a terminal trie item and ensures it is the final proof element.
+    /// @dev Branch values may be empty to prove exclusion; leaf values may not be empty.
+    /// @param item The terminal branch or leaf item.
+    /// @param trieProofLength The total number of proof elements.
+    /// @param i The index of the current proof element.
+    /// @param emptyMeansAbsent Whether an empty item is a valid exclusion proof.
+    /// @return value The terminal value, or empty bytes when the key is absent.
+    /// @return err The validation error, or `NO_ERROR` for a valid terminal item.
+    function _validateLastItem(
+        Memory.Slice item,
+        uint256 trieProofLength,
+        uint256 i,
+        bool emptyMeansAbsent
+    )
+        private
+        pure
+        returns (bytes memory, ProofError)
+    {
+        if (i != trieProofLength - 1) {
+            return (_emptyBytesMemory(), ProofError.INVALID_EXTRA_PROOF_ELEMENT);
+        }
+        bytes memory value = item.readBytes();
+        if (value.length == 0) {
+            return emptyMeansAbsent
+                ? (_emptyBytesMemory(), ProofError.NO_ERROR)
+                : (_emptyBytesMemory(), ProofError.EMPTY_VALUE);
+        }
+        return (value, ProofError.NO_ERROR);
+    }
+
+    /**
+     * @notice Extracts the node ID as a hash or raw data based on its size.
+     * @param node The encoded trie node.
+     * @return nodeId The hashed or inline node identifier.
+     * @return nodeIdLength The length of the inline identifier, or 32 for a hashed node.
+     *
+     * For short nodes (encoded length < 32 bytes) the node ID is the node content itself,
+     * For larger nodes, the node ID is the hash of the encoded node data.
+     *
+     * [NOTE]
+     * ====
+     * If a 32-byte input is provided (can occur with inline child references), it is used directly (like short nodes).
+     * When `nodeIdLength == 32`, inline processing is skipped. The next traversal step then checks whether the next
+     * node is large and its hash matches those raw bytes. If that is not the case, it returns {INVALID_LARGE_NODE}.
+     *
+     * Empty branch children are handled as exclusion terminals before this function is called.
+     * ====
+     */
+    function _getNodeId(Memory.Slice node) private pure returns (bytes32 nodeId, uint256 nodeIdLength) {
+        uint256 nodeLength = node.length();
+        return nodeLength < 33 ? (node.load(0), nodeLength) : (node.readBytes32(), 32);
+    }
+
+    /// @notice Decodes the light client's RLP list of already RLP-encoded proof nodes.
+    /// @param rlpProof The RLP-encoded list of proof nodes.
+    /// @return proof The individual encoded proof nodes.
+    function _decodeProof(bytes memory rlpProof) private pure returns (bytes[] memory proof) {
+        Memory.Slice[] memory items = rlpProof.decodeList();
+        proof = new bytes[](items.length);
+        for (uint256 i = 0; i < items.length; ++i) {
+            proof[i] = items[i].toBytes();
         }
     }
 
-    /// @notice Decodes compact Merkle Patricia Trie path encoding.
-    /// @param bz The compact encoded path bytes.
-    /// @return isLeaf True if the compact path marks a leaf node.
-    /// @return nibbles The decoded path nibbles.
-    function merklePatriciaCompactDecode(bytes memory bz) internal pure returns (bool isLeaf, bytes memory nibbles) {
-        require(bz.length > 0);
-        uint256 firstNibble = uint8(bz[0]) >> 4 & 0xF;
-        uint256 offset = 0;
-        if (firstNibble == 0) {
-            offset = 2;
-            isLeaf = false;
-        } else if (firstNibble == 1) {
-            offset = 1;
-            isLeaf = false;
-        } else if (firstNibble == 2) {
-            offset = 2;
-            isLeaf = true;
-        } else if (firstNibble == 3) {
-            offset = 1;
-            isLeaf = true;
-        } else {
-            // Not supposed to happen!
-            revert();
-        }
-        return (isLeaf, decodeNibbles(bz, offset));
+    /// @notice Returns whether an RLP item is the canonical empty byte string.
+    /// @param item The RLP item to inspect.
+    /// @return Whether the item is the canonical empty byte string.
+    function _isEmpty(Memory.Slice item) private pure returns (bool) {
+        return item.length() == 1 && bytes1(item.load(0)) == 0x80;
     }
 
-    /// @notice Computes the shared prefix length between two nibble arrays.
-    /// @param xsOffset Offset into `xs` where comparison starts.
-    /// @param xs The first nibble array.
-    /// @param ys The second nibble array.
-    /// @return The number of matching nibbles.
-    function sharedPrefixLength(uint256 xsOffset, bytes memory xs, bytes memory ys) internal pure returns (uint256) {
-        uint256 i = 0;
-        for (; i + xsOffset < xs.length && i < ys.length; i++) {
-            if (xs[i + xsOffset] != ys[i]) {
-                return i;
-            }
+    /// @notice Returns an empty byte array without allocating memory.
+    /// @return result The empty byte array.
+    function _emptyBytesMemory() private pure returns (bytes memory result) {
+        assembly ("memory-safe") {
+            result := 0x60 // mload(0x60) is always 0
         }
-        return i;
     }
 
-    /// @notice Computes the keccak256 hash of the Merkle Patricia Trie hash of an item.
-    /// @dev MPT hashes are variable length: short inputs are inlined, long inputs are keccak256-hashed.
-    /// @param input The byte sequence to be hashed.
-    /// @return Keccak-256(MPT-hash(input))
-    function mptHashHash(RLPReader.RLPItem memory input) internal pure returns (bytes32) {
-        if (input.len < 32) {
-            return input.rlpBytesKeccak256();
-        } else {
-            return keccak256(abi.encodePacked(input.rlpBytesKeccak256()));
-        }
+    /// @notice Returns whether a slice matches the array item at `index`.
+    /// @param slice The memory slice to compare.
+    /// @param array The byte-array collection containing the candidate item.
+    /// @param index The candidate item index.
+    /// @return Whether the index exists and the values match.
+    function _match(Memory.Slice slice, bytes[] memory array, uint256 index) private pure returns (bool) {
+        return index < array.length && slice.equal(array[index].asSlice());
     }
 }
