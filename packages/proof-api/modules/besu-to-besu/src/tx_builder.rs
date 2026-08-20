@@ -519,7 +519,7 @@ mod tests {
     fn load_fixture() -> Fixture {
         serde_json::from_str(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../../../test/besu-bft/fixtures/qbft.json"
+            "/../../../../ibc-solidity/test/besu-bft/fixtures/qbft.json"
         )))
         .unwrap()
     }
