@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 package main
 
 import (
@@ -12,15 +14,16 @@ import (
 	"testing"
 	"time"
 
-	sdkmath "cosmossdk.io/math"
-
-	"github.com/cosmos/interchaintest/v11/testutil"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+
+	sdkmath "cosmossdk.io/math"
+
+	"github.com/cosmos/interchaintest/v11/testutil"
 
 	"github.com/cosmos/solidity-ibc-eureka/packages/go-abigen/ibcerc20"
 	"github.com/cosmos/solidity-ibc-eureka/packages/go-abigen/ics20transfer"

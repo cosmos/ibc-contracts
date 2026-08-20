@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 pub mod besu_ibft2_light_client {
     #[cfg(feature = "rpc")]
     alloy_sol_types::sol!(
@@ -8,7 +10,10 @@ pub mod besu_ibft2_light_client {
     );
 
     #[cfg(not(feature = "rpc"))]
-    alloy_sol_types::sol!(BesuIBFT2LightClient, "../../ibc-solidity/abi/BesuIBFT2LightClient.json");
+    alloy_sol_types::sol!(
+        BesuIBFT2LightClient,
+        "../../ibc-solidity/abi/BesuIBFT2LightClient.json"
+    );
 }
 
 pub mod besu_qbft_light_client {
@@ -21,5 +26,8 @@ pub mod besu_qbft_light_client {
     );
 
     #[cfg(not(feature = "rpc"))]
-    alloy_sol_types::sol!(BesuQBFTLightClient, "../../ibc-solidity/abi/BesuQBFTLightClient.json");
+    alloy_sol_types::sol!(
+        BesuQBFTLightClient,
+        "../../ibc-solidity/abi/BesuQBFTLightClient.json"
+    );
 }

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Local/dev/testing-only one-sided proof API module from EVM dummy to EVM dummy.
 
 #![deny(clippy::nursery, clippy::pedantic, warnings, unused_crate_dependencies)]

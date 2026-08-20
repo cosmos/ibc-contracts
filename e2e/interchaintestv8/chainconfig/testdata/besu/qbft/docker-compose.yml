@@ -1,6 +1,10 @@
+# SPDX-License-Identifier: Apache-2.0
+
 services:
   validator1:
     image: hyperledger/besu:26.4.0
+    environment:
+      BESU_OPTS: -Xms128m -Xmx512m -XX:ActiveProcessorCount=2
     command:
       - --config-file=/opt/besu/config.toml
       - --identity=validator1
@@ -19,6 +23,8 @@ services:
 
   validator2:
     image: hyperledger/besu:26.4.0
+    environment:
+      BESU_OPTS: -Xms128m -Xmx512m -XX:ActiveProcessorCount=2
     command:
       - --config-file=/opt/besu/config.toml
       - --identity=validator2
@@ -36,6 +42,8 @@ services:
 
   validator3:
     image: hyperledger/besu:26.4.0
+    environment:
+      BESU_OPTS: -Xms128m -Xmx512m -XX:ActiveProcessorCount=2
     command:
       - --config-file=/opt/besu/config.toml
       - --identity=validator3
@@ -53,6 +61,8 @@ services:
 
   validator4:
     image: hyperledger/besu:26.4.0
+    environment:
+      BESU_OPTS: -Xms128m -Xmx512m -XX:ActiveProcessorCount=2
     command:
       - --config-file=/opt/besu/config.toml
       - --identity=validator4
