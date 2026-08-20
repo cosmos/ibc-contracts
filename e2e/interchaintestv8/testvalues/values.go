@@ -203,7 +203,9 @@ const (
 	// TendermintLightClientFixturesDir is the directory where the Tendermint light client fixtures are stored.
 	TendermintLightClientFixturesDir = "packages/tendermint-light-client/fixtures/"
 	// BesuBFTFixturesDir is the directory where the Besu BFT light client fixtures are stored.
-	BesuBFTFixturesDir = "test/besu-bft/fixtures"
+	// Relative to the repo root (e2e suites chdir there), and shared with the Foundry suite in
+	// ibc-solidity/test/besu-bft (which resolves it via vm.projectRoot()).
+	BesuBFTFixturesDir = "ibc-solidity/test/besu-bft/fixtures"
 
 	// IbcCommitmentSlotHex is the storage slot in the IBC solidity contract for the IBC commitments.
 	IbcCommitmentSlotHex = ics26router.IbcStoreStorageSlot
