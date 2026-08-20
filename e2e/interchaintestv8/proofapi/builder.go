@@ -104,11 +104,12 @@ func (b *ConfigBuilder) EthToCosmosAttested(p EthToCosmosAttestedParams) *Config
 		SrcChain: p.EthChainID,
 		DstChain: p.CosmosChainID,
 		Config: EthToCosmosModuleConfig{
-			Ics26Address:  p.ICS26Address,
-			TmRpcUrl:      p.TmRPC,
-			EthRpcUrl:     p.EthRPC,
-			SignerAddress: p.SignerAddress,
-			Mode:          AttestedMode{Config: aggConfig},
+			Ics26Address:    p.ICS26Address,
+			TmRpcUrl:        p.TmRPC,
+			EthRpcUrl:       p.EthRPC,
+			EthBeaconApiUrl: "",
+			SignerAddress:   p.SignerAddress,
+			Mode:            AttestedMode{Config: aggConfig},
 		},
 	}
 	b.modules = append(b.modules, module)
@@ -231,6 +232,40 @@ func (b *ConfigBuilder) EthToEthAttested(p EthToEthAttestedParams) *ConfigBuilde
 			DstRpcUrl:       p.DstRPC,
 			DstIcs26Address: p.DstICS26,
 			Mode:            AttestedMode{Config: aggConfig},
+		},
+	}
+	b.modules = append(b.modules, module)
+	return b
+}
+
+// =============================================================================
+// Besu → Besu
+// =============================================================================
+
+// BesuToBesuParams contains parameters for besu_to_besu module.
+type BesuToBesuParams struct {
+	SrcChainID    string
+	DstChainID    string
+	SrcRPC        string
+	DstRPC        string
+	SrcICS26      string
+	DstICS26      string
+	ConsensusType string
+}
+
+// BesuToBesu adds a Besu→Besu module.
+func (b *ConfigBuilder) BesuToBesu(p BesuToBesuParams) *ConfigBuilder {
+	module := ModuleConfig{
+		Name:     ModuleBesuToBesu,
+		SrcChain: p.SrcChainID,
+		DstChain: p.DstChainID,
+		Config: BesuToBesuModuleConfig{
+			SrcChainID:      p.SrcChainID,
+			SrcRPCURL:       p.SrcRPC,
+			SrcICS26Address: p.SrcICS26,
+			DstRPCURL:       p.DstRPC,
+			DstICS26Address: p.DstICS26,
+			ConsensusType:   p.ConsensusType,
 		},
 	}
 	b.modules = append(b.modules, module)

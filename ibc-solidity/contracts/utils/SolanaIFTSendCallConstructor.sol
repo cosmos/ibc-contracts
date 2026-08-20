@@ -4,7 +4,6 @@ pragma solidity ^0.8.28;
 import { IIFTSendCallConstructor } from "../interfaces/IIFTSendCallConstructor.sol";
 import { ISolanaGMPMsgs } from "../msgs/ISolanaGMPMsgs.sol";
 
-import { Bytes } from "@openzeppelin-contracts/utils/Bytes.sol";
 import { SafeCast } from "@openzeppelin-contracts/utils/math/SafeCast.sol";
 import { Strings } from "@openzeppelin-contracts/utils/Strings.sol";
 import { ERC165 } from "@openzeppelin-contracts/utils/introspection/ERC165.sol";
@@ -164,6 +163,15 @@ contract SolanaIFTSendCallConstructor is IIFTSendCallConstructor, ERC165 {
     function _buildInstructionData(bytes32 wallet, uint256 amount) private pure returns (bytes memory) {
         uint64 amountU64 = SafeCast.toUint64(amount);
         // Convert to little-endian for Borsh encoding expected by Solana
-        return abi.encodePacked(IFT_MINT_DISCRIMINATOR, wallet, Bytes.reverseBytes8(bytes8(amountU64)));
+        return abi.encodePacked(IFT_MINT_DISCRIMINATOR, wallet, _reverseBytes8(bytes8(amountU64)));
+    }
+
+    /// @notice Reverse an 8-byte word.
+    /// @param input The big-endian bytes.
+    /// @return output The little-endian bytes.
+    function _reverseBytes8(bytes8 input) private pure returns (bytes8 output) {
+        for (uint256 i = 0; i < 8; ++i) {
+            output |= (input >> (i * 8) & bytes8(uint64(0xff))) << ((7 - i) * 8);
+        }
     }
 }

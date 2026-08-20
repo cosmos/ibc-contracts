@@ -55,6 +55,10 @@ generate-abi: build-contracts
 	jq -r '.bytecode.object' out/RelayerHelper.sol/RelayerHelper.json > tmp/abigen/RelayerHelper.bin
 	jq '.abi' out/AttestationLightClient.sol/AttestationLightClient.json > abi/AttestationLightClient.json
 	jq -r '.bytecode.object' out/AttestationLightClient.sol/AttestationLightClient.json > tmp/abigen/AttestationLightClient.bin
+	jq '.abi' out/BesuIBFT2LightClient.sol/BesuIBFT2LightClient.json > abi/BesuIBFT2LightClient.json
+	jq '.abi' out/BesuQBFTLightClient.sol/BesuQBFTLightClient.json > abi/BesuQBFTLightClient.json
+	jq '.abi' out/DummyLightClient.sol/DummyLightClient.json > abi/DummyLightClient.json
+	jq -r '.bytecode.object' out/DummyLightClient.sol/DummyLightClient.json > tmp/abigen/DummyLightClient.bin
 	jq '.abi' out/IFTOwnable.sol/IFTOwnable.json > abi/IFTOwnable.json
 	jq -r '.bytecode.object' out/IFTOwnable.sol/IFTOwnable.json > tmp/abigen/IFTOwnable.bin
 	jq '.abi' out/ERC1967Proxy.sol/ERC1967Proxy.json > abi/ERC1967Proxy.json
@@ -73,6 +77,8 @@ generate-abi: build-contracts
 	abigen --abi abi/AttestationLightClient.json --bin tmp/abigen/AttestationLightClient.bin --pkg attestation --type Contract --out ../packages/go-abigen/attestation/contract.go
 	abigen --abi abi/ERC1967Proxy.json --bin tmp/abigen/ERC1967Proxy.bin --pkg erc1967proxy --type Contract --out ../packages/go-abigen/erc1967proxy/contract.go
 	abigen --abi abi/EVMIFTSendCallConstructor.json --bin tmp/abigen/EVMIFTSendCallConstructor.bin --pkg evmiftsendcall --type Contract --out ../packages/go-abigen/evmiftsendcall/contract.go
+	mkdir -p ../packages/go-abigen/dummy
+	abigen --abi abi/DummyLightClient.json --bin tmp/abigen/DummyLightClient.bin --pkg dummy --type Contract --out ../packages/go-abigen/dummy/contract.go
 	rm -rf tmp/abigen
 
 # Generate the ABI files with bytecode for the required contracts
@@ -80,6 +86,9 @@ generate-abi: build-contracts
 generate-abi-bytecode: build-contracts
 	cp out/SP1ICS07Tendermint.sol/SP1ICS07Tendermint.json abi/bytecode
 	cp out/AttestationLightClient.sol/AttestationLightClient.json abi/bytecode
+	cp out/BesuIBFT2LightClient.sol/BesuIBFT2LightClient.json abi/bytecode
+	cp out/BesuQBFTLightClient.sol/BesuQBFTLightClient.json abi/bytecode
+	cp out/DummyLightClient.sol/DummyLightClient.json abi/bytecode
 
 # Clean up the foundry cache and out directories
 [group('clean')]

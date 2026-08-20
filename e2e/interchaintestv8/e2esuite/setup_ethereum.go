@@ -85,6 +85,44 @@ func (s *TestSuite) processEthereumPoSResult(ctx context.Context, chain *chainco
 	s.Eth.Chains = append(s.Eth.Chains, &ethChain)
 }
 
+func (s *TestSuite) setupEthereumBesuQBFTAsync(ctx context.Context, networkID string, resultCh chan<- ethBesuQBFTSetupResult) {
+	var result ethBesuQBFTSetupResult
+	defer func() { resultCh <- result }()
+
+	chain, err := chainconfig.SpinUpBesuQBFT(ctx, chainconfig.BesuQBFTParams{
+		ChainID:             1337,
+		Subnet:              "10.42.0.0/16",
+		Gateway:             "10.42.0.1",
+		ValidatorIPs:        [4]string{"10.42.0.2", "10.42.0.3", "10.42.0.4", "10.42.0.5"},
+		DockerRPCAlias:      "besu-qbft-rpc",
+		InterchainNetworkID: networkID,
+	})
+	if err != nil {
+		result.err = err
+		return
+	}
+	result.chain = &chain
+}
+
+func (s *TestSuite) processEthereumBesuQBFTResult(ctx context.Context, chain *chainconfig.BesuQBFTChain) {
+	if chain == nil {
+		return
+	}
+
+	s.T().Cleanup(func() {
+		cleanupCtx := context.Background()
+		if s.T().Failed() {
+			_ = chain.DumpLogs(cleanupCtx)
+		}
+		chain.Destroy(cleanupCtx)
+	})
+
+	ethChain, err := ethereum.NewEthereum(ctx, chain.RPC, nil, chain.Faucet)
+	s.Require().NoError(err, "Failed to create Ethereum client")
+	ethChain.DockerRPC = chain.DockerRPC
+	s.Eth.Chains = append(s.Eth.Chains, &ethChain)
+}
+
 // setupAnvilChains detects and sets up any Anvil chains in the slice.
 func (s *TestSuite) setupAnvilChains(ctx context.Context, chains []ibc.Chain) {
 	faucet, err := crypto.HexToECDSA(testvalues.E2EDeployerPrivateKeyHex)

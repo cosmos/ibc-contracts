@@ -1,0 +1,11 @@
+genesis-file="/opt/besu/genesis.json"
+data-path="/opt/besu/data"
+node-private-key-file="/opt/besu/key"
+data-storage-format="BONSAI"
+bonsai-limit-trie-logs-enabled=false
+rpc-http-enabled=true
+rpc-http-host="0.0.0.0"
+rpc-http-api=["ETH","NET","QBFT","WEB3","DEBUG"]
+host-allowlist=["*"]
+rpc-http-cors-origins=["all"]
+min-gas-price=0

@@ -89,6 +89,16 @@ impl IICS26RouterMsgs::Packet {
     }
 }
 
+/// Returns the acknowledgement commitment for one or more acknowledgements.
+#[must_use]
+pub fn acknowledgement_commitment(acks: &[alloy_primitives::Bytes]) -> Vec<u8> {
+    let mut buf = vec![2_u8];
+    for ack in acks {
+        buf.extend_from_slice(&Sha256::digest(ack));
+    }
+    Sha256::digest(&buf).to_vec()
+}
+
 impl From<Packet> for IICS26RouterMsgs::Packet {
     fn from(packet: Packet) -> Self {
         Self {
