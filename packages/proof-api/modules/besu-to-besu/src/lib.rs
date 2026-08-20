@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! One-sided Besu-to-Besu proof API module.
 
 #![deny(clippy::nursery, clippy::pedantic, warnings, unused_crate_dependencies)]

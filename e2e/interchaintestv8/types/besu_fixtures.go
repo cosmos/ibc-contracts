@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 package types
 
 import (
@@ -114,7 +116,8 @@ func (g *BesuFixtureGenerator) GenerateAndSaveQBFTFixture(ctx context.Context, p
 	}
 
 	fixturePath := filepath.Join(testvalues.BesuBFTFixturesDir, "qbft.json")
-	return os.WriteFile(fixturePath, fixtureBz, 0o644)
+	// The checked-in fixture is intentionally readable by all test processes.
+	return os.WriteFile(fixturePath, fixtureBz, 0o644) //nolint:gosec
 }
 
 func generateQBFTFixture(ctx context.Context, params GenerateQBFTFixtureParams) (besuFixture, error) {

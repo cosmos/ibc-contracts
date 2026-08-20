@@ -58,7 +58,7 @@ library MPTProof {
         returns (bytes memory value)
     {
         uint256 mptKeyOffset = 0;
-        bytes32 nodeHashHash;
+        bytes32 nodeHashHash = bytes32(0);
         RLPReader.RLPItem[] memory node;
         RLPReader.RLPItem memory rlpValue;
 

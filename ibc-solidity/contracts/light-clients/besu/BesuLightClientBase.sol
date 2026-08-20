@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.28;
 
 // solhint-disable gas-struct-packing, named-parameters-mapping, gas-strict-inequalities, code-complexity
@@ -351,8 +351,8 @@ abstract contract BesuLightClientBase is ILightClient, IBesuLightClientErrors, I
         if (uint8(seal[64]) < 27) {
             seal[64] = bytes1(uint8(seal[64]) + 27);
         }
-        (address signer, ECDSA.RecoverError err,) = ECDSA.tryRecover(digest, seal);
-        if (err != ECDSA.RecoverError.NoError || signer == address(0)) {
+        (address signer, ECDSA.RecoverError err, bytes32 errorArgument) = ECDSA.tryRecover(digest, seal);
+        if (err != ECDSA.RecoverError.NoError || errorArgument != bytes32(0) || signer == address(0)) {
             revert InvalidCommitSeal();
         }
         return signer;
@@ -368,7 +368,7 @@ abstract contract BesuLightClientBase is ILightClient, IBesuLightClientErrors, I
         internal
         view
     {
-        uint256 actual;
+        uint256 actual = 0;
         for (uint256 i = 0; i < signers.length; ++i) {
             if (_containsStorage(trustedValidators, signers[i])) {
                 ++actual;
@@ -385,7 +385,7 @@ abstract contract BesuLightClientBase is ILightClient, IBesuLightClientErrors, I
     /// @param signers The recovered commit seal signers.
     /// @param validators The validator set from the submitted header.
     function _checkValidatorQuorum(address[] memory signers, address[] memory validators) internal pure {
-        uint256 actual;
+        uint256 actual = 0;
         for (uint256 i = 0; i < signers.length; ++i) {
             if (_containsMemory(validators, signers[i])) {
                 ++actual;
@@ -517,7 +517,7 @@ abstract contract BesuLightClientBase is ILightClient, IBesuLightClientErrors, I
     /// @param items RLP-encoded list items.
     /// @return The RLP-encoded list.
     function _encodeRlpList(bytes[] memory items) internal pure returns (bytes memory) {
-        bytes memory payload;
+        bytes memory payload = new bytes(0);
         for (uint256 i = 0; i < items.length; ++i) {
             payload = bytes.concat(payload, items[i]);
         }

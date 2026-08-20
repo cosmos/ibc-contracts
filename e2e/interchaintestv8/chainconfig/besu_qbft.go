@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 package chainconfig
 
 import (
@@ -16,13 +18,13 @@ import (
 
 	dockernetwork "github.com/docker/docker/api/types/network"
 	dockerclient "github.com/moby/moby/client"
+	"github.com/testcontainers/testcontainers-go/modules/compose"
+	"github.com/testcontainers/testcontainers-go/wait"
 
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/testcontainers/testcontainers-go/modules/compose"
-	"github.com/testcontainers/testcontainers-go/wait"
 
 	"github.com/cosmos/interchaintest/v11/testutil"
 
@@ -110,6 +112,9 @@ func SpinUpBesuQBFT(ctx context.Context, params BesuQBFTParams) (chain BesuQBFTC
 	if err := stack.
 		WaitForService("validator1", wait.ForListeningPort("8545/tcp")).
 		Up(ctx, compose.Wait(true)); err != nil {
+		if logErr := chain.DumpLogs(context.Background()); logErr != nil {
+			fmt.Printf("failed to dump besu qbft logs after startup error: %v\n", logErr)
+		}
 		return BesuQBFTChain{}, fmt.Errorf("start besu qbft compose stack: %w", err)
 	}
 
@@ -210,12 +215,9 @@ func materializeBesuQBFTAssets(dst string) error {
 			return err
 		}
 
-		mode := os.FileMode(0o644)
-		if filepath.Base(path) == "key" || strings.HasPrefix(path, "keys/") {
-			mode = 0o600
-		}
-
-		return os.WriteFile(target, contents, mode)
+		// The test keys are mounted read-only and must remain readable by the
+		// unprivileged Besu user inside the container.
+		return os.WriteFile(target, contents, 0o644) //nolint:gosec
 	})
 }
 
@@ -242,7 +244,8 @@ func patchBesuQBFTGenesis(path string, chainID uint64) error {
 	}
 	updated = append(updated, '\n')
 
-	return os.WriteFile(path, updated, 0o644)
+	// Besu reads the generated genesis file as an unprivileged container user.
+	return os.WriteFile(path, updated, 0o644) //nolint:gosec
 }
 
 func patchBesuQBFTCompose(path string, params BesuQBFTParams) error {
@@ -260,7 +263,8 @@ func patchBesuQBFTCompose(path string, params BesuQBFTParams) error {
 		defaultBesuQBFTValidatorIPs[3], params.ValidatorIPs[3],
 	)
 
-	return os.WriteFile(path, []byte(replacer.Replace(string(contents))), 0o644)
+	// Docker Compose reads this generated configuration outside the Go process.
+	return os.WriteFile(path, []byte(replacer.Replace(string(contents))), 0o644) //nolint:gosec
 }
 
 func connectBesuQBFTToInterchainNetwork(ctx context.Context, interchainNetworkID, containerID, alias string) error {

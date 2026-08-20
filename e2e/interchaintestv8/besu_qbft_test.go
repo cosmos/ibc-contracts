@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 package main
 
 import (
@@ -5,8 +7,9 @@ import (
 	"os"
 	"testing"
 
-	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
+
+	ethcommon "github.com/ethereum/go-ethereum/common"
 
 	interchaintest "github.com/cosmos/interchaintest/v11"
 

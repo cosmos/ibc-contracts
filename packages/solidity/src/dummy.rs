@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Solidity types for dummy light client.
 
 pub mod dummy_light_client {
@@ -10,7 +12,10 @@ pub mod dummy_light_client {
     );
 
     #[cfg(not(feature = "rpc"))]
-    alloy_sol_types::sol!(DummyLightClient, "../../ibc-solidity/abi/DummyLightClient.json");
+    alloy_sol_types::sol!(
+        DummyLightClient,
+        "../../ibc-solidity/abi/DummyLightClient.json"
+    );
 }
 
 pub mod dummy_light_client_msgs {
