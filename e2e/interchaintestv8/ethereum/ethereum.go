@@ -12,6 +12,7 @@ import (
 	"math/big"
 	"os"
 	"os/exec"
+	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	ethcommon "github.com/ethereum/go-ethereum/common"
@@ -23,6 +24,8 @@ import (
 
 	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/testvalues"
 )
+
+const forgeScriptTimeout = 5 * time.Minute
 
 type Ethereum struct {
 	ChainID         *big.Int
@@ -108,9 +111,10 @@ func (e Ethereum) ForgeScript(deployer *ecdsa.PrivateKey, solidityContract strin
 		"--non-interactive", "-vvvv", solidityContract,
 	}
 	cmdArgs = append(cmdArgs, args...)
-	cmd := exec.Command(
-		"forge", cmdArgs...,
-	)
+	ctx, cancel := context.WithTimeout(context.Background(), forgeScriptTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "forge", cmdArgs...)
 	// Tests run from the repository root; forge must run from the Foundry project root
 	// so that foundry.toml and script paths resolve.
 	cmd.Dir = testvalues.SolidityProjectDir
@@ -124,18 +128,23 @@ func (e Ethereum) ForgeScript(deployer *ecdsa.PrivateKey, solidityContract strin
 	cmd.Env = append(cmd.Env, extraEnv...)
 
 	var stdoutBuf bytes.Buffer
+	var stderrBuf bytes.Buffer
 
 	// Create a MultiWriter to write to both os.Stdout and the buffer
-	multiWriter := io.MultiWriter(os.Stdout, &stdoutBuf)
+	stdoutWriter := io.MultiWriter(os.Stdout, &stdoutBuf)
+	stderrWriter := io.MultiWriter(os.Stderr, &stderrBuf)
 
 	// Set the command's stdout to the MultiWriter
-	cmd.Stdout = multiWriter
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = stdoutWriter
+	cmd.Stderr = stderrWriter
 
 	// Run the command
 	if err := cmd.Run(); err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			err = fmt.Errorf("forge script timed out after %s: %w", forgeScriptTimeout, err)
+		}
 		fmt.Println("Error start command", cmd.Args, err)
-		return nil, err
+		return stdoutBuf.Bytes(), fmt.Errorf("%w\n%s", err, stderrBuf.String())
 	}
 
 	// Get the output as byte slices

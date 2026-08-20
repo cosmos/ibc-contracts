@@ -58,6 +58,8 @@ const (
 	EnvKeyGenerateWasmFixtures = "GENERATE_WASM_FIXTURES"
 	// EnvKeyGenerateTendermintLightClientFixtures Generate fixtures for the tendermint light client tests if set to true.
 	EnvKeyGenerateTendermintLightClientFixtures = "GENERATE_TENDERMINT_LIGHT_CLIENT_FIXTURES"
+	// EnvKeyGenerateBesuLightClientFixtures Generate fixtures for the Besu light client tests if set to true.
+	EnvKeyGenerateBesuLightClientFixtures = "GENERATE_BESU_LIGHT_CLIENT_FIXTURES"
 	// The log level for the Rust logger.
 	EnvKeyRustLog = "RUST_LOG"
 
@@ -94,6 +96,9 @@ const (
 	// EthTestnetTypePoS uses Kurtosis for full PoS infrastructure with beacon chain
 	EthTestnetTypePoS = "pos"
 
+	// EthTestnetTypeBesuQBFT uses a real 4-validator Besu QBFT network
+	EthTestnetTypeBesuQBFT = "besu-qbft"
+
 	// EthTestnetType_None disables Ethereum chain setup
 	EthTestnetType_None = "none"
 
@@ -109,7 +114,7 @@ const (
 	// Attestor light client (for Cosmos verification on Ethereum)
 	CosmosLcTypeAttestor = "attestor"
 
-	// EnvKeyEthTestnetType The Ethereum testnet type (anvil|pos).
+	// EnvKeyEthTestnetType The Ethereum testnet type (anvil|pos|besu-qbft|none).
 	EnvKeyEthTestnetType = "ETH_TESTNET_TYPE"
 	// EnvKeyEthAnvilCount Number of Anvil chains to create (only when ETH_TESTNET_TYPE=anvil). Defaults to 1.
 	EnvKeyEthAnvilCount = "ETH_ANVIL_COUNT"
@@ -197,6 +202,8 @@ const (
 	SolanaLedgerDir = "test-ledger"
 	// TendermintLightClientFixturesDir is the directory where the Tendermint light client fixtures are stored.
 	TendermintLightClientFixturesDir = "packages/tendermint-light-client/fixtures/"
+	// BesuBFTFixturesDir is the directory where the Besu BFT light client fixtures are stored.
+	BesuBFTFixturesDir = "test/besu-bft/fixtures"
 
 	// IbcCommitmentSlotHex is the storage slot in the IBC solidity contract for the IBC commitments.
 	IbcCommitmentSlotHex = ics26router.IbcStoreStorageSlot
@@ -229,8 +236,12 @@ const (
 	ParameterKey_Sp1Verifier = "sp1_verifier"
 	// Zk algorithm parameter key for the proof API's sp1 light client creation.
 	ParameterKey_ZkAlgorithm = "zk_algorithm"
-	// The role manager address parameter key for the proof API's sp1 light client creation.
+	// The role manager address parameter key for proof API light client creation.
 	ParameterKey_RoleManager = "role_manager"
+	// Trusting period parameter key for proof API light client creation.
+	ParameterKey_TrustingPeriod = "trusting_period"
+	// Max clock drift parameter key for proof API light client creation.
+	ParameterKey_MaxClockDrift = "max_clock_drift"
 	// Checksum hex parameter key for the proof API's ethereum light client creation.
 	ParameterKey_ChecksumHex = "checksum_hex"
 

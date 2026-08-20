@@ -9,6 +9,9 @@ import (
 	"math/rand"
 	"net"
 	"os"
+	"path/filepath"
+	"runtime"
+	"sort"
 	"text/template"
 	"time"
 
@@ -21,6 +24,7 @@ const (
 	ModuleEthToCosmos       = "eth_to_cosmos"
 	ModuleEthToCosmosCompat = "eth_to_cosmos_compat"
 	ModuleEthToEth          = "eth_to_eth"
+	ModuleBesuToBesu        = "besu_to_besu"
 	ModuleSolanaToCosmos    = "solana_to_cosmos"
 	ModuleCosmosToSolana    = "cosmos_to_solana"
 	ModuleEthToSolana       = "eth_to_solana"
@@ -255,6 +259,16 @@ type EthToEthModuleConfig struct {
 	Mode            TxBuilderMode `json:"mode"`
 }
 
+// BesuToBesuModuleConfig represents the configuration for besu_to_besu module.
+type BesuToBesuModuleConfig struct {
+	SrcChainID      string `json:"src_chain_id"`
+	SrcRPCURL       string `json:"src_rpc_url"`
+	SrcICS26Address string `json:"src_ics26_address"`
+	DstRPCURL       string `json:"dst_rpc_url"`
+	DstICS26Address string `json:"dst_ics26_address"`
+	ConsensusType   string `json:"consensus_type"`
+}
+
 // AttestorConfig represents the attestor configuration section
 type AttestorConfig struct {
 	AttestorQueryTimeoutMs int      `json:"attestor_query_timeout_ms"`
@@ -289,14 +303,91 @@ func DefaultAggregatorConfig() AggregatorConfig {
 	}
 }
 
-// DefaultSP1ProgramPaths returns the default paths for SP1 program ELF files
+// DefaultSP1ProgramPaths returns the default paths for SP1 program ELF files.
+//
+// The e2e tests may run from a subdirectory, and newer SP1 toolchains can emit
+// ELFs into either riscv32* or riscv64* target directories. Resolve the program
+// paths against the repo root and prefer an existing artifact when available.
 func DefaultSP1ProgramPaths() SP1ProgramPaths {
 	return SP1ProgramPaths{
-		UpdateClient:              "./ibc-solidity/programs/sp1-programs/target/elf-compilation/riscv64im-succinct-zkvm-elf/release/sp1-ics07-tendermint-update-client",
-		Membership:                "./ibc-solidity/programs/sp1-programs/target/elf-compilation/riscv64im-succinct-zkvm-elf/release/sp1-ics07-tendermint-membership",
-		UpdateClientAndMembership: "./ibc-solidity/programs/sp1-programs/target/elf-compilation/riscv64im-succinct-zkvm-elf/release/sp1-ics07-tendermint-uc-and-membership",
-		Misbehaviour:              "./ibc-solidity/programs/sp1-programs/target/elf-compilation/riscv64im-succinct-zkvm-elf/release/sp1-ics07-tendermint-misbehaviour",
+		UpdateClient:              resolveSP1ProgramPath("sp1-ics07-tendermint-update-client"),
+		Membership:                resolveSP1ProgramPath("sp1-ics07-tendermint-membership"),
+		UpdateClientAndMembership: resolveSP1ProgramPath("sp1-ics07-tendermint-uc-and-membership"),
+		Misbehaviour:              resolveSP1ProgramPath("sp1-ics07-tendermint-misbehaviour"),
 	}
+}
+
+func resolveSP1ProgramPath(programName string) string {
+	for _, candidate := range sp1ProgramPathCandidates(programName) {
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() && isELF(candidate) {
+			return candidate
+		}
+	}
+
+	// Preserve the historical default as a final fallback so callers still get a
+	// predictable path in error messages when the programs have not been built.
+	return filepath.Join(
+		".",
+		"ibc-solidity",
+		"programs",
+		"sp1-programs",
+		"target",
+		"elf-compilation",
+		"riscv64im-succinct-zkvm-elf",
+		"release",
+		programName,
+	)
+}
+
+func isELF(path string) bool {
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+
+	header := make([]byte, 5)
+	if _, err := f.Read(header); err != nil {
+		return false
+	}
+
+	return header[0] == 0x7f && header[1] == 'E' && header[2] == 'L' && header[3] == 'F'
+}
+
+func sp1ProgramPathCandidates(programName string) []string {
+	seen := make(map[string]struct{})
+	candidates := make([]string, 0, 8)
+	add := func(path string) {
+		cleaned := filepath.Clean(path)
+		if _, ok := seen[cleaned]; ok {
+			return
+		}
+		seen[cleaned] = struct{}{}
+		candidates = append(candidates, cleaned)
+	}
+
+	repoRoot := "."
+	if _, thisFile, _, ok := runtime.Caller(0); ok {
+		repoRoot = filepath.Clean(filepath.Join(filepath.Dir(thisFile), "..", "..", ".."))
+	}
+
+	preferredTargets := []string{
+		"riscv64im-succinct-zkvm-elf",
+		"riscv32im-succinct-zkvm-elf",
+	}
+	for _, target := range preferredTargets {
+		add(filepath.Join(repoRoot, "ibc-solidity", "programs", "sp1-programs", "target", "elf-compilation", target, "release", programName))
+	}
+
+	globPattern := filepath.Join(repoRoot, "ibc-solidity", "programs", "sp1-programs", "target", "elf-compilation", "*", "release", programName)
+	if matches, err := filepath.Glob(globPattern); err == nil {
+		sort.Strings(matches)
+		for _, match := range matches {
+			add(match)
+		}
+	}
+
+	return candidates
 }
 
 // SolanaToCosmosModuleConfig represents the configuration for solana_to_cosmos module
