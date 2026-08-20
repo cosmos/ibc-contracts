@@ -11,9 +11,9 @@ import { IICS02ClientMsgs } from "../../contracts/msgs/IICS02ClientMsgs.sol";
 import { BesuIBFT2LightClient } from "../../contracts/light-clients/besu/BesuIBFT2LightClient.sol";
 import { BesuQBFTLightClient } from "../../contracts/light-clients/besu/BesuQBFTLightClient.sol";
 import { IBesuLightClient } from "../../contracts/light-clients/besu/interfaces/IBesuLightClient.sol";
+import { BesuQBFTLightClient } from "../../contracts/light-clients/besu/BesuQBFTLightClient.sol";
 import { IBesuLightClientMsgs } from "../../contracts/light-clients/besu/msgs/IBesuLightClientMsgs.sol";
 import { IBesuLightClientErrors } from "../../contracts/light-clients/besu/errors/IBesuLightClientErrors.sol";
-import { RLPReader } from "../../contracts/light-clients/besu/RLPReader.sol";
 
 /// @dev Successful update input and expected consensus state.
 struct BesuUpdateFixture {
@@ -61,21 +61,70 @@ struct BesuFixture {
     BesuProofFixture nonMembership;
 }
 
+contract BesuHeaderTestHarness is BesuQBFTLightClient {
+    constructor(address[] memory validators)
+        BesuQBFTLightClient(address(1), 1, 1, bytes32(0), validators, 1, 1, address(0))
+    { }
+
+    function validateHeader(bytes calldata headerRlp) external pure {
+        _parseHeader(headerRlp);
+    }
+
+    function replaceHeaderBytes(
+        bytes calldata headerRlp,
+        uint256 index,
+        bytes calldata rawValue
+    )
+        external
+        pure
+        returns (bytes memory)
+    {
+        ParsedHeader memory header = _parseHeader(headerRlp);
+        bytes[] memory items = new bytes[](header.headerItems.length);
+        for (uint256 i = 0; i < items.length; ++i) {
+            items[i] = i == index ? _encodeRlpBytes(rawValue) : _rlpItemBytes(header.headerItems[i]);
+        }
+        return _encodeRlpList(items);
+    }
+
+    function replaceExtraDataBytes(
+        bytes calldata headerRlp,
+        uint256 index,
+        bytes calldata rawValue
+    )
+        external
+        pure
+        returns (bytes memory)
+    {
+        ParsedHeader memory header = _parseHeader(headerRlp);
+        bytes[] memory extraItems = new bytes[](header.extraDataItems.length);
+        for (uint256 i = 0; i < extraItems.length; ++i) {
+            extraItems[i] = i == index ? _encodeRlpBytes(rawValue) : _rlpItemBytes(header.extraDataItems[i]);
+        }
+
+        bytes[] memory headerItems = new bytes[](header.headerItems.length);
+        for (uint256 i = 0; i < headerItems.length; ++i) {
+            headerItems[i] =
+                i == 12 ? _encodeRlpBytes(_encodeRlpList(extraItems)) : _rlpItemBytes(header.headerItems[i]);
+        }
+        return _encodeRlpList(headerItems);
+    }
+}
+
 abstract contract BesuLightClientFixtureTestBase is Test {
     using stdJson for string;
-    using RLPReader for bytes;
-    using RLPReader for RLPReader.RLPItem;
-
     string internal constant FIXTURE_DIR = "/test/besu-bft/fixtures/";
 
     BesuFixture internal fixture;
     IBesuLightClient internal client;
     IBesuLightClient internal wrongWrapper;
+    BesuHeaderTestHarness internal headerHarness;
 
     function setUp() public virtual {
         fixture = _loadFixture(_fixtureFile());
         client = _deployPrimaryClient();
         wrongWrapper = _deployWrongWrapper();
+        headerHarness = new BesuHeaderTestHarness(fixture.initialTrustedValidators);
     }
 
     function fixtureUpdate() public view returns (BesuUpdateFixture[] memory updates) {
@@ -94,22 +143,70 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     }
 
     function test_updateClient_revertZeroTimestampWithoutStateChange() public {
-        BesuUpdateFixture memory update = fixture.nonAdjacentUpdate;
-        RLPReader.RLPItem memory headerItem = update.headerRlp.toRlpItem();
-        RLPReader.RLPItem[] memory headerItems = headerItem.toList();
-        (uint256 timestampPtr, uint256 timestampLen) = headerItems[11].payloadLocation();
-        for (uint256 i = 0; i < timestampLen; ++i) {
-            update.headerRlp[timestampPtr - headerItem.memPtr + i] = 0;
-        }
+        IBesuLightClientMsgs.MsgUpdateClient memory update =
+            abi.decode(_encodeUpdate(fixture.nonAdjacentUpdate), (IBesuLightClientMsgs.MsgUpdateClient));
+        update.headerRlp = headerHarness.replaceHeaderBytes(update.headerRlp, 11, hex"00");
 
         bytes memory clientStateBefore = client.getClientState();
         bytes memory consensusStateBefore = client.getConsensusState(fixture.initialTrustedHeight);
 
-        vm.expectRevert(IBesuLightClientErrors.InvalidHeaderTimestamp.selector);
-        client.updateClient(_encodeUpdate(update));
+        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.InvalidHeaderTimestamp.selector, 0));
+        client.updateClient(abi.encode(update));
 
         assertEq(client.getClientState(), clientStateBefore);
         assertEq(client.getConsensusState(fixture.initialTrustedHeight), consensusStateBefore);
+    }
+
+    function test_updateClient_revertSubmittedHeightBeforeTrustedHeight() public {
+        vm.warp(fixture.initialTrustedTimestamp + 1);
+        client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
+
+        IBesuLightClientMsgs.MsgUpdateClient memory update =
+            abi.decode(_encodeUpdate(fixture.adjacentUpdate), (IBesuLightClientMsgs.MsgUpdateClient));
+        update.trustedHeight.revisionHeight = fixture.nonAdjacentUpdate.height;
+
+        vm.expectRevert(IBesuLightClientErrors.InvalidHeaderHeight.selector);
+        client.updateClient(abi.encode(update));
+    }
+
+    function test_updateClient_revertSubmittedHeightEqualsTrustedHeight() public {
+        vm.warp(fixture.initialTrustedTimestamp + 1);
+        client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
+
+        IBesuLightClientMsgs.MsgUpdateClient memory update =
+            abi.decode(_encodeUpdate(fixture.nonAdjacentUpdate), (IBesuLightClientMsgs.MsgUpdateClient));
+        update.trustedHeight.revisionHeight = fixture.nonAdjacentUpdate.height;
+
+        vm.expectRevert(IBesuLightClientErrors.InvalidHeaderHeight.selector);
+        client.updateClient(abi.encode(update));
+    }
+
+    function test_parseHeader_revertHeightOverflow() public {
+        bytes memory headerRlp =
+            headerHarness.replaceHeaderBytes(fixture.nonAdjacentUpdate.headerRlp, 8, hex"010000000000000000");
+
+        vm.expectRevert(IBesuLightClientErrors.InvalidHeaderHeight.selector);
+        headerHarness.validateHeader(headerRlp);
+    }
+
+    function test_parseHeader_revertTimestampOverflow() public {
+        bytes memory headerRlp =
+            headerHarness.replaceHeaderBytes(fixture.nonAdjacentUpdate.headerRlp, 11, hex"010000000000000000");
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IBesuLightClientErrors.InvalidHeaderTimestamp.selector, uint256(type(uint64).max) + 1
+            )
+        );
+        headerHarness.validateHeader(headerRlp);
+    }
+
+    function test_parseHeader_revertInvalidVanityDataLength() public {
+        bytes memory headerRlp =
+            headerHarness.replaceExtraDataBytes(fixture.nonAdjacentUpdate.headerRlp, 0, new bytes(31));
+
+        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.InvalidVanityDataLength.selector, 31));
+        headerHarness.validateHeader(headerRlp);
     }
 
     function test_verifyMembership_returnsStoredTimestamp() public {

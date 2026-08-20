@@ -51,7 +51,8 @@ constructor(
 - `initialTrustedTimestamp`: trusted header timestamp in seconds.
 - `initialTrustedStorageRoot`: storage root of the tracked `ICS26Router` account at `initialTrustedHeight`.
 - `initialTrustedValidators`: validator set trusted at `initialTrustedHeight`.
-- `trustingPeriod`: weak-subjectivity window in seconds. `0` means no expiry.
+- `trustingPeriod`: weak-subjectivity window in seconds. `0` disables expiry
+  and is unsuitable for production non-adjacent verification.
 - `maxClockDrift`: allowed future drift for submitted headers in seconds.
 - `roleManager`: if non-zero, receives admin and `PROOF_SUBMITTER_ROLE`; if zero, proof submission is open to anyone through the zero-address sentinel.
 
@@ -68,16 +69,30 @@ struct MsgUpdateClient {
 ```
 
 - `headerRlp`: full raw Besu block header RLP, including `extraData` and commit seals.
-- `trustedHeight`: must use `revisionNumber == 0`.
+- `trustedHeight`: must use `revisionNumber == 0` and be lower than the submitted header height.
 - `accountProof`: raw RLP-encoded Ethereum account proof for the tracked `ICS26Router` account against the submitted header's `stateRoot`.
 
 On update, the contract:
 
-1. parses and validates the Besu header,
+1. parses the full signed header and validates the fields required by this non-adjacent verification model,
 2. reconstructs the protocol-specific commit-seal digest following the YUI + prover sealing-header model,
 3. checks trusted-validator overlap and new-validator quorum,
 4. verifies the tracked router account proof,
 5. stores the router account `storageRoot` plus the new validator set.
+
+Non-adjacent updates are supported by design. The submitted height must be
+strictly after the selected trusted height. If validator turnover prevents the
+required overlap, the relayer must first submit one or more intermediate
+headers; they do not need to be adjacent.
+
+The contract authenticates the complete header through its commit seals and
+validates the fields used by this verifier. It does not re-execute source-chain
+transactions; those semantics remain covered by the honest-validator
+assumption of the trusting-period model.
+
+The parser accepts the standard 15 Ethereum header fields plus signed
+fork-extension fields. Deployments must confirm that the configured Besu fork
+keeps the standard fields at their expected indices.
 
 ## Membership / non-membership proofs
 
@@ -119,6 +134,25 @@ where `IBCSTORE_STORAGE_SLOT` is the ERC-7201 namespace constant used by `IBCSto
 - `msg_.proof` must be the raw RLP-encoded Ethereum storage proof for `storageSlot`.
 - The proof must show that the slot is absent.
 - The return value is the trusted consensus timestamp in seconds for `msg_.proofHeight`.
+
+### Trie proof implementation
+
+`MPTProof.sol` is a narrow fork of OpenZeppelin Contracts v5.6.1
+[`TrieProof.sol`](https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.6.1/contracts/utils/cryptography/TrieProof.sol).
+The upstream library verifies inclusion only and its private traversal helpers
+cannot be wrapped or inherited to add exclusion.
+
+The fork keeps OpenZeppelin's node-link validation, compact-path traversal, and
+inline-node handling. Its local changes are limited to:
+
+1. decoding this client's existing RLP-encoded proof-list wire format,
+2. returning an explicit `exists` flag,
+3. accepting authenticated exclusion at an empty trie, empty branch child or
+   value, or divergent compact leaf/extension path, and
+4. rejecting proof nodes supplied after any inclusion or exclusion terminal.
+
+When updating OpenZeppelin, diff `MPTProof.sol` against the pinned upstream file
+above and run `forge test --match-path "test/besu-bft/*.sol"`.
 
 ## Test fixtures
 
