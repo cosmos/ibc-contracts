@@ -64,7 +64,7 @@ single_use_lifetimes = "allow"
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
-repository = "https://github.com/cosmos/solidity-ibc-eureka"
+repository = "https://github.com/cosmos/ibc-contracts"
 keywords = [
   "cosmos",
   "ibc",

@@ -1,0 +1,188 @@
+NOTICE
+
+
+ibc-contracts
+Copyright contributors to ibc-contracts.
+
+Copyright 2026 Cosmos Labs
+Copyright IBC Authors
+
+This product includes software developed by contributors to ibc-contracts.
+
+
+License
+
+This product is licensed under the Apache License, Version 2.0 (the "License"). You may not use
+this product except in compliance with the License. You may obtain a copy of the License at:
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under the License
+is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+or implied. See the License for the specific language governing permissions and limitations under
+the License.
+
+Documentation in this repository is licensed under the Creative Commons Attribution 4.0
+International License: http://creativecommons.org/licenses/by/4.0/
+
+One directory is an exception to the statement above and is not under the Apache License:
+packages/ethereum/trie-db/. See the Open Ethereum entry below.
+
+This file is provided for informational purposes only and does not modify the License.
+
+
+Third-party software
+
+This product includes software from the projects listed below. The per-file lists are a
+good-faith record compiled from provenance comments in the source tree; they include, but are
+not limited to, the files named. See "Open items" at the end of this file for the parts of this
+record that are not yet settled.
+
+
+Open Ethereum
+https://github.com/openethereum/openethereum
+Copyright 2015-2020 Parity Technologies (UK) Ltd.
+Licensed under the GNU General Public License, version 3 or later
+(https://www.gnu.org/licenses/gpl-3.0.html)
+
+  - packages/ethereum/trie-db/src/types.rs
+    The NodeCodec implementation for RLP is derived from Open Ethereum. The upstream
+    GPL-3.0-or-later notice is retained verbatim at the top of that file and must not be
+    removed or replaced with an Apache-2.0 header.
+
+This is the one part of this repository that is not under the Apache License, Version 2.0. The
+ethereum-trie-db crate therefore omits the license field in its Cargo.toml and is excluded from
+SPDX header enforcement in scripts/check-license-headers.sh. GPL-3.0-or-later terms are not
+compatible with distributing this crate as part of an Apache-2.0 product, and no copyleft
+license appears on the Cosmos allowed third-party licenses list at all. This needs a licensing
+decision — a clean-room reimplementation, an upstream relicensing grant, or an approved
+exception — before this crate is published to a registry or shipped in an Apache-2.0 artifact.
+The other files in that crate (lib.rs, trie_db.rs, error.rs) carry no upstream notice and
+appear to be original to this repository.
+
+
+tree_hash
+https://github.com/sigp/tree_hash
+Maintained by Sigma Prime, for use in Lighthouse and the broader Ethereum ecosystem
+Licensed under the Apache License, Version 2.0
+(http://www.apache.org/licenses/LICENSE-2.0)
+
+  - packages/ethereum/tree_hash/
+    A vendored fork of the upstream tree_hash crate, modified to use alloy-primitives.
+    The crate keeps the upstream name, module layout (impls, merkle_hasher, merkleize_padded,
+    merkleize_standard, sha256), and public constants, and it is wired into the workspace as a
+    path dependency that takes the place of the crates.io release. It is used alongside the
+    upstream tree_hash_derive and ethereum_ssz crates, which are consumed unmodified from
+    crates.io.
+
+
+union
+https://github.com/unionlabs/union
+Copyright Union.fi Labs, Inc.
+Dual-licensed under the Apache License, Version 2.0
+(http://www.apache.org/licenses/LICENSE-2.0) and the MIT License; used here under the
+Apache License, Version 2.0.
+
+The Ethereum light client in this repository is based on the Ethereum light client developed by
+Union Labs for ibc-go's 08-wasm module.
+
+  - packages/ethereum/light-client/
+    The stateless verification implementation — Ethereum consensus verification, state proof
+    verification, and header update handling. Its README records the derivation.
+  - packages/ethereum/apis/
+    The Ethereum RPC and beacon API clients and helpers. Its README records the derivation.
+  - ibc-solidity/programs/cw-ics08-wasm-eth/
+    The CosmWasm light client that holds the state for the above. Its README records that the
+    implementation builds on the Union Labs work. The update_client path additionally follows
+    the Ethereum Light Client Sync Protocol specification
+    (https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/light-client/sync-protocol.md),
+    with modifications to support historical updates.
+
+
+ibc-go
+https://github.com/cosmos/ibc-go
+Licensed under the Apache License, Version 2.0
+(http://www.apache.org/licenses/LICENSE-2.0)
+
+ibc-go is the reference Go implementation of IBC and was used as a reference for this
+implementation. Test vectors were taken from it directly:
+
+  - ibc-solidity/test/solidity-ibc/IbcIdentifiersTest.t.sol
+    Identifier validation test cases taken from modules/core/24-host/validate_test.go, as of
+    commit e443a88e0f2c84c131c5a1de47945a5733ff9c91.
+  - ibc-solidity/test/solidity-ibc/ICS24HostTest.t.sol
+    Expected path and commitment values checked against the ibc-go implementation's output.
+
+
+Dependencies not stored in this repository
+
+The following are fetched at build time rather than vendored, so no file in this repository is
+derived from them. They are recorded here because they are linked into, or compiled into, the
+artifacts this project distributes — in particular the deployed Solidity bytecode, which embeds
+the OpenZeppelin contracts it inherits from.
+
+  - OpenZeppelin Contracts and Contracts Upgradeable
+    https://github.com/OpenZeppelin/openzeppelin-contracts
+    Inherited by the Solidity contracts, including AccessManager for roles and permissions,
+    and resolved from npm via ibc-solidity/remappings.txt.
+  - Uniswap Permit2
+    https://github.com/Uniswap/permit2
+    Pinned to commit cc56ad0f3439c502c246fc5cfcc3db92bb8b7219.
+  - SP1 Contracts
+    https://github.com/succinctlabs/sp1-contracts
+    The ISP1Verifier interface, pinned to commit d3629729c3216eb51bd4859d027a8eb729399fa4.
+  - Forge Standard Library
+    https://github.com/foundry-rs/forge-std
+    Test-only, pinned to v1.15.0.
+  - The Parity Technologies trie and RLP crates
+    trie-db, hash-db, memory-db, hash256-std-hasher, rlp, rlp-derive, and primitive-types,
+    consumed unmodified from crates.io.
+  - The Sigma Prime SSZ crates
+    ethereum_ssz, ethereum_ssz_derive, and tree_hash_derive, consumed unmodified from
+    crates.io.
+
+This list is not a substitute for a full dependency license report. It names only the direct
+dependencies that reach a distributed artifact.
+
+
+Project scaffolding
+
+The repository was initially scaffolded from https://github.com/PaulRBerg/foundry-template.
+Implementations of the IBC specification in Solidity
+(https://github.com/hyperledger-labs/yui-ibc-solidity), CosmWasm
+(https://github.com/srdtrk/cw-ibc-lite), and Rust (https://github.com/cosmos/ibc-rs) were
+consulted as references. No file in this repository is currently identified as copied from any
+of these.
+
+
+Open items
+
+This record is complete as to the provenance that is documented in the source tree. Three things
+are not settled, and are listed here rather than left implied:
+
+  1. The Open Ethereum GPL-3.0-or-later code in packages/ethereum/trie-db/ is an unresolved
+     license incompatibility, not a completed attribution. See that entry above.
+
+  2. The adapted-versus-original boundary within packages/ethereum/ has not been established
+     file by file. The light-client and apis crates record their derivation from Union in their
+     READMEs; packages/ethereum/types does not, although it sits in the same light client and
+     may share provenance. Establishing the boundary is what would let the union entry above
+     name specific files rather than whole directories.
+
+  3. Where an upstream is under the MIT License or a BSD license, that license requires its
+     copyright and permission notice be retained verbatim in copies or substantial portions.
+     The entries above are Apache-2.0 or GPL upstreams, for which the reproduced license
+     reference is sufficient. If any MIT-licensed code — including from the foundry-template
+     scaffolding or an npm dependency whose source is checked in later — is found to have been
+     copied into this repository, its verbatim notice must be added here at that point.
+
+Separately, the repository was normalized to Apache-2.0 across files previously marked MIT or
+UNLICENSED. That relicensing was carried out without per-contributor sign-off and is a matter
+for legal rather than for this file, but it is noted here because MIT permits sublicensing only
+where the original copyright notice is preserved.
+
+
+Attribution
+
+If you distribute this software or derivative works, you must include a copy of this NOTICE file
+(or equivalent attribution) in your distribution, as required by Section 4(d) of the Apache
+License, Version 2.0.

@@ -2,6 +2,8 @@
 
 This repository has multiple on-chain and off-chain components. Each component has its own release process.
 
+Releases are published as GitHub releases against a component-prefixed tag, and the [release workflow](./.github/workflows/release.yml) attaches the build artifacts for that component. Release notes are assembled from the [conventional commit](https://www.conventionalcommits.org/en/v1.0.0/) messages the tag contains, so a breaking change needs to be marked as one in the commit message; see [Release notes](./CONTRIBUTING.md#release-notes) in the contributing guidelines.
+
 ## On-chain components
 
 ### Solidity Contracts
@@ -38,3 +40,20 @@ The proof API does not have a major release yet, since we want to reserve the ri
 
 - **Minor version bump**: A minor version bump indicates that there are new features or improvements in the proof API.
 - **Patch version bump**: A patch version bump indicates that there are bug fixes or minor improvements in the proof API.
+
+## Supported versions
+
+Because each component is versioned independently, support is tracked per component rather than across the repository. Fixes, including security fixes, are made on `main` and released as a new tag for each affected component. Adopters running the latest release of a component are the priority for coordinated fixes; see [SECURITY.md](./SECURITY.md) for the disclosure process.
+
+| Component | Tag prefix | Supported line |
+| --- | --- | --- |
+| Solidity contracts | `solidity-` | `solidity-v2.0.x` |
+| CosmWasm Ethereum light client | `cw-ics08-wasm-eth-` | `cw-ics08-wasm-eth-v1.3.x` |
+| Proof API | `proof-api-` | `proof-api-v0.7.x` |
+| Solana programs | `solana-` | Not yet stated |
+| SP1 light client programs | `sp1-programs-` | Not yet stated |
+
+> [!IMPORTANT]
+> Two gaps to close here. The Solana programs and the SP1 light client programs have no stated supported line, and the project has not committed to a support window for older lines — how long a previous major or minor line keeps receiving backported fixes, and how that is communicated to adopters. Both need deciding and stating in this table, because [SECURITY.md](./SECURITY.md) points at this section to answer "is my version still getting fixes?". Keep this table and the [Releases](./README.md#releases) section of the README in step; today they are two places recording the same fact.
+
+Note that the on-chain components are deployed contracts and programs: publishing a new tag does not update a live deployment. Upgrading a deployment is a separate, permissioned action described in [UPGRADEABILITY.md](./UPGRADEABILITY.md), and whether a release requires a new initializer or a state migration is what the version bump above tells you.

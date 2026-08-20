@@ -26,7 +26,7 @@ This directory implements the IBC v2 protocol stack in Solidity. Most entrypoint
 - `sp1-ics07/SP1ICS07Tendermint.sol` – Tendermint light client verified via SP1 programs and verifier contract; supports update, (non)membership proofs, and misbehaviour handling.
 
 ## Interchain Fungible Tokens (IFT)
-- Code reference: find the  `contracts` IFT contract code [here](https://github.com/cosmos/solidity-ibc-eureka/tree/mariuszzak/ift/contracts).
+- Code reference: find the  `contracts` IFT contract code [here](https://github.com/cosmos/ibc-contracts/tree/mariuszzak/ift/contracts).
 - IFT is an issuer-controlled ERC20 that bridges via ICS27-GMP instead of ICS20. The abstract `IFTBase` burns on send, constructs a mint call for the counterparty IFT, and tracks pending transfers keyed by (clientId, sequence).
 - Bridges: `registerIFTBridge` configures a counterparty IFT contract per IBC client along with an `IIFTSendCallConstructor` helper to encode the mint call for that chain.
 - Sending: `iftTransfer` burns locally, builds ICS27 `SendCall` to the remote IFT, records `PendingTransfer`, and emits initiation events; default timeout is 15 minutes if not provided.
