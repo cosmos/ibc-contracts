@@ -392,7 +392,8 @@ abstract contract BesuLightClientBase is ILightClient, IBesuLightClientErrors, I
             }
         }
 
-        uint256 required = validators.length * 2 / 3 + 1;
+        // Besu requires ceil(2n / 3), equivalently n - floor(n / 3).
+        uint256 required = validators.length - validators.length / 3;
         if (actual < required) {
             revert InsufficientValidatorQuorum(actual, required);
         }
