@@ -20,6 +20,8 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rlp"
 
+	ibchostv2 "github.com/cosmos/ibc-go/v11/modules/core/24-host/v2"
+
 	"github.com/cosmos/solidity-ibc-eureka/packages/go-abigen/ics26router"
 
 	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/ethereum"
@@ -384,7 +386,7 @@ func buildMembershipFixture(
 	proofHeight uint64,
 	expectedTimestamp uint64,
 ) (besuProofFixture, error) {
-	path := packetCommitmentPath(packet)
+	path := ibchostv2.PacketCommitmentKey(packet.SourceClient, packet.Sequence)
 	proofRLP, err := fetchStorageProof(ctx, chain, routerAddress, path, proofHeight)
 	if err != nil {
 		return besuProofFixture{}, err
@@ -407,7 +409,7 @@ func buildNonMembershipFixture(
 	proofHeight uint64,
 	expectedTimestamp uint64,
 ) (besuProofFixture, error) {
-	path := packetReceiptCommitmentPath(packet)
+	path := ibchostv2.PacketReceiptKey(packet.DestClient, packet.Sequence)
 	proofRLP, err := fetchStorageProof(ctx, chain, routerAddress, path, proofHeight)
 	if err != nil {
 		return besuProofFixture{}, err
@@ -470,10 +472,7 @@ func fetchStorageProof(
 	path []byte,
 	height uint64,
 ) ([]byte, error) {
-	storageKey, err := evmICS26CommitmentStorageKey(path)
-	if err != nil {
-		return nil, err
-	}
+	storageKey := ethereum.GetCommitmentsStorageKey(path)
 	proof, err := chain.GetProof(ctx, routerAddress, []string{storageKey.Hex()}, fmt.Sprintf("0x%x", height))
 	if err != nil {
 		return nil, fmt.Errorf("fetch storage proof at height %d: %w", height, err)
@@ -494,33 +493,6 @@ func encodeProofNodes(nodes []string) ([]byte, error) {
 		rawNodes[i] = ethcommon.FromHex(node)
 	}
 	return rlp.EncodeToBytes(rawNodes)
-}
-
-func evmICS26CommitmentStorageKey(path []byte) (ethcommon.Hash, error) {
-	slotHex := strings.TrimPrefix(testvalues.IbcCommitmentSlotHex, "0x")
-	slot, err := hex.DecodeString(slotHex)
-	if err != nil {
-		return ethcommon.Hash{}, fmt.Errorf("decode IBC commitment slot: %w", err)
-	}
-	if len(slot) != 32 {
-		return ethcommon.Hash{}, fmt.Errorf("invalid IBC commitment slot length: %d", len(slot))
-	}
-	pathHash := crypto.Keccak256(path)
-	return crypto.Keccak256Hash(pathHash, slot), nil
-}
-
-func packetCommitmentPath(packet ics26router.IICS26RouterMsgsPacket) []byte {
-	path := make([]byte, 0, len(packet.SourceClient)+1+8)
-	path = append(path, []byte(packet.SourceClient)...)
-	path = append(path, 1)
-	return appendUint64(path, packet.Sequence)
-}
-
-func packetReceiptCommitmentPath(packet ics26router.IICS26RouterMsgsPacket) []byte {
-	path := make([]byte, 0, len(packet.DestClient)+1+8)
-	path = append(path, []byte(packet.DestClient)...)
-	path = append(path, 2)
-	return appendUint64(path, packet.Sequence)
 }
 
 func packetCommitment(packet ics26router.IICS26RouterMsgsPacket) []byte {
@@ -564,12 +536,6 @@ func payloadCommitmentHash(payload ics26router.IICS26RouterMsgsPayload) []byte {
 func sha256Bytes(input []byte) []byte {
 	sum := sha256.Sum256(input)
 	return sum[:]
-}
-
-func appendUint64(dst []byte, value uint64) []byte {
-	var buf [8]byte
-	binary.BigEndian.PutUint64(buf[:], value)
-	return append(dst, buf[:]...)
 }
 
 func decodeMutableQBFTHeader(headerRLP []byte) (*mutableQBFTHeader, error) {

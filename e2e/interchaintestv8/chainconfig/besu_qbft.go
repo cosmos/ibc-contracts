@@ -8,18 +8,16 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/fs"
 	"math/big"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
 	dockernetwork "github.com/docker/docker/api/types/network"
 	dockerclient "github.com/moby/moby/client"
-	"github.com/testcontainers/testcontainers-go/modules/compose"
-	"github.com/testcontainers/testcontainers-go/wait"
 
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
@@ -63,8 +61,8 @@ type BesuQBFTChain struct {
 	DockerRPC string
 	Faucet    *ecdsa.PrivateKey
 
-	stack      *compose.DockerCompose
-	projectDir string
+	projectName string
+	projectDir  string
 }
 
 func SpinUpBesuQBFT(ctx context.Context, params BesuQBFTParams) (chain BesuQBFTChain, err error) {
@@ -73,7 +71,7 @@ func SpinUpBesuQBFT(ctx context.Context, params BesuQBFTParams) (chain BesuQBFTC
 		return BesuQBFTChain{}, fmt.Errorf("parse besu qbft faucet key: %w", err)
 	}
 
-	projectDir, err := os.MkdirTemp("", "besu-qbft-*")
+	projectDir, err := os.MkdirTemp("", besuQBFTProjectName+"-*")
 	if err != nil {
 		return BesuQBFTChain{}, fmt.Errorf("create besu qbft temp dir: %w", err)
 	}
@@ -82,10 +80,16 @@ func SpinUpBesuQBFT(ctx context.Context, params BesuQBFTParams) (chain BesuQBFTC
 		Faucet:     faucet,
 		projectDir: projectDir,
 	}
-	var stack *compose.DockerCompose
+	cleanupChain := BesuQBFTChain{projectDir: projectDir}
 	defer func() {
 		if err != nil {
-			BesuQBFTChain{stack: stack, projectDir: projectDir}.Destroy(context.Background())
+			cleanupCtx := context.Background()
+			if cleanupChain.projectName != "" {
+				if logErr := cleanupChain.DumpLogs(cleanupCtx); logErr != nil {
+					fmt.Printf("failed to dump besu qbft logs after startup error: %v\n", logErr)
+				}
+			}
+			cleanupChain.Destroy(cleanupCtx)
 		}
 	}()
 
@@ -101,41 +105,50 @@ func SpinUpBesuQBFT(ctx context.Context, params BesuQBFTParams) (chain BesuQBFTC
 		return BesuQBFTChain{}, fmt.Errorf("patch besu qbft compose file: %w", err)
 	}
 
-	stack, err = compose.NewDockerComposeWith(
-		compose.StackIdentifier(fmt.Sprintf("%s-%d", besuQBFTProjectName, time.Now().UnixNano())),
-		compose.WithStackFiles(filepath.Join(projectDir, besuQBFTComposeFile)),
-	)
-	if err != nil {
-		return BesuQBFTChain{}, fmt.Errorf("create besu qbft compose stack: %w", err)
-	}
-	chain.stack = stack
-
-	if err := stack.
-		WaitForService("validator1", wait.ForListeningPort("8545/tcp")).
-		Up(ctx, compose.Wait(true)); err != nil {
-		if logErr := chain.DumpLogs(context.Background()); logErr != nil {
-			fmt.Printf("failed to dump besu qbft logs after startup error: %v\n", logErr)
-		}
+	chain.projectName = filepath.Base(projectDir)
+	cleanupChain.projectName = chain.projectName
+	if _, err := chain.runCompose(ctx, "up", "--detach"); err != nil {
 		return BesuQBFTChain{}, fmt.Errorf("start besu qbft compose stack: %w", err)
 	}
 
-	validator1, err := stack.ServiceContainer(ctx, "validator1")
+	validator1Output, err := chain.runCompose(ctx, "ps", "-q", "validator1")
 	if err != nil {
 		return BesuQBFTChain{}, fmt.Errorf("get validator1 container: %w", err)
 	}
-
-	mappedPort, err := validator1.MappedPort(ctx, "8545/tcp")
-	if err != nil {
-		return BesuQBFTChain{}, fmt.Errorf("resolve validator1 rpc port: %w", err)
+	validator1ID := strings.TrimSpace(string(validator1Output))
+	if validator1ID == "" {
+		return BesuQBFTChain{}, fmt.Errorf("get validator1 container: docker compose returned no container ID")
 	}
 
-	chain.RPC = fmt.Sprintf("http://127.0.0.1:%s", mappedPort.Port())
+	dockerClient, err := dockerclient.NewClientWithOpts(dockerclient.FromEnv, dockerclient.WithAPIVersionNegotiation())
+	if err != nil {
+		return BesuQBFTChain{}, fmt.Errorf("create docker client: %w", err)
+	}
+	defer dockerClient.Close()
+
+	validator1, err := dockerClient.ContainerInspect(ctx, validator1ID)
+	if err != nil {
+		return BesuQBFTChain{}, fmt.Errorf("inspect validator1 container: %w", err)
+	}
+	if validator1.NetworkSettings == nil {
+		return BesuQBFTChain{}, fmt.Errorf("resolve validator1 rpc port: container has no network settings")
+	}
+	bindings := validator1.NetworkSettings.Ports["8545/tcp"]
+	if len(bindings) == 0 || bindings[0].HostPort == "" {
+		return BesuQBFTChain{}, fmt.Errorf("resolve validator1 rpc port: no 8545/tcp binding")
+	}
+
+	chain.RPC = fmt.Sprintf("http://127.0.0.1:%s", bindings[0].HostPort)
 	if params.DockerRPCAlias != "" {
 		chain.DockerRPC = fmt.Sprintf("http://%s:8545", params.DockerRPCAlias)
 	}
 
 	if params.InterchainNetworkID != "" {
-		if err := connectBesuQBFTToInterchainNetwork(ctx, params.InterchainNetworkID, validator1.GetContainerID(), params.DockerRPCAlias); err != nil {
+		settings := &dockernetwork.EndpointSettings{}
+		if params.DockerRPCAlias != "" {
+			settings.Aliases = []string{params.DockerRPCAlias}
+		}
+		if err := dockerClient.NetworkConnect(ctx, params.InterchainNetworkID, validator1ID, settings); err != nil {
 			return BesuQBFTChain{}, fmt.Errorf("connect besu qbft rpc container to interchain network: %w", err)
 		}
 	}
@@ -152,8 +165,8 @@ func SpinUpBesuQBFT(ctx context.Context, params BesuQBFTParams) (chain BesuQBFTC
 }
 
 func (c BesuQBFTChain) Destroy(ctx context.Context) {
-	if c.stack != nil {
-		if err := c.stack.Down(ctx, compose.RemoveOrphans(true), compose.RemoveVolumes(true)); err != nil {
+	if c.projectName != "" && c.projectDir != "" {
+		if _, err := c.runCompose(ctx, "down", "--volumes", "--remove-orphans"); err != nil {
 			fmt.Printf("failed to tear down besu qbft stack: %v\n", err)
 		}
 	}
@@ -166,33 +179,31 @@ func (c BesuQBFTChain) Destroy(ctx context.Context) {
 }
 
 func (c BesuQBFTChain) DumpLogs(ctx context.Context) error {
-	if c.stack == nil {
+	if c.projectName == "" || c.projectDir == "" {
 		return nil
 	}
 
-	for _, service := range besuQBFTServices {
-		container, err := c.stack.ServiceContainer(ctx, service)
-		if err != nil {
-			return fmt.Errorf("get %s container: %w", service, err)
-		}
-
-		logs, err := container.Logs(ctx)
-		if err != nil {
-			return fmt.Errorf("get %s logs: %w", service, err)
-		}
-
-		fmt.Printf("===== %s logs =====\n", service)
-		if _, err := io.Copy(os.Stdout, logs); err != nil {
-			_ = logs.Close()
-			return fmt.Errorf("copy %s logs: %w", service, err)
-		}
-		fmt.Println()
-		if err := logs.Close(); err != nil {
-			return fmt.Errorf("close %s logs: %w", service, err)
-		}
+	args := append([]string{"logs", "--no-color"}, besuQBFTServices...)
+	logs, err := c.runCompose(ctx, args...)
+	if len(logs) > 0 {
+		fmt.Print(string(logs))
 	}
+	return err
+}
 
-	return nil
+func (c BesuQBFTChain) runCompose(ctx context.Context, args ...string) ([]byte, error) {
+	composeArgs := []string{
+		"compose",
+		"--project-name", c.projectName,
+		"--file", filepath.Join(c.projectDir, besuQBFTComposeFile),
+	}
+	composeArgs = append(composeArgs, args...)
+
+	output, err := exec.CommandContext(ctx, "docker", composeArgs...).CombinedOutput()
+	if err != nil {
+		return output, fmt.Errorf("docker compose %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(string(output)))
+	}
+	return output, nil
 }
 
 func materializeBesuQBFTAssets(dst string) error {
@@ -248,21 +259,6 @@ func patchBesuQBFTCompose(path string, params BesuQBFTParams) error {
 
 	// Docker Compose reads this generated configuration outside the Go process.
 	return os.WriteFile(path, []byte(replacer.Replace(string(contents))), 0o644) //nolint:gosec
-}
-
-func connectBesuQBFTToInterchainNetwork(ctx context.Context, interchainNetworkID, containerID, alias string) error {
-	dockerClient, err := dockerclient.NewClientWithOpts(dockerclient.FromEnv, dockerclient.WithAPIVersionNegotiation())
-	if err != nil {
-		return fmt.Errorf("create docker client: %w", err)
-	}
-	defer dockerClient.Close()
-
-	settings := &dockernetwork.EndpointSettings{}
-	if alias != "" {
-		settings.Aliases = []string{alias}
-	}
-
-	return dockerClient.NetworkConnect(ctx, interchainNetworkID, containerID, settings)
 }
 
 func waitForBesuQBFTReady(ctx context.Context, rpcURL string) error {

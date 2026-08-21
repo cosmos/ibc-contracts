@@ -18,3 +18,13 @@ func TestSetupConfigRejectsBesuQBFTWithDummyLightClient(t *testing.T) {
 		t.Fatal("expected Besu QBFT with a dummy light client to be rejected")
 	}
 }
+
+func TestSetupConfigRejectsBesuQBFTWithoutLightClient(t *testing.T) {
+	cfg := setupConfig{
+		ethereum: ethereumConfig{testnetType: testvalues.EthTestnetTypeBesuQBFT},
+	}
+
+	if err := cfg.validate(); err == nil {
+		t.Fatal("expected Besu QBFT without a light client to be rejected")
+	}
+}
