@@ -8,6 +8,8 @@ These end to end tests are designed to run in the CI, but you can also run them 
 
 ### Prerequisites
 
+Besu tests additionally require Docker Compose v2 (`docker compose`).
+
 In the repo root:
 
 ```
