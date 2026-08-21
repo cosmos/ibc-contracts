@@ -498,58 +498,6 @@ abstract contract BesuLightClientBase is ILightClient, IBesuLightClientErrors, I
         return item.toRlpBytes();
     }
 
-    /// @notice Encodes raw bytes as an RLP string.
-    /// @param raw Raw bytes to encode.
-    /// @return The RLP-encoded string.
-    function _encodeRlpBytes(bytes memory raw) internal pure returns (bytes memory) {
-        if (raw.length == 1 && uint8(raw[0]) < 0x80) {
-            return raw;
-        }
-        if (raw.length < 56) {
-            return abi.encodePacked(bytes1(uint8(0x80 + raw.length)), raw);
-        }
-
-        bytes memory lenBytes = _encodeLength(raw.length);
-        return abi.encodePacked(bytes1(uint8(0xb7 + lenBytes.length)), lenBytes, raw);
-    }
-
-    /// @notice Encodes pre-encoded RLP items as an RLP list.
-    /// @param items RLP-encoded list items.
-    /// @return The RLP-encoded list.
-    function _encodeRlpList(bytes[] memory items) internal pure returns (bytes memory) {
-        bytes memory payload = new bytes(0);
-        for (uint256 i = 0; i < items.length; ++i) {
-            payload = bytes.concat(payload, items[i]);
-        }
-
-        if (payload.length < 56) {
-            return abi.encodePacked(bytes1(uint8(0xc0 + payload.length)), payload);
-        }
-
-        bytes memory lenBytes = _encodeLength(payload.length);
-        return abi.encodePacked(bytes1(uint8(0xf7 + lenBytes.length)), lenBytes, payload);
-    }
-
-    /// @notice Encodes an integer length as big-endian bytes.
-    /// @param value The length value.
-    /// @return The minimal big-endian representation.
-    function _encodeLength(uint256 value) internal pure returns (bytes memory) {
-        uint256 tmp = value;
-        uint256 length;
-        while (tmp != 0) {
-            ++length;
-            tmp >>= 8;
-        }
-
-        bytes memory out = new bytes(length);
-        tmp = value;
-        for (uint256 i = length; i > 0; --i) {
-            out[i - 1] = bytes1(uint8(tmp));
-            tmp >>= 8;
-        }
-        return out;
-    }
-
     /// @notice Restricts access to proof submitters unless submission is open to anyone.
     modifier onlyProofSubmitter() {
         if (!hasRole(PROOF_SUBMITTER_ROLE, address(0))) {

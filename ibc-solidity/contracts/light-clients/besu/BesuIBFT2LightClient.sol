@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.28;
 
+import { RLP } from "@openzeppelin-contracts/utils/RLP.sol";
+
 import { BesuLightClientBase } from "./BesuLightClientBase.sol";
 
 /// @title Besu IBFT2 Light Client
@@ -45,11 +47,11 @@ contract BesuIBFT2LightClient is BesuLightClientBase {
         extraItems[2] = _rlpItemBytes(header.extraDataItems[2]);
         extraItems[3] = _rlpItemBytes(header.extraDataItems[3]);
 
-        bytes memory signingExtraData = _encodeRlpList(extraItems);
+        bytes memory signingExtraData = RLP.encode(extraItems);
         bytes[] memory headerItems = new bytes[](header.headerItems.length);
         for (uint256 i = 0; i < header.headerItems.length; ++i) {
-            headerItems[i] = i == 12 ? _encodeRlpBytes(signingExtraData) : _rlpItemBytes(header.headerItems[i]);
+            headerItems[i] = i == 12 ? RLP.encode(signingExtraData) : _rlpItemBytes(header.headerItems[i]);
         }
-        return keccak256(_encodeRlpList(headerItems));
+        return keccak256(RLP.encode(headerItems));
     }
 }
