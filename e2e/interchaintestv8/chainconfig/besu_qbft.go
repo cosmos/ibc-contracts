@@ -82,9 +82,10 @@ func SpinUpBesuQBFT(ctx context.Context, params BesuQBFTParams) (chain BesuQBFTC
 		Faucet:     faucet,
 		projectDir: projectDir,
 	}
+	var stack *compose.DockerCompose
 	defer func() {
 		if err != nil {
-			chain.Destroy(context.Background())
+			BesuQBFTChain{stack: stack, projectDir: projectDir}.Destroy(context.Background())
 		}
 	}()
 
@@ -100,7 +101,7 @@ func SpinUpBesuQBFT(ctx context.Context, params BesuQBFTParams) (chain BesuQBFTC
 		return BesuQBFTChain{}, fmt.Errorf("patch besu qbft compose file: %w", err)
 	}
 
-	stack, err := compose.NewDockerComposeWith(
+	stack, err = compose.NewDockerComposeWith(
 		compose.StackIdentifier(fmt.Sprintf("%s-%d", besuQBFTProjectName, time.Now().UnixNano())),
 		compose.WithStackFiles(filepath.Join(projectDir, besuQBFTComposeFile)),
 	)

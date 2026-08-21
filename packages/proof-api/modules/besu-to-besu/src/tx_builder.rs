@@ -155,6 +155,12 @@ impl TxBuilder {
 
     pub async fn relay_events(&self, params: RelayEventsParams) -> Result<Vec<u8>> {
         let proof_height = select_proof_height(&params.src_events, params.timeout_relay_height)?;
+        let proof_timestamp = EthApiClient::new(self.src_provider.clone())
+            .get_block(proof_height)
+            .await
+            .with_context(|| format!("failed to fetch source block at height {proof_height}"))?
+            .header
+            .timestamp;
         let now = std::time::SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .context("failed to read system time")?
@@ -179,7 +185,7 @@ impl TxBuilder {
             &params.dst_client_id,
             &params.dst_packet_seqs,
             &proof_height_msg,
-            now,
+            proof_timestamp,
         );
 
         let mut packet_calls: Vec<_> = recv_and_ack_msgs.into_iter().chain(timeout_msgs).collect();

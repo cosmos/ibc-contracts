@@ -643,6 +643,11 @@
   },
   {
     "type": "error",
+    "name": "InvalidHeaderTimestamp",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "InvalidMixHash",
     "inputs": [
       {

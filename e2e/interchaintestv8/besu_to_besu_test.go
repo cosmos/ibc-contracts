@@ -89,6 +89,12 @@ func TestWithBesuToBesuTestSuite(t *testing.T) {
 
 func (s *BesuToBesuTestSuite) SetupSuite() {
 	ctx := context.Background()
+	setupComplete := false
+	s.T().Cleanup(func() {
+		if !setupComplete {
+			s.TearDownSuite()
+		}
+	})
 
 	if os.Getenv(testvalues.EnvKeyRustLog) == "" {
 		os.Setenv(testvalues.EnvKeyRustLog, testvalues.EnvValueRustLog_Info)
@@ -105,11 +111,6 @@ func (s *BesuToBesuTestSuite) SetupSuite() {
 		Gateway:      "10.42.0.1",
 		ValidatorIPs: besuToBesuChainAIPs,
 	})
-	defer func() {
-		if s.chainA.eth.RPCClient == nil {
-			s.chainA.network.Destroy(context.Background())
-		}
-	}()
 
 	s.chainB = s.spinUpChain(ctx, chainconfig.BesuQBFTParams{
 		ChainID:      besuToBesuChainBID,
@@ -117,11 +118,6 @@ func (s *BesuToBesuTestSuite) SetupSuite() {
 		Gateway:      "10.43.0.1",
 		ValidatorIPs: besuToBesuChainBIPs,
 	})
-	defer func() {
-		if s.chainB.eth.RPCClient == nil {
-			s.chainB.network.Destroy(context.Background())
-		}
-	}()
 
 	s.besuFixtureGenerator = e2etypes.NewBesuFixtureGenerator()
 
@@ -136,6 +132,7 @@ func (s *BesuToBesuTestSuite) SetupSuite() {
 
 	s.createAndRegisterBesuClient(&s.chainB, &s.chainA, besuToBesuClientOnA, besuToBesuClientOnB)
 	s.createAndRegisterBesuClient(&s.chainA, &s.chainB, besuToBesuClientOnB, besuToBesuClientOnA)
+	setupComplete = true
 }
 
 func (s *BesuToBesuTestSuite) TearDownSuite() {

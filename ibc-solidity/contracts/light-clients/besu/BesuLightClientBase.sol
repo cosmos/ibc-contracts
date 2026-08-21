@@ -80,6 +80,9 @@ abstract contract BesuLightClientBase is ILightClient, IBesuLightClientErrors, I
         if (initialTrustedHeight == 0) {
             revert InvalidHeaderHeight();
         }
+        if (initialTrustedTimestamp == 0) {
+            revert InvalidHeaderTimestamp();
+        }
 
         _validateValidators(initialTrustedValidators);
 
