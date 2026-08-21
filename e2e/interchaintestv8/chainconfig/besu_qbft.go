@@ -201,25 +201,7 @@ func materializeBesuQBFTAssets(dst string) error {
 		return err
 	}
 
-	return fs.WalkDir(sub, ".", func(path string, d fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-
-		target := filepath.Join(dst, path)
-		if d.IsDir() {
-			return os.MkdirAll(target, 0o755)
-		}
-
-		contents, err := fs.ReadFile(sub, path)
-		if err != nil {
-			return err
-		}
-
-		// The test keys are mounted read-only and must remain readable by the
-		// unprivileged Besu user inside the container.
-		return os.WriteFile(target, contents, 0o644) //nolint:gosec
-	})
+	return os.CopyFS(dst, sub)
 }
 
 func patchBesuQBFTGenesis(path string, chainID uint64) error {

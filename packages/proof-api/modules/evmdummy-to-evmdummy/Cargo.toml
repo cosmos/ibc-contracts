@@ -6,7 +6,7 @@ repository.workspace = true
 license.workspace = true
 
 [dependencies]
-alloy = { workspace = true, features = ["full", "node-bindings"] }
+alloy = { workspace = true, features = ["full"] }
 anyhow = { workspace = true, features = ["std"] }
 proof-api-core = { workspace = true, default-features = false }
 proof-api-lib = { workspace = true, default-features = false }
