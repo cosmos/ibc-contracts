@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	ethcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 
 	interchaintest "github.com/cosmos/interchaintest/v11"
 
@@ -70,7 +71,7 @@ func TestBesuQBFTChainBringUpAndDeploy(t *testing.T) {
 	require.NotEmpty(t, contracts.Ics20Transfer)
 	require.NotEmpty(t, contracts.Erc20)
 
-	proof, err := eth.GetProof(ctx, ethcommon.HexToAddress(contracts.Ics26Router), nil, "latest")
+	proof, err := gethclient.New(eth.RPCClient.Client()).GetProof(ctx, ethcommon.HexToAddress(contracts.Ics26Router), nil, nil)
 	require.NoError(t, err)
 	require.NotEmpty(t, proof.AccountProof)
 }

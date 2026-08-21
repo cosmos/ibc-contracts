@@ -19,6 +19,7 @@ import (
 	dockernetwork "github.com/docker/docker/api/types/network"
 	dockerclient "github.com/moby/moby/client"
 
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -346,7 +347,9 @@ func waitForBesuQBFTTransactionHandling(ctx context.Context, rpcURL string, key 
 			return false, nil
 		}
 
-		receipt, err := waitForBesuQBFTProbeReceipt(ctx, client, txHash)
+		receiptCtx, cancel := context.WithTimeout(ctx, besuQBFTTxProbeReceiptTimeout)
+		receipt, err := bind.WaitMinedHash(receiptCtx, client, txHash)
+		cancel()
 		if err != nil {
 			lastErr = err
 			return false, nil
@@ -395,25 +398,4 @@ func sendBesuQBFTProbeTx(ctx context.Context, client *ethclient.Client, key *ecd
 	}
 
 	return signedTx.Hash(), nil
-}
-
-func waitForBesuQBFTProbeReceipt(ctx context.Context, client *ethclient.Client, txHash common.Hash) (*ethtypes.Receipt, error) {
-	receiptCtx, cancel := context.WithTimeout(ctx, besuQBFTTxProbeReceiptTimeout)
-	defer cancel()
-
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
-
-	for {
-		receipt, err := client.TransactionReceipt(receiptCtx, txHash)
-		if err == nil && receipt != nil {
-			return receipt, nil
-		}
-
-		select {
-		case <-receiptCtx.Done():
-			return nil, receiptCtx.Err()
-		case <-ticker.C:
-		}
-	}
 }

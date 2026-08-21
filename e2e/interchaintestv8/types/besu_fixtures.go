@@ -18,6 +18,7 @@ import (
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 	"github.com/ethereum/go-ethereum/rlp"
 
 	ibchostv2 "github.com/cosmos/ibc-go/v11/modules/core/24-host/v2"
@@ -453,14 +454,14 @@ func fetchAccountProof(
 	chain *ethereum.Ethereum,
 	routerAddress ethcommon.Address,
 	height uint64,
-) (ethereum.AccountProof, []byte, error) {
-	proof, err := chain.GetProof(ctx, routerAddress, nil, fmt.Sprintf("0x%x", height))
+) (*gethclient.AccountResult, []byte, error) {
+	proof, err := gethclient.New(chain.RPCClient.Client()).GetProof(ctx, routerAddress, nil, newUint64(height))
 	if err != nil {
-		return ethereum.AccountProof{}, nil, fmt.Errorf("fetch account proof at height %d: %w", height, err)
+		return nil, nil, fmt.Errorf("fetch account proof at height %d: %w", height, err)
 	}
 	proofRLP, err := encodeProofNodes(proof.AccountProof)
 	if err != nil {
-		return ethereum.AccountProof{}, nil, fmt.Errorf("encode account proof at height %d: %w", height, err)
+		return nil, nil, fmt.Errorf("encode account proof at height %d: %w", height, err)
 	}
 	return proof, proofRLP, nil
 }
@@ -473,7 +474,7 @@ func fetchStorageProof(
 	height uint64,
 ) ([]byte, error) {
 	storageKey := ethereum.GetCommitmentsStorageKey(path)
-	proof, err := chain.GetProof(ctx, routerAddress, []string{storageKey.Hex()}, fmt.Sprintf("0x%x", height))
+	proof, err := gethclient.New(chain.RPCClient.Client()).GetProof(ctx, routerAddress, []string{storageKey.Hex()}, newUint64(height))
 	if err != nil {
 		return nil, fmt.Errorf("fetch storage proof at height %d: %w", height, err)
 	}
