@@ -15,6 +15,8 @@ interface IBesuLightClientErrors {
     error InvalidExtraDataFormat(uint256 itemsLength);
     /// @notice The submitted header height is zero.
     error InvalidHeaderHeight();
+    /// @notice The submitted header timestamp is zero.
+    error InvalidHeaderTimestamp();
     /// @notice The submitted header timestamp is too far in the future.
     /// @param currentTimestamp The current block timestamp.
     /// @param headerTimestamp The submitted header timestamp.

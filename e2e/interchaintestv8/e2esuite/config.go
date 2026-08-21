@@ -80,7 +80,7 @@ func (c *setupConfig) validate() error {
 		return nil
 	case testvalues.EthTestnetTypeBesuQBFT:
 		switch ethLcOnCosmos {
-		case "", testvalues.EthLCOnCosmosTypeDummyWasm, testvalues.EthLCOnCosmosTypeAttestorNative:
+		case "", testvalues.EthLCOnCosmosTypeAttestorNative:
 			return nil
 		case testvalues.EthLCOnCosmosTypeFullWasm:
 			return fmt.Errorf("invalid config: ETH_TESTNET_TYPE=%s cannot use ETH_LC_ON_COSMOS=%s (Besu QBFT doesn't have beacon chain)", ethTestnetType, ethLcOnCosmos)

@@ -7,8 +7,11 @@ import { BesuLightClientBase } from "../../contracts/light-clients/besu/BesuLigh
 import { IBesuLightClientErrors } from "../../contracts/light-clients/besu/errors/IBesuLightClientErrors.sol";
 
 contract BesuLightClientQuorumHarness is BesuLightClientBase {
-    constructor(address[] memory initialValidators)
-        BesuLightClientBase(address(1), 1, 1, bytes32(0), initialValidators, 0, 0, address(0))
+    constructor(
+        uint64 initialTrustedTimestamp,
+        address[] memory initialValidators
+    )
+        BesuLightClientBase(address(1), 1, initialTrustedTimestamp, bytes32(0), initialValidators, 0, 0, address(0))
     { }
 
     function checkValidatorQuorum(address[] calldata signers, address[] calldata validators) external pure {
@@ -24,7 +27,12 @@ contract BesuLightClientQuorumTest is Test {
     BesuLightClientQuorumHarness private harness;
 
     function setUp() public {
-        harness = new BesuLightClientQuorumHarness(_addresses(1));
+        harness = new BesuLightClientQuorumHarness(1, _addresses(1));
+    }
+
+    function test_constructor_rejectsZeroTrustedTimestamp() public {
+        vm.expectRevert(IBesuLightClientErrors.InvalidHeaderTimestamp.selector);
+        new BesuLightClientQuorumHarness(0, _addresses(1));
     }
 
     function test_checkValidatorQuorum_acceptsBesuFourOfSixQuorum() public view {
