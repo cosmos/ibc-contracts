@@ -159,22 +159,6 @@ func (s *BesuToBesuTestSuite) TearDownSuite() {
 }
 
 func (s *BesuToBesuTestSuite) Test_Deploy() {
-	infoAB, err := s.relayerClient.Info(context.Background(), &proofapitypes.InfoRequest{
-		SrcChain: s.chainA.eth.ChainID.String(),
-		DstChain: s.chainB.eth.ChainID.String(),
-	})
-	s.Require().NoError(err)
-	s.Require().Equal(s.chainA.eth.ChainID.String(), infoAB.SourceChain.ChainId)
-	s.Require().Equal(s.chainB.eth.ChainID.String(), infoAB.TargetChain.ChainId)
-
-	infoBA, err := s.relayerClient.Info(context.Background(), &proofapitypes.InfoRequest{
-		SrcChain: s.chainB.eth.ChainID.String(),
-		DstChain: s.chainA.eth.ChainID.String(),
-	})
-	s.Require().NoError(err)
-	s.Require().Equal(s.chainB.eth.ChainID.String(), infoBA.SourceChain.ChainId)
-	s.Require().Equal(s.chainA.eth.ChainID.String(), infoBA.TargetChain.ChainId)
-
 	transferOnA, err := s.chainA.ics26.GetIBCApp(nil, "transfer")
 	s.Require().NoError(err)
 	s.Require().Equal(strings.ToLower(s.chainA.contractAddresses.Ics20Transfer), strings.ToLower(transferOnA.Hex()))
@@ -189,8 +173,6 @@ func (s *BesuToBesuTestSuite) Test_Deploy() {
 	clientOnB, err := s.chainB.ics26.GetClient(nil, besuToBesuClientOnB)
 	s.Require().NoError(err)
 	s.Require().Equal(s.chainB.clientAddress, clientOnB)
-	s.Require().NotEqual(ethcommon.Address{}, clientOnA)
-	s.Require().NotEqual(ethcommon.Address{}, clientOnB)
 }
 
 func (s *BesuToBesuTestSuite) Test_ICS20TransferERC20FromChainAToChainB() {

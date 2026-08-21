@@ -155,12 +155,10 @@ func generateQBFTFixture(ctx context.Context, params GenerateQBFTFixtureParams) 
 		return besuFixture{}, err
 	}
 
-	trustedProof, trustedProofRLP, err := fetchAccountProof(ctx, params.SourceChain, params.RouterAddress, params.InitialTrustedHeight)
+	trustedProof, _, err := fetchAccountProof(ctx, params.SourceChain, params.RouterAddress, params.InitialTrustedHeight)
 	if err != nil {
 		return besuFixture{}, err
 	}
-	_ = trustedProofRLP
-
 	update11, err := buildLiveUpdateFixture(ctx, params.SourceChain, params.RouterAddress, params.InitialTrustedHeight, params.UpdateHeight11)
 	if err != nil {
 		return besuFixture{}, err

@@ -6,7 +6,7 @@ repository.workspace = true
 license.workspace = true
 
 [dependencies]
-alloy = { workspace = true, features = ["full", "node-bindings"] }
+alloy = { workspace = true, features = ["full"] }
 alloy-rlp = { workspace = true }
 anyhow = { workspace = true, features = ["std"] }
 ethereum-apis = { workspace = true }

@@ -19,6 +19,7 @@ use proof_api_core::{
 };
 use proof_api_lib::{
     listener::{eth_eureka, ChainListenerService},
+    service_utils::{parse_eth_tx_hashes, to_tonic_status},
     utils::RelayEventsParams,
 };
 use tonic::{Request, Response};
@@ -69,20 +70,6 @@ impl EvmDummyToEvmDummyProofApiModuleService {
             tx_builder,
         })
     }
-}
-
-fn to_tonic_status(e: anyhow::Error) -> tonic::Status {
-    tonic::Status::from_error(e.into())
-}
-
-#[allow(clippy::result_large_err)]
-fn parse_eth_tx_hashes(tx_ids: Vec<Vec<u8>>) -> Result<Vec<TxHash>, tonic::Status> {
-    tx_ids
-        .into_iter()
-        .map(TryInto::<[u8; 32]>::try_into)
-        .map(|tx_hash| tx_hash.map(TxHash::from))
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|tx| tonic::Status::from_error(format!("invalid tx hash: {tx:?}").into()))
 }
 
 #[tonic::async_trait]
@@ -141,8 +128,14 @@ impl ProofApiService for EvmDummyToEvmDummyProofApiModuleService {
         request: Request<api::RelayByTxRequest>,
     ) -> Result<Response<api::RelayByTxResponse>, tonic::Status> {
         let inner = request.into_inner();
-        let src_txs = parse_eth_tx_hashes(inner.source_tx_ids)?;
-        let timeout_txs = parse_eth_tx_hashes(inner.timeout_tx_ids)?;
+        let src_txs = parse_eth_tx_hashes(inner.source_tx_ids)?
+            .into_iter()
+            .map(TxHash::from)
+            .collect();
+        let timeout_txs = parse_eth_tx_hashes(inner.timeout_tx_ids)?
+            .into_iter()
+            .map(TxHash::from)
+            .collect();
         let src_events = self
             .src_listener
             .fetch_tx_events(src_txs)

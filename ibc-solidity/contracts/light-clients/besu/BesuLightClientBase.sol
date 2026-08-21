@@ -22,7 +22,6 @@ abstract contract BesuLightClientBase is ILightClient, IBesuLightClientErrors, I
     using RLPReader for bytes;
 
     /// @notice Decoded fields from a submitted Besu header.
-    /// @param headerRlp Original RLP-encoded header.
     /// @param headerItems Top-level RLP header fields.
     /// @param extraDataItems Decoded Besu BFT `extraData` fields.
     /// @param height Header block number.
@@ -31,7 +30,6 @@ abstract contract BesuLightClientBase is ILightClient, IBesuLightClientErrors, I
     /// @param validators Validator set from `extraData`.
     /// @param commitSeals Commit seals from `extraData`.
     struct ParsedHeader {
-        bytes headerRlp;
         RLPReader.RLPItem[] headerItems;
         RLPReader.RLPItem[] extraDataItems;
         uint64 height;
@@ -238,7 +236,6 @@ abstract contract BesuLightClientBase is ILightClient, IBesuLightClientErrors, I
     /// @param headerRlp RLP-encoded Besu block header.
     /// @return header The parsed header fields used by update and proof verification.
     function _parseHeader(bytes memory headerRlp) internal pure returns (ParsedHeader memory header) {
-        header.headerRlp = headerRlp;
         header.headerItems = headerRlp.toRlpItem().toList();
         if (header.headerItems.length < 15) {
             revert InvalidHeaderFormat(header.headerItems.length);
