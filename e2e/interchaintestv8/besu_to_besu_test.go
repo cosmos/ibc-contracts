@@ -81,13 +81,29 @@ func TestWithBesuToBesuTestSuite(t *testing.T) {
 }
 
 func (s *BesuToBesuTestSuite) SetupSuite() {
-	ctx := context.Background()
-	setupComplete := false
 	s.T().Cleanup(func() {
-		if !setupComplete {
-			s.TearDownSuite()
+		ctx := context.Background()
+
+		if s.T() != nil && s.T().Failed() {
+			_ = s.chainA.network.DumpLogs(ctx)
+			_ = s.chainB.network.DumpLogs(ctx)
+		}
+
+		if s.relayerProcess != nil {
+			_ = s.relayerProcess.Kill()
+		}
+		if s.relayerConfigPath != "" {
+			_ = os.Remove(s.relayerConfigPath)
+		}
+
+		s.chainB.network.Destroy(ctx)
+		s.chainA.network.Destroy(ctx)
+
+		if s.cwd != "" {
+			_ = os.Chdir(s.cwd)
 		}
 	})
+	ctx := context.Background()
 
 	if os.Getenv(testvalues.EnvKeyRustLog) == "" {
 		os.Setenv(testvalues.EnvKeyRustLog, testvalues.EnvValueRustLog_Info)
@@ -125,30 +141,6 @@ func (s *BesuToBesuTestSuite) SetupSuite() {
 
 	s.createAndRegisterBesuClient(&s.chainB, &s.chainA, besuToBesuClientOnA, besuToBesuClientOnB)
 	s.createAndRegisterBesuClient(&s.chainA, &s.chainB, besuToBesuClientOnB, besuToBesuClientOnA)
-	setupComplete = true
-}
-
-func (s *BesuToBesuTestSuite) TearDownSuite() {
-	ctx := context.Background()
-
-	if s.T() != nil && s.T().Failed() {
-		_ = s.chainA.network.DumpLogs(ctx)
-		_ = s.chainB.network.DumpLogs(ctx)
-	}
-
-	if s.relayerProcess != nil {
-		_ = s.relayerProcess.Kill()
-	}
-	if s.relayerConfigPath != "" {
-		_ = os.Remove(s.relayerConfigPath)
-	}
-
-	s.chainB.network.Destroy(ctx)
-	s.chainA.network.Destroy(ctx)
-
-	if s.cwd != "" {
-		_ = os.Chdir(s.cwd)
-	}
 }
 
 func (s *BesuToBesuTestSuite) Test_Deploy() {

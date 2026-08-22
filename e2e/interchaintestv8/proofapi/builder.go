@@ -260,7 +260,6 @@ func (b *ConfigBuilder) BesuToBesu(p BesuToBesuParams) *ConfigBuilder {
 		SrcChain: p.SrcChainID,
 		DstChain: p.DstChainID,
 		Config: BesuToBesuModuleConfig{
-			SrcChainID:      p.SrcChainID,
 			SrcRPCURL:       p.SrcRPC,
 			SrcICS26Address: p.SrcICS26,
 			DstRPCURL:       p.DstRPC,

@@ -7,25 +7,26 @@ import (
 	"testing"
 )
 
-func TestEthToEthBuilderUsesRoutedSourceChain(t *testing.T) {
-	b := NewConfigBuilder().EthToEthAttested(EthToEthAttestedParams{
-		SrcChainID: "eth-a",
-		DstChainID: "eth-b",
-	})
-	module := b.modules[0]
+func TestEVMToEVMBuildersEmitSourceChainOnlyAtRoutingLevel(t *testing.T) {
+	b := NewConfigBuilder().
+		EthToEthAttested(EthToEthAttestedParams{SrcChainID: "eth-a", DstChainID: "eth-b"}).
+		BesuToBesu(BesuToBesuParams{SrcChainID: "besu-a", DstChainID: "besu-b"})
+	wantSource := map[string]string{ModuleEthToEth: "eth-a", ModuleBesuToBesu: "besu-a"}
 
-	config, err := json.Marshal(module.Config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var fields map[string]any
-	if err := json.Unmarshal(config, &fields); err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := fields["src_chain_id"]; ok {
-		t.Error("module config contains obsolete src_chain_id")
-	}
-	if module.SrcChain != "eth-a" {
-		t.Errorf("routing src_chain = %q, want eth-a", module.SrcChain)
+	for _, module := range b.modules {
+		config, err := json.Marshal(module.Config)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var fields map[string]any
+		if err := json.Unmarshal(config, &fields); err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := fields["src_chain_id"]; ok {
+			t.Errorf("%s config contains obsolete src_chain_id", module.Name)
+		}
+		if module.SrcChain != wantSource[module.Name] {
+			t.Errorf("%s routing src_chain = %q, want %q", module.Name, module.SrcChain, wantSource[module.Name])
+		}
 	}
 }

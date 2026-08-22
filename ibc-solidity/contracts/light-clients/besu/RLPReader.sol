@@ -4,7 +4,7 @@
  * @author Hamdi Allam hamdi.allam97@gmail.com
  * Please reach out with any questions or concerns
  */
-// This file is copied from solidity-rlp library.
+// This file is adapted from the solidity-rlp library.
 // https://github.com/hamdiallam/Solidity-RLP/blob/0212f8e754471da67fc5387df7855f47f944f925/contracts/RLPReader.sol
 pragma solidity ^0.8.28;
 
@@ -33,35 +33,6 @@ library RLPReader {
         uint256 memPtr;
     }
 
-    /// @notice Iterator over an RLP list.
-    /// @param item List item being iterated.
-    /// @param nextPtr Memory pointer to the next item in the list.
-    struct Iterator {
-        RLPItem item; // Item that's being iterated over.
-        uint256 nextPtr; // Position of the next item in the list.
-    }
-
-    /// @notice Returns the next item from an iterator.
-    /// @param self The iterator.
-    /// @return The next item in the iteration.
-    function next(Iterator memory self) internal pure returns (RLPItem memory) {
-        require(hasNext(self));
-
-        uint256 ptr = self.nextPtr;
-        uint256 itemLength = _itemLength(ptr);
-        self.nextPtr = ptr + itemLength;
-
-        return RLPItem(itemLength, ptr);
-    }
-
-    /// @notice Checks whether an iterator has more items.
-    /// @param self The iterator.
-    /// @return True if the iterator has another item.
-    function hasNext(Iterator memory self) internal pure returns (bool) {
-        RLPItem memory item = self.item;
-        return self.nextPtr < item.memPtr + item.len;
-    }
-
     /// @notice Wraps RLP-encoded bytes as an RLP item.
     /// @param item RLP-encoded bytes.
     /// @return The RLP item memory view.
@@ -74,23 +45,6 @@ library RLPReader {
         return RLPItem(item.length, memPtr);
     }
 
-    /// @notice Creates an iterator over an RLP list.
-    /// @param self The RLP list item.
-    /// @return An iterator over the list.
-    function iterator(RLPItem memory self) internal pure returns (Iterator memory) {
-        require(isList(self));
-
-        uint256 ptr = self.memPtr + _payloadOffset(self.memPtr);
-        return Iterator(self, ptr);
-    }
-
-    /// @notice Returns the encoded length of an RLP item.
-    /// @param item The RLP item.
-    /// @return The encoded item length.
-    function rlpLen(RLPItem memory item) internal pure returns (uint256) {
-        return item.len;
-    }
-
     /// @notice Returns the payload memory location for an RLP item.
     /// @param item The RLP item.
     /// @return The payload memory pointer.
@@ -100,14 +54,6 @@ library RLPReader {
         uint256 memPtr = item.memPtr + offset;
         uint256 len = item.len - offset; // data length
         return (memPtr, len);
-    }
-
-    /// @notice Returns the payload length for an RLP item.
-    /// @param item The RLP item.
-    /// @return The payload length.
-    function payloadLen(RLPItem memory item) internal pure returns (uint256) {
-        (, uint256 len) = payloadLocation(item);
-        return len;
     }
 
     /// @notice Decodes an RLP list into item views.
@@ -189,38 +135,6 @@ library RLPReader {
 
         copy(item.memPtr, ptr, item.len);
         return result;
-    }
-
-    /// @notice Converts an RLP item to a boolean.
-    /// @param item The RLP item.
-    /// @return The decoded boolean value.
-    function toBoolean(RLPItem memory item) internal pure returns (bool) {
-        require(item.len == 1);
-        uint256 result;
-        uint256 memPtr = item.memPtr;
-        assembly {
-            result := byte(0, mload(memPtr))
-        }
-
-        // SEE Github Issue #5.
-        // Summary: Most commonly used RLP libraries (i.e Geth) will encode
-        // "0" as "0x80" instead of as "0". We handle this edge case explicitly
-        // here.
-        if (result == 0 || result == STRING_SHORT_START) {
-            return false;
-        } else {
-            return true;
-        }
-    }
-
-    /// @notice Converts an RLP item to an address.
-    /// @param item The RLP item.
-    /// @return The decoded address.
-    function toAddress(RLPItem memory item) internal pure returns (address) {
-        // 1 byte for the length prefix
-        require(item.len == 21);
-
-        return address(uint160(toUint(item)));
     }
 
     /// @notice Converts an RLP item to an unsigned integer.

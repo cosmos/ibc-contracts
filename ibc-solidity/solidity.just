@@ -33,7 +33,7 @@ test-foundry testname=".\\*":
 test-benchmark testname=".\\*":
 	forge test -vvv --show-progress --gas-report --match-path test/solidity-ibc/BenchmarkTest.t.sol --match-test {{testname}}
 
-# Generate ABI/bin artifacts and Go abigen bindings
+# Generate all tracked contract artifacts and Go abigen bindings
 [group('generate')]
 generate-abi: build-contracts
 	mkdir -p tmp/abigen
@@ -79,16 +79,18 @@ generate-abi: build-contracts
 	abigen --abi abi/EVMIFTSendCallConstructor.json --bin tmp/abigen/EVMIFTSendCallConstructor.bin --pkg evmiftsendcall --type Contract --out ../packages/go-abigen/evmiftsendcall/contract.go
 	mkdir -p ../packages/go-abigen/dummy
 	abigen --abi abi/DummyLightClient.json --bin tmp/abigen/DummyLightClient.bin --pkg dummy --type Contract --out ../packages/go-abigen/dummy/contract.go
+	rm -rf abi/bytecode
+	mkdir -p abi/bytecode
+	jq -c '{abi, bytecode: {object: .bytecode.object}}' out/SP1ICS07Tendermint.sol/SP1ICS07Tendermint.json > abi/bytecode/SP1ICS07Tendermint.json
+	jq -c '{abi, bytecode: {object: .bytecode.object}}' out/AttestationLightClient.sol/AttestationLightClient.json > abi/bytecode/AttestationLightClient.json
+	jq -c '{abi, bytecode: {object: .bytecode.object}}' out/BesuIBFT2LightClient.sol/BesuIBFT2LightClient.json > abi/bytecode/BesuIBFT2LightClient.json
+	jq -c '{abi, bytecode: {object: .bytecode.object}}' out/BesuQBFTLightClient.sol/BesuQBFTLightClient.json > abi/bytecode/BesuQBFTLightClient.json
+	jq -c '{abi, bytecode: {object: .bytecode.object}}' out/DummyLightClient.sol/DummyLightClient.json > abi/bytecode/DummyLightClient.json
 	rm -rf tmp/abigen
 
-# Generate the ABI files with bytecode for the required contracts
+# Backwards-compatible alias for the canonical artifact generator.
 [group('generate')]
-generate-abi-bytecode: build-contracts
-	cp out/SP1ICS07Tendermint.sol/SP1ICS07Tendermint.json abi/bytecode
-	cp out/AttestationLightClient.sol/AttestationLightClient.json abi/bytecode
-	cp out/BesuIBFT2LightClient.sol/BesuIBFT2LightClient.json abi/bytecode
-	cp out/BesuQBFTLightClient.sol/BesuQBFTLightClient.json abi/bytecode
-	cp out/DummyLightClient.sol/DummyLightClient.json abi/bytecode
+generate-abi-bytecode: generate-abi
 
 # Clean up the foundry cache and out directories
 [group('clean')]

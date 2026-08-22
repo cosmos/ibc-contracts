@@ -37,7 +37,6 @@ const (
 	defaultBesuQBFTSubnet  = "10.42.0.0/16"
 	defaultBesuQBFTGateway = "10.42.0.1"
 
-	besuQBFTReadyStableBlocks     = 6
 	besuQBFTTxProbeReceiptTimeout = 30 * time.Second
 )
 
@@ -263,66 +262,46 @@ func patchBesuQBFTCompose(path string, params BesuQBFTParams) error {
 }
 
 func waitForBesuQBFTReady(ctx context.Context, rpcURL string) error {
-	var (
-		stableStartBlock uint64
-		lastErr          error
-	)
+	client, err := ethclient.DialContext(ctx, rpcURL)
+	if err != nil {
+		return fmt.Errorf("dial readiness rpc: %w", err)
+	}
+	defer client.Close()
 
-	err := testutil.WaitForCondition(3*time.Minute, 2*time.Second, func() (bool, error) {
-		client, err := ethclient.DialContext(ctx, rpcURL)
-		if err != nil {
-			lastErr = err
-			return false, nil
-		}
-		defer client.Close()
-
-		syncProgress, err := client.SyncProgress(ctx)
-		if err != nil {
-			lastErr = err
-			stableStartBlock = 0
-			return false, nil
-		}
-		if syncProgress != nil {
-			stableStartBlock = 0
-			return false, nil
-		}
-
+	var lastErr error
+	err = testutil.WaitForCondition(3*time.Minute, 2*time.Second, func() (bool, error) {
 		peerCount, err := client.PeerCount(ctx)
 		if err != nil {
 			lastErr = err
-			stableStartBlock = 0
 			return false, nil
 		}
 		if peerCount < uint64(len(besuQBFTServices)-1) {
-			stableStartBlock = 0
+			lastErr = fmt.Errorf("peer count %d, want at least %d", peerCount, len(besuQBFTServices)-1)
 			return false, nil
 		}
 
 		blockNumber, err := client.BlockNumber(ctx)
-		if err != nil || blockNumber == 0 {
+		if err != nil {
 			lastErr = err
-			stableStartBlock = 0
+			return false, nil
+		}
+		if blockNumber == 0 {
+			lastErr = fmt.Errorf("block number is still zero")
 			return false, nil
 		}
 
 		var validators []common.Address
 		if err := client.Client().CallContext(ctx, &validators, "qbft_getValidatorsByBlockNumber", "latest"); err != nil {
 			lastErr = err
-			stableStartBlock = 0
 			return false, nil
 		}
 
 		if len(validators) != len(besuQBFTServices) {
-			stableStartBlock = 0
+			lastErr = fmt.Errorf("validator count %d, want exactly %d", len(validators), len(besuQBFTServices))
 			return false, nil
 		}
 
-		if stableStartBlock == 0 {
-			stableStartBlock = blockNumber
-			return false, nil
-		}
-
-		return blockNumber >= stableStartBlock+besuQBFTReadyStableBlocks, nil
+		return true, nil
 	})
 	if err != nil && lastErr != nil {
 		return fmt.Errorf("%w (last readiness observation: %v)", err, lastErr)
@@ -331,16 +310,14 @@ func waitForBesuQBFTReady(ctx context.Context, rpcURL string) error {
 }
 
 func waitForBesuQBFTTransactionHandling(ctx context.Context, rpcURL string, key *ecdsa.PrivateKey) error {
+	client, err := ethclient.DialContext(ctx, rpcURL)
+	if err != nil {
+		return fmt.Errorf("dial transaction probe rpc: %w", err)
+	}
+	defer client.Close()
+
 	var lastErr error
-
-	err := testutil.WaitForCondition(2*time.Minute, 2*time.Second, func() (bool, error) {
-		client, err := ethclient.DialContext(ctx, rpcURL)
-		if err != nil {
-			lastErr = err
-			return false, nil
-		}
-		defer client.Close()
-
+	err = testutil.WaitForCondition(2*time.Minute, 2*time.Second, func() (bool, error) {
 		txHash, err := sendBesuQBFTProbeTx(ctx, client, key)
 		if err != nil {
 			lastErr = err

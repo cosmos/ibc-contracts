@@ -139,7 +139,6 @@
       "dst_chain": "evm-local-b",
       "enabled": false,
       "config": {
-        "src_chain_id": "evm-local-a",
         "src_rpc_url": "http://127.0.0.1:8545",
         "src_ics26_address": "0x4242424242424242424242424242424242424242",
         "dst_rpc_url": "http://127.0.0.1:9545",
@@ -163,8 +162,8 @@
       "name": "besu_to_besu",
       "src_chain": "besu-a",
       "dst_chain": "besu-b",
+      "enabled": false,
       "config": {
-        "src_chain_id": "besu-a",
         "src_rpc_url": "http://127.0.0.1:8545",
         "src_ics26_address": "0x4242424242424242424242424242424242424242",
         "dst_rpc_url": "http://127.0.0.1:9545",

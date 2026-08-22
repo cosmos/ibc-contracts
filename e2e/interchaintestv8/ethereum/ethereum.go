@@ -105,13 +105,17 @@ func (e *Ethereum) BroadcastTx(ctx context.Context, userKey *ecdsa.PrivateKey, g
 }
 
 func (e Ethereum) ForgeScript(deployer *ecdsa.PrivateKey, solidityContract string, args ...string) ([]byte, error) {
+	return e.forgeScript(forgeScriptTimeout, deployer, solidityContract, args...)
+}
+
+func (e Ethereum) forgeScript(timeout time.Duration, deployer *ecdsa.PrivateKey, solidityContract string, args ...string) ([]byte, error) {
 	cmdArgs := []string{
 		"script", "--rpc-url", e.RPC, "--private-key",
 		hex.EncodeToString(crypto.FromECDSA(deployer)), "--broadcast",
 		"--non-interactive", "-vvvv", solidityContract,
 	}
 	cmdArgs = append(cmdArgs, args...)
-	ctx, cancel := context.WithTimeout(context.Background(), forgeScriptTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "forge", cmdArgs...)
@@ -128,29 +132,21 @@ func (e Ethereum) ForgeScript(deployer *ecdsa.PrivateKey, solidityContract strin
 	cmd.Env = append(cmd.Env, extraEnv...)
 
 	var stdoutBuf bytes.Buffer
-	var stderrBuf bytes.Buffer
 
-	// Create a MultiWriter to write to both os.Stdout and the buffer
+	// Preserve live output while retaining stdout for deploy-result parsing.
 	stdoutWriter := io.MultiWriter(os.Stdout, &stdoutBuf)
-	stderrWriter := io.MultiWriter(os.Stderr, &stderrBuf)
 
-	// Set the command's stdout to the MultiWriter
 	cmd.Stdout = stdoutWriter
-	cmd.Stderr = stderrWriter
+	cmd.Stderr = os.Stderr
 
-	// Run the command
 	if err := cmd.Run(); err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
-			err = fmt.Errorf("forge script timed out after %s: %w", forgeScriptTimeout, err)
+			return nil, fmt.Errorf("forge script %q timed out after %s: %w", solidityContract, timeout, ctx.Err())
 		}
-		fmt.Println("Error start command", cmd.Args, err)
-		return stdoutBuf.Bytes(), fmt.Errorf("%w\n%s", err, stderrBuf.String())
+		return nil, fmt.Errorf("forge script %q failed: %w", solidityContract, err)
 	}
 
-	// Get the output as byte slices
-	stdoutBytes := stdoutBuf.Bytes()
-
-	return stdoutBytes, nil
+	return stdoutBuf.Bytes(), nil
 }
 
 func (e Ethereum) CreateUser() (*ecdsa.PrivateKey, error) {

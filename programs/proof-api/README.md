@@ -64,7 +64,7 @@ Key settings:
 - `observability.use_otel`: Enable OpenTelemetry export.
 - `observability.service_name`: Service name used in logs/traces.
 - `observability.otel_endpoint`: OpenTelemetry collector endpoint.
-- `modules`: List of modules to run, each with `name`, `src_chain`, `dst_chain`, `config`, and optional `enabled` (defaults to true). For `eth_to_eth`, `Info` returns the routed `src_chain` as the source identity and the destination RPC chain ID as the target identity.
+- `modules`: List of modules to run, each with `name`, `src_chain`, `dst_chain`, `config`, and optional `enabled` (defaults to true). For EVM-to-EVM modules, `Info` returns the routed `src_chain` as the source identity and the destination RPC chain ID as the target identity.
 
 Module configuration varies by module type. Mode-specific options are enumerated below.
 
@@ -127,7 +127,6 @@ Module configuration varies by module type:
     - `mode.cache.state_cache_max_entries`. (default: 10000)
     - `mode.cache.packet_cache_max_entries`. (default: 10000)
 - `evmdummy_to_evmdummy`:
-  - `src_chain_id`: Source chain ID string.
   - `src_rpc_url`: Source EVM RPC endpoint.
   - `src_ics26_address`: Source IBC router contract address.
   - `dst_rpc_url`: Destination EVM RPC endpoint.
@@ -135,7 +134,6 @@ Module configuration varies by module type:
   - Create-client returns only `DummyLightClient` deployment calldata; the caller must deploy it and register it with `ICS26Router.addClient(...)`.
   - Insecure, local/dev/testing only. Relay uses dummy membership records, not real proofs.
 - `besu_to_besu`:
-  - `src_chain_id`: Source chain ID string.
   - `src_rpc_url`: Source Besu RPC endpoint.
   - `src_ics26_address`: Source IBC router contract address.
   - `dst_rpc_url`: Destination Besu RPC endpoint.

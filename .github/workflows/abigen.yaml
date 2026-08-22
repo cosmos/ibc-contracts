@@ -9,7 +9,9 @@ on:
   pull_request:
     paths:
       - 'ibc-solidity/abi/**'
+      - 'ibc-solidity/solidity.just'
       - 'packages/go-abigen/**'
+      - 'e2e/interchaintestv8/types/erc20/**'
       - '**.sol'
       - 'ibc-solidity/bun.lock'
   push:
@@ -17,7 +19,11 @@ on:
       - main
     paths:
       - 'ibc-solidity/abi/**'
+      - 'ibc-solidity/solidity.just'
       - 'packages/go-abigen/**'
+      - 'e2e/interchaintestv8/types/erc20/**'
+      - '**.sol'
+      - 'ibc-solidity/bun.lock'
 
 jobs:
   check:
@@ -38,16 +44,18 @@ jobs:
       - name: Install abigen
         run: go install github.com/ethereum/go-ethereum/cmd/abigen@be4dc0c4be2fe316dbdd0a73e48421f64978232f # v1.17.2
 
-      - name: Run abigen
+      - name: Generate contract artifacts
         run: just solidity::generate-abi
 
-      - name: Check for diffs in go-abigen
+      - name: Check generated contract artifacts
         run: |
-          if ! git diff --quiet HEAD -- packages/go-abigen; then
-            echo "Git diff found in the selected directory. Failing the job."
+          if [ -n "$(git status --short --untracked-files=all -- ibc-solidity/abi packages/go-abigen e2e/interchaintestv8/types/erc20)" ]; then
+            echo "Generated contract artifacts are stale."
+            git status --short --untracked-files=all -- ibc-solidity/abi packages/go-abigen e2e/interchaintestv8/types/erc20
+            git diff --stat -- ibc-solidity/abi packages/go-abigen e2e/interchaintestv8/types/erc20
             exit 1
           else
-            echo "No changes detected in the selected directory."
+            echo "Generated contract artifacts are current."
           fi
 
   golangci:

@@ -4,12 +4,105 @@ package types
 
 import (
 	"encoding/hex"
+	"encoding/json"
+	"os"
 	"testing"
 
 	transfertypes "github.com/cosmos/ibc-go/v11/modules/apps/transfer/types"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 
 	"github.com/cosmos/solidity-ibc-eureka/packages/go-abigen/ics26router"
 )
+
+func TestBuildLowOverlapFixtureNeedsNoAccountProof(t *testing.T) {
+	t.Chdir("../../..")
+
+	fixtureJSON, err := os.ReadFile("ibc-solidity/test/besu-bft/fixtures/qbft.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture besuFixture
+	if err := json.Unmarshal(fixtureJSON, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	validatorKeys, err := loadQBFTValidatorKeys()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	update, err := buildLowOverlapFixture(
+		fixture.InitialTrustedHeight,
+		fixture.UpdateHeight12.Height+1,
+		liveHeader{HeaderRLP: ethcommon.FromHex(fixture.UpdateHeight12.HeaderRlp)},
+		validatorKeys,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if update.AccountProof != "0x" {
+		t.Fatalf("account proof: got %q, want empty hex bytes", update.AccountProof)
+	}
+
+	encoded, err := json.Marshal(update)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(encoded, &fields); err != nil {
+		t.Fatal(err)
+	}
+	for _, field := range []string{"expectedTimestamp", "expectedStorageRoot", "expectedValidators"} {
+		if _, ok := fields[field]; ok {
+			t.Fatalf("unexpected success field %q", field)
+		}
+	}
+}
+
+func TestRejectionFixturesOnlyContainUpdateInputs(t *testing.T) {
+	t.Chdir("../../..")
+
+	fixtureJSON, err := os.ReadFile("ibc-solidity/test/besu-bft/fixtures/qbft.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture besuFixture
+	if err := json.Unmarshal(fixtureJSON, &fixture); err != nil {
+		t.Fatal(err)
+	}
+
+	lowQuorum, err := buildLowQuorumFixture(
+		fixture.UpdateHeight12,
+		liveHeader{HeaderRLP: ethcommon.FromHex(fixture.UpdateHeight12.HeaderRlp)},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lowQuorum.AccountProof != "0x" {
+		t.Fatalf("low quorum account proof: got %q, want empty hex bytes", lowQuorum.AccountProof)
+	}
+	if fixture.ConflictingHeight12.AccountProof == "" || fixture.ConflictingHeight12.AccountProof == "0x" {
+		t.Fatal("conflicting update must retain its account proof")
+	}
+
+	for name, update := range map[string]besuRejectionUpdateFixture{
+		"low quorum":  lowQuorum,
+		"conflicting": fixture.ConflictingHeight12,
+	} {
+		encoded, err := json.Marshal(update)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(encoded, &fields); err != nil {
+			t.Fatal(err)
+		}
+		for _, field := range []string{"expectedTimestamp", "expectedStorageRoot", "expectedValidators"} {
+			if _, ok := fields[field]; ok {
+				t.Errorf("%s: unexpected success field %q", name, field)
+			}
+		}
+	}
+}
 
 func TestPacketCommitment(t *testing.T) {
 	packetData := transfertypes.NewFungibleTokenPacketData("uatom", "1000000", "sender", "receiver", "memo")

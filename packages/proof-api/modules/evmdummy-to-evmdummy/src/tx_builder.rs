@@ -10,15 +10,15 @@ use anyhow::{bail, Context, Result};
 use ibc_eureka_solidity_types::{
     dummy::{
         dummy_light_client,
-        dummy_light_client_msgs::DummyLightClientMsgs::{
-            Height as DummyHeight, Membership, MsgUpdateClient,
-        },
+        IDummyLightClientMsgs::{Membership, MsgUpdateClient},
     },
     ics26::{
         acknowledgement_commitment,
         router::{multicallCall, routerCalls, routerInstance, updateClientCall},
         IICS02ClientMsgs::Height,
+        NoAcknowledgements,
     },
+    msgs::IICS02ClientMsgs::Height as DummyHeight,
 };
 use proof_api_lib::utils::{
     eth_eureka::{src_events_to_recv_and_ack_msgs, target_events_to_timeout_msgs},
@@ -85,7 +85,7 @@ impl TxBuilder {
             &params.dst_packet_seqs,
             &proof_height,
             latest_source_timestamp,
-        );
+        )?;
         let timeout_msgs = target_events_to_timeout_msgs(
             params.target_events,
             &params.src_client_id,
@@ -99,7 +99,7 @@ impl TxBuilder {
             bail!("no packets collected");
         }
 
-        let memberships = memberships_for_calls(&packet_calls, &counterparty.merklePrefix);
+        let memberships = memberships_for_calls(&packet_calls, &counterparty.merklePrefix)?;
         let update_call = update_client_call(
             &params.dst_client_id,
             &dummy_update_msg(latest_source_height, latest_source_timestamp, memberships),
@@ -120,19 +120,15 @@ impl TxBuilder {
     }
 
     async fn latest_source_consensus_state(&self) -> Result<(u64, u64)> {
-        let height = self
-            .src_provider
-            .get_block_number()
-            .await
-            .context("failed to fetch latest source block number")?;
         let block = self
             .src_provider
-            .get_block(height.into())
+            .get_block(alloy::eips::BlockId::latest())
+            .hashes()
             .await
-            .with_context(|| format!("failed to fetch source block at height {height}"))?
-            .with_context(|| format!("source block at height {height} not found"))?;
+            .context("failed to fetch latest source block")?
+            .context("latest source block not found")?;
 
-        Ok((height, block.header.timestamp))
+        Ok((block.header.number, block.header.timestamp))
     }
 }
 
@@ -158,19 +154,25 @@ const fn dummy_update_msg(
     }
 }
 
-fn memberships_for_calls(calls: &[routerCalls], merkle_prefix: &[Bytes]) -> Vec<Membership> {
+fn memberships_for_calls(
+    calls: &[routerCalls],
+    merkle_prefix: &[Bytes],
+) -> std::result::Result<Vec<Membership>, NoAcknowledgements> {
     calls
         .iter()
         .filter_map(|call| match call {
-            routerCalls::recvPacket(call) => Some(Membership {
+            routerCalls::recvPacket(call) => Some(Ok(Membership {
                 path: prefixed_path(merkle_prefix, &call.msg_.packet.commitment_path()),
                 value: call.msg_.packet.commitment().into(),
-            }),
-            routerCalls::ackPacket(call) => Some(Membership {
-                path: prefixed_path(merkle_prefix, &call.msg_.packet.ack_commitment_path()),
-                value: acknowledgement_commitment(std::slice::from_ref(&call.msg_.acknowledgement))
-                    .into(),
-            }),
+            })),
+            routerCalls::ackPacket(call) => Some(
+                acknowledgement_commitment(std::slice::from_ref(&call.msg_.acknowledgement)).map(
+                    |value| Membership {
+                        path: prefixed_path(merkle_prefix, &call.msg_.packet.ack_commitment_path()),
+                        value: value.into(),
+                    },
+                ),
+            ),
             routerCalls::timeoutPacket(_) => None,
             _ => unreachable!(),
         })
@@ -253,12 +255,12 @@ mod tests {
                 },
             }),
         ];
-        let memberships = memberships_for_calls(&calls, &[Bytes::from_static(b"ibc")]);
+        let memberships = memberships_for_calls(&calls, &[Bytes::from_static(b"ibc")]).unwrap();
         assert_eq!(memberships.len(), 2);
         assert_eq!(memberships[0].value, Bytes::from(pkt.commitment()));
         assert_eq!(
             memberships[1].value,
-            Bytes::from(acknowledgement_commitment(&[ack]))
+            Bytes::from(acknowledgement_commitment(&[ack]).unwrap())
         );
     }
 }

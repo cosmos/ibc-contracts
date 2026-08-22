@@ -131,6 +131,9 @@ abstract contract BesuLightClientBase is ILightClient, IBesuLightClientErrors, I
         if (header.height == 0) {
             revert InvalidHeaderHeight();
         }
+        if (header.timestamp == 0) {
+            revert InvalidHeaderTimestamp();
+        }
         if (block.timestamp + clientState.maxClockDrift < header.timestamp) {
             revert HeaderFromFuture(block.timestamp, header.timestamp, clientState.maxClockDrift);
         }

@@ -46,20 +46,20 @@ type GenerateQBFTFixtureParams struct {
 }
 
 type besuFixture struct {
-	RouterAddress             string            `json:"routerAddress"`
-	InitialTrustedHeight      uint64            `json:"initialTrustedHeight"`
-	InitialTrustedTimestamp   uint64            `json:"initialTrustedTimestamp"`
-	InitialTrustedStorageRoot string            `json:"initialTrustedStorageRoot"`
-	InitialTrustedValidators  []string          `json:"initialTrustedValidators"`
-	TrustingPeriod            uint64            `json:"trustingPeriod"`
-	MaxClockDrift             uint64            `json:"maxClockDrift"`
-	UpdateHeight11            besuUpdateFixture `json:"updateHeight11"`
-	UpdateHeight12            besuUpdateFixture `json:"updateHeight12"`
-	LowQuorumHeight12         besuUpdateFixture `json:"lowQuorumHeight12"`
-	ConflictingHeight12       besuUpdateFixture `json:"conflictingHeight12"`
-	LowOverlapHeight13        besuUpdateFixture `json:"lowOverlapHeight13"`
-	Membership                besuProofFixture  `json:"membership"`
-	NonMembership             besuProofFixture  `json:"nonMembership"`
+	RouterAddress             string                     `json:"routerAddress"`
+	InitialTrustedHeight      uint64                     `json:"initialTrustedHeight"`
+	InitialTrustedTimestamp   uint64                     `json:"initialTrustedTimestamp"`
+	InitialTrustedStorageRoot string                     `json:"initialTrustedStorageRoot"`
+	InitialTrustedValidators  []string                   `json:"initialTrustedValidators"`
+	TrustingPeriod            uint64                     `json:"trustingPeriod"`
+	MaxClockDrift             uint64                     `json:"maxClockDrift"`
+	UpdateHeight11            besuUpdateFixture          `json:"updateHeight11"`
+	UpdateHeight12            besuUpdateFixture          `json:"updateHeight12"`
+	LowQuorumHeight12         besuRejectionUpdateFixture `json:"lowQuorumHeight12"`
+	ConflictingHeight12       besuRejectionUpdateFixture `json:"conflictingHeight12"`
+	LowOverlapHeight13        besuRejectionUpdateFixture `json:"lowOverlapHeight13"`
+	Membership                besuProofFixture           `json:"membership"`
+	NonMembership             besuProofFixture           `json:"nonMembership"`
 }
 
 type besuUpdateFixture struct {
@@ -70,6 +70,13 @@ type besuUpdateFixture struct {
 	ExpectedTimestamp   uint64   `json:"expectedTimestamp"`
 	ExpectedStorageRoot string   `json:"expectedStorageRoot"`
 	ExpectedValidators  []string `json:"expectedValidators"`
+}
+
+type besuRejectionUpdateFixture struct {
+	Height        uint64 `json:"height"`
+	HeaderRlp     string `json:"headerRlp"`
+	TrustedHeight uint64 `json:"trustedHeight"`
+	AccountProof  string `json:"accountProof"`
 }
 
 type besuProofFixture struct {
@@ -175,6 +182,7 @@ func generateQBFTFixture(ctx context.Context, params GenerateQBFTFixtureParams) 
 		return besuFixture{}, err
 	}
 	conflictingHeight12, err := buildConflictingFixture(
+		ctx,
 		params.InitialTrustedHeight,
 		update12.Height,
 		syntheticSourceHeader,
@@ -190,8 +198,6 @@ func generateQBFTFixture(ctx context.Context, params GenerateQBFTFixtureParams) 
 		update12.Height+1,
 		syntheticSourceHeader,
 		validatorKeys,
-		params.SourceChain,
-		params.RouterAddress,
 	)
 	if err != nil {
 		return besuFixture{}, err
@@ -250,68 +256,70 @@ func buildLiveUpdateFixture(
 	}, nil
 }
 
-func buildLowQuorumFixture(update besuUpdateFixture, header liveHeader) (besuUpdateFixture, error) {
+func buildLowQuorumFixture(update besuUpdateFixture, header liveHeader) (besuRejectionUpdateFixture, error) {
 	mutable, err := decodeMutableQBFTHeader(header.HeaderRLP)
 	if err != nil {
-		return besuUpdateFixture{}, err
+		return besuRejectionUpdateFixture{}, err
 	}
 	commitSeals, err := mutable.commitSeals()
 	if err != nil {
-		return besuUpdateFixture{}, err
+		return besuRejectionUpdateFixture{}, err
 	}
 	if len(commitSeals) < 2 {
-		return besuUpdateFixture{}, fmt.Errorf("expected at least two commit seals, got %d", len(commitSeals))
+		return besuRejectionUpdateFixture{}, fmt.Errorf("expected at least two commit seals, got %d", len(commitSeals))
 	}
 	mutable.setCommitSeals(commitSeals[:2])
 	mutatedHeader, err := mutable.encode()
 	if err != nil {
-		return besuUpdateFixture{}, err
+		return besuRejectionUpdateFixture{}, err
 	}
 
-	update.HeaderRlp = encodeHex(mutatedHeader)
-	return update, nil
+	return besuRejectionUpdateFixture{
+		Height:        update.Height,
+		HeaderRlp:     encodeHex(mutatedHeader),
+		TrustedHeight: update.TrustedHeight,
+		AccountProof:  "0x",
+	}, nil
 }
 
 func buildConflictingFixture(
+	ctx context.Context,
 	trustedHeight uint64,
 	targetHeight uint64,
 	baseHeader liveHeader,
 	validatorKeys map[ethcommon.Address]*ecdsa.PrivateKey,
 	chain *ethereum.Ethereum,
 	routerAddress ethcommon.Address,
-) (besuUpdateFixture, error) {
+) (besuRejectionUpdateFixture, error) {
 	mutable, err := decodeMutableQBFTHeader(baseHeader.HeaderRLP)
 	if err != nil {
-		return besuUpdateFixture{}, err
+		return besuRejectionUpdateFixture{}, err
 	}
 	mutable.setHeight(targetHeight)
 	validators, err := mutable.validators()
 	if err != nil {
-		return besuUpdateFixture{}, err
+		return besuRejectionUpdateFixture{}, err
 	}
 	signerKeys, err := signerKeysFor(validators[:3], validatorKeys)
 	if err != nil {
-		return besuUpdateFixture{}, err
+		return besuRejectionUpdateFixture{}, err
 	}
 	mutable.setCommitSeals(signQBFTCommitSeals(mutable, signerKeys))
 	mutatedHeader, err := mutable.encode()
 	if err != nil {
-		return besuUpdateFixture{}, err
+		return besuRejectionUpdateFixture{}, err
 	}
 
-	proof, accountProofRLP, err := fetchAccountProof(context.Background(), chain, routerAddress, baseHeader.Header.Number.Uint64())
+	_, accountProofRLP, err := fetchAccountProof(ctx, chain, routerAddress, baseHeader.Header.Number.Uint64())
 	if err != nil {
-		return besuUpdateFixture{}, err
+		return besuRejectionUpdateFixture{}, err
 	}
 
-	return besuUpdateFixture{
-		Height:              targetHeight,
-		HeaderRlp:           encodeHex(mutatedHeader),
-		TrustedHeight:       trustedHeight,
-		AccountProof:        encodeHex(accountProofRLP),
-		ExpectedTimestamp:   baseHeader.Header.Time,
-		ExpectedStorageRoot: proof.StorageHash.Hex(),
-		ExpectedValidators:  addressesToHex(validators),
+	return besuRejectionUpdateFixture{
+		Height:        targetHeight,
+		HeaderRlp:     encodeHex(mutatedHeader),
+		TrustedHeight: trustedHeight,
+		AccountProof:  encodeHex(accountProofRLP),
 	}, nil
 }
 
@@ -320,26 +328,24 @@ func buildLowOverlapFixture(
 	targetHeight uint64,
 	baseHeader liveHeader,
 	validatorKeys map[ethcommon.Address]*ecdsa.PrivateKey,
-	chain *ethereum.Ethereum,
-	routerAddress ethcommon.Address,
-) (besuUpdateFixture, error) {
+) (besuRejectionUpdateFixture, error) {
 	mutable, err := decodeMutableQBFTHeader(baseHeader.HeaderRLP)
 	if err != nil {
-		return besuUpdateFixture{}, err
+		return besuRejectionUpdateFixture{}, err
 	}
 	mutable.setHeight(targetHeight)
 
 	baseValidators, err := mutable.validators()
 	if err != nil {
-		return besuUpdateFixture{}, err
+		return besuRejectionUpdateFixture{}, err
 	}
 	if len(baseValidators) == 0 {
-		return besuUpdateFixture{}, fmt.Errorf("missing base validators")
+		return besuRejectionUpdateFixture{}, fmt.Errorf("missing base validators")
 	}
 
 	syntheticKeys, err := loadSyntheticLowOverlapValidatorKeys()
 	if err != nil {
-		return besuUpdateFixture{}, err
+		return besuRejectionUpdateFixture{}, err
 	}
 	lowOverlapValidators := []ethcommon.Address{
 		baseValidators[0],
@@ -355,27 +361,19 @@ func buildLowOverlapFixture(
 		lowOverlapValidators[2],
 	}, mergeValidatorKeyMaps(validatorKeys, toKeyMap(syntheticKeys)))
 	if err != nil {
-		return besuUpdateFixture{}, err
+		return besuRejectionUpdateFixture{}, err
 	}
 	mutable.setCommitSeals(signQBFTCommitSeals(mutable, signerKeys))
 	mutatedHeader, err := mutable.encode()
 	if err != nil {
-		return besuUpdateFixture{}, err
+		return besuRejectionUpdateFixture{}, err
 	}
 
-	proof, accountProofRLP, err := fetchAccountProof(context.Background(), chain, routerAddress, baseHeader.Header.Number.Uint64())
-	if err != nil {
-		return besuUpdateFixture{}, err
-	}
-
-	return besuUpdateFixture{
-		Height:              targetHeight,
-		HeaderRlp:           encodeHex(mutatedHeader),
-		TrustedHeight:       trustedHeight,
-		AccountProof:        encodeHex(accountProofRLP),
-		ExpectedTimestamp:   baseHeader.Header.Time,
-		ExpectedStorageRoot: proof.StorageHash.Hex(),
-		ExpectedValidators:  addressesToHex(lowOverlapValidators),
+	return besuRejectionUpdateFixture{
+		Height:        targetHeight,
+		HeaderRlp:     encodeHex(mutatedHeader),
+		TrustedHeight: trustedHeight,
+		AccountProof:  "0x",
 	}, nil
 }
 

@@ -8,23 +8,40 @@ import (
 	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/testvalues"
 )
 
-func TestSetupConfigRejectsBesuQBFTWithDummyLightClient(t *testing.T) {
-	cfg := setupConfig{
-		ethereum: ethereumConfig{testnetType: testvalues.EthTestnetTypeBesuQBFT},
-		cosmos:   cosmosConfig{lightClientType: testvalues.EthLCOnCosmosTypeDummyWasm},
+func TestSetupConfigValidateEthereumCompatibility(t *testing.T) {
+	const unknown = "unknown"
+
+	tests := []struct {
+		name        string
+		testnetType string
+		clientType  string
+		wantErr     bool
+	}{
+		{"anvil dummy", testvalues.EthTestnetTypeAnvil, testvalues.EthLCOnCosmosTypeDummyWasm, false},
+		{"anvil attestor", testvalues.EthTestnetTypeAnvil, testvalues.EthLCOnCosmosTypeAttestorNative, false},
+		{"pos full", testvalues.EthTestnetTypePoS, testvalues.EthLCOnCosmosTypeFullWasm, false},
+		{"pos attestor", testvalues.EthTestnetTypePoS, testvalues.EthLCOnCosmosTypeAttestorNative, false},
+		{"besu attestor", testvalues.EthTestnetTypeBesuQBFT, testvalues.EthLCOnCosmosTypeAttestorNative, false},
+		{"anvil full", testvalues.EthTestnetTypeAnvil, testvalues.EthLCOnCosmosTypeFullWasm, true},
+		{"pos dummy", testvalues.EthTestnetTypePoS, testvalues.EthLCOnCosmosTypeDummyWasm, true},
+		{"besu dummy", testvalues.EthTestnetTypeBesuQBFT, testvalues.EthLCOnCosmosTypeDummyWasm, true},
+		{"besu full", testvalues.EthTestnetTypeBesuQBFT, testvalues.EthLCOnCosmosTypeFullWasm, true},
+		{"active empty client", testvalues.EthTestnetTypeAnvil, "", true},
+		{"active unknown client", testvalues.EthTestnetTypePoS, unknown, true},
+		{"unknown testnet", unknown, testvalues.EthLCOnCosmosTypeAttestorNative, true},
+		{"disabled empty", "", unknown, false},
+		{"disabled none", testvalues.EthTestnetType_None, unknown, false},
 	}
 
-	if err := cfg.validate(); err == nil {
-		t.Fatal("expected Besu QBFT with a dummy light client to be rejected")
-	}
-}
-
-func TestSetupConfigRejectsBesuQBFTWithoutLightClient(t *testing.T) {
-	cfg := setupConfig{
-		ethereum: ethereumConfig{testnetType: testvalues.EthTestnetTypeBesuQBFT},
-	}
-
-	if err := cfg.validate(); err == nil {
-		t.Fatal("expected Besu QBFT without a light client to be rejected")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := setupConfig{
+				ethereum: ethereumConfig{testnetType: tt.testnetType},
+				cosmos:   cosmosConfig{lightClientType: tt.clientType},
+			}
+			if err := cfg.validate(); (err != nil) != tt.wantErr {
+				t.Fatalf("validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
 	}
 }

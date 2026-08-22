@@ -27,7 +27,6 @@ use tx_builder::TxBuilder;
 
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub struct EvmDummyToEvmDummyConfig {
-    pub src_chain_id: String,
     pub src_rpc_url: String,
     pub src_ics26_address: Address,
     pub dst_rpc_url: String,
@@ -38,7 +37,6 @@ pub struct EvmDummyToEvmDummyConfig {
 pub struct EvmDummyToEvmDummyProofApiModule;
 
 struct EvmDummyToEvmDummyProofApiModuleService {
-    src_chain_id: String,
     src_ics26_address: Address,
     src_listener: eth_eureka::ChainListener<RootProvider>,
     dst_listener: eth_eureka::ChainListener<RootProvider>,
@@ -63,7 +61,6 @@ impl EvmDummyToEvmDummyProofApiModuleService {
         let tx_builder = TxBuilder::new(src_provider, dst_provider, config.dst_ics26_address);
 
         Ok(Self {
-            src_chain_id: config.src_chain_id,
             src_ics26_address: config.src_ics26_address,
             src_listener,
             dst_listener,
@@ -76,8 +73,9 @@ impl EvmDummyToEvmDummyProofApiModuleService {
 impl ProofApiService for EvmDummyToEvmDummyProofApiModuleService {
     async fn info(
         &self,
-        _request: Request<api::InfoRequest>,
+        request: Request<api::InfoRequest>,
     ) -> Result<Response<api::InfoResponse>, tonic::Status> {
+        let src_chain = request.into_inner().src_chain;
         Ok(Response::new(api::InfoResponse {
             target_chain: Some(api::Chain {
                 chain_id: self
@@ -89,7 +87,7 @@ impl ProofApiService for EvmDummyToEvmDummyProofApiModuleService {
                 ibc_contract: self.tx_builder.ics26_router_address().to_string(),
             }),
             source_chain: Some(api::Chain {
-                chain_id: self.src_chain_id.clone(),
+                chain_id: src_chain,
                 ibc_version: "2".to_string(),
                 ibc_contract: self.src_ics26_address.to_string(),
             }),
@@ -180,5 +178,27 @@ impl ProofApiModule for EvmDummyToEvmDummyProofApiModule {
         Ok(Box::new(
             EvmDummyToEvmDummyProofApiModuleService::new(config).await?,
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::EvmDummyToEvmDummyConfig;
+
+    #[test]
+    fn obsolete_src_chain_id_is_ignored() {
+        let config: EvmDummyToEvmDummyConfig = serde_json::from_value(serde_json::json!({
+            "src_chain_id": "legacy",
+            "src_rpc_url": "http://localhost:8545",
+            "src_ics26_address": "0x0000000000000000000000000000000000000001",
+            "dst_rpc_url": "http://localhost:9545",
+            "dst_ics26_address": "0x0000000000000000000000000000000000000002"
+        }))
+        .unwrap();
+
+        assert!(
+            serde_json::to_value(config).unwrap()["src_chain_id"].is_null(),
+            "obsolete field must be accepted but not emitted"
+        );
     }
 }

@@ -9,7 +9,6 @@ import (
 	"math/rand"
 	"net"
 	"os"
-	"text/template"
 	"time"
 
 	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/testvalues"
@@ -149,43 +148,19 @@ func NewConfig(modules []ModuleConfig) Config {
 	}
 }
 
-// GenerateConfig creates a config from the template
+// GenerateConfigFile writes the config as JSON.
 func (c *Config) GenerateConfigFile(filePath string) error {
-	tmpl, err := template.ParseFiles("e2e/interchaintestv8/proofapi/config.tmpl")
+	config := *c
+	if config.Modules == nil {
+		config.Modules = []ModuleConfig{}
+	}
+
+	contents, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
 		return err
 	}
 
-	f, err := os.Create(filePath)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	return tmpl.Execute(f, c)
-}
-
-// ToJSON converts a ModuleConfig to JSON string - designed for use in templates
-func (mc ModuleConfig) ToJSON() string {
-	jsonBytes, err := json.MarshalIndent(mc, "", "  ")
-	if err != nil {
-		return fmt.Sprintf("\"Error generating JSON: %s\"", err)
-	}
-	return string(jsonBytes)
-}
-
-// ModulesToJSON converts a slice of ModuleConfig to a JSON string
-func ModulesToJSON(modules []ModuleConfig) (string, error) {
-	if len(modules) == 0 {
-		return "[]", nil
-	}
-
-	jsonBytes, err := json.MarshalIndent(modules, "", "  ")
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal modules to JSON: %w", err)
-	}
-
-	return string(jsonBytes), nil
+	return os.WriteFile(filePath, append(contents, '\n'), 0o600)
 }
 
 // EthToCosmosModuleConfig represents the configuration for eth_to_cosmos module
@@ -257,7 +232,6 @@ type EthToEthModuleConfig struct {
 
 // BesuToBesuModuleConfig represents the configuration for besu_to_besu module.
 type BesuToBesuModuleConfig struct {
-	SrcChainID      string `json:"src_chain_id"`
 	SrcRPCURL       string `json:"src_rpc_url"`
 	SrcICS26Address string `json:"src_ics26_address"`
 	DstRPCURL       string `json:"dst_rpc_url"`
