@@ -8,8 +8,9 @@ import (
 	"os"
 	"testing"
 
-	transfertypes "github.com/cosmos/ibc-go/v11/modules/apps/transfer/types"
 	ethcommon "github.com/ethereum/go-ethereum/common"
+
+	transfertypes "github.com/cosmos/ibc-go/v11/modules/apps/transfer/types"
 
 	"github.com/cosmos/solidity-ibc-eureka/packages/go-abigen/ics26router"
 )
