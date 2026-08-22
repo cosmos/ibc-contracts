@@ -69,27 +69,22 @@ func (c *setupConfig) validate() error {
 	case "", testvalues.EthTestnetType_None:
 		return nil
 	case testvalues.EthTestnetTypeAnvil:
-		if ethLcOnCosmos == testvalues.EthLCOnCosmosTypeFullWasm {
-			return fmt.Errorf("invalid config: ETH_TESTNET_TYPE=%s cannot use ETH_LC_ON_COSMOS=%s (Anvil doesn't have beacon chain)", ethTestnetType, ethLcOnCosmos)
-		}
-		return nil
-	case testvalues.EthTestnetTypePoS:
-		if ethLcOnCosmos == testvalues.EthLCOnCosmosTypeDummyWasm {
-			return fmt.Errorf("invalid config: ETH_TESTNET_TYPE=%s cannot use ETH_LC_ON_COSMOS=%s (PoS requires actual verification)", ethTestnetType, ethLcOnCosmos)
-		}
-		return nil
-	case testvalues.EthTestnetTypeBesuQBFT:
-		switch ethLcOnCosmos {
-		case testvalues.EthLCOnCosmosTypeAttestorNative:
+		if ethLcOnCosmos == testvalues.EthLCOnCosmosTypeDummyWasm || ethLcOnCosmos == testvalues.EthLCOnCosmosTypeAttestorNative {
 			return nil
-		case testvalues.EthLCOnCosmosTypeFullWasm:
-			return fmt.Errorf("invalid config: ETH_TESTNET_TYPE=%s cannot use ETH_LC_ON_COSMOS=%s (Besu QBFT doesn't have beacon chain)", ethTestnetType, ethLcOnCosmos)
-		default:
-			return fmt.Errorf("invalid config: ETH_TESTNET_TYPE=%s does not support ETH_LC_ON_COSMOS=%s", ethTestnetType, ethLcOnCosmos)
+		}
+	case testvalues.EthTestnetTypePoS:
+		if ethLcOnCosmos == testvalues.EthLCOnCosmosTypeFullWasm || ethLcOnCosmos == testvalues.EthLCOnCosmosTypeAttestorNative {
+			return nil
+		}
+	case testvalues.EthTestnetTypeBesuQBFT:
+		if ethLcOnCosmos == testvalues.EthLCOnCosmosTypeAttestorNative {
+			return nil
 		}
 	default:
 		return fmt.Errorf("invalid config: unsupported ETH_TESTNET_TYPE=%s", ethTestnetType)
 	}
+
+	return fmt.Errorf("invalid config: ETH_TESTNET_TYPE=%s does not support ETH_LC_ON_COSMOS=%s", ethTestnetType, ethLcOnCosmos)
 }
 
 // Result types for parallel chain setup
@@ -109,10 +104,5 @@ type interchainSetupResult struct {
 
 type ethPosSetupResult struct {
 	chain *chainconfig.EthKurtosisChain
-	err   error
-}
-
-type ethBesuQBFTSetupResult struct {
-	chain *chainconfig.BesuQBFTChain
 	err   error
 }

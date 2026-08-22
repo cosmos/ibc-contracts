@@ -16,6 +16,7 @@ import (
 	"github.com/cosmos/interchaintest/v11/ibc"
 	"github.com/cosmos/interchaintest/v11/testreporter"
 
+	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/chainconfig"
 	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/ethereum"
 	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/solana"
 	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/testvalues"
@@ -118,7 +119,6 @@ func (s *TestSuite) setupChainsInParallel(
 	solanaCh := make(chan solanaSetupResult, 1)
 	interchainCh := make(chan interchainSetupResult, 1)
 	ethPosCh := make(chan ethPosSetupResult, 1)
-	ethBesuQBFTCh := make(chan ethBesuQBFTSetupResult, 1)
 
 	go s.setupSolanaAsync(ctx, cfg, solanaCh)
 	go s.setupInterchainAsync(ctx, chainSpecs, interchainCh)
@@ -132,10 +132,10 @@ func (s *TestSuite) setupChainsInParallel(
 	interchainRes := <-interchainCh
 	s.Require().NoError(interchainRes.err, "Interchain setup failed")
 
+	var ethBesuQBFTChain *chainconfig.BesuQBFTChain
+	var ethBesuQBFTErr error
 	if cfg.ethereum.isBesuQBFT() {
-		go s.setupEthereumBesuQBFTAsync(ctx, interchainRes.network, ethBesuQBFTCh)
-	} else {
-		ethBesuQBFTCh <- ethBesuQBFTSetupResult{}
+		ethBesuQBFTChain, ethBesuQBFTErr = s.setupEthereumBesuQBFT(ctx, interchainRes.network)
 	}
 
 	solanaRes := <-solanaCh
@@ -146,9 +146,8 @@ func (s *TestSuite) setupChainsInParallel(
 	s.Require().NoError(ethPosRes.err, "Ethereum PoS chain setup failed")
 	s.processEthereumPoSResult(ctx, ethPosRes.chain)
 
-	ethBesuQBFTRes := <-ethBesuQBFTCh
-	s.Require().NoError(ethBesuQBFTRes.err, "Ethereum Besu QBFT chain setup failed")
-	s.processEthereumBesuQBFTResult(ctx, ethBesuQBFTRes.chain)
+	s.Require().NoError(ethBesuQBFTErr, "Ethereum Besu QBFT chain setup failed")
+	s.processEthereumBesuQBFTResult(ctx, ethBesuQBFTChain)
 
 	return interchainRes.chains, interchainRes.dockerClient, interchainRes.network, interchainRes.logger
 }

@@ -11,6 +11,7 @@ import { ILightClientMsgs } from "../../contracts/msgs/ILightClientMsgs.sol";
 import { IICS02ClientMsgs } from "../../contracts/msgs/IICS02ClientMsgs.sol";
 import { IBesuLightClientMsgs } from "../../contracts/light-clients/besu/msgs/IBesuLightClientMsgs.sol";
 import { IBesuLightClientErrors } from "../../contracts/light-clients/besu/errors/IBesuLightClientErrors.sol";
+import { RLPReader } from "../../contracts/light-clients/besu/RLPReader.sol";
 
 struct BesuUpdateFixture {
     uint64 height;
@@ -20,6 +21,13 @@ struct BesuUpdateFixture {
     uint64 expectedTimestamp;
     bytes32 expectedStorageRoot;
     address[] expectedValidators;
+}
+
+struct BesuRejectionUpdateFixture {
+    uint64 height;
+    bytes headerRlp;
+    uint64 trustedHeight;
+    bytes accountProof;
 }
 
 struct BesuProofFixture {
@@ -40,9 +48,9 @@ struct BesuFixture {
     uint64 maxClockDrift;
     BesuUpdateFixture updateHeight11;
     BesuUpdateFixture updateHeight12;
-    BesuUpdateFixture lowQuorumHeight12;
-    BesuUpdateFixture conflictingHeight12;
-    BesuUpdateFixture lowOverlapHeight13;
+    BesuRejectionUpdateFixture lowQuorumHeight12;
+    BesuRejectionUpdateFixture conflictingHeight12;
+    BesuRejectionUpdateFixture lowOverlapHeight13;
     BesuProofFixture membership;
     BesuProofFixture nonMembership;
 }
@@ -53,6 +61,8 @@ interface IBesuTestLightClient is ILightClient {
 
 abstract contract BesuLightClientTestBase is Test {
     using stdJson for string;
+    using RLPReader for bytes;
+    using RLPReader for RLPReader.RLPItem;
 
     string internal constant FIXTURE_DIR = "/test/besu-bft/fixtures/";
 
@@ -90,6 +100,25 @@ abstract contract BesuLightClientTestBase is Test {
             fixture.updateHeight12.expectedStorageRoot,
             fixture.updateHeight12.height
         );
+    }
+
+    function test_updateClient_revertZeroTimestampWithoutStateChange() public {
+        BesuUpdateFixture memory update = fixture.updateHeight12;
+        RLPReader.RLPItem memory headerItem = update.headerRlp.toRlpItem();
+        RLPReader.RLPItem[] memory headerItems = headerItem.toList();
+        (uint256 timestampPtr, uint256 timestampLen) = headerItems[11].payloadLocation();
+        for (uint256 i = 0; i < timestampLen; ++i) {
+            update.headerRlp[timestampPtr - headerItem.memPtr + i] = 0;
+        }
+
+        bytes memory clientStateBefore = client.getClientState();
+        bytes memory consensusStateBefore = client.getConsensusState(fixture.initialTrustedHeight);
+
+        vm.expectRevert(IBesuLightClientErrors.InvalidHeaderTimestamp.selector);
+        client.updateClient(_encodeUpdate(update));
+
+        assertEq(client.getClientState(), clientStateBefore);
+        assertEq(client.getConsensusState(fixture.initialTrustedHeight), consensusStateBefore);
     }
 
     function test_verifyMembership_returnsStoredTimestamp() public {
@@ -316,9 +345,9 @@ abstract contract BesuLightClientTestBase is Test {
             maxClockDrift: uint64(json.readUint(".maxClockDrift")),
             updateHeight11: _readUpdate(json, ".updateHeight11"),
             updateHeight12: _readUpdate(json, ".updateHeight12"),
-            lowQuorumHeight12: _readUpdate(json, ".lowQuorumHeight12"),
-            conflictingHeight12: _readUpdate(json, ".conflictingHeight12"),
-            lowOverlapHeight13: _readUpdate(json, ".lowOverlapHeight13"),
+            lowQuorumHeight12: _readRejectionUpdate(json, ".lowQuorumHeight12"),
+            conflictingHeight12: _readRejectionUpdate(json, ".conflictingHeight12"),
+            lowOverlapHeight13: _readRejectionUpdate(json, ".lowOverlapHeight13"),
             membership: _readProof(json, ".membership"),
             nonMembership: _readProof(json, ".nonMembership")
         });
@@ -334,6 +363,32 @@ abstract contract BesuLightClientTestBase is Test {
             expectedStorageRoot: json.readBytes32(string.concat(path, ".expectedStorageRoot")),
             expectedValidators: abi.decode(json.parseRaw(string.concat(path, ".expectedValidators")), (address[]))
         });
+    }
+
+    function _readRejectionUpdate(
+        string memory json,
+        string memory path
+    )
+        internal
+        view
+        returns (BesuRejectionUpdateFixture memory)
+    {
+        return BesuRejectionUpdateFixture({
+            height: uint64(json.readUint(string.concat(path, ".height"))),
+            headerRlp: json.readBytes(string.concat(path, ".headerRlp")),
+            trustedHeight: uint64(json.readUint(string.concat(path, ".trustedHeight"))),
+            accountProof: json.readBytes(string.concat(path, ".accountProof"))
+        });
+    }
+
+    function _encodeUpdate(BesuRejectionUpdateFixture memory update) internal pure returns (bytes memory) {
+        return abi.encode(
+            IBesuLightClientMsgs.MsgUpdateClient({
+                headerRlp: update.headerRlp,
+                trustedHeight: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: update.trustedHeight }),
+                accountProof: update.accountProof
+            })
+        );
     }
 
     function _readProof(string memory json, string memory path) internal view returns (BesuProofFixture memory) {

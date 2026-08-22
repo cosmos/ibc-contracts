@@ -2,6 +2,8 @@
 
 //! Solidity types for dummy light client.
 
+use crate::msgs::IICS02ClientMsgs;
+
 pub mod dummy_light_client {
     #[cfg(feature = "rpc")]
     alloy_sol_types::sol!(
@@ -18,25 +20,14 @@ pub mod dummy_light_client {
     );
 }
 
+alloy_sol_types::sol!(
+    "../../ibc-solidity/contracts/light-clients/dummy/msgs/IDummyLightClientMsgs.sol"
+);
+
 pub mod dummy_light_client_msgs {
-    alloy_sol_types::sol! {
-        #[derive(Debug, PartialEq, Eq)]
-        library DummyLightClientMsgs {
-            struct Height {
-                uint64 revisionNumber;
-                uint64 revisionHeight;
-            }
-
-            struct Membership {
-                bytes[] path;
-                bytes value;
-            }
-
-            struct MsgUpdateClient {
-                Height height;
-                uint64 timestamp;
-                Membership[] memberships;
-            }
-        }
+    #[allow(non_snake_case)]
+    pub mod DummyLightClientMsgs {
+        pub use super::super::IDummyLightClientMsgs::{Membership, MsgUpdateClient};
+        pub use crate::msgs::IICS02ClientMsgs::Height;
     }
 }

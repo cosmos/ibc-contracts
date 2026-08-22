@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import { Test } from "forge-std/Test.sol";
 
 import { DummyLightClient } from "../../contracts/light-clients/dummy/DummyLightClient.sol";
+import { IDummyLightClientMsgs } from "../../contracts/light-clients/dummy/msgs/IDummyLightClientMsgs.sol";
 import { ILightClientMsgs } from "../../contracts/msgs/ILightClientMsgs.sol";
 import { IICS02ClientMsgs } from "../../contracts/msgs/IICS02ClientMsgs.sol";
 
@@ -24,8 +25,8 @@ contract DummyLightClientTest is Test {
     function test_updateClient_stores_state() public {
         client.updateClient(_updateMsg(height, TIMESTAMP, path, value));
 
-        DummyLightClient.ClientState memory clientState =
-            abi.decode(client.getClientState(), (DummyLightClient.ClientState));
+        IDummyLightClientMsgs.ClientState memory clientState =
+            abi.decode(client.getClientState(), (IDummyLightClientMsgs.ClientState));
         assertEq(clientState.latestHeight.revisionNumber, height.revisionNumber);
         assertEq(clientState.latestHeight.revisionHeight, height.revisionHeight);
         assertEq(clientState.latestTimestamp, TIMESTAMP);
@@ -103,10 +104,10 @@ contract DummyLightClientTest is Test {
         pure
         returns (bytes memory)
     {
-        DummyLightClient.Membership[] memory memberships = new DummyLightClient.Membership[](1);
-        memberships[0] = DummyLightClient.Membership({ path: path_, value: value_ });
+        IDummyLightClientMsgs.Membership[] memory memberships = new IDummyLightClientMsgs.Membership[](1);
+        memberships[0] = IDummyLightClientMsgs.Membership({ path: path_, value: value_ });
         return abi.encode(
-            DummyLightClient.MsgUpdateClient({ height: height_, timestamp: timestamp, memberships: memberships })
+            IDummyLightClientMsgs.MsgUpdateClient({ height: height_, timestamp: timestamp, memberships: memberships })
         );
     }
 

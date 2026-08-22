@@ -1,11 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, str::FromStr, time::UNIX_EPOCH};
+use std::{
+    collections::{HashMap, HashSet},
+    str::FromStr,
+    time::UNIX_EPOCH,
+};
 
 use alloy::{
     network::Ethereum,
     primitives::{hex, Address, Bytes, B256, U256},
     providers::{Provider, RootProvider},
+    rpc::types::EIP1186StorageProof,
     sol_types::{SolCall, SolValue},
 };
 use alloy_rlp::Header as RlpHeader;
@@ -145,22 +150,33 @@ impl TxBuilder {
             .get_block_number()
             .await
             .context("failed to fetch latest source block number")?;
-
-        self.build_update_client_calldata(dst_client_id, trusted_height, target_height)
+        let header_rlp = self
+            .fetch_source_header_rlp(target_height)
+            .await
+            .with_context(|| format!("failed to fetch source block at height {target_height}"))?;
+        let (_, account_proof) = self
+            .fetch_source_account_proof(target_height)
             .await
             .with_context(|| {
-                format!("failed to build destination updateClient call for client {dst_client_id}")
-            })
+                format!("failed to fetch account proof for source router at height {target_height}")
+            })?;
+
+        Ok(Self::build_update_client_calldata(
+            dst_client_id,
+            trusted_height,
+            header_rlp,
+            account_proof,
+        ))
     }
 
     pub async fn relay_events(&self, params: RelayEventsParams) -> Result<Vec<u8>> {
         let proof_height = select_proof_height(&params.src_events, params.timeout_relay_height)?;
-        let proof_timestamp = EthApiClient::new(self.src_provider.clone())
+        let proof_block = EthApiClient::new(self.src_provider.clone())
             .get_block(proof_height)
             .await
-            .with_context(|| format!("failed to fetch source block at height {proof_height}"))?
-            .header
-            .timestamp;
+            .with_context(|| format!("failed to fetch source block at height {proof_height}"))?;
+        let proof_timestamp = proof_block.header.timestamp;
+        let header_rlp = alloy_rlp::encode(proof_block.into_consensus_header());
         let now = std::time::SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .context("failed to read system time")?
@@ -178,7 +194,7 @@ impl TxBuilder {
             &params.dst_packet_seqs,
             &proof_height_msg,
             now,
-        );
+        )?;
         let timeout_msgs = target_events_to_timeout_msgs(
             params.target_events,
             &params.src_client_id,
@@ -202,22 +218,28 @@ impl TxBuilder {
                     params.dst_client_id
                 )
             })?;
-        let update_call = self
-            .build_update_client_calldata(
-                &params.dst_client_id,
-                client_state.latestHeight.revisionHeight,
-                proof_height,
-            )
+        let mut storage_keys = packet_calls
+            .iter()
+            .map(packet_storage_key)
+            .collect::<Vec<_>>();
+        storage_keys.sort_unstable();
+        storage_keys.dedup();
+        let (_, account_proof, storage_proofs) = self
+            .fetch_source_proofs(proof_height, &storage_keys)
             .await
             .with_context(|| {
                 format!(
-                    "failed to build destination updateClient call for client {} at height {proof_height}",
-                    params.dst_client_id
+                    "failed to fetch account and storage proofs for source router at height {proof_height}"
                 )
             })?;
+        let update_call = Self::build_update_client_calldata(
+            &params.dst_client_id,
+            client_state.latestHeight.revisionHeight,
+            header_rlp,
+            account_proof,
+        );
 
-        self.attach_packet_proofs(&mut packet_calls, proof_height)
-            .await?;
+        attach_packet_proofs(&mut packet_calls, &storage_proofs)?;
 
         let all_calls: Vec<Bytes> = std::iter::once(update_call.into())
             .chain(packet_calls.into_iter().map(|call| match call {
@@ -231,23 +253,12 @@ impl TxBuilder {
         Ok(multicallCall { data: all_calls }.abi_encode())
     }
 
-    async fn build_update_client_calldata(
-        &self,
+    fn build_update_client_calldata(
         dst_client_id: &str,
         trusted_height: u64,
-        target_height: u64,
-    ) -> Result<Vec<u8>> {
-        let header_rlp = self
-            .fetch_source_header_rlp(target_height)
-            .await
-            .with_context(|| format!("failed to fetch source block at height {target_height}"))?;
-        let (_, account_proof) = self
-            .fetch_source_account_proof(target_height)
-            .await
-            .with_context(|| {
-                format!("failed to fetch account proof for source router at height {target_height}")
-            })?;
-
+        header_rlp: Vec<u8>,
+        account_proof: Vec<u8>,
+    ) -> Vec<u8> {
         let update_msg = IBesuLightClientMsgs::MsgUpdateClient {
             headerRlp: header_rlp.into(),
             trustedHeight: MsgHeight {
@@ -257,11 +268,11 @@ impl TxBuilder {
             accountProof: account_proof.into(),
         };
 
-        Ok(updateClientCall {
+        updateClientCall {
             clientId: dst_client_id.to_string(),
             updateMsg: update_msg.abi_encode().into(),
         }
-        .abi_encode())
+        .abi_encode()
     }
 
     async fn fetch_source_header_rlp(&self, block_height: u64) -> Result<Vec<u8>> {
@@ -272,99 +283,33 @@ impl TxBuilder {
         Ok(alloy_rlp::encode(block.into_consensus_header()))
     }
 
-    async fn attach_packet_proofs(
-        &self,
-        packet_calls: &mut [routerCalls],
-        proof_height: u64,
-    ) -> Result<()> {
-        for call in packet_calls {
-            match call {
-                routerCalls::recvPacket(call) => {
-                    let path = call.msg_.packet.commitment_path();
-                    let proof = self
-                        .fetch_source_storage_proof(proof_height, &path)
-                        .await
-                        .with_context(|| {
-                            format!(
-                                "failed to pack storage proof for packet sequence {}",
-                                call.msg_.packet.sequence
-                            )
-                        })?;
-                    call.msg_.proofCommitment = proof.into();
-                }
-                routerCalls::ackPacket(call) => {
-                    let path = call.msg_.packet.ack_commitment_path();
-                    let proof = self
-                        .fetch_source_storage_proof(proof_height, &path)
-                        .await
-                        .with_context(|| {
-                            format!(
-                                "failed to pack storage proof for packet sequence {}",
-                                call.msg_.packet.sequence
-                            )
-                        })?;
-                    call.msg_.proofAcked = proof.into();
-                }
-                routerCalls::timeoutPacket(call) => {
-                    let path = call.msg_.packet.receipt_commitment_path();
-                    let proof = self
-                        .fetch_source_storage_proof(proof_height, &path)
-                        .await
-                        .with_context(|| {
-                            format!(
-                                "failed to pack storage proof for packet sequence {}",
-                                call.msg_.packet.sequence
-                            )
-                        })?;
-                    call.msg_.proofTimeout = proof.into();
-                }
-                _ => unreachable!("only recv, ack, and timeout calls are constructed"),
-            }
-        }
-
-        Ok(())
+    async fn fetch_source_account_proof(&self, block_height: u64) -> Result<(B256, Vec<u8>)> {
+        let (storage_hash, account_proof, _) = self.fetch_source_proofs(block_height, &[]).await?;
+        Ok((storage_hash, account_proof))
     }
 
-    async fn fetch_source_account_proof(&self, block_height: u64) -> Result<(B256, Vec<u8>)> {
+    async fn fetch_source_proofs(
+        &self,
+        block_height: u64,
+        storage_keys: &[B256],
+    ) -> Result<(B256, Vec<u8>, HashMap<B256, Vec<u8>>)> {
         let proof = EthApiClient::new(self.src_provider.clone())
             .get_proof(
                 &self.src_ics26_router.address().to_string(),
-                vec![],
+                storage_keys
+                    .iter()
+                    .map(|key| format!("0x{}", hex::encode(key)))
+                    .collect(),
                 format!("0x{block_height:x}"),
             )
-            .await
-            .with_context(|| {
-                format!("failed to fetch account proof for source router at height {block_height}")
-            })?;
+            .await?;
+        let storage_proofs = map_storage_proofs(storage_keys, proof.storage_proof)?;
 
         Ok((
             proof.storage_hash,
             encode_rlp_node_list(&proof.account_proof),
+            storage_proofs,
         ))
-    }
-
-    async fn fetch_source_storage_proof(&self, block_height: u64, path: &[u8]) -> Result<Vec<u8>> {
-        let storage_key =
-            evm_ics26_commitment_path(path, U256::from_be_slice(&ICS26_IBC_STORAGE_SLOT));
-        let proof = EthApiClient::new(self.src_provider.clone())
-            .get_proof(
-                &self.src_ics26_router.address().to_string(),
-                vec![format!(
-                    "0x{}",
-                    hex::encode(storage_key.to_be_bytes::<32>())
-                )],
-                format!("0x{block_height:x}"),
-            )
-            .await
-            .with_context(|| {
-                format!("failed to fetch storage proof for source router at height {block_height}")
-            })?;
-        let storage_proof = proof
-            .storage_proof
-            .first()
-            .ok_or_else(|| anyhow!("missing storage proof response"))?;
-
-        Ok(encode_rlp_node_list(&storage_proof.proof))
     }
 
     async fn fetch_destination_client_state(
@@ -392,6 +337,63 @@ impl TxBuilder {
             format!("failed to decode destination client state for {dst_client_id}")
         })
     }
+}
+
+fn packet_storage_key(call: &routerCalls) -> B256 {
+    let path = match call {
+        routerCalls::recvPacket(call) => call.msg_.packet.commitment_path(),
+        routerCalls::ackPacket(call) => call.msg_.packet.ack_commitment_path(),
+        routerCalls::timeoutPacket(call) => call.msg_.packet.receipt_commitment_path(),
+        _ => unreachable!("only recv, ack, and timeout calls are constructed"),
+    };
+    evm_ics26_commitment_path(&path, U256::from_be_slice(&ICS26_IBC_STORAGE_SLOT)).into()
+}
+
+fn attach_packet_proofs(
+    packet_calls: &mut [routerCalls],
+    storage_proofs: &HashMap<B256, Vec<u8>>,
+) -> Result<()> {
+    for call in packet_calls {
+        let storage_key = packet_storage_key(call);
+        let proof: Bytes = storage_proofs
+            .get(&storage_key)
+            .ok_or_else(|| anyhow!("missing storage proof for key {storage_key}"))?
+            .clone()
+            .into();
+        match call {
+            routerCalls::recvPacket(call) => call.msg_.proofCommitment = proof,
+            routerCalls::ackPacket(call) => call.msg_.proofAcked = proof,
+            routerCalls::timeoutPacket(call) => call.msg_.proofTimeout = proof,
+            _ => unreachable!("only recv, ack, and timeout calls are constructed"),
+        }
+    }
+    Ok(())
+}
+
+fn map_storage_proofs(
+    expected_keys: &[B256],
+    storage_proofs: Vec<EIP1186StorageProof>,
+) -> Result<HashMap<B256, Vec<u8>>> {
+    let expected_keys = expected_keys.iter().copied().collect::<HashSet<_>>();
+    let mut proofs = HashMap::with_capacity(expected_keys.len());
+
+    for storage_proof in storage_proofs {
+        let key = storage_proof.key.as_b256();
+        if !expected_keys.contains(&key) {
+            bail!("unexpected storage proof key {key}");
+        }
+        if proofs
+            .insert(key, encode_rlp_node_list(&storage_proof.proof))
+            .is_some()
+        {
+            bail!("duplicate storage proof key {key}");
+        }
+    }
+
+    if let Some(key) = expected_keys.iter().find(|key| !proofs.contains_key(*key)) {
+        bail!("missing storage proof for key {key}");
+    }
+    Ok(proofs)
 }
 
 fn parse_create_client_params(parameters: &HashMap<String, String>) -> Result<CreateClientParams> {
@@ -494,9 +496,13 @@ fn select_proof_height(
 #[cfg(test)]
 mod tests {
     use super::{
-        encode_rlp_node_list, extract_validators_from_header_extra_data, select_proof_height,
+        encode_rlp_node_list, extract_validators_from_header_extra_data, map_storage_proofs,
+        select_proof_height,
     };
-    use alloy::primitives::{hex, Address, Bytes};
+    use alloy::{
+        primitives::{hex, Address, Bytes, B256, U256},
+        rpc::types::EIP1186StorageProof,
+    };
     use ibc_eureka_solidity_types::ics26::IICS26RouterMsgs::{Packet, Payload};
     use proof_api_lib::events::{EurekaEvent, EurekaEventWithHeight};
     use serde::Deserialize;
@@ -597,6 +603,52 @@ mod tests {
         assert_eq!(
             encode_rlp_node_list(&non_membership_nodes),
             non_membership_proof
+        );
+    }
+
+    #[test]
+    fn maps_storage_proofs_by_normalized_key_and_validates_the_response() {
+        let first = B256::from(U256::from(1));
+        let second = B256::from(U256::from(2));
+        let make_proof = |key, marker| EIP1186StorageProof {
+            key,
+            value: U256::ZERO,
+            proof: vec![Bytes::from(vec![marker])],
+        };
+
+        let mapped = map_storage_proofs(
+            &[first, second, first],
+            vec![
+                make_proof(second.into(), 2),
+                make_proof(U256::from(1).into(), 1),
+            ],
+        )
+        .unwrap();
+        assert_eq!(
+            mapped[&first],
+            encode_rlp_node_list(&[Bytes::from(vec![1])])
+        );
+        assert_eq!(
+            mapped[&second],
+            encode_rlp_node_list(&[Bytes::from(vec![2])])
+        );
+
+        assert!(map_storage_proofs(&[first], vec![])
+            .unwrap_err()
+            .to_string()
+            .contains("missing storage proof"));
+        assert!(map_storage_proofs(
+            &[first],
+            vec![make_proof(first.into(), 1), make_proof(first.into(), 1)]
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("duplicate storage proof"));
+        assert!(
+            map_storage_proofs(&[first], vec![make_proof(second.into(), 2)])
+                .unwrap_err()
+                .to_string()
+                .contains("unexpected storage proof")
         );
     }
 

@@ -85,10 +85,7 @@ func (s *TestSuite) processEthereumPoSResult(ctx context.Context, chain *chainco
 	s.Eth.Chains = append(s.Eth.Chains, &ethChain)
 }
 
-func (s *TestSuite) setupEthereumBesuQBFTAsync(ctx context.Context, networkID string, resultCh chan<- ethBesuQBFTSetupResult) {
-	var result ethBesuQBFTSetupResult
-	defer func() { resultCh <- result }()
-
+func (s *TestSuite) setupEthereumBesuQBFT(ctx context.Context, networkID string) (*chainconfig.BesuQBFTChain, error) {
 	chain, err := chainconfig.SpinUpBesuQBFT(ctx, chainconfig.BesuQBFTParams{
 		ChainID:             1337,
 		Subnet:              "10.42.0.0/16",
@@ -98,10 +95,9 @@ func (s *TestSuite) setupEthereumBesuQBFTAsync(ctx context.Context, networkID st
 		InterchainNetworkID: networkID,
 	})
 	if err != nil {
-		result.err = err
-		return
+		return nil, err
 	}
-	result.chain = &chain
+	return &chain, nil
 }
 
 func (s *TestSuite) processEthereumBesuQBFTResult(ctx context.Context, chain *chainconfig.BesuQBFTChain) {
