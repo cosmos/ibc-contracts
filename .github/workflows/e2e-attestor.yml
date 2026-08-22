@@ -104,6 +104,8 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.generate-matrix-eth-to-eth.outputs.matrix) }}
     name: attestor-native/${{ matrix.entrypoint }}/${{ matrix.test }}
+    env:
+      ETH_LC_ON_COSMOS: attestor-native
 
     runs-on: depot-ubuntu-24.04-4
     permissions:

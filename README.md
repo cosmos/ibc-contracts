@@ -80,6 +80,9 @@ This project is structured with the following directories:
 | `ICS26Router.sol` | IBC router handles sequencing, replay protection, and timeout checks. Passes proofs to light clients for verification, and resolves `portId` for app callbacks. Provable IBC storage is stored in this contract.  | ✅ |
 | `ICS20Transfer.sol` | IBC transfer application to send and receive tokens to/from another IBC transfer implementation. | ✅ |
 | `SP1ICS07Tendermint.sol` | Tendermint light client powered by SP1. The entry point for SP1 proofs. | ✅ |
+| `BesuIBFT2LightClient.sol` | Besu IBFT 2.0 light client for header-validator mode with weak-subjectivity updates and EVM proof verification, following the YUI + prover sealing-header verification model. | ✅ |
+| `BesuQBFTLightClient.sol` | Besu QBFT light client for header-validator mode with weak-subjectivity updates and EVM proof verification, following the YUI + prover sealing-header verification model. | ✅ |
+| `DummyLightClient.sol` | Insecure dummy light client for local/dev/testing use. Accepts arbitrary updates and answers membership/non-membership from supplied state without proof verification. | 🧪 |
 | `ICS27GMP.sol` | IBC General Message Passing via Interchain Accounts. | ✅ |
 | `AttestationLightClient.sol` | The multisig contract implementing IBC Light Client specs. | ✅ |
 | `utils/IFTBaseUpgradeable.sol` | Interchain Fungible Token standard. Mint and burn alternative to ICS-20. | ⏳ |
@@ -316,6 +319,7 @@ Note: These gas benchmarks are with Groth16.
 IBC is a peer-to-peer, light-client-based interoperability protocol. This repository contains the following light clients:
 
 - **SP1 Tendermint Light Client** – Verifies the consensus state of a Cosmos SDK chain powered by SP1 and `tendermint-rs`. (Solidity)
+- **Besu IBFT 2.0 / QBFT Light Clients** – Verify Besu BFT headers in header-validator mode, track the counterparty `ICS26Router` account storage root, and verify EVM account/storage proofs for Eureka commitments. (Solidity)
 - [**Ethereum Light Client**](./ibc-solidity/programs/cw-ics08-wasm-eth/README.md) – Verifies the consensus state of the Ethereum chain. (CosmWasm)
 - **Attestation Light Client** – A multisig that can be used if the counterparty chain does not have a light client protocol. (Solidity and Solana)
 - **Solana Tendermint Light Client** - Verifies the consensus state of a Cosmos SDK chain powered by `tendermint-rs`. (Solana)
