@@ -62,7 +62,7 @@ func TestBesuQBFTChainBringUpAndDeploy(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, validators, 4)
 
-	stdout, err := eth.ForgeScript(chain.Faucet, testvalues.E2EDeployScriptPath)
+	stdout, err := eth.ForgeScript(chain.Faucet, testvalues.E2EDeployScriptPath, "--slow")
 	require.NoError(t, err)
 
 	contracts, err := ethereum.GetEthContractsFromDeployOutput(string(stdout))

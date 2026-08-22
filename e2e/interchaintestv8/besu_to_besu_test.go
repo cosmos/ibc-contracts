@@ -306,7 +306,7 @@ func (s *BesuToBesuTestSuite) createUsers(chain *besuToBesuChainState) {
 func (s *BesuToBesuTestSuite) deployContracts(chain *besuToBesuChainState) {
 	os.Setenv(testvalues.EnvKeyEthRPC, chain.eth.RPC)
 
-	stdout, err := chain.eth.ForgeScript(chain.deployer, testvalues.E2EDeployScriptPath)
+	stdout, err := chain.eth.ForgeScript(chain.deployer, testvalues.E2EDeployScriptPath, "--slow")
 	s.Require().NoError(err)
 
 	chain.contractAddresses, err = ethereum.GetEthContractsFromDeployOutput(string(stdout))

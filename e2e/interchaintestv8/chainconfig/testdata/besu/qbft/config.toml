@@ -9,3 +9,4 @@ rpc-http-api=["ETH","NET","QBFT","WEB3","DEBUG"]
 host-allowlist=["*"]
 rpc-http-cors-origins=["all"]
 min-gas-price=0
+tx-pool="legacy"
