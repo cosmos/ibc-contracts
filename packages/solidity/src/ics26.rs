@@ -89,6 +89,29 @@ impl IICS26RouterMsgs::Packet {
     }
 }
 
+/// Returns the acknowledgement commitment for one or more acknowledgements.
+///
+/// # Errors
+/// Returns [`NoAcknowledgements`] when `acks` is empty.
+pub fn acknowledgement_commitment(
+    acks: &[alloy_primitives::Bytes],
+) -> Result<[u8; 32], NoAcknowledgements> {
+    if acks.is_empty() {
+        return Err(NoAcknowledgements);
+    }
+
+    let mut buf = vec![2_u8];
+    for ack in acks {
+        buf.extend_from_slice(&Sha256::digest(ack));
+    }
+    Ok(Sha256::digest(&buf).into())
+}
+
+/// Acknowledgement commitments require at least one acknowledgement.
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
+#[error("no acknowledgements provided")]
+pub struct NoAcknowledgements;
+
 impl From<Packet> for IICS26RouterMsgs::Packet {
     fn from(packet: Packet) -> Self {
         Self {
@@ -166,5 +189,26 @@ impl IICS26RouterMsgs::Payload {
         // Hash the concatenated result
         let final_hash = Sha256::digest(&buf);
         final_hash.to_vec()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn acknowledgement_commitment_rejects_empty_acknowledgements() {
+        assert_eq!(acknowledgement_commitment(&[]), Err(NoAcknowledgements));
+    }
+
+    #[test]
+    fn acknowledgement_commitment_matches_ics24_vector() {
+        let commitment =
+            acknowledgement_commitment(&[alloy_primitives::Bytes::from_static(b"some bytes")])
+                .unwrap();
+        assert_eq!(
+            alloy_primitives::hex::encode(commitment),
+            "f03b4667413e56aaf086663267913e525c442b56fa1af4fa3f3dab9f37044c5b"
+        );
     }
 }

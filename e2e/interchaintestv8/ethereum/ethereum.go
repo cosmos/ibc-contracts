@@ -12,6 +12,7 @@ import (
 	"math/big"
 	"os"
 	"os/exec"
+	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	ethcommon "github.com/ethereum/go-ethereum/common"
@@ -23,6 +24,8 @@ import (
 
 	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/testvalues"
 )
+
+const forgeScriptTimeout = 5 * time.Minute
 
 type Ethereum struct {
 	ChainID         *big.Int
@@ -102,15 +105,20 @@ func (e *Ethereum) BroadcastTx(ctx context.Context, userKey *ecdsa.PrivateKey, g
 }
 
 func (e Ethereum) ForgeScript(deployer *ecdsa.PrivateKey, solidityContract string, args ...string) ([]byte, error) {
+	return e.forgeScript(forgeScriptTimeout, deployer, solidityContract, args...)
+}
+
+func (e Ethereum) forgeScript(timeout time.Duration, deployer *ecdsa.PrivateKey, solidityContract string, args ...string) ([]byte, error) {
 	cmdArgs := []string{
 		"script", "--rpc-url", e.RPC, "--private-key",
 		hex.EncodeToString(crypto.FromECDSA(deployer)), "--broadcast",
 		"--non-interactive", "-vvvv", solidityContract,
 	}
 	cmdArgs = append(cmdArgs, args...)
-	cmd := exec.Command(
-		"forge", cmdArgs...,
-	)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "forge", cmdArgs...)
 	// Tests run from the repository root; forge must run from the Foundry project root
 	// so that foundry.toml and script paths resolve.
 	cmd.Dir = testvalues.SolidityProjectDir
@@ -125,23 +133,20 @@ func (e Ethereum) ForgeScript(deployer *ecdsa.PrivateKey, solidityContract strin
 
 	var stdoutBuf bytes.Buffer
 
-	// Create a MultiWriter to write to both os.Stdout and the buffer
-	multiWriter := io.MultiWriter(os.Stdout, &stdoutBuf)
+	// Preserve live output while retaining stdout for deploy-result parsing.
+	stdoutWriter := io.MultiWriter(os.Stdout, &stdoutBuf)
 
-	// Set the command's stdout to the MultiWriter
-	cmd.Stdout = multiWriter
+	cmd.Stdout = stdoutWriter
 	cmd.Stderr = os.Stderr
 
-	// Run the command
 	if err := cmd.Run(); err != nil {
-		fmt.Println("Error start command", cmd.Args, err)
-		return nil, err
+		if ctx.Err() == context.DeadlineExceeded {
+			return nil, fmt.Errorf("forge script %q timed out after %s: %w", solidityContract, timeout, ctx.Err())
+		}
+		return nil, fmt.Errorf("forge script %q failed: %w", solidityContract, err)
 	}
 
-	// Get the output as byte slices
-	stdoutBytes := stdoutBuf.Bytes()
-
-	return stdoutBytes, nil
+	return stdoutBuf.Bytes(), nil
 }
 
 func (e Ethereum) CreateUser() (*ecdsa.PrivateKey, error) {

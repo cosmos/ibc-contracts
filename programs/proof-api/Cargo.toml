@@ -11,6 +11,8 @@ proof-api-eth-to-cosmos        = { workspace = true, default-features = false }
 proof-api-eth-to-cosmos-compat = { workspace = true, default-features = false }
 proof-api-cosmos-to-eth        = { workspace = true, default-features = false }
 proof-api-eth-to-eth           = { workspace = true, default-features = false }
+proof-api-evmdummy-to-evmdummy = { workspace = true, default-features = false }
+proof-api-besu-to-besu         = { workspace = true, default-features = false }
 proof-api-cosmos-to-cosmos     = { workspace = true, default-features = false }
 proof-api-solana-to-cosmos     = { workspace = true, default-features = false }
 proof-api-cosmos-to-solana     = { workspace = true, default-features = false }
