@@ -216,7 +216,7 @@ pub fn build_eth_multicall(input: MulticallInput) -> Result<Vec<u8>> {
         &input.dst_packet_seqs,
         &height,
         now_since_unix.as_secs(),
-    );
+    )?;
 
     tracing::debug!("Timeout messages: #{}", timeout_msgs.len());
     tracing::debug!("Recv & ack messages: #{}", recv_and_ack_msgs.len());
