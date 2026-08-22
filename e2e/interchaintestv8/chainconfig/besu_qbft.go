@@ -65,6 +65,10 @@ type BesuQBFTChain struct {
 	projectDir  string
 }
 
+func (c BesuQBFTChain) WaitForTransactionHandling(ctx context.Context) error {
+	return waitForBesuQBFTTransactionHandling(ctx, c.RPC, c.Faucet)
+}
+
 func SpinUpBesuQBFT(ctx context.Context, params BesuQBFTParams) (chain BesuQBFTChain, err error) {
 	faucet, err := crypto.HexToECDSA(testvalues.E2EDeployerPrivateKeyHex)
 	if err != nil {

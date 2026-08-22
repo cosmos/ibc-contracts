@@ -127,6 +127,7 @@ func (s *BesuToBesuTestSuite) SetupSuite() {
 		Gateway:      "10.43.0.1",
 		ValidatorIPs: besuToBesuChainBIPs,
 	})
+	s.Require().NoError(s.chainA.network.WaitForTransactionHandling(ctx))
 
 	s.besuFixtureGenerator = e2etypes.NewBesuFixtureGenerator()
 
