@@ -58,6 +58,7 @@ sp1-sdk = { workspace = true, default-features = true }
 moka  = { workspace = true, features = ["future"] }
 tokio = { workspace = true, features = ["full"] }
 tonic = { workspace = true, default-features = true }
+sha2  = { workspace = true, default-features = true }
 
 [build-dependencies]
 tonic-build = { workspace = true, default-features = true }
