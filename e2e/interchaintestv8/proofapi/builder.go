@@ -226,7 +226,6 @@ func (b *ConfigBuilder) EthToEthAttested(p EthToEthAttestedParams) *ConfigBuilde
 		SrcChain: p.SrcChainID,
 		DstChain: p.DstChainID,
 		Config: EthToEthModuleConfig{
-			SrcChainId:      p.SrcChainID,
 			SrcRpcUrl:       p.SrcRPC,
 			SrcIcs26Address: p.SrcICS26,
 			DstRpcUrl:       p.DstRPC,
