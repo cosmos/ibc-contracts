@@ -62,7 +62,7 @@ Key settings:
 - `observability.use_otel`: Enable OpenTelemetry export.
 - `observability.service_name`: Service name used in logs/traces.
 - `observability.otel_endpoint`: OpenTelemetry collector endpoint.
-- `modules`: List of modules to run, each with `name`, `src_chain`, `dst_chain`, `config`, and optional `enabled` (defaults to true).
+- `modules`: List of modules to run, each with `name`, `src_chain`, `dst_chain`, `config`, and optional `enabled` (defaults to true). For `eth_to_eth`, `Info` returns the routed `src_chain` as the source identity and the destination RPC chain ID as the target identity.
 
 Module configuration varies by module type. Mode-specific options are enumerated below.
 
@@ -111,7 +111,6 @@ Module configuration varies by module type:
   - Same settings as `eth_to_cosmos`, but routes requests to the v1.2 or current handler based on the client state checksum.
 
 - `eth_to_eth`:
-  - `src_chain_id`: Source chain ID string.
   - `src_rpc_url`: Source EVM RPC endpoint.
   - `src_ics26_address`: Source IBC router contract address.
   - `dst_rpc_url`: Destination EVM RPC endpoint.

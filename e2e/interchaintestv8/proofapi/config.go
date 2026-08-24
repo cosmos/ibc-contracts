@@ -247,7 +247,6 @@ type CosmosToEthModuleConfig struct {
 
 // EthToEthModuleConfig represents the configuration for eth_to_eth module
 type EthToEthModuleConfig struct {
-	SrcChainId      string        `json:"src_chain_id"`
 	SrcRpcUrl       string        `json:"src_rpc_url"`
 	SrcIcs26Address string        `json:"src_ics26_address"`
 	DstRpcUrl       string        `json:"dst_rpc_url"`
