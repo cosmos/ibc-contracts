@@ -8,6 +8,8 @@ import { stdJson } from "forge-std/StdJson.sol";
 
 import { ILightClientMsgs } from "../../contracts/msgs/ILightClientMsgs.sol";
 import { IICS02ClientMsgs } from "../../contracts/msgs/IICS02ClientMsgs.sol";
+import { BesuIBFT2LightClient } from "../../contracts/light-clients/besu/BesuIBFT2LightClient.sol";
+import { BesuQBFTLightClient } from "../../contracts/light-clients/besu/BesuQBFTLightClient.sol";
 import { IBesuLightClient } from "../../contracts/light-clients/besu/interfaces/IBesuLightClient.sol";
 import { IBesuLightClientMsgs } from "../../contracts/light-clients/besu/msgs/IBesuLightClientMsgs.sol";
 import { IBesuLightClientErrors } from "../../contracts/light-clients/besu/errors/IBesuLightClientErrors.sol";
@@ -401,6 +403,32 @@ abstract contract BesuLightClientFixtureTestBase is Test {
                 : bytes(""),
             expectedTimestamp: uint64(json.readUint(string.concat(path, ".expectedTimestamp")))
         });
+    }
+
+    function _deployIBFT2() internal returns (IBesuLightClient) {
+        return new BesuIBFT2LightClient(
+            fixture.routerAddress,
+            fixture.initialTrustedHeight,
+            fixture.initialTrustedTimestamp,
+            fixture.initialTrustedStorageRoot,
+            fixture.initialTrustedValidators,
+            fixture.trustingPeriod,
+            fixture.maxClockDrift,
+            address(0)
+        );
+    }
+
+    function _deployQBFT() internal returns (IBesuLightClient) {
+        return new BesuQBFTLightClient(
+            fixture.routerAddress,
+            fixture.initialTrustedHeight,
+            fixture.initialTrustedTimestamp,
+            fixture.initialTrustedStorageRoot,
+            fixture.initialTrustedValidators,
+            fixture.trustingPeriod,
+            fixture.maxClockDrift,
+            address(0)
+        );
     }
 
     function _fixtureFile() internal pure virtual returns (string memory);
