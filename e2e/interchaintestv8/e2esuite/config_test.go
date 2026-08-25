@@ -44,4 +44,14 @@ func TestSetupConfigValidateEthereumCompatibility(t *testing.T) {
 			}
 		})
 	}
+
+	for _, clientType := range []string{"", unknown} {
+		cfg := setupConfig{
+			ethereum: ethereumConfig{testnetType: testvalues.EthTestnetTypeAnvil, anvilCount: 2},
+			cosmos:   cosmosConfig{lightClientType: clientType},
+		}
+		if err := cfg.validate(); err != nil {
+			t.Errorf("multiple Anvil chains with ETH_LC_ON_COSMOS=%q: %v", clientType, err)
+		}
+	}
 }

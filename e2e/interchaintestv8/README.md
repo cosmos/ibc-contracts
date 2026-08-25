@@ -47,41 +47,27 @@ This pass supports the following Besu configuration:
 
 Validated coverage in this mode:
 
-- Besu chain bring-up
-- contract deployment
-- `eth_getProof` smoke coverage
+- Besu chain bring-up and contract deployment
 - Dockerized Ethereum attestors reading Besu RPC
-- relayer startup and client creation through `Test_Deploy`
-- one-way Ethereum → Cosmos ICS20 transfer, including acknowledgement relay back to Ethereum
+- relayer startup and client creation
+- full Ethereum ↔ Cosmos ICS20 transfer roundtrip
 
 ### Not supported
 
 - `ETH_LC_ON_COSMOS=full`
 - beacon-chain-based Ethereum verification on Cosmos
-- full roundtrip Ethereum ↔ Cosmos ICS20 transfer in Besu mode
 
 ### Focused local test commands
 
 From the repo root, run:
 
 ```shell
-# Besu bring-up, deploy, and proof smoke coverage
-ETH_TESTNET_TYPE=besu-qbft \
-just test-e2e TestBesuQBFTChainBringUpAndDeploy
-
-# Full harness validation in the supported Besu mode
+# Full ICS20 roundtrip in the supported Besu mode
 ETH_TESTNET_TYPE=besu-qbft \
 ETH_LC_ON_COSMOS=attestor-native \
 COSMOS_LC_ON_ETH=sp1 \
 SP1_PROVER=mock \
-just test-e2e TestWithIbcEurekaTestSuite/Test_Deploy
-
-# Focused one-way Ethereum -> Cosmos transfer in the supported Besu mode
-ETH_TESTNET_TYPE=besu-qbft \
-ETH_LC_ON_COSMOS=attestor-native \
-COSMOS_LC_ON_ETH=sp1 \
-SP1_PROVER=mock \
-just test-e2e TestWithIbcEurekaTestSuite/Test_ICS20TransferERC20TokenFromEthereumToCosmos
+just test-e2e TestWithIbcEurekaTestSuite/Test_ICS20TransferERC20TokenfromEthereumToCosmosAndBack
 ```
 
 ## Focused Besu ↔ Besu e2e
@@ -93,9 +79,6 @@ This focused suite starts two independent Besu QBFT networks, deploys Eureka con
 From the repo root, run:
 
 ```shell
-# Single Besu QBFT bring-up and deploy smoke test after helper changes
-just test-e2e TestBesuQBFTChainBringUpAndDeploy
-
 # Dual-Besu deploy / client-registration path
 just test-e2e TestWithBesuToBesuTestSuite/Test_Deploy
 
@@ -109,4 +92,4 @@ just test-e2e TestWithBesuToBesuTestSuite/Test_ICS20TransferERC20FromChainAToCha
 
 When `GENERATE_BESU_LIGHT_CLIENT_FIXTURES=true` is set, the focused Besu↔Besu transfer test writes:
 
-- `test/besu-bft/fixtures/qbft.json`
+- `ibc-solidity/test/besu-bft/fixtures/qbft.json`

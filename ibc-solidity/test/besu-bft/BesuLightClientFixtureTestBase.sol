@@ -6,13 +6,14 @@ pragma solidity ^0.8.28;
 import { Test } from "forge-std/Test.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 
-import { ILightClient } from "../../contracts/interfaces/ILightClient.sol";
 import { ILightClientMsgs } from "../../contracts/msgs/ILightClientMsgs.sol";
 import { IICS02ClientMsgs } from "../../contracts/msgs/IICS02ClientMsgs.sol";
+import { IBesuLightClient } from "../../contracts/light-clients/besu/interfaces/IBesuLightClient.sol";
 import { IBesuLightClientMsgs } from "../../contracts/light-clients/besu/msgs/IBesuLightClientMsgs.sol";
 import { IBesuLightClientErrors } from "../../contracts/light-clients/besu/errors/IBesuLightClientErrors.sol";
 import { RLPReader } from "../../contracts/light-clients/besu/RLPReader.sol";
 
+/// @dev Successful update input and expected consensus state.
 struct BesuUpdateFixture {
     uint64 height;
     bytes headerRlp;
@@ -23,6 +24,7 @@ struct BesuUpdateFixture {
     address[] expectedValidators;
 }
 
+/// @dev Update input expected to be rejected.
 struct BesuRejectionUpdateFixture {
     uint64 height;
     bytes headerRlp;
@@ -30,6 +32,7 @@ struct BesuRejectionUpdateFixture {
     bytes accountProof;
 }
 
+/// @dev Membership or non-membership proof and expected timestamp.
 struct BesuProofFixture {
     bytes proof;
     uint64 proofHeight;
@@ -38,6 +41,7 @@ struct BesuProofFixture {
     uint64 expectedTimestamp;
 }
 
+/// @dev Complete fixture shared by the Besu BFT light-client tests.
 struct BesuFixture {
     address routerAddress;
     uint64 initialTrustedHeight;
@@ -46,20 +50,16 @@ struct BesuFixture {
     address[] initialTrustedValidators;
     uint64 trustingPeriod;
     uint64 maxClockDrift;
-    BesuUpdateFixture updateHeight11;
-    BesuUpdateFixture updateHeight12;
-    BesuRejectionUpdateFixture lowQuorumHeight12;
-    BesuRejectionUpdateFixture conflictingHeight12;
-    BesuRejectionUpdateFixture lowOverlapHeight13;
+    BesuUpdateFixture adjacentUpdate;
+    BesuUpdateFixture nonAdjacentUpdate;
+    BesuRejectionUpdateFixture lowQuorumUpdate;
+    BesuRejectionUpdateFixture conflictingUpdate;
+    BesuRejectionUpdateFixture lowOverlapUpdate;
     BesuProofFixture membership;
     BesuProofFixture nonMembership;
 }
 
-interface IBesuTestLightClient is ILightClient {
-    function getConsensusState(uint64 revisionHeight) external view returns (bytes memory);
-}
-
-abstract contract BesuLightClientTestBase is Test {
+abstract contract BesuLightClientFixtureTestBase is Test {
     using stdJson for string;
     using RLPReader for bytes;
     using RLPReader for RLPReader.RLPItem;
@@ -67,8 +67,8 @@ abstract contract BesuLightClientTestBase is Test {
     string internal constant FIXTURE_DIR = "/test/besu-bft/fixtures/";
 
     BesuFixture internal fixture;
-    IBesuTestLightClient internal client;
-    IBesuTestLightClient internal wrongWrapper;
+    IBesuLightClient internal client;
+    IBesuLightClient internal wrongWrapper;
 
     function setUp() public virtual {
         fixture = _loadFixture(_fixtureFile());
@@ -79,31 +79,31 @@ abstract contract BesuLightClientTestBase is Test {
     function test_updateClient_validAdjacentUpdate() public {
         vm.warp(fixture.initialTrustedTimestamp + 1);
 
-        ILightClientMsgs.UpdateResult result = client.updateClient(_encodeUpdate(fixture.updateHeight11));
+        ILightClientMsgs.UpdateResult result = client.updateClient(_encodeUpdate(fixture.adjacentUpdate));
 
         assertEq(uint8(result), uint8(ILightClientMsgs.UpdateResult.Update));
         _assertClientState(
-            fixture.updateHeight11.expectedTimestamp,
-            fixture.updateHeight11.expectedStorageRoot,
-            fixture.updateHeight11.height
+            fixture.adjacentUpdate.expectedTimestamp,
+            fixture.adjacentUpdate.expectedStorageRoot,
+            fixture.adjacentUpdate.height
         );
     }
 
     function test_updateClient_validNonAdjacentUpdate() public {
         vm.warp(fixture.initialTrustedTimestamp + 1);
 
-        ILightClientMsgs.UpdateResult result = client.updateClient(_encodeUpdate(fixture.updateHeight12));
+        ILightClientMsgs.UpdateResult result = client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
 
         assertEq(uint8(result), uint8(ILightClientMsgs.UpdateResult.Update));
         _assertClientState(
-            fixture.updateHeight12.expectedTimestamp,
-            fixture.updateHeight12.expectedStorageRoot,
-            fixture.updateHeight12.height
+            fixture.nonAdjacentUpdate.expectedTimestamp,
+            fixture.nonAdjacentUpdate.expectedStorageRoot,
+            fixture.nonAdjacentUpdate.height
         );
     }
 
     function test_updateClient_revertZeroTimestampWithoutStateChange() public {
-        BesuUpdateFixture memory update = fixture.updateHeight12;
+        BesuUpdateFixture memory update = fixture.nonAdjacentUpdate;
         RLPReader.RLPItem memory headerItem = update.headerRlp.toRlpItem();
         RLPReader.RLPItem[] memory headerItems = headerItem.toList();
         (uint256 timestampPtr, uint256 timestampLen) = headerItems[11].payloadLocation();
@@ -123,7 +123,7 @@ abstract contract BesuLightClientTestBase is Test {
 
     function test_verifyMembership_returnsStoredTimestamp() public {
         vm.warp(fixture.initialTrustedTimestamp + 1);
-        client.updateClient(_encodeUpdate(fixture.updateHeight12));
+        client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
 
         uint256 timestamp = client.verifyMembership(
             ILightClientMsgs.MsgVerifyMembership({
@@ -141,7 +141,7 @@ abstract contract BesuLightClientTestBase is Test {
 
     function test_verifyNonMembership_returnsStoredTimestamp() public {
         vm.warp(fixture.initialTrustedTimestamp + 1);
-        client.updateClient(_encodeUpdate(fixture.updateHeight12));
+        client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
 
         uint256 timestamp = client.verifyNonMembership(
             ILightClientMsgs.MsgVerifyNonMembership({
@@ -167,7 +167,7 @@ abstract contract BesuLightClientTestBase is Test {
                 fixture.trustingPeriod
             )
         );
-        client.updateClient(_encodeUpdate(fixture.updateHeight12));
+        client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
     }
 
     function test_updateClient_revertInsufficientTrustedOverlap() public {
@@ -176,21 +176,21 @@ abstract contract BesuLightClientTestBase is Test {
         vm.expectRevert(
             abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 1, 2)
         );
-        client.updateClient(_encodeUpdate(fixture.lowOverlapHeight13));
+        client.updateClient(_encodeUpdate(fixture.lowOverlapUpdate));
     }
 
     function test_updateClient_revertInsufficientNewValidatorQuorum() public {
         vm.warp(fixture.initialTrustedTimestamp + 1);
 
         vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.InsufficientValidatorQuorum.selector, 2, 3));
-        client.updateClient(_encodeUpdate(fixture.lowQuorumHeight12));
+        client.updateClient(_encodeUpdate(fixture.lowQuorumUpdate));
     }
 
     function test_updateClient_revertWrongRevisionNumber() public {
         vm.warp(fixture.initialTrustedTimestamp + 1);
 
         IBesuLightClientMsgs.MsgUpdateClient memory update =
-            abi.decode(_encodeUpdate(fixture.updateHeight12), (IBesuLightClientMsgs.MsgUpdateClient));
+            abi.decode(_encodeUpdate(fixture.nonAdjacentUpdate), (IBesuLightClientMsgs.MsgUpdateClient));
         update.trustedHeight.revisionNumber = 1;
 
         vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.InvalidRevisionNumber.selector, 1));
@@ -199,7 +199,7 @@ abstract contract BesuLightClientTestBase is Test {
 
     function test_verifyMembership_revertWrongRevisionNumber() public {
         vm.warp(fixture.initialTrustedTimestamp + 1);
-        client.updateClient(_encodeUpdate(fixture.updateHeight12));
+        client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
 
         vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.InvalidRevisionNumber.selector, 1));
         client.verifyMembership(
@@ -216,7 +216,7 @@ abstract contract BesuLightClientTestBase is Test {
 
     function test_verifyMembership_revertWrongPathShape() public {
         vm.warp(fixture.initialTrustedTimestamp + 1);
-        client.updateClient(_encodeUpdate(fixture.updateHeight12));
+        client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
 
         bytes[] memory path = new bytes[](2);
         path[0] = fixture.membership.path;
@@ -237,7 +237,7 @@ abstract contract BesuLightClientTestBase is Test {
 
     function test_verifyMembership_revertWrongCommitmentValue() public {
         vm.warp(fixture.initialTrustedTimestamp + 1);
-        client.updateClient(_encodeUpdate(fixture.updateHeight12));
+        client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
 
         bytes memory wrongValue = abi.encodePacked(bytes32(uint256(1)));
         vm.expectRevert(
@@ -261,14 +261,14 @@ abstract contract BesuLightClientTestBase is Test {
 
     function test_updateClient_revertConflictingSameHeight() public {
         vm.warp(fixture.initialTrustedTimestamp + 1);
-        client.updateClient(_encodeUpdate(fixture.updateHeight12));
+        client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                IBesuLightClientErrors.ConflictingConsensusState.selector, fixture.conflictingHeight12.height
+                IBesuLightClientErrors.ConflictingConsensusState.selector, fixture.conflictingUpdate.height
             )
         );
-        client.updateClient(_encodeUpdate(fixture.conflictingHeight12));
+        client.updateClient(_encodeUpdate(fixture.conflictingUpdate));
     }
 
     function test_misbehaviour_reverts() public {
@@ -282,7 +282,7 @@ abstract contract BesuLightClientTestBase is Test {
         vm.expectRevert(
             abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 0, 2)
         );
-        wrongWrapper.updateClient(_encodeUpdate(fixture.updateHeight12));
+        wrongWrapper.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
     }
 
     function _assertClientState(
@@ -306,9 +306,9 @@ abstract contract BesuLightClientTestBase is Test {
         assertEq(timestamp, expectedTimestamp);
         assertEq(storageRoot, expectedStorageRoot);
 
-        address[] memory expectedValidators = expectedLatestHeight == fixture.updateHeight11.height
-            ? fixture.updateHeight11.expectedValidators
-            : fixture.updateHeight12.expectedValidators;
+        address[] memory expectedValidators = expectedLatestHeight == fixture.adjacentUpdate.height
+            ? fixture.adjacentUpdate.expectedValidators
+            : fixture.nonAdjacentUpdate.expectedValidators;
         assertEq(validators.length, expectedValidators.length);
         for (uint256 i = 0; i < expectedValidators.length; ++i) {
             assertEq(validators[i], expectedValidators[i]);
@@ -343,11 +343,11 @@ abstract contract BesuLightClientTestBase is Test {
             initialTrustedValidators: abi.decode(json.parseRaw(".initialTrustedValidators"), (address[])),
             trustingPeriod: uint64(json.readUint(".trustingPeriod")),
             maxClockDrift: uint64(json.readUint(".maxClockDrift")),
-            updateHeight11: _readUpdate(json, ".updateHeight11"),
-            updateHeight12: _readUpdate(json, ".updateHeight12"),
-            lowQuorumHeight12: _readRejectionUpdate(json, ".lowQuorumHeight12"),
-            conflictingHeight12: _readRejectionUpdate(json, ".conflictingHeight12"),
-            lowOverlapHeight13: _readRejectionUpdate(json, ".lowOverlapHeight13"),
+            adjacentUpdate: _readUpdate(json, ".adjacentUpdate"),
+            nonAdjacentUpdate: _readUpdate(json, ".nonAdjacentUpdate"),
+            lowQuorumUpdate: _readRejectionUpdate(json, ".lowQuorumUpdate"),
+            conflictingUpdate: _readRejectionUpdate(json, ".conflictingUpdate"),
+            lowOverlapUpdate: _readRejectionUpdate(json, ".lowOverlapUpdate"),
             membership: _readProof(json, ".membership"),
             nonMembership: _readProof(json, ".nonMembership")
         });
@@ -404,6 +404,6 @@ abstract contract BesuLightClientTestBase is Test {
     }
 
     function _fixtureFile() internal pure virtual returns (string memory);
-    function _deployPrimaryClient() internal virtual returns (IBesuTestLightClient);
-    function _deployWrongWrapper() internal virtual returns (IBesuTestLightClient);
+    function _deployPrimaryClient() internal virtual returns (IBesuLightClient);
+    function _deployWrongWrapper() internal virtual returns (IBesuLightClient);
 }

@@ -21,6 +21,8 @@ import (
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 
+	transfertypes "github.com/cosmos/ibc-go/v11/modules/apps/transfer/types"
+
 	"github.com/cosmos/solidity-ibc-eureka/packages/go-abigen/ibcerc20"
 	"github.com/cosmos/solidity-ibc-eureka/packages/go-abigen/ics20transfer"
 	"github.com/cosmos/solidity-ibc-eureka/packages/go-abigen/ics26router"
@@ -145,11 +147,11 @@ func (s *BesuToBesuTestSuite) SetupSuite() {
 }
 
 func (s *BesuToBesuTestSuite) Test_Deploy() {
-	transferOnA, err := s.chainA.ics26.GetIBCApp(nil, "transfer")
+	transferOnA, err := s.chainA.ics26.GetIBCApp(nil, transfertypes.PortID)
 	s.Require().NoError(err)
 	s.Require().Equal(strings.ToLower(s.chainA.contractAddresses.Ics20Transfer), strings.ToLower(transferOnA.Hex()))
 
-	transferOnB, err := s.chainB.ics26.GetIBCApp(nil, "transfer")
+	transferOnB, err := s.chainB.ics26.GetIBCApp(nil, transfertypes.PortID)
 	s.Require().NoError(err)
 	s.Require().Equal(strings.ToLower(s.chainB.contractAddresses.Ics20Transfer), strings.ToLower(transferOnB.Hex()))
 
@@ -190,7 +192,7 @@ func (s *BesuToBesuTestSuite) Test_ICS20TransferERC20FromChainAToChainB() {
 		Receiver:         strings.ToLower(userAddressB.Hex()),
 		TimeoutTimestamp: timeout,
 		SourceClient:     besuToBesuClientOnA,
-		DestPort:         "transfer",
+		DestPort:         transfertypes.PortID,
 		Memo:             "",
 	})
 	s.Require().NoError(err)
@@ -268,15 +270,15 @@ func (s *BesuToBesuTestSuite) Test_ICS20TransferERC20FromChainAToChainB() {
 		s.Require().Greater(sendHeight, uint64(2))
 		s.Require().Greater(ackReceipt.BlockNumber.Uint64(), sendHeight)
 		s.Require().NoError(s.besuFixtureGenerator.GenerateAndSaveQBFTFixture(ctx, e2etypes.GenerateQBFTFixtureParams{
-			SourceChain:           &s.chainA.eth,
-			RouterAddress:         ics26AddressA,
-			Packet:                sendEvent.Packet,
-			InitialTrustedHeight:  sendHeight - 2,
-			UpdateHeight11:        sendHeight - 1,
-			UpdateHeight12:        sendHeight,
-			SyntheticSourceHeight: ackReceipt.BlockNumber.Uint64(),
-			TrustingPeriod:        uint64(testvalues.DefaultTrustPeriod),
-			MaxClockDrift:         uint64(testvalues.DefaultMaxClockDrift),
+			SourceChain:             &s.chainA.eth,
+			RouterAddress:           ics26AddressA,
+			Packet:                  sendEvent.Packet,
+			InitialTrustedHeight:    sendHeight - 2,
+			AdjacentUpdateHeight:    sendHeight - 1,
+			NonAdjacentUpdateHeight: sendHeight,
+			SyntheticSourceHeight:   ackReceipt.BlockNumber.Uint64(),
+			TrustingPeriod:          uint64(testvalues.DefaultTrustPeriod),
+			MaxClockDrift:           uint64(testvalues.DefaultMaxClockDrift),
 		}))
 	}
 }

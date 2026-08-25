@@ -11,12 +11,13 @@ import { ILightClientMsgs } from "../../msgs/ILightClientMsgs.sol";
 import { IICS02ClientMsgs } from "../../msgs/IICS02ClientMsgs.sol";
 import { IBesuLightClientMsgs } from "./msgs/IBesuLightClientMsgs.sol";
 import { IBesuLightClientErrors } from "./errors/IBesuLightClientErrors.sol";
+import { IBesuLightClient } from "./interfaces/IBesuLightClient.sol";
 import { RLPReader } from "./RLPReader.sol";
 import { MPTProof } from "./MPTProof.sol";
 
 /// @title Besu Light Client Base
 /// @notice Shared implementation for Besu BFT light clients that verify headers and EVM storage proofs.
-abstract contract BesuLightClientBase is ILightClient, IBesuLightClientErrors, IBesuLightClientMsgs, AccessControl {
+abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientErrors, IBesuLightClientMsgs, AccessControl {
     using MPTProof for bytes;
     using RLPReader for RLPReader.RLPItem;
     using RLPReader for bytes;
@@ -109,10 +110,7 @@ abstract contract BesuLightClientBase is ILightClient, IBesuLightClientErrors, I
         return abi.encode(clientState);
     }
 
-    /// @notice Returns the encoded consensus state for a revision height.
-    /// @param revisionHeight The revision height to query.
-    /// @return The ABI-encoded consensus state.
-    // natlint-disable-next-line MissingInheritdoc
+    /// @inheritdoc IBesuLightClient
     function getConsensusState(uint64 revisionHeight) external view returns (bytes memory) {
         ConsensusState storage consensusState = _getConsensusState(revisionHeight);
         return abi.encode(consensusState.timestamp, consensusState.storageRoot, consensusState.validators);

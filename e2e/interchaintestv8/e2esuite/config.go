@@ -69,6 +69,9 @@ func (c *setupConfig) validate() error {
 	case "", testvalues.EthTestnetType_None:
 		return nil
 	case testvalues.EthTestnetTypeAnvil:
+		if c.ethereum.anvilCount > 1 {
+			return nil
+		}
 		if ethLcOnCosmos == testvalues.EthLCOnCosmosTypeDummyWasm || ethLcOnCosmos == testvalues.EthLCOnCosmosTypeAttestorNative {
 			return nil
 		}

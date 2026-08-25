@@ -5,8 +5,6 @@ package types
 import (
 	"context"
 	"crypto/ecdsa"
-	"crypto/sha256"
-	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -21,6 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 	"github.com/ethereum/go-ethereum/rlp"
 
+	channeltypesv2 "github.com/cosmos/ibc-go/v11/modules/core/04-channel/v2/types"
 	ibchostv2 "github.com/cosmos/ibc-go/v11/modules/core/24-host/v2"
 
 	"github.com/cosmos/solidity-ibc-eureka/packages/go-abigen/ics26router"
@@ -34,15 +33,15 @@ type BesuFixtureGenerator struct {
 }
 
 type GenerateQBFTFixtureParams struct {
-	SourceChain           *ethereum.Ethereum
-	RouterAddress         ethcommon.Address
-	Packet                ics26router.IICS26RouterMsgsPacket
-	InitialTrustedHeight  uint64
-	UpdateHeight11        uint64
-	UpdateHeight12        uint64
-	SyntheticSourceHeight uint64
-	TrustingPeriod        uint64
-	MaxClockDrift         uint64
+	SourceChain             *ethereum.Ethereum
+	RouterAddress           ethcommon.Address
+	Packet                  ics26router.IICS26RouterMsgsPacket
+	InitialTrustedHeight    uint64
+	AdjacentUpdateHeight    uint64
+	NonAdjacentUpdateHeight uint64
+	SyntheticSourceHeight   uint64
+	TrustingPeriod          uint64
+	MaxClockDrift           uint64
 }
 
 type besuFixture struct {
@@ -53,11 +52,11 @@ type besuFixture struct {
 	InitialTrustedValidators  []string                   `json:"initialTrustedValidators"`
 	TrustingPeriod            uint64                     `json:"trustingPeriod"`
 	MaxClockDrift             uint64                     `json:"maxClockDrift"`
-	UpdateHeight11            besuUpdateFixture          `json:"updateHeight11"`
-	UpdateHeight12            besuUpdateFixture          `json:"updateHeight12"`
-	LowQuorumHeight12         besuRejectionUpdateFixture `json:"lowQuorumHeight12"`
-	ConflictingHeight12       besuRejectionUpdateFixture `json:"conflictingHeight12"`
-	LowOverlapHeight13        besuRejectionUpdateFixture `json:"lowOverlapHeight13"`
+	AdjacentUpdate            besuUpdateFixture          `json:"adjacentUpdate"`
+	NonAdjacentUpdate         besuUpdateFixture          `json:"nonAdjacentUpdate"`
+	LowQuorumUpdate           besuRejectionUpdateFixture `json:"lowQuorumUpdate"`
+	ConflictingUpdate         besuRejectionUpdateFixture `json:"conflictingUpdate"`
+	LowOverlapUpdate          besuRejectionUpdateFixture `json:"lowOverlapUpdate"`
 	Membership                besuProofFixture           `json:"membership"`
 	NonMembership             besuProofFixture           `json:"nonMembership"`
 }
@@ -137,21 +136,21 @@ func generateQBFTFixture(ctx context.Context, params GenerateQBFTFixtureParams) 
 	if params.InitialTrustedHeight == 0 {
 		return besuFixture{}, fmt.Errorf("initial trusted height must be greater than zero")
 	}
-	if params.UpdateHeight11 <= params.InitialTrustedHeight {
-		return besuFixture{}, fmt.Errorf("updateHeight11 must be greater than initial trusted height")
+	if params.AdjacentUpdateHeight <= params.InitialTrustedHeight || params.AdjacentUpdateHeight-params.InitialTrustedHeight != 1 {
+		return besuFixture{}, fmt.Errorf("adjacent update height must equal initial trusted height plus one")
 	}
-	if params.UpdateHeight12 <= params.UpdateHeight11 {
-		return besuFixture{}, fmt.Errorf("updateHeight12 must be greater than updateHeight11")
+	if params.NonAdjacentUpdateHeight <= params.AdjacentUpdateHeight {
+		return besuFixture{}, fmt.Errorf("non-adjacent update height must be greater than adjacent update height")
 	}
-	if params.SyntheticSourceHeight <= params.UpdateHeight12 {
-		return besuFixture{}, fmt.Errorf("synthetic source height must be greater than updateHeight12")
+	if params.SyntheticSourceHeight <= params.NonAdjacentUpdateHeight {
+		return besuFixture{}, fmt.Errorf("synthetic source height must be greater than non-adjacent update height")
 	}
 
 	trustedHeader, err := fetchLiveHeader(ctx, params.SourceChain, params.InitialTrustedHeight)
 	if err != nil {
 		return besuFixture{}, err
 	}
-	update12Header, err := fetchLiveHeader(ctx, params.SourceChain, params.UpdateHeight12)
+	nonAdjacentHeader, err := fetchLiveHeader(ctx, params.SourceChain, params.NonAdjacentUpdateHeight)
 	if err != nil {
 		return besuFixture{}, err
 	}
@@ -169,22 +168,22 @@ func generateQBFTFixture(ctx context.Context, params GenerateQBFTFixtureParams) 
 	if err != nil {
 		return besuFixture{}, err
 	}
-	update11, err := buildLiveUpdateFixture(ctx, params.SourceChain, params.RouterAddress, params.InitialTrustedHeight, params.UpdateHeight11)
+	adjacentUpdate, err := buildLiveUpdateFixture(ctx, params.SourceChain, params.RouterAddress, params.InitialTrustedHeight, params.AdjacentUpdateHeight)
 	if err != nil {
 		return besuFixture{}, err
 	}
-	update12, err := buildLiveUpdateFixture(ctx, params.SourceChain, params.RouterAddress, params.InitialTrustedHeight, params.UpdateHeight12)
+	nonAdjacentUpdate, err := buildLiveUpdateFixture(ctx, params.SourceChain, params.RouterAddress, params.InitialTrustedHeight, params.NonAdjacentUpdateHeight)
 	if err != nil {
 		return besuFixture{}, err
 	}
-	lowQuorumHeight12, err := buildLowQuorumFixture(update12, update12Header)
+	lowQuorumUpdate, err := buildLowQuorumFixture(nonAdjacentUpdate, nonAdjacentHeader)
 	if err != nil {
 		return besuFixture{}, err
 	}
-	conflictingHeight12, err := buildConflictingFixture(
+	conflictingUpdate, err := buildConflictingFixture(
 		ctx,
 		params.InitialTrustedHeight,
-		update12.Height,
+		nonAdjacentUpdate.Height,
 		syntheticSourceHeader,
 		validatorKeys,
 		params.SourceChain,
@@ -193,20 +192,20 @@ func generateQBFTFixture(ctx context.Context, params GenerateQBFTFixtureParams) 
 	if err != nil {
 		return besuFixture{}, err
 	}
-	lowOverlapHeight13, err := buildLowOverlapFixture(
+	lowOverlapUpdate, err := buildLowOverlapFixture(
 		params.InitialTrustedHeight,
-		update12.Height+1,
+		nonAdjacentUpdate.Height+1,
 		syntheticSourceHeader,
 		validatorKeys,
 	)
 	if err != nil {
 		return besuFixture{}, err
 	}
-	membership, err := buildMembershipFixture(ctx, params.SourceChain, params.RouterAddress, params.Packet, params.UpdateHeight12, update12Header.Header.Time)
+	membership, err := buildMembershipFixture(ctx, params.SourceChain, params.RouterAddress, params.Packet, params.NonAdjacentUpdateHeight, nonAdjacentHeader.Header.Time)
 	if err != nil {
 		return besuFixture{}, err
 	}
-	nonMembership, err := buildNonMembershipFixture(ctx, params.SourceChain, params.RouterAddress, params.Packet, params.UpdateHeight12, update12Header.Header.Time)
+	nonMembership, err := buildNonMembershipFixture(ctx, params.SourceChain, params.RouterAddress, params.Packet, params.NonAdjacentUpdateHeight, nonAdjacentHeader.Header.Time)
 	if err != nil {
 		return besuFixture{}, err
 	}
@@ -219,11 +218,11 @@ func generateQBFTFixture(ctx context.Context, params GenerateQBFTFixtureParams) 
 		InitialTrustedValidators:  addressesToHex(trustedHeader.Validators),
 		TrustingPeriod:            params.TrustingPeriod,
 		MaxClockDrift:             params.MaxClockDrift,
-		UpdateHeight11:            update11,
-		UpdateHeight12:            update12,
-		LowQuorumHeight12:         lowQuorumHeight12,
-		ConflictingHeight12:       conflictingHeight12,
-		LowOverlapHeight13:        lowOverlapHeight13,
+		AdjacentUpdate:            adjacentUpdate,
+		NonAdjacentUpdate:         nonAdjacentUpdate,
+		LowQuorumUpdate:           lowQuorumUpdate,
+		ConflictingUpdate:         conflictingUpdate,
+		LowOverlapUpdate:          lowOverlapUpdate,
 		Membership:                membership,
 		NonMembership:             nonMembership,
 	}, nil
@@ -495,46 +494,23 @@ func encodeProofNodes(nodes []string) ([]byte, error) {
 }
 
 func packetCommitment(packet ics26router.IICS26RouterMsgsPacket) []byte {
-	destHash := sha256.Sum256([]byte(packet.DestClient))
-	timeoutBytes := make([]byte, 8)
-	binary.BigEndian.PutUint64(timeoutBytes, packet.TimeoutTimestamp)
-	timeoutHash := sha256.Sum256(timeoutBytes)
-
-	appBytes := make([]byte, 0, len(packet.Payloads)*32)
-	for _, payload := range packet.Payloads {
-		appBytes = append(appBytes, payloadCommitmentHash(payload)...)
+	payloads := make([]channeltypesv2.Payload, len(packet.Payloads))
+	for i, payload := range packet.Payloads {
+		payloads[i] = channeltypesv2.Payload{
+			SourcePort:      payload.SourcePort,
+			DestinationPort: payload.DestPort,
+			Version:         payload.Version,
+			Encoding:        payload.Encoding,
+			Value:           payload.Value,
+		}
 	}
-	appHash := sha256.Sum256(appBytes)
-
-	final := make([]byte, 0, 1+32+32+32)
-	final = append(final, 2)
-	final = append(final, destHash[:]...)
-	final = append(final, timeoutHash[:]...)
-	final = append(final, appHash[:]...)
-
-	commitment := sha256.Sum256(final)
-	return commitment[:]
-}
-
-func payloadCommitmentHash(payload ics26router.IICS26RouterMsgsPayload) []byte {
-	parts := [][]byte{
-		sha256Bytes([]byte(payload.SourcePort)),
-		sha256Bytes([]byte(payload.DestPort)),
-		sha256Bytes([]byte(payload.Version)),
-		sha256Bytes([]byte(payload.Encoding)),
-		sha256Bytes(payload.Value),
-	}
-
-	concatenated := make([]byte, 0, len(parts)*32)
-	for _, part := range parts {
-		concatenated = append(concatenated, part...)
-	}
-	return sha256Bytes(concatenated)
-}
-
-func sha256Bytes(input []byte) []byte {
-	sum := sha256.Sum256(input)
-	return sum[:]
+	return channeltypesv2.CommitPacket(channeltypesv2.Packet{
+		Sequence:          packet.Sequence,
+		SourceClient:      packet.SourceClient,
+		DestinationClient: packet.DestClient,
+		TimeoutTimestamp:  packet.TimeoutTimestamp,
+		Payloads:          payloads,
+	})
 }
 
 func decodeMutableQBFTHeader(headerRLP []byte) (*mutableQBFTHeader, error) {

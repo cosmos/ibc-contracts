@@ -3,15 +3,16 @@ pragma solidity ^0.8.28;
 
 import { BesuIBFT2LightClient } from "../../contracts/light-clients/besu/BesuIBFT2LightClient.sol";
 import { BesuQBFTLightClient } from "../../contracts/light-clients/besu/BesuQBFTLightClient.sol";
-import { BesuLightClientTestBase, IBesuTestLightClient } from "./BesuLightClientTestBase.sol";
+import { IBesuLightClient } from "../../contracts/light-clients/besu/interfaces/IBesuLightClient.sol";
+import { BesuLightClientFixtureTestBase } from "./BesuLightClientFixtureTestBase.sol";
 
-contract BesuQBFTLightClientTest is BesuLightClientTestBase {
+contract BesuQBFTLightClientTest is BesuLightClientFixtureTestBase {
     function _fixtureFile() internal pure override returns (string memory) {
         return "qbft.json";
     }
 
-    function _deployPrimaryClient() internal override returns (IBesuTestLightClient) {
-        return IBesuTestLightClient(
+    function _deployPrimaryClient() internal override returns (IBesuLightClient) {
+        return IBesuLightClient(
             address(
                 new BesuQBFTLightClient(
                     fixture.routerAddress,
@@ -27,8 +28,8 @@ contract BesuQBFTLightClientTest is BesuLightClientTestBase {
         );
     }
 
-    function _deployWrongWrapper() internal override returns (IBesuTestLightClient) {
-        return IBesuTestLightClient(
+    function _deployWrongWrapper() internal override returns (IBesuLightClient) {
+        return IBesuLightClient(
             address(
                 new BesuIBFT2LightClient(
                     fixture.routerAddress,

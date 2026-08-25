@@ -104,9 +104,6 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.generate-matrix-eth-to-eth.outputs.matrix) }}
     name: attestor-native/${{ matrix.entrypoint }}/${{ matrix.test }}
-    env:
-      ETH_LC_ON_COSMOS: attestor-native
-
     runs-on: depot-ubuntu-24.04-4
     permissions:
       contents: read
@@ -122,6 +119,52 @@ jobs:
         run: |
           cd e2e/interchaintestv8
           go test -v -mod=readonly . -run "^${{ matrix.entrypoint }}$/${{ matrix.test }}$" -timeout 60m
+
+  e2e-besu-qbft:
+    needs: build-e2e-programs
+    name: besu-qbft/ics20-roundtrip
+    env:
+      ETH_TESTNET_TYPE: besu-qbft
+      ETH_LC_ON_COSMOS: attestor-native
+      COSMOS_LC_ON_ETH: sp1
+      SP1_PROVER: mock
+      E2E_PROOF_TYPE: groth16
+    runs-on: depot-ubuntu-24.04-4
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Set up E2E environment
+        uses: ./.github/actions/e2e-setup
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run test
+        run: |
+          cd e2e/interchaintestv8
+          go test -v -mod=readonly . -run '^TestWithIbcEurekaTestSuite$/^Test_ICS20TransferERC20TokenfromEthereumToCosmosAndBack$' -timeout 60m
+
+  e2e-besu-to-besu:
+    needs: build-e2e-programs
+    name: besu-to-besu
+    runs-on: depot-ubuntu-24.04-4
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Set up E2E environment
+        uses: ./.github/actions/e2e-setup
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run Go package tests
+        run: |
+          cd e2e/interchaintestv8
+          go test ./e2esuite ./types
+      - name: Run Besu to Besu test suite
+        run: |
+          cd e2e/interchaintestv8
+          go test -v -mod=readonly . -run '^TestWithBesuToBesuTestSuite$' -timeout 60m
 
   e2e-multi-attestor-native:
     needs: build-e2e-programs

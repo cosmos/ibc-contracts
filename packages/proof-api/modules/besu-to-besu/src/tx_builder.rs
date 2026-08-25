@@ -511,7 +511,7 @@ mod tests {
     #[derive(Debug, Deserialize)]
     #[serde(rename_all = "camelCase")]
     struct Fixture {
-        update_height12: UpdateFixture,
+        non_adjacent_update: UpdateFixture,
         membership: ProofFixture,
         non_membership: ProofFixture,
     }
@@ -569,10 +569,10 @@ mod tests {
     #[test]
     fn extracts_validators_from_fixture_header() {
         let fixture = load_fixture();
-        let header_rlp = decode_hex_bytes(&fixture.update_height12.header_rlp);
+        let header_rlp = decode_hex_bytes(&fixture.non_adjacent_update.header_rlp);
         let validators = extract_validators_from_header_extra_data(&header_rlp).unwrap();
         let expected = fixture
-            .update_height12
+            .non_adjacent_update
             .expected_validators
             .iter()
             .map(|address| Address::from_str(address).unwrap())
@@ -584,7 +584,7 @@ mod tests {
     #[test]
     fn packs_account_proof_nodes_without_reencoding_nodes() {
         let fixture = load_fixture();
-        let account_proof_rlp = decode_hex_bytes(&fixture.update_height12.account_proof);
+        let account_proof_rlp = decode_hex_bytes(&fixture.non_adjacent_update.account_proof);
         let nodes = decode_proof_nodes(&account_proof_rlp);
 
         assert_eq!(encode_rlp_node_list(&nodes), account_proof_rlp);

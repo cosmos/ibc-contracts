@@ -13,7 +13,20 @@ import (
 	transfertypes "github.com/cosmos/ibc-go/v11/modules/apps/transfer/types"
 
 	"github.com/cosmos/solidity-ibc-eureka/packages/go-abigen/ics26router"
+
+	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/ethereum"
 )
+
+func TestGenerateQBFTFixtureRequiresAdjacentHeight(t *testing.T) {
+	_, err := generateQBFTFixture(t.Context(), GenerateQBFTFixtureParams{
+		SourceChain:          &ethereum.Ethereum{},
+		InitialTrustedHeight: 10,
+		AdjacentUpdateHeight: 12,
+	})
+	if err == nil || err.Error() != "adjacent update height must equal initial trusted height plus one" {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
 
 func TestBuildLowOverlapFixtureNeedsNoAccountProof(t *testing.T) {
 	t.Chdir("../../..")
@@ -33,8 +46,8 @@ func TestBuildLowOverlapFixtureNeedsNoAccountProof(t *testing.T) {
 
 	update, err := buildLowOverlapFixture(
 		fixture.InitialTrustedHeight,
-		fixture.UpdateHeight12.Height+1,
-		liveHeader{HeaderRLP: ethcommon.FromHex(fixture.UpdateHeight12.HeaderRlp)},
+		fixture.NonAdjacentUpdate.Height+1,
+		liveHeader{HeaderRLP: ethcommon.FromHex(fixture.NonAdjacentUpdate.HeaderRlp)},
 		validatorKeys,
 	)
 	if err != nil {
@@ -72,8 +85,8 @@ func TestRejectionFixturesOnlyContainUpdateInputs(t *testing.T) {
 	}
 
 	lowQuorum, err := buildLowQuorumFixture(
-		fixture.UpdateHeight12,
-		liveHeader{HeaderRLP: ethcommon.FromHex(fixture.UpdateHeight12.HeaderRlp)},
+		fixture.NonAdjacentUpdate,
+		liveHeader{HeaderRLP: ethcommon.FromHex(fixture.NonAdjacentUpdate.HeaderRlp)},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -81,13 +94,13 @@ func TestRejectionFixturesOnlyContainUpdateInputs(t *testing.T) {
 	if lowQuorum.AccountProof != "0x" {
 		t.Fatalf("low quorum account proof: got %q, want empty hex bytes", lowQuorum.AccountProof)
 	}
-	if fixture.ConflictingHeight12.AccountProof == "" || fixture.ConflictingHeight12.AccountProof == "0x" {
+	if fixture.ConflictingUpdate.AccountProof == "" || fixture.ConflictingUpdate.AccountProof == "0x" {
 		t.Fatal("conflicting update must retain its account proof")
 	}
 
 	for name, update := range map[string]besuRejectionUpdateFixture{
 		"low quorum":  lowQuorum,
-		"conflicting": fixture.ConflictingHeight12,
+		"conflicting": fixture.ConflictingUpdate,
 	} {
 		encoded, err := json.Marshal(update)
 		if err != nil {
@@ -105,7 +118,7 @@ func TestRejectionFixturesOnlyContainUpdateInputs(t *testing.T) {
 	}
 }
 
-func TestPacketCommitment(t *testing.T) {
+func TestPacketCommitmentMatchesICS24Host(t *testing.T) {
 	packetData := transfertypes.NewFungibleTokenPacketData("uatom", "1000000", "sender", "receiver", "memo")
 	value, err := transfertypes.EncodeABIFungibleTokenPacketData(&packetData)
 	if err != nil {
