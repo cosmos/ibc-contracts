@@ -113,7 +113,6 @@
       "src_chain": "0x1",
       "dst_chain": "0x2",
       "config": {
-        "src_chain_id": "0x1",
         "src_rpc_url": "https://ethereum-holesky-rpc.publicnode.com",
         "src_ics26_address": "0x4242424242424242424242424242424242424242",
         "dst_rpc_url": "https://ethereum-holesky-rpc.publicnode.com",

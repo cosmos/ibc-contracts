@@ -63,24 +63,16 @@ impl EthToCosmosCompatProofApiModuleService {
         }
     }
 
-    async fn client_checksum(&self, dst_client_id: &str) -> Result<Vec<u8>, tonic::Status> {
+    async fn client_checksum(&self, dst_client_id: &str) -> anyhow::Result<Vec<u8>> {
         let client_state = self
             .tm_listener
             .client()
             .client_state(dst_client_id.to_string())
             .await
-            .map_err(|e| {
-                tonic::Status::internal(format!(
-                    "Failed to get client state of {dst_client_id}: {e}"
-                ))
-            })?;
+            .map_err(|e| anyhow::anyhow!("Failed to get client state of {dst_client_id}: {e}"))?;
 
         Ok(ClientState::decode(&*client_state.value)
-            .map_err(|e| {
-                tonic::Status::internal(format!(
-                    "Failed to decode client state of {dst_client_id}: {e}"
-                ))
-            })?
+            .map_err(|e| anyhow::anyhow!("Failed to decode client state of {dst_client_id}: {e}"))?
             .checksum)
     }
 }
@@ -101,7 +93,10 @@ impl ProofApiService for EthToCosmosCompatProofApiModuleService {
         request: Request<api::RelayByTxRequest>,
     ) -> Result<Response<api::RelayByTxResponse>, tonic::Status> {
         let req = request.get_ref();
-        let checksum = self.client_checksum(&req.dst_client_id).await?;
+        let checksum = self
+            .client_checksum(&req.dst_client_id)
+            .await
+            .map_err(|e| tonic::Status::internal(e.to_string()))?;
 
         if checksum == V1_3_CHECKSUM {
             tracing::info!("Using backwards compatible relay_by_tx");
@@ -168,7 +163,10 @@ impl ProofApiService for EthToCosmosCompatProofApiModuleService {
         request: Request<api::UpdateClientRequest>,
     ) -> Result<Response<api::UpdateClientResponse>, tonic::Status> {
         let req = request.get_ref();
-        let checksum = self.client_checksum(&req.dst_client_id).await?;
+        let checksum = self
+            .client_checksum(&req.dst_client_id)
+            .await
+            .map_err(|e| tonic::Status::internal(e.to_string()))?;
 
         if checksum == V1_3_CHECKSUM {
             tracing::info!("Using backwards compatible update_client");
