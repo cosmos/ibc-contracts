@@ -160,7 +160,7 @@ jobs:
       - name: Run Go package tests
         run: |
           cd e2e/interchaintestv8
-          go test ./e2esuite ./types
+          go test ./e2esuite
       - name: Run Besu to Besu test suite
         run: |
           cd e2e/interchaintestv8

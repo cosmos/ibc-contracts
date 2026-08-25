@@ -34,8 +34,9 @@ const (
 	besuQBFTComposeFile = "docker-compose.yml"
 	besuQBFTProjectName = "besu-qbft"
 
-	defaultBesuQBFTSubnet  = "10.42.0.0/16"
-	defaultBesuQBFTGateway = "10.42.0.1"
+	defaultBesuQBFTChainID uint64 = 1337
+	defaultBesuQBFTSubnet         = "10.42.0.0/16"
+	defaultBesuQBFTGateway        = "10.42.0.1"
 
 	besuQBFTTxProbeReceiptTimeout = 30 * time.Second
 )
@@ -54,6 +55,16 @@ type BesuQBFTParams struct {
 	ValidatorIPs        [4]string
 	DockerRPCAlias      string
 	InterchainNetworkID string
+}
+
+// DefaultBesuQBFTParams returns the topology from the embedded Besu fixture.
+func DefaultBesuQBFTParams() BesuQBFTParams {
+	return BesuQBFTParams{
+		ChainID:      defaultBesuQBFTChainID,
+		Subnet:       defaultBesuQBFTSubnet,
+		Gateway:      defaultBesuQBFTGateway,
+		ValidatorIPs: defaultBesuQBFTValidatorIPs,
+	}
 }
 
 type BesuQBFTChain struct {

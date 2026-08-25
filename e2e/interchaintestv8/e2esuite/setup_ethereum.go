@@ -86,14 +86,11 @@ func (s *TestSuite) processEthereumPoSResult(ctx context.Context, chain *chainco
 }
 
 func (s *TestSuite) setupEthereumBesuQBFT(ctx context.Context, networkID string) (*chainconfig.BesuQBFTChain, error) {
-	chain, err := chainconfig.SpinUpBesuQBFT(ctx, chainconfig.BesuQBFTParams{
-		ChainID:             1337,
-		Subnet:              "10.42.0.0/16",
-		Gateway:             "10.42.0.1",
-		ValidatorIPs:        [4]string{"10.42.0.2", "10.42.0.3", "10.42.0.4", "10.42.0.5"},
-		DockerRPCAlias:      "besu-qbft-rpc",
-		InterchainNetworkID: networkID,
-	})
+	params := chainconfig.DefaultBesuQBFTParams()
+	params.DockerRPCAlias = "besu-qbft-rpc"
+	params.InterchainNetworkID = networkID
+
+	chain, err := chainconfig.SpinUpBesuQBFT(ctx, params)
 	if err != nil {
 		return nil, err
 	}
