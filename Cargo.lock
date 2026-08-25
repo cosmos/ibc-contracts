@@ -8500,7 +8500,6 @@ dependencies = [
  "proof-api-eth-to-cosmos-compat",
  "proof-api-eth-to-eth",
  "proof-api-eth-to-solana",
- "proof-api-evmdummy-to-evmdummy",
  "proof-api-solana-to-cosmos",
  "proof-api-solana-to-eth",
  "serde_json",
@@ -8726,20 +8725,6 @@ dependencies = [
  "tokio",
  "tonic 0.13.1",
  "tracing",
-]
-
-[[package]]
-name = "proof-api-evmdummy-to-evmdummy"
-version = "0.1.0"
-dependencies = [
- "alloy 2.0.4",
- "anyhow",
- "ibc-eureka-solidity-types 0.1.0",
- "proof-api-core",
- "proof-api-lib",
- "serde",
- "serde_json",
- "tonic 0.13.1",
 ]
 
 [[package]]

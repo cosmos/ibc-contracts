@@ -57,7 +57,6 @@ generate-abi: build-contracts
 	jq -r '.bytecode.object' out/AttestationLightClient.sol/AttestationLightClient.json > tmp/abigen/AttestationLightClient.bin
 	jq '.abi' out/BesuIBFT2LightClient.sol/BesuIBFT2LightClient.json > abi/BesuIBFT2LightClient.json
 	jq '.abi' out/BesuQBFTLightClient.sol/BesuQBFTLightClient.json > abi/BesuQBFTLightClient.json
-	jq '.abi' out/DummyLightClient.sol/DummyLightClient.json > abi/DummyLightClient.json
 	jq '.abi' out/IFTOwnable.sol/IFTOwnable.json > abi/IFTOwnable.json
 	jq -r '.bytecode.object' out/IFTOwnable.sol/IFTOwnable.json > tmp/abigen/IFTOwnable.bin
 	jq '.abi' out/ERC1967Proxy.sol/ERC1967Proxy.json > abi/ERC1967Proxy.json
@@ -82,7 +81,6 @@ generate-abi: build-contracts
 	jq -c '{abi, bytecode: {object: .bytecode.object}}' out/AttestationLightClient.sol/AttestationLightClient.json > abi/bytecode/AttestationLightClient.json
 	jq -c '{abi, bytecode: {object: .bytecode.object}}' out/BesuIBFT2LightClient.sol/BesuIBFT2LightClient.json > abi/bytecode/BesuIBFT2LightClient.json
 	jq -c '{abi, bytecode: {object: .bytecode.object}}' out/BesuQBFTLightClient.sol/BesuQBFTLightClient.json > abi/bytecode/BesuQBFTLightClient.json
-	jq -c '{abi, bytecode: {object: .bytecode.object}}' out/DummyLightClient.sol/DummyLightClient.json > abi/bytecode/DummyLightClient.json
 	rm -rf tmp/abigen
 
 # Clean up the foundry cache and out directories

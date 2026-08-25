@@ -24,7 +24,6 @@ This directory implements the IBC v2 protocol stack in Solidity. Most entrypoint
 - `attestation/AttestationLightClient.sol` – m-of-n attestor-set light client using ECDSA signatures with role-gated proof submission.
 - `besu/BesuIBFT2LightClient.sol` – Besu IBFT 2.0 light client for header-validator mode. Uses weak-subjectivity / trusting-period updates, verifies Besu commit seals under the existing YUI + prover sealing-header model plus EVM account/storage proofs, and proves Eureka commitments against the tracked counterparty `ICS26Router` storage.
 - `besu/BesuQBFTLightClient.sol` – Besu QBFT light client for header-validator mode with the same proof model and storage verification surface as the IBFT2 wrapper, but QBFT-specific seal-digest rules within that same YUI + prover sealing-header model.
-- `dummy/DummyLightClient.sol` – Insecure development/testing light client. Updates directly populate trusted timestamps and path/value records; proofs are ignored.
 - `ics02-wrapper/ICS02PrecompileWrapper.sol` – Thin adapter that exposes the `ILightClient` interface over the Cosmos EVM ICS02 precompile at a fixed address.
 - `sp1-ics07/SP1ICS07Tendermint.sol` – Tendermint light client verified via SP1 programs and verifier contract; supports update, (non)membership proofs, and misbehaviour handling.
 

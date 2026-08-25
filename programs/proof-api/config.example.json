@@ -134,18 +134,6 @@
       }
     },
     {
-      "name": "evmdummy_to_evmdummy",
-      "src_chain": "evm-local-a",
-      "dst_chain": "evm-local-b",
-      "enabled": false,
-      "config": {
-        "src_rpc_url": "http://127.0.0.1:8545",
-        "src_ics26_address": "0x4242424242424242424242424242424242424242",
-        "dst_rpc_url": "http://127.0.0.1:9545",
-        "dst_ics26_address": "0x4242424242424242424242424242424242424242"
-      }
-    },
-    {
       "name": "eth_to_cosmos_compat",
       "src_chain": "0x1",
       "dst_chain": "cosmoshub-4",

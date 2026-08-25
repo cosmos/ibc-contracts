@@ -14,7 +14,6 @@ use proof_api_eth_to_cosmos::EthToCosmosProofApiModule;
 use proof_api_eth_to_cosmos_compat::EthToCosmosCompatProofApiModule;
 use proof_api_eth_to_eth::EthToEthProofApiModule;
 use proof_api_eth_to_solana::EthToSolanaProofApiModule;
-use proof_api_evmdummy_to_evmdummy::EvmDummyToEvmDummyProofApiModule;
 use proof_api_solana_to_cosmos::SolanaToCosmosProofApiModule;
 use proof_api_solana_to_eth::SolanaToEthProofApiModule;
 
@@ -49,7 +48,6 @@ async fn main() -> anyhow::Result<()> {
             proof_api_builder.add_module(EthToCosmosProofApiModule);
             proof_api_builder.add_module(EthToCosmosCompatProofApiModule);
             proof_api_builder.add_module(EthToEthProofApiModule);
-            proof_api_builder.add_module(EvmDummyToEvmDummyProofApiModule);
             proof_api_builder.add_module(BesuToBesuProofApiModule);
             proof_api_builder.add_module(SolanaToCosmosProofApiModule);
             proof_api_builder.add_module(CosmosToSolanaProofApiModule);

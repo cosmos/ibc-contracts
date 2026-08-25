@@ -6,7 +6,6 @@
 
 pub mod attestation;
 pub mod besu;
-pub mod dummy;
 pub mod ics26;
 pub mod msgs;
 pub mod sp1_ics07;

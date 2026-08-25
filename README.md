@@ -82,7 +82,6 @@ This project is structured with the following directories:
 | `SP1ICS07Tendermint.sol` | Tendermint light client powered by SP1. The entry point for SP1 proofs. | ✅ |
 | `BesuIBFT2LightClient.sol` | Besu IBFT 2.0 light client for header-validator mode with weak-subjectivity updates and EVM proof verification, following the YUI + prover sealing-header verification model. | ✅ |
 | `BesuQBFTLightClient.sol` | Besu QBFT light client for header-validator mode with weak-subjectivity updates and EVM proof verification, following the YUI + prover sealing-header verification model. | ✅ |
-| `DummyLightClient.sol` | Insecure dummy light client for local/dev/testing use. Accepts arbitrary updates and answers membership/non-membership from supplied state without proof verification. | 🧪 |
 | `ICS27GMP.sol` | IBC General Message Passing via Interchain Accounts. | ✅ |
 | `AttestationLightClient.sol` | The multisig contract implementing IBC Light Client specs. | ✅ |
 | `utils/IFTBaseUpgradeable.sol` | Interchain Fungible Token standard. Mint and burn alternative to ICS-20. | ⏳ |

@@ -23,7 +23,6 @@ Each module runs in one direction and specializes in how it builds proofs and tr
 | `cosmos_to_eth` | Cosmos SDK | EVM | Parse Cosmos events, build EVM IBC txs | `sp1` — ZK proofs via SP1<br>`attested` — multisig attestations |
 | `eth_to_cosmos` | EVM | Cosmos SDK | Parse EVM events, build Cosmos IBC txs | `real` — ethereum mainnet beacon API proofs<br>`mock` — dev/test mode<br>`attested` — multisig attestations |
 | `eth_to_eth` | EVM | EVM | Parse EVM events, build attested txs | `attested` — multisig attestations |
-| `evmdummy_to_evmdummy` | EVM | EVM | Parse EVM events, build local dummy txs | insecure local/dev/testing only; dummy membership records, not real proofs |
 | `besu_to_besu` | Besu BFT EVM | Besu BFT EVM | Parse EVM events, build Besu real-proof txs | direct Besu light-client updates + Besu account/storage proofs |
 | `cosmos_to_cosmos` | Cosmos SDK | Cosmos SDK | Parse Cosmos events, build Cosmos IBC txs | ICS-07 light client proofs only (validator signatures and merkle proofs) |
 | `cosmos_to_solana` | Cosmos SDK | Solana | Parse Cosmos events, build Solana IBC txs | ICS-07 light client proofs only (validator signatures and merkle proofs) |
@@ -126,13 +125,6 @@ Module configuration varies by module type:
   - `mode.cache`: Optional cache config.
     - `mode.cache.state_cache_max_entries`. (default: 10000)
     - `mode.cache.packet_cache_max_entries`. (default: 10000)
-- `evmdummy_to_evmdummy`:
-  - `src_rpc_url`: Source EVM RPC endpoint.
-  - `src_ics26_address`: Source IBC router contract address.
-  - `dst_rpc_url`: Destination EVM RPC endpoint.
-  - `dst_ics26_address`: Destination IBC router contract address.
-  - Create-client returns only `DummyLightClient` deployment calldata; the caller must deploy it and register it with `ICS26Router.addClient(...)`.
-  - Insecure, local/dev/testing only. Relay uses dummy membership records, not real proofs.
 - `besu_to_besu`:
   - `src_rpc_url`: Source Besu RPC endpoint.
   - `src_ics26_address`: Source IBC router contract address.

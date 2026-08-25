@@ -20,7 +20,6 @@ members = [
     "packages/proof-api/modules/eth-to-cosmos-compat",
     "packages/proof-api/modules/cosmos-to-eth",
     "packages/proof-api/modules/eth-to-eth",
-    "packages/proof-api/modules/evmdummy-to-evmdummy",
     "packages/proof-api/modules/besu-to-besu",
     "packages/proof-api/modules/cosmos-to-cosmos",
     "packages/proof-api/modules/solana-to-cosmos",
@@ -62,7 +61,6 @@ proof-api-eth-to-cosmos        = { path = "packages/proof-api/modules/eth-to-cos
 proof-api-eth-to-cosmos-compat = { path = "packages/proof-api/modules/eth-to-cosmos-compat", default-features = false }
 proof-api-cosmos-to-eth        = { path = "packages/proof-api/modules/cosmos-to-eth", default-features = false }
 proof-api-eth-to-eth           = { path = "packages/proof-api/modules/eth-to-eth", default-features = false }
-proof-api-evmdummy-to-evmdummy = { path = "packages/proof-api/modules/evmdummy-to-evmdummy", default-features = false }
 proof-api-besu-to-besu         = { path = "packages/proof-api/modules/besu-to-besu", default-features = false }
 proof-api-cosmos-to-cosmos     = { path = "packages/proof-api/modules/cosmos-to-cosmos", default-features = false }
 proof-api-solana-to-cosmos     = { path = "packages/proof-api/modules/solana-to-cosmos", default-features = false }
