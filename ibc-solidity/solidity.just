@@ -33,7 +33,7 @@ test-foundry testname=".\\*":
 test-benchmark testname=".\\*":
 	forge test -vvv --show-progress --gas-report --match-path test/solidity-ibc/BenchmarkTest.t.sol --match-test {{testname}}
 
-# Generate ABI/bin artifacts and Go abigen bindings
+# Generate all tracked contract artifacts and Go abigen bindings
 [group('generate')]
 generate-abi: build-contracts
 	mkdir -p tmp/abigen
@@ -55,6 +55,8 @@ generate-abi: build-contracts
 	jq -r '.bytecode.object' out/RelayerHelper.sol/RelayerHelper.json > tmp/abigen/RelayerHelper.bin
 	jq '.abi' out/AttestationLightClient.sol/AttestationLightClient.json > abi/AttestationLightClient.json
 	jq -r '.bytecode.object' out/AttestationLightClient.sol/AttestationLightClient.json > tmp/abigen/AttestationLightClient.bin
+	jq '.abi' out/BesuIBFT2LightClient.sol/BesuIBFT2LightClient.json > abi/BesuIBFT2LightClient.json
+	jq '.abi' out/BesuQBFTLightClient.sol/BesuQBFTLightClient.json > abi/BesuQBFTLightClient.json
 	jq '.abi' out/IFTOwnable.sol/IFTOwnable.json > abi/IFTOwnable.json
 	jq -r '.bytecode.object' out/IFTOwnable.sol/IFTOwnable.json > tmp/abigen/IFTOwnable.bin
 	jq '.abi' out/ERC1967Proxy.sol/ERC1967Proxy.json > abi/ERC1967Proxy.json
@@ -73,13 +75,13 @@ generate-abi: build-contracts
 	abigen --abi abi/AttestationLightClient.json --bin tmp/abigen/AttestationLightClient.bin --pkg attestation --type Contract --out ../packages/go-abigen/attestation/contract.go
 	abigen --abi abi/ERC1967Proxy.json --bin tmp/abigen/ERC1967Proxy.bin --pkg erc1967proxy --type Contract --out ../packages/go-abigen/erc1967proxy/contract.go
 	abigen --abi abi/EVMIFTSendCallConstructor.json --bin tmp/abigen/EVMIFTSendCallConstructor.bin --pkg evmiftsendcall --type Contract --out ../packages/go-abigen/evmiftsendcall/contract.go
+	rm -rf abi/bytecode
+	mkdir -p abi/bytecode
+	jq -c '{abi, bytecode: {object: .bytecode.object}}' out/SP1ICS07Tendermint.sol/SP1ICS07Tendermint.json > abi/bytecode/SP1ICS07Tendermint.json
+	jq -c '{abi, bytecode: {object: .bytecode.object}}' out/AttestationLightClient.sol/AttestationLightClient.json > abi/bytecode/AttestationLightClient.json
+	jq -c '{abi, bytecode: {object: .bytecode.object}}' out/BesuIBFT2LightClient.sol/BesuIBFT2LightClient.json > abi/bytecode/BesuIBFT2LightClient.json
+	jq -c '{abi, bytecode: {object: .bytecode.object}}' out/BesuQBFTLightClient.sol/BesuQBFTLightClient.json > abi/bytecode/BesuQBFTLightClient.json
 	rm -rf tmp/abigen
-
-# Generate the ABI files with bytecode for the required contracts
-[group('generate')]
-generate-abi-bytecode: build-contracts
-	cp out/SP1ICS07Tendermint.sol/SP1ICS07Tendermint.json abi/bytecode
-	cp out/AttestationLightClient.sol/AttestationLightClient.json abi/bytecode
 
 # Clean up the foundry cache and out directories
 [group('clean')]

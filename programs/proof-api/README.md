@@ -23,6 +23,7 @@ Each module runs in one direction and specializes in how it builds proofs and tr
 | `cosmos_to_eth` | Cosmos SDK | EVM | Parse Cosmos events, build EVM IBC txs | `sp1` — ZK proofs via SP1<br>`attested` — multisig attestations |
 | `eth_to_cosmos` | EVM | Cosmos SDK | Parse EVM events, build Cosmos IBC txs | `real` — ethereum mainnet beacon API proofs<br>`mock` — dev/test mode<br>`attested` — multisig attestations |
 | `eth_to_eth` | EVM | EVM | Parse EVM events, build attested txs | `attested` — multisig attestations |
+| `besu_to_eth` | Besu BFT EVM | EVM | Parse EVM events, build EVM real-proof txs | direct Besu light-client updates + Besu account/storage proofs |
 | `cosmos_to_cosmos` | Cosmos SDK | Cosmos SDK | Parse Cosmos events, build Cosmos IBC txs | ICS-07 light client proofs only (validator signatures and merkle proofs) |
 | `cosmos_to_solana` | Cosmos SDK | Solana | Parse Cosmos events, build Solana IBC txs | ICS-07 light client proofs only (validator signatures and merkle proofs) |
 | `solana_to_cosmos` | Solana | Cosmos SDK | Parse Solana events, build Cosmos IBC txs | multisig attestations only |
@@ -62,7 +63,7 @@ Key settings:
 - `observability.use_otel`: Enable OpenTelemetry export.
 - `observability.service_name`: Service name used in logs/traces.
 - `observability.otel_endpoint`: OpenTelemetry collector endpoint.
-- `modules`: List of modules to run, each with `name`, `src_chain`, `dst_chain`, `config`, and optional `enabled` (defaults to true). For `eth_to_eth`, `Info` returns the routed `src_chain` as the source identity and the destination RPC chain ID as the target identity.
+- `modules`: List of modules to run, each with `name`, `src_chain`, `dst_chain`, `config`, and optional `enabled` (defaults to true). For EVM-to-EVM modules, `Info` returns the routed `src_chain` as the source identity and the destination RPC chain ID as the target identity.
 
 Module configuration varies by module type. Mode-specific options are enumerated below.
 
@@ -124,6 +125,12 @@ Module configuration varies by module type:
   - `mode.cache`: Optional cache config.
     - `mode.cache.state_cache_max_entries`. (default: 10000)
     - `mode.cache.packet_cache_max_entries`. (default: 10000)
+- `besu_to_eth`:
+  - `src_rpc_url`: Source Besu RPC endpoint.
+  - `src_ics26_address`: Source IBC router contract address.
+  - `dst_rpc_url`: Destination EVM RPC endpoint.
+  - `dst_ics26_address`: Destination IBC router contract address.
+  - `consensus_type`: Source Besu consensus type, `qbft` or `ibft2`.
 - `cosmos_to_cosmos`:
   - `src_rpc_url`: RPC endpoint for the source chain.
   - `target_rpc_url`: RPC endpoint for the destination chain.
@@ -141,6 +148,23 @@ Module configuration varies by module type:
   - `target_rpc_url`: Tendermint RPC endpoint for the destination chain.
   - `signer_address`: Cosmos address used for message construction metadata.
   - `solana_ics26_program_id`: Solana ICS26 router program ID.
+
+## `besu_to_eth` create-client parameters
+
+`besu_to_eth` `CreateClient` returns only deployment calldata for `BesuQBFTLightClient` or `BesuIBFT2LightClient`. It does not call `ICS26Router.addClient(...)`.
+
+Required parameters:
+- `trusting_period`: Decimal seconds for the weak-subjectivity window.
+- `max_clock_drift`: Decimal seconds for allowed future header drift.
+
+Optional parameters:
+- `trusted_height`: Decimal source block height. Defaults to the latest source block.
+- `role_manager`: Hex address. Defaults to the zero address.
+
+Operational notes:
+- `consensus_type` is fixed by module config and only affects `CreateClient` wrapper selection.
+- `UpdateClient` is a single direct Besu update. No catch-up or intermediate-header search is performed.
+- `RelayByTx` uses real Besu proofs: full header RLP, one account proof in the client update, and storage proofs for recv/ack/timeout packet verification.
 
 ## Using the gRPC API
 

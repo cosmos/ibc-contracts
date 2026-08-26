@@ -22,8 +22,20 @@ This directory implements the IBC v2 protocol stack in Solidity. Most entrypoint
 
 ## Light clients (`light-clients/`)
 - `attestation/AttestationLightClient.sol` – m-of-n attestor-set light client using ECDSA signatures with role-gated proof submission.
+- `besu/BesuIBFT2LightClient.sol` – Besu IBFT 2.0 light client for header-validator mode. Uses weak-subjectivity / trusting-period updates, verifies Besu commit seals under the existing YUI + prover sealing-header model plus EVM account/storage proofs, and proves Eureka commitments against the tracked counterparty `ICS26Router` storage.
+- `besu/BesuQBFTLightClient.sol` – Besu QBFT light client for header-validator mode with the same proof model and storage verification surface as the IBFT2 wrapper, but QBFT-specific seal-digest rules within that same YUI + prover sealing-header model.
 - `ics02-wrapper/ICS02PrecompileWrapper.sol` – Thin adapter that exposes the `ILightClient` interface over the Cosmos EVM ICS02 precompile at a fixed address.
 - `sp1-ics07/SP1ICS07Tendermint.sol` – Tendermint light client verified via SP1 programs and verifier contract; supports update, (non)membership proofs, and misbehaviour handling.
+
+### Besu light-client scope
+- Supported: Besu **IBFT 2.0** and **QBFT** in **header-validator mode**.
+- Verification model: weak subjectivity via **trusting period** and validator-set overlap checks.
+- Commit-seal verification: follows the existing **YUI Solidity client + besu-ibc-relay-prover** sealing-header reconstruction model.
+- Trusted overlap threshold: requires **strictly greater than one-third** overlap with the trusted validator set, implemented as `floor(n / 3) + 1`, which is intentionally stricter than the current upstream YUI check.
+- Proof surface: Besu block headers, commit seals, Ethereum account proofs, and Ethereum storage proofs.
+- Counterparty storage model: Eureka `ICS26Router` / `IBCStoreUpgradeable` commitments mapping.
+- Not supported in v1: QBFT validator-contract mode, mode transitions, and misbehaviour handling.
+- Current fixture status: `test/besu-bft/fixtures/` are synthetic regression fixtures; real Besu-derived golden fixtures remain a follow-up interoperability-confidence improvement.
 
 ## Interchain Fungible Tokens (IFT)
 - Code reference: find the  `contracts` IFT contract code [here](https://github.com/cosmos/solidity-ibc-eureka/tree/mariuszzak/ift/contracts).
