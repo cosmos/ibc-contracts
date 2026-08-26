@@ -78,30 +78,19 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         wrongWrapper = _deployWrongWrapper();
     }
 
-    function test_updateClient_validAdjacentUpdate() public {
-        vm.warp(fixture.initialTrustedTimestamp + 1);
-
-        ILightClientMsgs.UpdateResult result = client.updateClient(_encodeUpdate(fixture.adjacentUpdate));
-
-        assertEq(uint8(result), uint8(ILightClientMsgs.UpdateResult.Update));
-        _assertClientState(
-            fixture.adjacentUpdate.expectedTimestamp,
-            fixture.adjacentUpdate.expectedStorageRoot,
-            fixture.adjacentUpdate.height
-        );
+    function fixtureUpdate() public view returns (BesuUpdateFixture[] memory updates) {
+        updates = new BesuUpdateFixture[](2);
+        updates[0] = fixture.adjacentUpdate;
+        updates[1] = fixture.nonAdjacentUpdate;
     }
 
-    function test_updateClient_validNonAdjacentUpdate() public {
+    function tableUpdateClientValid(BesuUpdateFixture memory update) public {
         vm.warp(fixture.initialTrustedTimestamp + 1);
 
-        ILightClientMsgs.UpdateResult result = client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
+        ILightClientMsgs.UpdateResult result = client.updateClient(_encodeUpdate(update));
 
         assertEq(uint8(result), uint8(ILightClientMsgs.UpdateResult.Update));
-        _assertClientState(
-            fixture.nonAdjacentUpdate.expectedTimestamp,
-            fixture.nonAdjacentUpdate.expectedStorageRoot,
-            fixture.nonAdjacentUpdate.height
-        );
+        _assertClientState(update);
     }
 
     function test_updateClient_revertZeroTimestampWithoutStateChange() public {
@@ -287,33 +276,23 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         wrongWrapper.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
     }
 
-    function _assertClientState(
-        uint64 expectedTimestamp,
-        bytes32 expectedStorageRoot,
-        uint64 expectedLatestHeight
-    )
-        internal
-        view
-    {
+    function _assertClientState(BesuUpdateFixture memory update) internal view {
         (address ibcRouter, IICS02ClientMsgs.Height memory latestHeight, uint64 trustingPeriod, uint64 maxClockDrift) =
             abi.decode(client.getClientState(), (address, IICS02ClientMsgs.Height, uint64, uint64));
         assertEq(ibcRouter, fixture.routerAddress);
         assertEq(latestHeight.revisionNumber, 0);
-        assertEq(latestHeight.revisionHeight, expectedLatestHeight);
+        assertEq(latestHeight.revisionHeight, update.height);
         assertEq(trustingPeriod, fixture.trustingPeriod);
         assertEq(maxClockDrift, fixture.maxClockDrift);
 
         (uint64 timestamp, bytes32 storageRoot, address[] memory validators) =
-            abi.decode(client.getConsensusState(expectedLatestHeight), (uint64, bytes32, address[]));
-        assertEq(timestamp, expectedTimestamp);
-        assertEq(storageRoot, expectedStorageRoot);
+            abi.decode(client.getConsensusState(update.height), (uint64, bytes32, address[]));
+        assertEq(timestamp, update.expectedTimestamp);
+        assertEq(storageRoot, update.expectedStorageRoot);
 
-        address[] memory expectedValidators = expectedLatestHeight == fixture.adjacentUpdate.height
-            ? fixture.adjacentUpdate.expectedValidators
-            : fixture.nonAdjacentUpdate.expectedValidators;
-        assertEq(validators.length, expectedValidators.length);
-        for (uint256 i = 0; i < expectedValidators.length; ++i) {
-            assertEq(validators[i], expectedValidators[i]);
+        assertEq(validators.length, update.expectedValidators.length);
+        for (uint256 i = 0; i < update.expectedValidators.length; ++i) {
+            assertEq(validators[i], update.expectedValidators[i]);
         }
     }
 
