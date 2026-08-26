@@ -390,7 +390,7 @@ func (s *BesuToBesuTestSuite) deployContracts(chain *besuToBesuChainState) {
 
 func (s *BesuToBesuTestSuite) startRelayer() {
 	config := proofapi.NewConfigBuilder().
-		BesuToBesu(proofapi.BesuToBesuParams{
+		BesuToEth(proofapi.BesuToEthParams{
 			SrcChainID:    s.chainA.eth.ChainID.String(),
 			DstChainID:    s.chainB.eth.ChainID.String(),
 			SrcRPC:        s.chainA.eth.RPC,
@@ -399,7 +399,7 @@ func (s *BesuToBesuTestSuite) startRelayer() {
 			DstICS26:      s.chainB.contractAddresses.Ics26Router,
 			ConsensusType: besuToBesuConsensusTypeQBFT,
 		}).
-		BesuToBesu(proofapi.BesuToBesuParams{
+		BesuToEth(proofapi.BesuToEthParams{
 			SrcChainID:    s.chainB.eth.ChainID.String(),
 			DstChainID:    s.chainA.eth.ChainID.String(),
 			SrcRPC:        s.chainB.eth.RPC,

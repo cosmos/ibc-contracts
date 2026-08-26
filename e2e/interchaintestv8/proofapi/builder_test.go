@@ -10,8 +10,8 @@ import (
 func TestEVMToEVMBuildersEmitSourceChainOnlyAtRoutingLevel(t *testing.T) {
 	b := NewConfigBuilder().
 		EthToEthAttested(EthToEthAttestedParams{SrcChainID: "eth-a", DstChainID: "eth-b"}).
-		BesuToBesu(BesuToBesuParams{SrcChainID: "besu-a", DstChainID: "besu-b"})
-	wantSource := map[string]string{ModuleEthToEth: "eth-a", ModuleBesuToBesu: "besu-a"}
+		BesuToEth(BesuToEthParams{SrcChainID: "besu-a", DstChainID: "besu-b"})
+	wantSource := map[string]string{ModuleEthToEth: "eth-a", ModuleBesuToEth: "besu-a"}
 
 	for _, module := range b.modules {
 		config, err := json.Marshal(module.Config)

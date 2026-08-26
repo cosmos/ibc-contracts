@@ -1,5 +1,5 @@
 [package]
-name = "proof-api-besu-to-besu"
+name = "proof-api-besu-to-eth"
 version.workspace = true
 edition.workspace = true
 repository.workspace = true

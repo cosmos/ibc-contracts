@@ -8491,7 +8491,7 @@ dependencies = [
  "opentelemetry-otlp",
  "opentelemetry_sdk",
  "prometheus",
- "proof-api-besu-to-besu",
+ "proof-api-besu-to-eth",
  "proof-api-core",
  "proof-api-cosmos-to-cosmos",
  "proof-api-cosmos-to-eth",
@@ -8513,7 +8513,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "proof-api-besu-to-besu"
+name = "proof-api-besu-to-eth"
 version = "0.1.0"
 dependencies = [
  "alloy 2.0.4",

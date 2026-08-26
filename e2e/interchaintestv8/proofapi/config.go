@@ -20,7 +20,7 @@ const (
 	ModuleEthToCosmos       = "eth_to_cosmos"
 	ModuleEthToCosmosCompat = "eth_to_cosmos_compat"
 	ModuleEthToEth          = "eth_to_eth"
-	ModuleBesuToBesu        = "besu_to_besu"
+	ModuleBesuToEth         = "besu_to_eth"
 	ModuleSolanaToCosmos    = "solana_to_cosmos"
 	ModuleCosmosToSolana    = "cosmos_to_solana"
 	ModuleEthToSolana       = "eth_to_solana"
@@ -230,8 +230,8 @@ type EthToEthModuleConfig struct {
 	Mode            TxBuilderMode `json:"mode"`
 }
 
-// BesuToBesuModuleConfig represents the configuration for besu_to_besu module.
-type BesuToBesuModuleConfig struct {
+// BesuToEthModuleConfig represents the configuration for besu_to_eth module.
+type BesuToEthModuleConfig struct {
 	SrcRPCURL       string `json:"src_rpc_url"`
 	SrcICS26Address string `json:"src_ics26_address"`
 	DstRPCURL       string `json:"dst_rpc_url"`

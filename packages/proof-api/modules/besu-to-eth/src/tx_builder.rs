@@ -7,10 +7,11 @@ use std::{
 };
 
 use alloy::{
+    consensus::Header,
     network::Ethereum,
     primitives::{hex, Address, Bytes, B256, U256},
     providers::{Provider, RootProvider},
-    rpc::types::EIP1186StorageProof,
+    rpc::types::{EIP1186AccountProofResponse, EIP1186StorageProof},
     sol_types::{SolCall, SolValue},
 };
 use alloy_rlp::Header as RlpHeader;
@@ -26,12 +27,9 @@ use ibc_eureka_solidity_types::{
     },
     msgs::{IBesuLightClientMsgs, IICS02ClientMsgs::Height as MsgHeight},
 };
-use proof_api_lib::{
-    events::EurekaEventWithHeight,
-    utils::{
-        eth_eureka::{src_events_to_recv_and_ack_msgs, target_events_to_timeout_msgs},
-        RelayEventsParams,
-    },
+use proof_api_lib::utils::{
+    eth_eureka::{src_events_to_recv_and_ack_msgs, target_events_to_timeout_msgs},
+    RelayEventsParams,
 };
 use rlp::Rlp;
 
@@ -51,6 +49,11 @@ struct CreateClientParams {
     trusted_height: Option<u64>,
     role_manager: Address,
 }
+
+const TRUSTING_PERIOD: &str = "trusting_period";
+const MAX_CLOCK_DRIFT: &str = "max_clock_drift";
+const TRUSTED_HEIGHT: &str = "trusted_height";
+const ROLE_MANAGER: &str = "role_manager";
 
 impl TxBuilder {
     pub fn new(
@@ -84,18 +87,16 @@ impl TxBuilder {
                 .context("failed to fetch latest source block number")?,
         };
 
-        let block = EthApiClient::new(self.src_provider.clone())
-            .get_block(trusted_height)
+        let header = self
+            .fetch_source_header(trusted_height)
             .await
             .with_context(|| format!("failed to fetch source block at height {trusted_height}"))?;
-        let header = block.into_consensus_header();
-        let header_rlp = alloy_rlp::encode(&header);
         let validators =
-            extract_validators_from_header_extra_data(&header_rlp).with_context(|| {
+            extract_validators_from_extra_data(&header.extra_data).with_context(|| {
                 format!("failed to extract validators from source block {trusted_height}")
             })?;
-        let (storage_root, _) = self
-            .fetch_source_account_proof(trusted_height)
+        let proof = self
+            .fetch_source_proofs(trusted_height, &[])
             .await
             .with_context(|| {
                 format!(
@@ -109,7 +110,7 @@ impl TxBuilder {
                 *self.src_ics26_router.address(),
                 trusted_height,
                 header.timestamp,
-                storage_root,
+                proof.storage_hash,
                 validators,
                 params.trusting_period,
                 params.max_clock_drift,
@@ -123,7 +124,7 @@ impl TxBuilder {
                     *self.src_ics26_router.address(),
                     trusted_height,
                     header.timestamp,
-                    storage_root,
+                    proof.storage_hash,
                     validators,
                     params.trusting_period,
                     params.max_clock_drift,
@@ -150,12 +151,12 @@ impl TxBuilder {
             .get_block_number()
             .await
             .context("failed to fetch latest source block number")?;
-        let header_rlp = self
-            .fetch_source_header_rlp(target_height)
+        let header = self
+            .fetch_source_header(target_height)
             .await
             .with_context(|| format!("failed to fetch source block at height {target_height}"))?;
-        let (_, account_proof) = self
-            .fetch_source_account_proof(target_height)
+        let proof = self
+            .fetch_source_proofs(target_height, &[])
             .await
             .with_context(|| {
                 format!("failed to fetch account proof for source router at height {target_height}")
@@ -164,19 +165,24 @@ impl TxBuilder {
         Ok(Self::build_update_client_calldata(
             dst_client_id,
             trusted_height,
-            header_rlp,
-            account_proof,
+            header,
+            encode_rlp_node_list(&proof.account_proof),
         ))
     }
 
     pub async fn relay_events(&self, params: RelayEventsParams) -> Result<Vec<u8>> {
-        let proof_height = select_proof_height(&params.src_events, params.timeout_relay_height)?;
-        let proof_block = EthApiClient::new(self.src_provider.clone())
-            .get_block(proof_height)
+        let proof_height = params
+            .src_events
+            .iter()
+            .map(|event| event.height)
+            .chain(params.timeout_relay_height)
+            .max()
+            .ok_or_else(|| anyhow!("no packets collected"))?;
+        let header = self
+            .fetch_source_header(proof_height)
             .await
             .with_context(|| format!("failed to fetch source block at height {proof_height}"))?;
-        let proof_timestamp = proof_block.header.timestamp;
-        let header_rlp = alloy_rlp::encode(proof_block.into_consensus_header());
+        let proof_timestamp = header.timestamp;
         let now = std::time::SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .context("failed to read system time")?
@@ -224,7 +230,7 @@ impl TxBuilder {
             .collect::<Vec<_>>();
         storage_keys.sort_unstable();
         storage_keys.dedup();
-        let (_, account_proof, storage_proofs) = self
+        let proof = self
             .fetch_source_proofs(proof_height, &storage_keys)
             .await
             .with_context(|| {
@@ -232,10 +238,12 @@ impl TxBuilder {
                     "failed to fetch account and storage proofs for source router at height {proof_height}"
                 )
             })?;
+        let account_proof = encode_rlp_node_list(&proof.account_proof);
+        let storage_proofs = map_storage_proofs(&storage_keys, proof.storage_proof)?;
         let update_call = Self::build_update_client_calldata(
             &params.dst_client_id,
             client_state.latestHeight.revisionHeight,
-            header_rlp,
+            header,
             account_proof,
         );
 
@@ -256,11 +264,11 @@ impl TxBuilder {
     fn build_update_client_calldata(
         dst_client_id: &str,
         trusted_height: u64,
-        header_rlp: Vec<u8>,
+        header: Header,
         account_proof: Vec<u8>,
     ) -> Vec<u8> {
         let update_msg = IBesuLightClientMsgs::MsgUpdateClient {
-            headerRlp: header_rlp.into(),
+            headerRlp: alloy_rlp::encode(header).into(),
             trustedHeight: MsgHeight {
                 revisionNumber: 0,
                 revisionHeight: trusted_height,
@@ -275,25 +283,20 @@ impl TxBuilder {
         .abi_encode()
     }
 
-    async fn fetch_source_header_rlp(&self, block_height: u64) -> Result<Vec<u8>> {
+    async fn fetch_source_header(&self, block_height: u64) -> Result<Header> {
         let block = EthApiClient::new(self.src_provider.clone())
             .get_block(block_height)
             .await
             .with_context(|| format!("failed to fetch source block at height {block_height}"))?;
-        Ok(alloy_rlp::encode(block.into_consensus_header()))
-    }
-
-    async fn fetch_source_account_proof(&self, block_height: u64) -> Result<(B256, Vec<u8>)> {
-        let (storage_hash, account_proof, _) = self.fetch_source_proofs(block_height, &[]).await?;
-        Ok((storage_hash, account_proof))
+        Ok(block.into_consensus_header())
     }
 
     async fn fetch_source_proofs(
         &self,
         block_height: u64,
         storage_keys: &[B256],
-    ) -> Result<(B256, Vec<u8>, HashMap<B256, Vec<u8>>)> {
-        let proof = EthApiClient::new(self.src_provider.clone())
+    ) -> Result<EIP1186AccountProofResponse> {
+        Ok(EthApiClient::new(self.src_provider.clone())
             .get_proof(
                 &self.src_ics26_router.address().to_string(),
                 storage_keys
@@ -302,14 +305,7 @@ impl TxBuilder {
                     .collect(),
                 format!("0x{block_height:x}"),
             )
-            .await?;
-        let storage_proofs = map_storage_proofs(storage_keys, proof.storage_proof)?;
-
-        Ok((
-            proof.storage_hash,
-            encode_rlp_node_list(&proof.account_proof),
-            storage_proofs,
-        ))
+            .await?)
     }
 
     async fn fetch_destination_client_state(
@@ -397,40 +393,42 @@ fn map_storage_proofs(
 }
 
 fn parse_create_client_params(parameters: &HashMap<String, String>) -> Result<CreateClientParams> {
-    for key in parameters.keys() {
-        if !matches!(
-            key.as_str(),
-            "trusting_period" | "max_clock_drift" | "trusted_height" | "role_manager"
-        ) {
-            bail!(
-                "unexpected parameter `{key}`, only `trusting_period`, `max_clock_drift`, `trusted_height`, and `role_manager` are allowed"
-            );
-        }
-    }
+    parameters
+        .keys()
+        .find(|key| {
+            ![TRUSTING_PERIOD, MAX_CLOCK_DRIFT, TRUSTED_HEIGHT, ROLE_MANAGER]
+                .contains(&key.as_str())
+        })
+        .map_or(Ok(()), |key| {
+            Err(anyhow!(
+                "unexpected parameter `{key}`, only `{TRUSTING_PERIOD}`, `{MAX_CLOCK_DRIFT}`, `{TRUSTED_HEIGHT}`, and `{ROLE_MANAGER}` are allowed"
+            ))
+        })?;
 
     Ok(CreateClientParams {
         trusting_period: parameters
-            .get("trusting_period")
-            .ok_or_else(|| anyhow!("missing `trusting_period` parameter"))?
+            .get(TRUSTING_PERIOD)
+            .ok_or_else(|| anyhow!("missing `{TRUSTING_PERIOD}` parameter"))?
             .parse()
-            .context("failed to parse `trusting_period` as decimal seconds")?,
+            .with_context(|| format!("failed to parse `{TRUSTING_PERIOD}` as decimal seconds"))?,
         max_clock_drift: parameters
-            .get("max_clock_drift")
-            .ok_or_else(|| anyhow!("missing `max_clock_drift` parameter"))?
+            .get(MAX_CLOCK_DRIFT)
+            .ok_or_else(|| anyhow!("missing `{MAX_CLOCK_DRIFT}` parameter"))?
             .parse()
-            .context("failed to parse `max_clock_drift` as decimal seconds")?,
+            .with_context(|| format!("failed to parse `{MAX_CLOCK_DRIFT}` as decimal seconds"))?,
         trusted_height: parameters
-            .get("trusted_height")
+            .get(TRUSTED_HEIGHT)
             .map(|value| {
-                value
-                    .parse()
-                    .context("failed to parse `trusted_height` as decimal block height")
+                value.parse().with_context(|| {
+                    format!("failed to parse `{TRUSTED_HEIGHT}` as decimal block height")
+                })
             })
             .transpose()?,
         role_manager: parameters
-            .get("role_manager")
+            .get(ROLE_MANAGER)
             .map_or(Ok(Address::ZERO), |value| {
-                Address::from_str(value).context("failed to parse `role_manager` as hex address")
+                Address::from_str(value)
+                    .with_context(|| format!("failed to parse `{ROLE_MANAGER}` as hex address"))
             })?,
     })
 }
@@ -449,13 +447,7 @@ fn encode_rlp_node_list(nodes: &[Bytes]) -> Vec<u8> {
     encoded
 }
 
-fn extract_validators_from_header_extra_data(header_rlp: &[u8]) -> Result<Vec<Address>> {
-    let header = Rlp::new(header_rlp);
-    let extra_data = header
-        .at(12)
-        .context("failed to read header extraData field")?
-        .data()
-        .context("failed to decode header extraData bytes")?;
+fn extract_validators_from_extra_data(extra_data: &[u8]) -> Result<Vec<Address>> {
     let extra_data = Rlp::new(extra_data);
     let validators = extra_data
         .at(1)
@@ -478,33 +470,15 @@ fn extract_validators_from_header_extra_data(header_rlp: &[u8]) -> Result<Vec<Ad
     Ok(out)
 }
 
-fn select_proof_height(
-    src_events: &[EurekaEventWithHeight],
-    timeout_relay_height: Option<u64>,
-) -> Result<u64> {
-    match (
-        src_events.iter().map(|event| event.height).max(),
-        timeout_relay_height,
-    ) {
-        (Some(src_height), Some(timeout_height)) => Ok(src_height.max(timeout_height)),
-        (Some(src_height), None) => Ok(src_height),
-        (None, Some(timeout_height)) => Ok(timeout_height),
-        (None, None) => bail!("no packets collected"),
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{
-        encode_rlp_node_list, extract_validators_from_header_extra_data, map_storage_proofs,
-        select_proof_height,
-    };
+    use super::{encode_rlp_node_list, extract_validators_from_extra_data, map_storage_proofs};
     use alloy::{
+        consensus::Header,
         primitives::{hex, Address, Bytes, B256, U256},
         rpc::types::EIP1186StorageProof,
     };
-    use ibc_eureka_solidity_types::ics26::IICS26RouterMsgs::{Packet, Payload};
-    use proof_api_lib::events::{EurekaEvent, EurekaEventWithHeight};
+    use alloy_rlp::Decodable;
     use serde::Deserialize;
     use std::str::FromStr;
 
@@ -550,27 +524,12 @@ mod tests {
             .collect()
     }
 
-    fn packet(sequence: u64) -> Packet {
-        Packet {
-            sequence,
-            sourceClient: "src-client".to_string(),
-            destClient: "dst-client".to_string(),
-            timeoutTimestamp: u64::MAX,
-            payloads: vec![Payload {
-                sourcePort: "transfer".to_string(),
-                destPort: "transfer".to_string(),
-                version: "ics20-1".to_string(),
-                encoding: "abi".to_string(),
-                value: Bytes::default(),
-            }],
-        }
-    }
-
     #[test]
     fn extracts_validators_from_fixture_header() {
         let fixture = load_fixture();
         let header_rlp = decode_hex_bytes(&fixture.non_adjacent_update.header_rlp);
-        let validators = extract_validators_from_header_extra_data(&header_rlp).unwrap();
+        let header = Header::decode(&mut header_rlp.as_slice()).unwrap();
+        let validators = extract_validators_from_extra_data(&header.extra_data).unwrap();
         let expected = fixture
             .non_adjacent_update
             .expected_validators
@@ -650,27 +609,5 @@ mod tests {
                 .to_string()
                 .contains("unexpected storage proof")
         );
-    }
-
-    #[test]
-    fn selects_max_proof_height() {
-        let src_events = vec![
-            EurekaEventWithHeight {
-                event: EurekaEvent::SendPacket(packet(3)),
-                height: 10,
-            },
-            EurekaEventWithHeight {
-                event: EurekaEvent::WriteAcknowledgement(
-                    packet(4),
-                    vec![Bytes::from(vec![b'a', b'c', b'k'])],
-                ),
-                height: 12,
-            },
-        ];
-
-        assert_eq!(select_proof_height(&src_events, None).unwrap(), 12);
-        assert_eq!(select_proof_height(&[], Some(15)).unwrap(), 15);
-        assert_eq!(select_proof_height(&src_events, Some(11)).unwrap(), 12);
-        assert_eq!(select_proof_height(&src_events, Some(14)).unwrap(), 14);
     }
 }

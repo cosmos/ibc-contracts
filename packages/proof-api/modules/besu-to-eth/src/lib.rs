@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-//! One-sided Besu-to-Besu proof API module.
+//! One-sided Besu-to-Ethereum proof API module.
 
 #![deny(clippy::nursery, clippy::pedantic, warnings, unused_crate_dependencies)]
 #![allow(missing_docs)]
@@ -27,9 +27,9 @@ use tracing as _;
 use tx_builder::TxBuilder;
 
 #[derive(Clone, Copy, Debug)]
-pub struct BesuToBesuProofApiModule;
+pub struct BesuToEthProofApiModule;
 
-struct BesuToBesuProofApiModuleService {
+struct BesuToEthProofApiModuleService {
     src_ics26_address: Address,
     src_listener: eth_eureka::ChainListener<RootProvider>,
     dst_listener: eth_eureka::ChainListener<RootProvider>,
@@ -44,7 +44,7 @@ pub enum BesuConsensusType {
 }
 
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
-pub struct BesuToBesuConfig {
+pub struct BesuToEthConfig {
     pub src_rpc_url: String,
     pub src_ics26_address: Address,
     pub dst_rpc_url: String,
@@ -52,8 +52,8 @@ pub struct BesuToBesuConfig {
     pub consensus_type: BesuConsensusType,
 }
 
-impl BesuToBesuProofApiModuleService {
-    async fn new(config: BesuToBesuConfig) -> anyhow::Result<Self> {
+impl BesuToEthProofApiModuleService {
+    async fn new(config: BesuToEthConfig) -> anyhow::Result<Self> {
         let src_provider = RootProvider::builder()
             .connect(&config.src_rpc_url)
             .await
@@ -85,7 +85,7 @@ impl BesuToBesuProofApiModuleService {
 }
 
 #[tonic::async_trait]
-impl ProofApiService for BesuToBesuProofApiModuleService {
+impl ProofApiService for BesuToEthProofApiModuleService {
     async fn info(
         &self,
         request: Request<api::InfoRequest>,
@@ -203,28 +203,28 @@ impl ProofApiService for BesuToBesuProofApiModuleService {
 }
 
 #[tonic::async_trait]
-impl ProofApiModule for BesuToBesuProofApiModule {
+impl ProofApiModule for BesuToEthProofApiModule {
     fn name(&self) -> &'static str {
-        "besu_to_besu"
+        "besu_to_eth"
     }
 
     async fn create_service(
         &self,
         config: serde_json::Value,
     ) -> anyhow::Result<Box<dyn ProofApiService>> {
-        let config: BesuToBesuConfig = serde_json::from_value(config)?;
-        let service = BesuToBesuProofApiModuleService::new(config).await?;
+        let config: BesuToEthConfig = serde_json::from_value(config)?;
+        let service = BesuToEthProofApiModuleService::new(config).await?;
         Ok(Box::new(service))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::BesuToBesuConfig;
+    use super::BesuToEthConfig;
 
     #[test]
     fn obsolete_src_chain_id_is_ignored() {
-        let config: BesuToBesuConfig = serde_json::from_value(serde_json::json!({
+        let config: BesuToEthConfig = serde_json::from_value(serde_json::json!({
             "src_chain_id": "legacy",
             "src_rpc_url": "http://localhost:8545",
             "src_ics26_address": "0x0000000000000000000000000000000000000001",

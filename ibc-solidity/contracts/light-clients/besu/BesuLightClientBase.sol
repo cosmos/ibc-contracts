@@ -437,15 +437,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         if (consensusState.timestamp != timestamp || consensusState.storageRoot != storageRoot) {
             return false;
         }
-        if (consensusState.validators.length != validators.length) {
-            return false;
-        }
-        for (uint256 i = 0; i < validators.length; ++i) {
-            if (consensusState.validators[i] != validators[i]) {
-                return false;
-            }
-        }
-        return true;
+        return keccak256(abi.encode(consensusState.validators)) == keccak256(abi.encode(validators));
     }
 
     /// @notice Returns a stored consensus state or reverts if it is missing.

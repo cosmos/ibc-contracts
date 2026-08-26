@@ -147,7 +147,7 @@
       }
     },
     {
-      "name": "besu_to_besu",
+      "name": "besu_to_eth",
       "src_chain": "besu-a",
       "dst_chain": "besu-b",
       "enabled": false,

@@ -72,7 +72,7 @@ just test-e2e TestWithIbcEurekaTestSuite/Test_ICS20TransferERC20TokenfromEthereu
 
 ## Focused Besu ↔ Besu e2e
 
-This focused suite starts two independent Besu QBFT networks, deploys Eureka contracts on both, starts the Rust relayer with `besu_to_besu` in both directions, deploys and registers Besu light clients on both chains, and verifies a one-way A → B ICS20 transfer plus the B → A acknowledgement relay using real Besu proofs.
+This focused suite starts two independent Besu QBFT networks, deploys Eureka contracts on both, starts the Rust relayer with `besu_to_eth` in both directions, deploys and registers Besu light clients on both chains, and verifies a one-way A → B ICS20 transfer plus the B → A acknowledgement relay using real Besu proofs.
 
 ### Focused local test commands
 

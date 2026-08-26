@@ -239,11 +239,11 @@ func (b *ConfigBuilder) EthToEthAttested(p EthToEthAttestedParams) *ConfigBuilde
 }
 
 // =============================================================================
-// Besu → Besu
+// Besu → EVM
 // =============================================================================
 
-// BesuToBesuParams contains parameters for besu_to_besu module.
-type BesuToBesuParams struct {
+// BesuToEthParams contains parameters for besu_to_eth module.
+type BesuToEthParams struct {
 	SrcChainID    string
 	DstChainID    string
 	SrcRPC        string
@@ -253,13 +253,13 @@ type BesuToBesuParams struct {
 	ConsensusType string
 }
 
-// BesuToBesu adds a Besu→Besu module.
-func (b *ConfigBuilder) BesuToBesu(p BesuToBesuParams) *ConfigBuilder {
+// BesuToEth adds a Besu→EVM module.
+func (b *ConfigBuilder) BesuToEth(p BesuToEthParams) *ConfigBuilder {
 	module := ModuleConfig{
-		Name:     ModuleBesuToBesu,
+		Name:     ModuleBesuToEth,
 		SrcChain: p.SrcChainID,
 		DstChain: p.DstChainID,
-		Config: BesuToBesuModuleConfig{
+		Config: BesuToEthModuleConfig{
 			SrcRPCURL:       p.SrcRPC,
 			SrcICS26Address: p.SrcICS26,
 			DstRPCURL:       p.DstRPC,
