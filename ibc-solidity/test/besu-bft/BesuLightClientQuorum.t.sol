@@ -31,7 +31,7 @@ contract BesuLightClientQuorumTest is Test {
     }
 
     function test_constructor_rejectsZeroTrustedTimestamp() public {
-        vm.expectRevert(IBesuLightClientErrors.InvalidHeaderTimestamp.selector);
+        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.InvalidHeaderTimestamp.selector, 0));
         new BesuLightClientQuorumHarness(0, _addresses(1));
     }
 
