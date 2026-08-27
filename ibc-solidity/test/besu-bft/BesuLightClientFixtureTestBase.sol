@@ -43,6 +43,22 @@ struct BesuProofFixture {
     uint64 expectedTimestamp;
 }
 
+/// @dev Update expected to be rejected, including any scenario-specific setup.
+struct BesuUpdateRejectionTestCase {
+    string name;
+    uint64 timestamp;
+    bytes update;
+    bytes preUpdate;
+    bytes expectedRevert;
+}
+
+/// @dev Membership or non-membership proof verification test case.
+struct BesuProofTestCase {
+    string name;
+    bool isMembership;
+    BesuProofFixture proofFixture;
+}
+
 /// @dev Complete fixture shared by the Besu BFT light-client tests.
 struct BesuFixture {
     address routerAddress;
@@ -93,7 +109,9 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         _assertClientState(update);
     }
 
-    function test_updateClient_revertZeroTimestampWithoutStateChange() public {
+    function fixtureUpdateRejection() public view returns (BesuUpdateRejectionTestCase[] memory testCases) {
+        testCases = new BesuUpdateRejectionTestCase[](6);
+
         BesuUpdateFixture memory update = fixture.nonAdjacentUpdate;
         RLPReader.RLPItem memory headerItem = update.headerRlp.toRlpItem();
         RLPReader.RLPItem[] memory headerItems = headerItem.toList();
@@ -102,90 +120,116 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             update.headerRlp[timestampPtr - headerItem.memPtr + i] = 0;
         }
 
-        bytes memory clientStateBefore = client.getClientState();
-        bytes memory consensusStateBefore = client.getConsensusState(fixture.initialTrustedHeight);
-
-        vm.expectRevert(IBesuLightClientErrors.InvalidHeaderTimestamp.selector);
-        client.updateClient(_encodeUpdate(update));
-
-        assertEq(client.getClientState(), clientStateBefore);
-        assertEq(client.getConsensusState(fixture.initialTrustedHeight), consensusStateBefore);
-    }
-
-    function test_verifyMembership_returnsStoredTimestamp() public {
-        vm.warp(fixture.initialTrustedTimestamp + 1);
-        client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
-
-        uint256 timestamp = client.verifyMembership(
-            ILightClientMsgs.MsgVerifyMembership({
-                proof: fixture.membership.proof,
-                proofHeight: IICS02ClientMsgs.Height({
-                    revisionNumber: 0, revisionHeight: fixture.membership.proofHeight
-                }),
-                path: _singlePath(fixture.membership.path),
-                value: fixture.membership.value
-            })
-        );
-
-        assertEq(timestamp, fixture.membership.expectedTimestamp);
-    }
-
-    function test_verifyNonMembership_returnsStoredTimestamp() public {
-        vm.warp(fixture.initialTrustedTimestamp + 1);
-        client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
-
-        uint256 timestamp = client.verifyNonMembership(
-            ILightClientMsgs.MsgVerifyNonMembership({
-                proof: fixture.nonMembership.proof,
-                proofHeight: IICS02ClientMsgs.Height({
-                    revisionNumber: 0, revisionHeight: fixture.nonMembership.proofHeight
-                }),
-                path: _singlePath(fixture.nonMembership.path)
-            })
-        );
-
-        assertEq(timestamp, fixture.nonMembership.expectedTimestamp);
-    }
-
-    function test_updateClient_revertExpiredTrustedState() public {
-        vm.warp(fixture.initialTrustedTimestamp + fixture.trustingPeriod + 1);
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
+        testCases[0] = BesuUpdateRejectionTestCase({
+            name: "zero timestamp",
+            timestamp: fixture.initialTrustedTimestamp + 1,
+            update: _encodeUpdate(update),
+            preUpdate: "",
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidHeaderTimestamp.selector)
+        });
+        testCases[1] = BesuUpdateRejectionTestCase({
+            name: "expired trusted state",
+            timestamp: fixture.initialTrustedTimestamp + fixture.trustingPeriod + 1,
+            update: _encodeUpdate(fixture.nonAdjacentUpdate),
+            preUpdate: "",
+            expectedRevert: abi.encodeWithSelector(
                 IBesuLightClientErrors.ConsensusStateExpired.selector,
                 fixture.initialTrustedTimestamp,
                 fixture.initialTrustedTimestamp + fixture.trustingPeriod + 1,
                 fixture.trustingPeriod
             )
-        );
-        client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
-    }
+        });
+        testCases[2] = BesuUpdateRejectionTestCase({
+            name: "insufficient trusted overlap",
+            timestamp: fixture.initialTrustedTimestamp + 1,
+            update: _encodeUpdate(fixture.lowOverlapUpdate),
+            preUpdate: "",
+            expectedRevert: abi.encodeWithSelector(
+                IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 1, 2
+            )
+        });
+        testCases[3] = BesuUpdateRejectionTestCase({
+            name: "insufficient validator quorum",
+            timestamp: fixture.initialTrustedTimestamp + 1,
+            update: _encodeUpdate(fixture.lowQuorumUpdate),
+            preUpdate: "",
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InsufficientValidatorQuorum.selector, 2, 3)
+        });
 
-    function test_updateClient_revertInsufficientTrustedOverlap() public {
-        vm.warp(fixture.initialTrustedTimestamp + 1);
-
-        vm.expectRevert(
-            abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 1, 2)
-        );
-        client.updateClient(_encodeUpdate(fixture.lowOverlapUpdate));
-    }
-
-    function test_updateClient_revertInsufficientNewValidatorQuorum() public {
-        vm.warp(fixture.initialTrustedTimestamp + 1);
-
-        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.InsufficientValidatorQuorum.selector, 2, 3));
-        client.updateClient(_encodeUpdate(fixture.lowQuorumUpdate));
-    }
-
-    function test_updateClient_revertWrongRevisionNumber() public {
-        vm.warp(fixture.initialTrustedTimestamp + 1);
-
-        IBesuLightClientMsgs.MsgUpdateClient memory update =
+        IBesuLightClientMsgs.MsgUpdateClient memory wrongRevisionUpdate =
             abi.decode(_encodeUpdate(fixture.nonAdjacentUpdate), (IBesuLightClientMsgs.MsgUpdateClient));
-        update.trustedHeight.revisionNumber = 1;
+        wrongRevisionUpdate.trustedHeight.revisionNumber = 1;
+        testCases[4] = BesuUpdateRejectionTestCase({
+            name: "wrong revision number",
+            timestamp: fixture.initialTrustedTimestamp + 1,
+            update: abi.encode(wrongRevisionUpdate),
+            preUpdate: "",
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidRevisionNumber.selector, 1)
+        });
+        testCases[5] = BesuUpdateRejectionTestCase({
+            name: "conflicting same-height state",
+            timestamp: fixture.initialTrustedTimestamp + 1,
+            update: _encodeUpdate(fixture.conflictingUpdate),
+            preUpdate: _encodeUpdate(fixture.nonAdjacentUpdate),
+            expectedRevert: abi.encodeWithSelector(
+                IBesuLightClientErrors.ConflictingConsensusState.selector, fixture.conflictingUpdate.height
+            )
+        });
+    }
 
-        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.InvalidRevisionNumber.selector, 1));
-        client.updateClient(abi.encode(update));
+    function tableUpdateClientRejection(BesuUpdateRejectionTestCase memory updateRejection) public {
+        vm.warp(updateRejection.timestamp);
+        if (updateRejection.preUpdate.length != 0) {
+            client.updateClient(updateRejection.preUpdate);
+        }
+
+        bytes memory clientStateBefore = client.getClientState();
+        bytes memory consensusStateBefore = client.getConsensusState(fixture.initialTrustedHeight);
+
+        vm.expectRevert(updateRejection.expectedRevert);
+        client.updateClient(updateRejection.update);
+
+        assertEq(client.getClientState(), clientStateBefore);
+        assertEq(client.getConsensusState(fixture.initialTrustedHeight), consensusStateBefore);
+    }
+
+    function fixtureProof() public view returns (BesuProofTestCase[] memory testCases) {
+        testCases = new BesuProofTestCase[](2);
+        testCases[0] = BesuProofTestCase({ name: "membership", isMembership: true, proofFixture: fixture.membership });
+        testCases[1] =
+            BesuProofTestCase({ name: "non-membership", isMembership: false, proofFixture: fixture.nonMembership });
+    }
+
+    function tableVerifyProofReturnsStoredTimestamp(BesuProofTestCase memory proof) public {
+        vm.warp(fixture.initialTrustedTimestamp + 1);
+        client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
+
+        BesuProofFixture memory proofFixture = proof.proofFixture;
+        uint256 timestamp;
+        if (proof.isMembership) {
+            timestamp = client.verifyMembership(
+                ILightClientMsgs.MsgVerifyMembership({
+                    proof: proofFixture.proof,
+                    proofHeight: IICS02ClientMsgs.Height({
+                        revisionNumber: 0, revisionHeight: proofFixture.proofHeight
+                    }),
+                    path: _singlePath(proofFixture.path),
+                    value: proofFixture.value
+                })
+            );
+        } else {
+            timestamp = client.verifyNonMembership(
+                ILightClientMsgs.MsgVerifyNonMembership({
+                    proof: proofFixture.proof,
+                    proofHeight: IICS02ClientMsgs.Height({
+                        revisionNumber: 0, revisionHeight: proofFixture.proofHeight
+                    }),
+                    path: _singlePath(proofFixture.path)
+                })
+            );
+        }
+
+        assertEq(timestamp, proofFixture.expectedTimestamp);
     }
 
     function test_verifyMembership_revertWrongRevisionNumber() public {
@@ -248,18 +292,6 @@ abstract contract BesuLightClientFixtureTestBase is Test {
                 value: wrongValue
             })
         );
-    }
-
-    function test_updateClient_revertConflictingSameHeight() public {
-        vm.warp(fixture.initialTrustedTimestamp + 1);
-        client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IBesuLightClientErrors.ConflictingConsensusState.selector, fixture.conflictingUpdate.height
-            )
-        );
-        client.updateClient(_encodeUpdate(fixture.conflictingUpdate));
     }
 
     function test_misbehaviour_reverts() public {
