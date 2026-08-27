@@ -370,7 +370,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         });
     }
 
-    function _readUpdate(string memory json, string memory path) internal view returns (BesuUpdateFixture memory) {
+    function _readUpdate(string memory json, string memory path) internal pure returns (BesuUpdateFixture memory) {
         return BesuUpdateFixture({
             height: uint64(json.readUint(string.concat(path, ".height"))),
             headerRlp: json.readBytes(string.concat(path, ".headerRlp")),
@@ -384,7 +384,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
 
     function _readRejectionUpdate(string memory json, string memory path)
         internal
-        view
+        pure
         returns (BesuRejectionUpdateFixture memory)
     {
         return BesuRejectionUpdateFixture({
