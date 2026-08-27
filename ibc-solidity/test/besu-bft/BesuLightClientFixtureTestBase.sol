@@ -52,11 +52,11 @@ struct BesuUpdateRejectionTestCase {
     bytes expectedRevert;
 }
 
-/// @dev Membership or non-membership proof verification test case.
-struct BesuProofTestCase {
+/// @dev Membership verification expected to be rejected.
+struct BesuMembershipRejectionTestCase {
     string name;
-    bool isMembership;
-    BesuProofFixture proofFixture;
+    ILightClientMsgs.MsgVerifyMembership message;
+    bytes expectedRevert;
 }
 
 /// @dev Complete fixture shared by the Besu BFT light-client tests.
@@ -193,105 +193,68 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         assertEq(client.getConsensusState(fixture.initialTrustedHeight), consensusStateBefore);
     }
 
-    function fixtureProof() public view returns (BesuProofTestCase[] memory testCases) {
-        testCases = new BesuProofTestCase[](2);
-        testCases[0] = BesuProofTestCase({ name: "membership", isMembership: true, proofFixture: fixture.membership });
-        testCases[1] =
-            BesuProofTestCase({ name: "non-membership", isMembership: false, proofFixture: fixture.nonMembership });
-    }
-
-    function tableVerifyProofReturnsStoredTimestamp(BesuProofTestCase memory proof) public {
+    function test_verifyMembership_returnsStoredTimestamp() public {
         vm.warp(fixture.initialTrustedTimestamp + 1);
         client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
 
-        BesuProofFixture memory proofFixture = proof.proofFixture;
-        uint256 timestamp;
-        if (proof.isMembership) {
-            timestamp = client.verifyMembership(
-                ILightClientMsgs.MsgVerifyMembership({
-                    proof: proofFixture.proof,
-                    proofHeight: IICS02ClientMsgs.Height({
-                        revisionNumber: 0, revisionHeight: proofFixture.proofHeight
-                    }),
-                    path: _singlePath(proofFixture.path),
-                    value: proofFixture.value
-                })
-            );
-        } else {
-            timestamp = client.verifyNonMembership(
-                ILightClientMsgs.MsgVerifyNonMembership({
-                    proof: proofFixture.proof,
-                    proofHeight: IICS02ClientMsgs.Height({
-                        revisionNumber: 0, revisionHeight: proofFixture.proofHeight
-                    }),
-                    path: _singlePath(proofFixture.path)
-                })
-            );
-        }
+        uint256 timestamp = client.verifyMembership(
+            _membershipMessage(0, _singlePath(fixture.membership.path), fixture.membership.value)
+        );
 
-        assertEq(timestamp, proofFixture.expectedTimestamp);
+        assertEq(timestamp, fixture.membership.expectedTimestamp);
     }
 
-    function test_verifyMembership_revertWrongRevisionNumber() public {
+    function test_verifyNonMembership_returnsStoredTimestamp() public {
         vm.warp(fixture.initialTrustedTimestamp + 1);
         client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
 
-        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.InvalidRevisionNumber.selector, 1));
-        client.verifyMembership(
-            ILightClientMsgs.MsgVerifyMembership({
-                proof: fixture.membership.proof,
+        uint256 timestamp = client.verifyNonMembership(
+            ILightClientMsgs.MsgVerifyNonMembership({
+                proof: fixture.nonMembership.proof,
                 proofHeight: IICS02ClientMsgs.Height({
-                    revisionNumber: 1, revisionHeight: fixture.membership.proofHeight
+                    revisionNumber: 0, revisionHeight: fixture.nonMembership.proofHeight
                 }),
-                path: _singlePath(fixture.membership.path),
-                value: fixture.membership.value
+                path: _singlePath(fixture.nonMembership.path)
             })
         );
+
+        assertEq(timestamp, fixture.nonMembership.expectedTimestamp);
     }
 
-    function test_verifyMembership_revertWrongPathShape() public {
-        vm.warp(fixture.initialTrustedTimestamp + 1);
-        client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
-
+    function fixtureMembershipRejection() public view returns (BesuMembershipRejectionTestCase[] memory testCases) {
         bytes[] memory path = new bytes[](2);
         path[0] = fixture.membership.path;
         path[1] = fixture.nonMembership.path;
 
-        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.InvalidPathLength.selector, 1, 2));
-        client.verifyMembership(
-            ILightClientMsgs.MsgVerifyMembership({
-                proof: fixture.membership.proof,
-                proofHeight: IICS02ClientMsgs.Height({
-                    revisionNumber: 0, revisionHeight: fixture.membership.proofHeight
-                }),
-                path: path,
-                value: fixture.membership.value
-            })
-        );
-    }
-
-    function test_verifyMembership_revertWrongCommitmentValue() public {
-        vm.warp(fixture.initialTrustedTimestamp + 1);
-        client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
-
         bytes memory wrongValue = abi.encodePacked(bytes32(uint256(1)));
-        vm.expectRevert(
-            abi.encodeWithSelector(
+        testCases = new BesuMembershipRejectionTestCase[](3);
+        testCases[0] = BesuMembershipRejectionTestCase({
+            name: "wrong revision number",
+            message: _membershipMessage(1, _singlePath(fixture.membership.path), fixture.membership.value),
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidRevisionNumber.selector, 1)
+        });
+        testCases[1] = BesuMembershipRejectionTestCase({
+            name: "wrong path shape",
+            message: _membershipMessage(0, path, fixture.membership.value),
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidPathLength.selector, 1, 2)
+        });
+        testCases[2] = BesuMembershipRejectionTestCase({
+            name: "wrong commitment value",
+            message: _membershipMessage(0, _singlePath(fixture.membership.path), wrongValue),
+            expectedRevert: abi.encodeWithSelector(
                 IBesuLightClientErrors.InvalidCommitmentValue.selector,
                 bytes32(uint256(1)),
                 abi.decode(fixture.membership.value, (bytes32))
             )
-        );
-        client.verifyMembership(
-            ILightClientMsgs.MsgVerifyMembership({
-                proof: fixture.membership.proof,
-                proofHeight: IICS02ClientMsgs.Height({
-                    revisionNumber: 0, revisionHeight: fixture.membership.proofHeight
-                }),
-                path: _singlePath(fixture.membership.path),
-                value: wrongValue
-            })
-        );
+        });
+    }
+
+    function tableVerifyMembershipRejection(BesuMembershipRejectionTestCase memory membershipRejection) public {
+        vm.warp(fixture.initialTrustedTimestamp + 1);
+        client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
+
+        vm.expectRevert(membershipRejection.expectedRevert);
+        client.verifyMembership(membershipRejection.message);
     }
 
     function test_misbehaviour_reverts() public {
@@ -341,6 +304,25 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     function _singlePath(bytes memory path) internal pure returns (bytes[] memory out) {
         out = new bytes[](1);
         out[0] = path;
+    }
+
+    function _membershipMessage(
+        uint64 revisionNumber,
+        bytes[] memory path,
+        bytes memory value
+    )
+        internal
+        view
+        returns (ILightClientMsgs.MsgVerifyMembership memory)
+    {
+        return ILightClientMsgs.MsgVerifyMembership({
+            proof: fixture.membership.proof,
+            proofHeight: IICS02ClientMsgs.Height({
+                revisionNumber: revisionNumber, revisionHeight: fixture.membership.proofHeight
+            }),
+            path: path,
+            value: value
+        });
     }
 
     function _loadFixture(string memory fileName) internal view returns (BesuFixture memory) {
