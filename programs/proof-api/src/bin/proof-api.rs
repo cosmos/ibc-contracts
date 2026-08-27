@@ -5,6 +5,7 @@ use std::{net::SocketAddr, path::PathBuf};
 use clap::Parser;
 use proof_api::cli::{Commands, ProofApiCli};
 use proof_api::observability::init_observability;
+use proof_api_besu_to_eth::BesuToEthProofApiModule;
 use proof_api_core::{builder::ProofApiBuilder, config::ProofApiConfig};
 use proof_api_cosmos_to_cosmos::CosmosToCosmosProofApiModule;
 use proof_api_cosmos_to_eth::CosmosToEthProofApiModule;
@@ -47,6 +48,7 @@ async fn main() -> anyhow::Result<()> {
             proof_api_builder.add_module(EthToCosmosProofApiModule);
             proof_api_builder.add_module(EthToCosmosCompatProofApiModule);
             proof_api_builder.add_module(EthToEthProofApiModule);
+            proof_api_builder.add_module(BesuToEthProofApiModule);
             proof_api_builder.add_module(SolanaToCosmosProofApiModule);
             proof_api_builder.add_module(CosmosToSolanaProofApiModule);
             proof_api_builder.add_module(EthToSolanaProofApiModule);

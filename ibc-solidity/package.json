@@ -11,8 +11,8 @@
   "devDependencies": {
     "sp1-contracts": "github:succinctlabs/sp1-contracts#d3629729c3216eb51bd4859d027a8eb729399fa4",
     "forge-std": "github:foundry-rs/forge-std#v1.15.0",
-    "solhint": "^6.2.1",
-    "quicktype": "^23.2.6"
+    "solhint": "^6.2.4",
+    "quicktype": "^23.3.25"
   },
   "keywords": [
     "blockchain",

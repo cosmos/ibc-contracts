@@ -8,6 +8,8 @@ These end to end tests are designed to run in the CI, but you can also run them 
 
 ### Prerequisites
 
+Besu tests additionally require Docker Compose v2 (`docker compose`).
+
 In the repo root:
 
 ```
@@ -29,3 +31,65 @@ just test-e2e TestWithIbcEurekaTestSuite/Test_Deploy
 # Alternatively:
 just test-e2e-eureka Test_Deploy
 ```
+
+## Besu QBFT mode
+
+Set `ETH_TESTNET_TYPE=besu-qbft` to start a real 4-validator Besu QBFT network.
+
+### Supported in this mode
+
+This pass supports the following Besu configuration:
+
+- `ETH_TESTNET_TYPE=besu-qbft`
+- `ETH_LC_ON_COSMOS=attestor-native`
+- `COSMOS_LC_ON_ETH=sp1`
+- `SP1_PROVER=mock`
+
+Validated coverage in this mode:
+
+- Besu chain bring-up and contract deployment
+- Dockerized Ethereum attestors reading Besu RPC
+- relayer startup and client creation
+- full Ethereum ↔ Cosmos ICS20 transfer roundtrip
+
+### Not supported
+
+- `ETH_LC_ON_COSMOS=full`
+- beacon-chain-based Ethereum verification on Cosmos
+
+### Focused local test commands
+
+From the repo root, run:
+
+```shell
+# Full ICS20 roundtrip in the supported Besu mode
+ETH_TESTNET_TYPE=besu-qbft \
+ETH_LC_ON_COSMOS=attestor-native \
+COSMOS_LC_ON_ETH=sp1 \
+SP1_PROVER=mock \
+just test-e2e TestWithIbcEurekaTestSuite/Test_ICS20TransferERC20TokenfromEthereumToCosmosAndBack
+```
+
+## Focused Besu ↔ Besu e2e
+
+This focused suite starts two independent Besu QBFT networks, deploys Eureka contracts on both, starts the Rust relayer with `besu_to_eth` in both directions, deploys and registers Besu light clients on both chains, and verifies a one-way A → B ICS20 transfer plus the B → A acknowledgement relay using real Besu proofs.
+
+### Focused local test commands
+
+From the repo root, run:
+
+```shell
+# Dual-Besu deploy / client-registration path
+just test-e2e TestWithBesuToBesuTestSuite/Test_Deploy
+
+# One-way Besu A -> Besu B ICS20 transfer with acknowledgement relay back to A
+just test-e2e TestWithBesuToBesuTestSuite/Test_ICS20TransferERC20FromChainAToChainB
+
+# Regenerate the QBFT light-client fixture used by test/besu-bft/*
+GENERATE_BESU_LIGHT_CLIENT_FIXTURES=true \
+just test-e2e TestWithBesuToBesuTestSuite/Test_ICS20TransferERC20FromChainAToChainB
+```
+
+When `GENERATE_BESU_LIGHT_CLIENT_FIXTURES=true` is set, the focused Besu↔Besu transfer test writes:
+
+- `ibc-solidity/test/besu-bft/fixtures/qbft.json`

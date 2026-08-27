@@ -1,0 +1,96 @@
+# SPDX-License-Identifier: Apache-2.0
+
+services:
+  validator1:
+    image: hyperledger/besu:26.4.0
+    environment:
+      BESU_OPTS: -Xms128m -Xmx512m -XX:ActiveProcessorCount=2
+    command:
+      - --config-file=/opt/besu/config.toml
+      - --identity=validator1
+      - --p2p-host=10.42.0.2
+      - --p2p-port=30303
+    volumes:
+      - ./config.toml:/opt/besu/config.toml:ro
+      - ./genesis.json:/opt/besu/genesis.json:ro
+      - ./keys/validator1/key:/opt/besu/key:ro
+      - validator1-data:/opt/besu/data
+    ports:
+      - "8545"
+    networks:
+      qbft_testnet:
+        ipv4_address: 10.42.0.2
+
+  validator2:
+    image: hyperledger/besu:26.4.0
+    environment:
+      BESU_OPTS: -Xms128m -Xmx512m -XX:ActiveProcessorCount=2
+    command:
+      - --config-file=/opt/besu/config.toml
+      - --identity=validator2
+      - --bootnodes=enode://ad83ac93fcc30a30f3e1bb6467623e45719167be50d13dccd8361cbca478cb540069869d1bae16de0f8b17a28f26f1c6c4dc12e71f240b366c6ff6f02f3fb93e@10.42.0.2:30303
+      - --p2p-host=10.42.0.3
+      - --p2p-port=30304
+    volumes:
+      - ./config.toml:/opt/besu/config.toml:ro
+      - ./genesis.json:/opt/besu/genesis.json:ro
+      - ./keys/validator2/key:/opt/besu/key:ro
+      - validator2-data:/opt/besu/data
+    networks:
+      qbft_testnet:
+        ipv4_address: 10.42.0.3
+
+  validator3:
+    image: hyperledger/besu:26.4.0
+    environment:
+      BESU_OPTS: -Xms128m -Xmx512m -XX:ActiveProcessorCount=2
+    command:
+      - --config-file=/opt/besu/config.toml
+      - --identity=validator3
+      - --bootnodes=enode://ad83ac93fcc30a30f3e1bb6467623e45719167be50d13dccd8361cbca478cb540069869d1bae16de0f8b17a28f26f1c6c4dc12e71f240b366c6ff6f02f3fb93e@10.42.0.2:30303
+      - --p2p-host=10.42.0.4
+      - --p2p-port=30305
+    volumes:
+      - ./config.toml:/opt/besu/config.toml:ro
+      - ./genesis.json:/opt/besu/genesis.json:ro
+      - ./keys/validator3/key:/opt/besu/key:ro
+      - validator3-data:/opt/besu/data
+    networks:
+      qbft_testnet:
+        ipv4_address: 10.42.0.4
+
+  validator4:
+    image: hyperledger/besu:26.4.0
+    environment:
+      BESU_OPTS: -Xms128m -Xmx512m -XX:ActiveProcessorCount=2
+    command:
+      - --config-file=/opt/besu/config.toml
+      - --identity=validator4
+      - --bootnodes=enode://ad83ac93fcc30a30f3e1bb6467623e45719167be50d13dccd8361cbca478cb540069869d1bae16de0f8b17a28f26f1c6c4dc12e71f240b366c6ff6f02f3fb93e@10.42.0.2:30303
+      - --p2p-host=10.42.0.5
+      - --p2p-port=30306
+    volumes:
+      - ./config.toml:/opt/besu/config.toml:ro
+      - ./genesis.json:/opt/besu/genesis.json:ro
+      - ./keys/validator4/key:/opt/besu/key:ro
+      - validator4-data:/opt/besu/data
+    networks:
+      qbft_testnet:
+        ipv4_address: 10.42.0.5
+
+networks:
+  qbft_testnet:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: "false"
+    ipam:
+      driver: default
+      config:
+        - subnet: 10.42.0.0/16
+          gateway: 10.42.0.1
+
+volumes:
+  validator1-data:
+  validator2-data:
+  validator3-data:
+  validator4-data:
