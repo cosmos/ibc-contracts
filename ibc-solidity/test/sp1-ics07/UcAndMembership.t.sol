@@ -140,8 +140,7 @@ contract SP1ICS07UpdateClientAndMembershipTest is MembershipTest {
         console.log("Cached UpdateClientAndVerifyMembership gas used: ", vm.lastCallGas().gasTotalUsed);
 
         // submit cached non-membership proof
-        MsgVerifyNonMembership memory nonMembershipMsg =
-            MsgVerifyNonMembership({
+        MsgVerifyNonMembership memory nonMembershipMsg = MsgVerifyNonMembership({
             proof: bytes(""), proofHeight: fixture.proofHeight, path: verifyNonMembershipPath
         });
 
