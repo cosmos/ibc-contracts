@@ -7,6 +7,7 @@
   evm_version = "cancun"
   fuzz = { runs = 100_000 }
   gas_reports = ["*"]
+  isolate = false
   optimizer = true
   via_ir = true # This is needed because of the `sp1-ics07-tendermint` contract
   optimizer_runs = 10_000
