@@ -4,22 +4,22 @@ pragma solidity ^0.8.28;
 // solhint-disable
 // custom-errors,max-line-length,max-states-count,var-name-mixedcase,gas-small-strings,gas-strict-inequalities
 
-import {Test} from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 
-import {IICS26RouterMsgs} from "../../contracts/msgs/IICS26RouterMsgs.sol";
-import {IICS26Router} from "../../contracts/interfaces/IICS26Router.sol";
-import {IIFTMsgs} from "../../contracts/msgs/IIFTMsgs.sol";
+import { IICS26RouterMsgs } from "../../contracts/msgs/IICS26RouterMsgs.sol";
+import { IICS26Router } from "../../contracts/interfaces/IICS26Router.sol";
+import { IIFTMsgs } from "../../contracts/msgs/IIFTMsgs.sol";
 
-import {IIFT} from "../../contracts/interfaces/IIFT.sol";
-import {IIFTErrors} from "../../contracts/errors/IIFTErrors.sol";
+import { IIFT } from "../../contracts/interfaces/IIFT.sol";
+import { IIFTErrors } from "../../contracts/errors/IIFTErrors.sol";
 
-import {IbcImpl} from "./utils/IbcImpl.sol";
-import {TestHelper} from "./utils/TestHelper.sol";
-import {IntegrationEnv} from "./utils/IntegrationEnv.sol";
-import {IFTAccessManaged} from "../../contracts/utils/IFTAccessManaged.sol";
-import {EVMIFTSendCallConstructor} from "../../contracts/utils/EVMIFTSendCallConstructor.sol";
-import {Strings} from "@openzeppelin-contracts/utils/Strings.sol";
-import {ERC1967Proxy} from "@openzeppelin-contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import { IbcImpl } from "./utils/IbcImpl.sol";
+import { TestHelper } from "./utils/TestHelper.sol";
+import { IntegrationEnv } from "./utils/IntegrationEnv.sol";
+import { IFTAccessManaged } from "../../contracts/utils/IFTAccessManaged.sol";
+import { EVMIFTSendCallConstructor } from "../../contracts/utils/EVMIFTSendCallConstructor.sol";
+import { Strings } from "@openzeppelin-contracts/utils/Strings.sol";
+import { ERC1967Proxy } from "@openzeppelin-contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract IFTIntegrationTest is Test {
     IbcImpl public ibcImplA;

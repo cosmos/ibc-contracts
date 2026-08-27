@@ -3,16 +3,16 @@ pragma solidity ^0.8.28;
 
 // solhint-disable gas-custom-errors
 
-import {Test} from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 
-import {ILightClientMsgs} from "../../contracts/msgs/ILightClientMsgs.sol";
-import {IICS02ClientMsgs} from "../../contracts/msgs/IICS02ClientMsgs.sol";
+import { ILightClientMsgs } from "../../contracts/msgs/ILightClientMsgs.sol";
+import { IICS02ClientMsgs } from "../../contracts/msgs/IICS02ClientMsgs.sol";
 
-import {ICS02PrecompileWrapper} from "../../contracts/light-clients/ics02-wrapper/ICS02PrecompileWrapper.sol";
+import { ICS02PrecompileWrapper } from "../../contracts/light-clients/ics02-wrapper/ICS02PrecompileWrapper.sol";
 import {
     IICS02PrecompileWrapperErrors
 } from "../../contracts/light-clients/ics02-wrapper/errors/IICS02PrecompileWrapperErrors.sol";
-import {IICS02Precompile} from "../../contracts/light-clients/ics02-wrapper/interfaces/IICS02Precompile.sol";
+import { IICS02Precompile } from "../../contracts/light-clients/ics02-wrapper/interfaces/IICS02Precompile.sol";
 
 contract ICS02PrecompileWrapperTest is Test {
     address public constant ICS02_ADDRESS = 0x0000000000000000000000000000000000000807;
@@ -97,7 +97,7 @@ contract ICS02PrecompileWrapperTest is Test {
     function testFuzz_success_verifyMembership(uint64 timestamp) public {
         ILightClientMsgs.MsgVerifyMembership memory msg_ = ILightClientMsgs.MsgVerifyMembership({
             proof: "proof",
-            proofHeight: IICS02ClientMsgs.Height({revisionNumber: 1, revisionHeight: 10}),
+            proofHeight: IICS02ClientMsgs.Height({ revisionNumber: 1, revisionHeight: 10 }),
             path: new bytes[](0),
             value: "value"
         });
@@ -117,7 +117,7 @@ contract ICS02PrecompileWrapperTest is Test {
     function test_failure_verifyMembership() public {
         ILightClientMsgs.MsgVerifyMembership memory msg_ = ILightClientMsgs.MsgVerifyMembership({
             proof: "proof",
-            proofHeight: IICS02ClientMsgs.Height({revisionNumber: 1, revisionHeight: 10}),
+            proofHeight: IICS02ClientMsgs.Height({ revisionNumber: 1, revisionHeight: 10 }),
             path: new bytes[](0),
             value: "value"
         });
@@ -139,7 +139,7 @@ contract ICS02PrecompileWrapperTest is Test {
     function testFuzz_success_verifyNonMembership(uint64 timestamp) public {
         ILightClientMsgs.MsgVerifyNonMembership memory msg_ = ILightClientMsgs.MsgVerifyNonMembership({
             proof: "proof",
-            proofHeight: IICS02ClientMsgs.Height({revisionNumber: 1, revisionHeight: 10}),
+            proofHeight: IICS02ClientMsgs.Height({ revisionNumber: 1, revisionHeight: 10 }),
             path: new bytes[](0)
         });
 
@@ -158,7 +158,7 @@ contract ICS02PrecompileWrapperTest is Test {
     function test_failure_verifyNonMembership() public {
         ILightClientMsgs.MsgVerifyNonMembership memory msg_ = ILightClientMsgs.MsgVerifyNonMembership({
             proof: "proof",
-            proofHeight: IICS02ClientMsgs.Height({revisionNumber: 1, revisionHeight: 10}),
+            proofHeight: IICS02ClientMsgs.Height({ revisionNumber: 1, revisionHeight: 10 }),
             path: new bytes[](0)
         });
 

@@ -5,10 +5,10 @@ pragma solidity ^0.8.28;
 
 // solhint-disable-next-line no-global-import
 import "forge-std/console.sol";
-import {SP1ICS07TendermintTest} from "./SP1ICS07TendermintTest.sol";
-import {IMisbehaviourMsgs} from "../../contracts/light-clients/sp1-ics07/msgs/IMisbehaviourMsgs.sol";
-import {SP1Verifier} from "@sp1-contracts/v6.1.0/SP1VerifierPlonk.sol";
-import {stdJson} from "forge-std/StdJson.sol";
+import { SP1ICS07TendermintTest } from "./SP1ICS07TendermintTest.sol";
+import { IMisbehaviourMsgs } from "../../contracts/light-clients/sp1-ics07/msgs/IMisbehaviourMsgs.sol";
+import { SP1Verifier } from "@sp1-contracts/v6.1.0/SP1VerifierPlonk.sol";
+import { stdJson } from "forge-std/StdJson.sol";
 
 struct SP1ICS07MisbehaviourFixtureJson {
     bytes trustedClientState;
@@ -149,7 +149,7 @@ contract SP1ICS07MisbehaviourTest is SP1ICS07TendermintTest {
         // trust threshold mismatch
         badSubmitMsg = cloneSubmitMsg();
         badOutput = cloneOutput();
-        badOutput.clientState.trustLevel = TrustThreshold({numerator: 1, denominator: 2});
+        badOutput.clientState.trustLevel = TrustThreshold({ numerator: 1, denominator: 2 });
         badSubmitMsg.sp1Proof.publicValues = abi.encode(badOutput);
         submitMsgBz = abi.encode(badSubmitMsg);
         vm.expectRevert(

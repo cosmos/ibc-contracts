@@ -3,13 +3,13 @@ pragma solidity ^0.8.28;
 
 // solhint-disable custom-errors,gas-small-strings,no-inline-assembly,gas-increment-by-one
 
-import {Test} from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 
-import {SolanaIFTSendCallConstructor} from "../../contracts/utils/SolanaIFTSendCallConstructor.sol";
-import {IIFTSendCallConstructor} from "../../contracts/interfaces/IIFTSendCallConstructor.sol";
-import {ISolanaGMPMsgs} from "../../contracts/utils/SolanaIFTSendCallConstructor.sol";
-import {SafeCast} from "@openzeppelin-contracts/utils/math/SafeCast.sol";
-import {IERC165} from "@openzeppelin-contracts/utils/introspection/IERC165.sol";
+import { SolanaIFTSendCallConstructor } from "../../contracts/utils/SolanaIFTSendCallConstructor.sol";
+import { IIFTSendCallConstructor } from "../../contracts/interfaces/IIFTSendCallConstructor.sol";
+import { ISolanaGMPMsgs } from "../../contracts/utils/SolanaIFTSendCallConstructor.sol";
+import { SafeCast } from "@openzeppelin-contracts/utils/math/SafeCast.sol";
+import { IERC165 } from "@openzeppelin-contracts/utils/introspection/IERC165.sol";
 
 contract SolanaIFTSendCallConstructorTest is Test {
     SolanaIFTSendCallConstructor public constructor_;
@@ -180,7 +180,10 @@ contract SolanaIFTSendCallConstructorTest is Test {
         bytes32 expectedPubkey,
         bool expectedSigner,
         bool expectedWritable
-    ) private pure {
+    )
+        private
+        pure
+    {
         uint256 offset = index * PACKED_ACCOUNT_SIZE;
 
         bytes32 pubkey;

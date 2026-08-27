@@ -3,14 +3,14 @@ pragma solidity ^0.8.28;
 
 // solhint-disable custom-errors,max-line-length,no-inline-assembly,gas-small-strings
 
-import {Test} from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 
-import {IICS27AccountMsgs} from "../../contracts/msgs/IICS27AccountMsgs.sol";
-import {IICS27Errors} from "../../contracts/errors/IICS27Errors.sol";
+import { IICS27AccountMsgs } from "../../contracts/msgs/IICS27AccountMsgs.sol";
+import { IICS27Errors } from "../../contracts/errors/IICS27Errors.sol";
 
-import {ERC1967Proxy} from "@openzeppelin-contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {ICS27Account} from "../../contracts/utils/ICS27Account.sol";
-import {Errors} from "@openzeppelin-contracts/utils/Errors.sol";
+import { ERC1967Proxy } from "@openzeppelin-contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import { ICS27Account } from "../../contracts/utils/ICS27Account.sol";
+import { Errors } from "@openzeppelin-contracts/utils/Errors.sol";
 
 contract ICS27AccountTest is Test {
     address public ics27 = makeAddr("ics27");
@@ -167,7 +167,7 @@ contract ICS27AccountTest is Test {
         IICS27AccountMsgs.Call[] memory calls = new IICS27AccountMsgs.Call[](numCalls);
         uint256 valuePerCall = totalValue / numCalls;
         for (uint256 i = 0; i < numCalls; ++i) {
-            calls[i] = IICS27AccountMsgs.Call({target: target, data: data, value: valuePerCall});
+            calls[i] = IICS27AccountMsgs.Call({ target: target, data: data, value: valuePerCall });
 
             expResp[i] = abi.encode("mockedResponse");
         }
@@ -198,7 +198,7 @@ contract ICS27AccountTest is Test {
 
         IICS27AccountMsgs.Call[] memory calls = new IICS27AccountMsgs.Call[](numCalls);
         for (uint256 i = 0; i < numCalls; ++i) {
-            calls[i] = IICS27AccountMsgs.Call({target: target, data: data, value: totalValue / numCalls});
+            calls[i] = IICS27AccountMsgs.Call({ target: target, data: data, value: totalValue / numCalls });
         }
 
         // Unauthorized call

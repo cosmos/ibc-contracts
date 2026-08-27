@@ -3,33 +3,33 @@ pragma solidity ^0.8.28;
 
 // solhint-disable custom-errors,max-line-length,function-max-lines
 
-import {Test} from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 
-import {IICS26RouterMsgs} from "../../contracts/msgs/IICS26RouterMsgs.sol";
-import {IICS20TransferMsgs} from "../../contracts/msgs/IICS20TransferMsgs.sol";
+import { IICS26RouterMsgs } from "../../contracts/msgs/IICS26RouterMsgs.sol";
+import { IICS20TransferMsgs } from "../../contracts/msgs/IICS20TransferMsgs.sol";
 
-import {IICS20Errors} from "../../contracts/errors/IICS20Errors.sol";
-import {IIBCAppCallbacks} from "../../contracts/msgs/IIBCAppCallbacks.sol";
-import {IERC20Errors} from "@openzeppelin-contracts/interfaces/draft-IERC6093.sol";
-import {IICS26Router} from "../../contracts/interfaces/IICS26Router.sol";
-import {IIBCSenderCallbacks} from "../../contracts/interfaces/IIBCSenderCallbacks.sol";
+import { IICS20Errors } from "../../contracts/errors/IICS20Errors.sol";
+import { IIBCAppCallbacks } from "../../contracts/msgs/IIBCAppCallbacks.sol";
+import { IERC20Errors } from "@openzeppelin-contracts/interfaces/draft-IERC6093.sol";
+import { IICS26Router } from "../../contracts/interfaces/IICS26Router.sol";
+import { IIBCSenderCallbacks } from "../../contracts/interfaces/IIBCSenderCallbacks.sol";
 
-import {ICS20Transfer} from "../../contracts/ICS20Transfer.sol";
-import {TestERC20, MalfunctioningERC20, FeeOnTransferERC20} from "./mocks/TestERC20.sol";
-import {ICS20Lib} from "../../contracts/utils/ICS20Lib.sol";
-import {ICS24Host} from "../../contracts/utils/ICS24Host.sol";
-import {Strings} from "@openzeppelin-contracts/utils/Strings.sol";
-import {ERC1967Proxy} from "@openzeppelin-contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {IBCERC20} from "../../contracts/utils/IBCERC20.sol";
-import {Escrow} from "../../contracts/utils/Escrow.sol";
-import {ISignatureTransfer} from "@uniswap/permit2/src/interfaces/ISignatureTransfer.sol";
-import {DeployPermit2} from "@uniswap/permit2/test/utils/DeployPermit2.sol";
-import {PermitSignature} from "./utils/PermitSignature.sol";
-import {CallbackReceiver} from "./mocks/CallbackReceiver.sol";
-import {AccessManager} from "@openzeppelin-contracts/access/manager/AccessManager.sol";
-import {IBCRolesLib} from "../../contracts/utils/IBCRolesLib.sol";
-import {TestHelper} from "./utils/TestHelper.sol";
-import {IntegrationEnv} from "./utils/IntegrationEnv.sol";
+import { ICS20Transfer } from "../../contracts/ICS20Transfer.sol";
+import { TestERC20, MalfunctioningERC20, FeeOnTransferERC20 } from "./mocks/TestERC20.sol";
+import { ICS20Lib } from "../../contracts/utils/ICS20Lib.sol";
+import { ICS24Host } from "../../contracts/utils/ICS24Host.sol";
+import { Strings } from "@openzeppelin-contracts/utils/Strings.sol";
+import { ERC1967Proxy } from "@openzeppelin-contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import { IBCERC20 } from "../../contracts/utils/IBCERC20.sol";
+import { Escrow } from "../../contracts/utils/Escrow.sol";
+import { ISignatureTransfer } from "@uniswap/permit2/src/interfaces/ISignatureTransfer.sol";
+import { DeployPermit2 } from "@uniswap/permit2/test/utils/DeployPermit2.sol";
+import { PermitSignature } from "./utils/PermitSignature.sol";
+import { CallbackReceiver } from "./mocks/CallbackReceiver.sol";
+import { AccessManager } from "@openzeppelin-contracts/access/manager/AccessManager.sol";
+import { IBCRolesLib } from "../../contracts/utils/IBCRolesLib.sol";
+import { TestHelper } from "./utils/TestHelper.sol";
+import { IntegrationEnv } from "./utils/IntegrationEnv.sol";
 
 contract ICS20TransferTest is Test, DeployPermit2, PermitSignature {
     ICS20Transfer public ics20Transfer;
@@ -376,7 +376,11 @@ contract ICS20TransferTest is Test, DeployPermit2, PermitSignature {
         vm.stopPrank();
     }
 
-    function testFuzz_success_onAcknowledgementPacketCallback(uint256 amount, uint64 seq, uint64 timeoutTimestamp)
+    function testFuzz_success_onAcknowledgementPacketCallback(
+        uint256 amount,
+        uint64 seq,
+        uint64 timeoutTimestamp
+    )
         public
     {
         // override sender

@@ -3,22 +3,22 @@ pragma solidity ^0.8.28;
 
 // solhint-disable custom-errors,max-line-length,gas-small-strings
 
-import {Test} from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 
-import {ILightClientMsgs} from "../../contracts/msgs/ILightClientMsgs.sol";
-import {IICS02ClientMsgs} from "../../contracts/msgs/IICS02ClientMsgs.sol";
+import { ILightClientMsgs } from "../../contracts/msgs/ILightClientMsgs.sol";
+import { IICS02ClientMsgs } from "../../contracts/msgs/IICS02ClientMsgs.sol";
 
-import {IICS02Client} from "../../contracts/interfaces/IICS02Client.sol";
-import {ILightClient} from "../../contracts/interfaces/ILightClient.sol";
-import {IAccessManaged} from "@openzeppelin-contracts/access/manager/IAccessManaged.sol";
-import {IICS02ClientErrors} from "../../contracts/errors/IICS02ClientErrors.sol";
+import { IICS02Client } from "../../contracts/interfaces/IICS02Client.sol";
+import { ILightClient } from "../../contracts/interfaces/ILightClient.sol";
+import { IAccessManaged } from "@openzeppelin-contracts/access/manager/IAccessManaged.sol";
+import { IICS02ClientErrors } from "../../contracts/errors/IICS02ClientErrors.sol";
 
-import {ICS02ClientUpgradeable} from "../../contracts/utils/ICS02ClientUpgradeable.sol";
-import {ERC1967Proxy} from "@openzeppelin-contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {ICS26Router} from "../../contracts/ICS26Router.sol";
-import {TestHelper} from "./utils/TestHelper.sol";
-import {AccessManager} from "@openzeppelin-contracts/access/manager/AccessManager.sol";
-import {IBCRolesLib} from "../../contracts/utils/IBCRolesLib.sol";
+import { ICS02ClientUpgradeable } from "../../contracts/utils/ICS02ClientUpgradeable.sol";
+import { ERC1967Proxy } from "@openzeppelin-contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import { ICS26Router } from "../../contracts/ICS26Router.sol";
+import { TestHelper } from "./utils/TestHelper.sol";
+import { AccessManager } from "@openzeppelin-contracts/access/manager/AccessManager.sol";
+import { IBCRolesLib } from "../../contracts/utils/IBCRolesLib.sol";
 
 contract ICS02ClientTest is Test {
     ICS02ClientUpgradeable public ics02Client;

@@ -3,17 +3,17 @@ pragma solidity ^0.8.28;
 
 // solhint-disable custom-errors,max-line-length,max-states-count
 
-import {Test} from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 
-import {IICS26RouterMsgs} from "../../contracts/msgs/IICS26RouterMsgs.sol";
+import { IICS26RouterMsgs } from "../../contracts/msgs/IICS26RouterMsgs.sol";
 
-import {IERC20} from "@openzeppelin-contracts/token/ERC20/IERC20.sol";
+import { IERC20 } from "@openzeppelin-contracts/token/ERC20/IERC20.sol";
 
-import {IbcImpl} from "./utils/IbcImpl.sol";
-import {TestHelper} from "./utils/TestHelper.sol";
-import {IntegrationEnv} from "./utils/IntegrationEnv.sol";
-import {Strings} from "@openzeppelin-contracts/utils/Strings.sol";
-import {ICS20Lib} from "../../contracts/utils/ICS20Lib.sol";
+import { IbcImpl } from "./utils/IbcImpl.sol";
+import { TestHelper } from "./utils/TestHelper.sol";
+import { IntegrationEnv } from "./utils/IntegrationEnv.sol";
+import { Strings } from "@openzeppelin-contracts/utils/Strings.sol";
+import { ICS20Lib } from "../../contracts/utils/ICS20Lib.sol";
 
 contract Integration3Test is Test {
     IbcImpl public ibcImplA;

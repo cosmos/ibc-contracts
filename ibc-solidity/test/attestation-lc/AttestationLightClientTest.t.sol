@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 
-import {AttestationLightClient} from "../../contracts/light-clients/attestation/AttestationLightClient.sol";
-import {IAttestationMsgs as AM} from "../../contracts/light-clients/attestation/msgs/IAttestationMsgs.sol";
+import { AttestationLightClient } from "../../contracts/light-clients/attestation/AttestationLightClient.sol";
+import { IAttestationMsgs as AM } from "../../contracts/light-clients/attestation/msgs/IAttestationMsgs.sol";
 import {
     IAttestationLightClientMsgs
 } from "../../contracts/light-clients/attestation/msgs/IAttestationLightClientMsgs.sol";
-import {ILightClientMsgs} from "../../contracts/msgs/ILightClientMsgs.sol";
-import {IICS02ClientMsgs} from "../../contracts/msgs/IICS02ClientMsgs.sol";
+import { ILightClientMsgs } from "../../contracts/msgs/ILightClientMsgs.sol";
+import { IICS02ClientMsgs } from "../../contracts/msgs/IICS02ClientMsgs.sol";
 import {
     IAttestationLightClientErrors
 } from "../../contracts/light-clients/attestation/errors/IAttestationLightClientErrors.sol";
-import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
+import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
 
 contract AttestationLightClientTest is Test {
     AttestationLightClient internal client;
@@ -73,7 +73,7 @@ contract AttestationLightClientTest is Test {
 
         (bytes memory attestationData, bytes[] memory signatures) = _stateAttestation(newHeight, newTs, signers);
         AM.AttestationProof memory proof =
-            AM.AttestationProof({attestationData: attestationData, signatures: signatures});
+            AM.AttestationProof({ attestationData: attestationData, signatures: signatures });
 
         ILightClientMsgs.UpdateResult res = client.updateClient(abi.encode(proof));
         assertEq(uint8(res), uint8(ILightClientMsgs.UpdateResult.Update));
@@ -128,7 +128,7 @@ contract AttestationLightClientTest is Test {
             _stateAttestation(INITIAL_HEIGHT, INITIAL_TS, signers);
 
         AM.AttestationProof memory proof =
-            AM.AttestationProof({attestationData: attestationData, signatures: signatures});
+            AM.AttestationProof({ attestationData: attestationData, signatures: signatures });
 
         ILightClientMsgs.UpdateResult res = client.updateClient(abi.encode(proof));
         assertEq(uint8(res), uint8(ILightClientMsgs.UpdateResult.NoOp));
@@ -143,7 +143,7 @@ contract AttestationLightClientTest is Test {
             _stateAttestation(INITIAL_HEIGHT, conflictingTs, signers);
 
         AM.AttestationProof memory proof =
-            AM.AttestationProof({attestationData: attestationData, signatures: signatures});
+            AM.AttestationProof({ attestationData: attestationData, signatures: signatures });
         ILightClientMsgs.UpdateResult res = client.updateClient(abi.encode(proof));
         assertEq(uint8(res), uint8(ILightClientMsgs.UpdateResult.Misbehaviour));
     }
@@ -157,7 +157,7 @@ contract AttestationLightClientTest is Test {
             _stateAttestation(lowerHeight, INITIAL_TS - 1, signers);
 
         AM.AttestationProof memory proof =
-            AM.AttestationProof({attestationData: attestationData, signatures: signatures});
+            AM.AttestationProof({ attestationData: attestationData, signatures: signatures });
 
         ILightClientMsgs.UpdateResult res = client.updateClient(abi.encode(proof));
         assertEq(uint8(res), uint8(ILightClientMsgs.UpdateResult.Update));
@@ -172,13 +172,13 @@ contract AttestationLightClientTest is Test {
 
         vm.expectRevert(abi.encodeWithSelector(IAttestationLightClientErrors.ThresholdNotMet.selector, 1, 2));
         AM.AttestationProof memory proof =
-            AM.AttestationProof({attestationData: attestationData, signatures: signatures});
+            AM.AttestationProof({ attestationData: attestationData, signatures: signatures });
         client.updateClient(abi.encode(proof));
     }
 
     function test_updateClient_revert_duplicate_signer() public {
         bytes memory attestationData =
-            abi.encode(AM.StateAttestation({height: INITIAL_HEIGHT + 1, timestamp: INITIAL_TS + 1}));
+            abi.encode(AM.StateAttestation({ height: INITIAL_HEIGHT + 1, timestamp: INITIAL_TS + 1 }));
         bytes32 digest = _taggedDigest(attestationData, STATE_TAG);
 
         bytes[] memory signatures = new bytes[](2);
@@ -187,13 +187,13 @@ contract AttestationLightClientTest is Test {
 
         vm.expectRevert(abi.encodeWithSelector(IAttestationLightClientErrors.DuplicateSigner.selector, attestorAddr1));
         AM.AttestationProof memory proof =
-            AM.AttestationProof({attestationData: attestationData, signatures: signatures});
+            AM.AttestationProof({ attestationData: attestationData, signatures: signatures });
         client.updateClient(abi.encode(proof));
     }
 
     function test_updateClient_revert_unknown_signer() public {
         bytes memory attestationData =
-            abi.encode(AM.StateAttestation({height: INITIAL_HEIGHT + 1, timestamp: INITIAL_TS + 1}));
+            abi.encode(AM.StateAttestation({ height: INITIAL_HEIGHT + 1, timestamp: INITIAL_TS + 1 }));
         bytes32 digest = _taggedDigest(attestationData, STATE_TAG);
 
         uint256 badPriv = 0xDEADBEEF;
@@ -203,7 +203,7 @@ contract AttestationLightClientTest is Test {
 
         vm.expectRevert(abi.encodeWithSelector(IAttestationLightClientErrors.UnknownSigner.selector, vm.addr(badPriv)));
         AM.AttestationProof memory proof =
-            AM.AttestationProof({attestationData: attestationData, signatures: signatures});
+            AM.AttestationProof({ attestationData: attestationData, signatures: signatures });
         client.updateClient(abi.encode(proof));
     }
 
@@ -219,11 +219,11 @@ contract AttestationLightClientTest is Test {
 
         (bytes memory attestationData, bytes[] memory signatures) = _attestation(INITIAL_HEIGHT, packets, signers);
         AM.AttestationProof memory proof =
-            AM.AttestationProof({attestationData: attestationData, signatures: signatures});
+            AM.AttestationProof({ attestationData: attestationData, signatures: signatures });
 
         ILightClientMsgs.MsgVerifyMembership memory msgVerify;
         msgVerify.proof = abi.encode(proof);
-        msgVerify.proofHeight = IICS02ClientMsgs.Height({revisionNumber: 0, revisionHeight: INITIAL_HEIGHT});
+        msgVerify.proofHeight = IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: INITIAL_HEIGHT });
         msgVerify.path = new bytes[](1);
         msgVerify.path[0] = "path-b";
         msgVerify.value = abi.encode(_packet("b").commitment);
@@ -234,15 +234,15 @@ contract AttestationLightClientTest is Test {
 
     function test_verifyMembership_revert_empty_value() public {
         AM.PacketAttestation memory p =
-            AM.PacketAttestation({height: INITIAL_HEIGHT, packets: new AM.PacketCompact[](0)});
+            AM.PacketAttestation({ height: INITIAL_HEIGHT, packets: new AM.PacketCompact[](0) });
 
         AM.AttestationProof memory proof =
-            AM.AttestationProof({attestationData: abi.encode(p), signatures: new bytes[](0)});
+            AM.AttestationProof({ attestationData: abi.encode(p), signatures: new bytes[](0) });
 
         ILightClientMsgs.MsgVerifyMembership memory msgVerify;
 
         msgVerify.proof = abi.encode(proof);
-        msgVerify.proofHeight = IICS02ClientMsgs.Height({revisionNumber: 0, revisionHeight: INITIAL_HEIGHT});
+        msgVerify.proofHeight = IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: INITIAL_HEIGHT });
         msgVerify.path = new bytes[](1);
         msgVerify.path[0] = "path-b";
         msgVerify.value = bytes("");
@@ -262,11 +262,11 @@ contract AttestationLightClientTest is Test {
         (bytes memory attestationData, bytes[] memory signatures) = _attestation(INITIAL_HEIGHT, packets, signers);
 
         AM.AttestationProof memory proof =
-            AM.AttestationProof({attestationData: attestationData, signatures: signatures});
+            AM.AttestationProof({ attestationData: attestationData, signatures: signatures });
 
         ILightClientMsgs.MsgVerifyMembership memory msgVerify;
         msgVerify.proof = abi.encode(proof);
-        msgVerify.proofHeight = IICS02ClientMsgs.Height({revisionNumber: 0, revisionHeight: INITIAL_HEIGHT});
+        msgVerify.proofHeight = IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: INITIAL_HEIGHT });
         msgVerify.path = new bytes[](1);
         msgVerify.path[0] = "path-z";
         msgVerify.value = abi.encode(_packet("z").commitment);
@@ -285,11 +285,11 @@ contract AttestationLightClientTest is Test {
         signers[1] = attestorPrivKey2;
         (bytes memory attestationData, bytes[] memory signatures) = _attestation(unknownHeight, packets, signers);
         AM.AttestationProof memory proof =
-            AM.AttestationProof({attestationData: attestationData, signatures: signatures});
+            AM.AttestationProof({ attestationData: attestationData, signatures: signatures });
 
         ILightClientMsgs.MsgVerifyMembership memory msgVerify;
         msgVerify.proof = abi.encode(proof);
-        msgVerify.proofHeight = IICS02ClientMsgs.Height({revisionNumber: 0, revisionHeight: unknownHeight});
+        msgVerify.proofHeight = IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: unknownHeight });
         msgVerify.path = new bytes[](1);
         msgVerify.path[0] = "path-a";
         msgVerify.value = abi.encode(_packet("a").commitment);
@@ -313,12 +313,12 @@ contract AttestationLightClientTest is Test {
 
         (bytes memory attestationData, bytes[] memory signatures) = _attestation(attestedHeight, packets, signers);
         AM.AttestationProof memory proof =
-            AM.AttestationProof({attestationData: attestationData, signatures: signatures});
+            AM.AttestationProof({ attestationData: attestationData, signatures: signatures });
 
         ILightClientMsgs.MsgVerifyMembership memory msgVerify;
         msgVerify.proof = abi.encode(proof);
         // Provide a different height here so the mismatch triggers
-        msgVerify.proofHeight = IICS02ClientMsgs.Height({revisionNumber: 0, revisionHeight: INITIAL_HEIGHT});
+        msgVerify.proofHeight = IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: INITIAL_HEIGHT });
         msgVerify.path = new bytes[](1);
         msgVerify.path[0] = "path-y";
         msgVerify.value = abi.encode(_packet("y").commitment);
@@ -341,14 +341,14 @@ contract AttestationLightClientTest is Test {
 
         (bytes memory attestationData, bytes[] memory signatures) = _attestation(INITIAL_HEIGHT, packets, signers);
         AM.AttestationProof memory proof =
-            AM.AttestationProof({attestationData: attestationData, signatures: signatures});
+            AM.AttestationProof({ attestationData: attestationData, signatures: signatures });
 
         bytes[] memory path = new bytes[](1);
         path[0] = "path-receipt-path";
 
         ILightClientMsgs.MsgVerifyNonMembership memory msgVerify = ILightClientMsgs.MsgVerifyNonMembership({
             proof: abi.encode(proof),
-            proofHeight: IICS02ClientMsgs.Height({revisionNumber: 0, revisionHeight: INITIAL_HEIGHT}),
+            proofHeight: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: INITIAL_HEIGHT }),
             path: path
         });
 
@@ -366,14 +366,14 @@ contract AttestationLightClientTest is Test {
 
         (bytes memory attestationData, bytes[] memory signatures) = _attestation(INITIAL_HEIGHT, packets, signers);
         AM.AttestationProof memory proof =
-            AM.AttestationProof({attestationData: attestationData, signatures: signatures});
+            AM.AttestationProof({ attestationData: attestationData, signatures: signatures });
 
         bytes[] memory path = new bytes[](1);
         path[0] = "path-non-zero-commitment";
 
         ILightClientMsgs.MsgVerifyNonMembership memory msgVerify = ILightClientMsgs.MsgVerifyNonMembership({
             proof: abi.encode(proof),
-            proofHeight: IICS02ClientMsgs.Height({revisionNumber: 0, revisionHeight: INITIAL_HEIGHT}),
+            proofHeight: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: INITIAL_HEIGHT }),
             path: path
         });
 
@@ -391,14 +391,14 @@ contract AttestationLightClientTest is Test {
 
         (bytes memory attestationData, bytes[] memory signatures) = _attestation(INITIAL_HEIGHT, packets, signers);
         AM.AttestationProof memory proof =
-            AM.AttestationProof({attestationData: attestationData, signatures: signatures});
+            AM.AttestationProof({ attestationData: attestationData, signatures: signatures });
 
         bytes[] memory path = new bytes[](1);
         path[0] = "different-path";
 
         ILightClientMsgs.MsgVerifyNonMembership memory msgVerify = ILightClientMsgs.MsgVerifyNonMembership({
             proof: abi.encode(proof),
-            proofHeight: IICS02ClientMsgs.Height({revisionNumber: 0, revisionHeight: INITIAL_HEIGHT}),
+            proofHeight: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: INITIAL_HEIGHT }),
             path: path
         });
 
@@ -416,11 +416,11 @@ contract AttestationLightClientTest is Test {
 
         (bytes memory attestationData, bytes[] memory signatures) = _attestation(INITIAL_HEIGHT, packets, signers);
         AM.AttestationProof memory proof =
-            AM.AttestationProof({attestationData: attestationData, signatures: signatures});
+            AM.AttestationProof({ attestationData: attestationData, signatures: signatures });
 
         ILightClientMsgs.MsgVerifyNonMembership memory msgVerify = ILightClientMsgs.MsgVerifyNonMembership({
             proof: abi.encode(proof),
-            proofHeight: IICS02ClientMsgs.Height({revisionNumber: 0, revisionHeight: INITIAL_HEIGHT}),
+            proofHeight: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: INITIAL_HEIGHT }),
             path: new bytes[](0)
         });
 
@@ -433,7 +433,7 @@ contract AttestationLightClientTest is Test {
         uint64 newTs = INITIAL_TS + 100;
 
         // Sign state attestation data with Packet tag
-        bytes memory attestationData = abi.encode(AM.StateAttestation({height: newHeight, timestamp: newTs}));
+        bytes memory attestationData = abi.encode(AM.StateAttestation({ height: newHeight, timestamp: newTs }));
         bytes32 wrongDigest = _taggedDigest(attestationData, PACKET_TAG);
 
         bytes[] memory signatures = new bytes[](2);
@@ -441,7 +441,7 @@ contract AttestationLightClientTest is Test {
         signatures[1] = _sig(attestorPrivKey2, wrongDigest);
 
         AM.AttestationProof memory proof =
-            AM.AttestationProof({attestationData: attestationData, signatures: signatures});
+            AM.AttestationProof({ attestationData: attestationData, signatures: signatures });
 
         vm.expectRevert();
         client.updateClient(abi.encode(proof));
@@ -452,7 +452,7 @@ contract AttestationLightClientTest is Test {
         packets[0] = _packet("a");
 
         // Sign packet attestation data with State tag
-        AM.PacketAttestation memory p = AM.PacketAttestation({height: INITIAL_HEIGHT, packets: packets});
+        AM.PacketAttestation memory p = AM.PacketAttestation({ height: INITIAL_HEIGHT, packets: packets });
         bytes memory attestationData = abi.encode(p);
         bytes32 wrongDigest = _taggedDigest(attestationData, STATE_TAG);
 
@@ -461,11 +461,11 @@ contract AttestationLightClientTest is Test {
         signatures[1] = _sig(attestorPrivKey2, wrongDigest);
 
         AM.AttestationProof memory proof =
-            AM.AttestationProof({attestationData: attestationData, signatures: signatures});
+            AM.AttestationProof({ attestationData: attestationData, signatures: signatures });
 
         ILightClientMsgs.MsgVerifyMembership memory msgVerify;
         msgVerify.proof = abi.encode(proof);
-        msgVerify.proofHeight = IICS02ClientMsgs.Height({revisionNumber: 0, revisionHeight: INITIAL_HEIGHT});
+        msgVerify.proofHeight = IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: INITIAL_HEIGHT });
         msgVerify.path = new bytes[](1);
         msgVerify.path[0] = "path-a";
         msgVerify.value = abi.encode(_packet("a").commitment);
@@ -479,7 +479,7 @@ contract AttestationLightClientTest is Test {
         packets[0] = _nonMemberPacket("timeout-path");
 
         // Sign packet attestation data with State tag
-        AM.PacketAttestation memory p = AM.PacketAttestation({height: INITIAL_HEIGHT, packets: packets});
+        AM.PacketAttestation memory p = AM.PacketAttestation({ height: INITIAL_HEIGHT, packets: packets });
         bytes memory attestationData = abi.encode(p);
         bytes32 wrongDigest = _taggedDigest(attestationData, STATE_TAG);
 
@@ -488,11 +488,11 @@ contract AttestationLightClientTest is Test {
         signatures[1] = _sig(attestorPrivKey2, wrongDigest);
 
         AM.AttestationProof memory proof =
-            AM.AttestationProof({attestationData: attestationData, signatures: signatures});
+            AM.AttestationProof({ attestationData: attestationData, signatures: signatures });
 
         ILightClientMsgs.MsgVerifyNonMembership memory msgVerify = ILightClientMsgs.MsgVerifyNonMembership({
             proof: abi.encode(proof),
-            proofHeight: IICS02ClientMsgs.Height({revisionNumber: 0, revisionHeight: INITIAL_HEIGHT}),
+            proofHeight: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: INITIAL_HEIGHT }),
             path: new bytes[](1)
         });
         msgVerify.path[0] = "path-timeout-path";
@@ -518,7 +518,7 @@ contract AttestationLightClientTest is Test {
     }
 
     function _nonMemberPacket(string memory pathValue) internal pure returns (AM.PacketCompact memory) {
-        return AM.PacketCompact({path: keccak256(abi.encodePacked("path-", pathValue)), commitment: bytes32(0)});
+        return AM.PacketCompact({ path: keccak256(abi.encodePacked("path-", pathValue)), commitment: bytes32(0) });
     }
 
     bytes1 private constant STATE_TAG = 0x01;
@@ -528,12 +528,16 @@ contract AttestationLightClientTest is Test {
         return sha256(abi.encodePacked(typeTag, sha256(data)));
     }
 
-    function _attestation(uint64 height, AM.PacketCompact[] memory packets, uint256[] memory signers)
+    function _attestation(
+        uint64 height,
+        AM.PacketCompact[] memory packets,
+        uint256[] memory signers
+    )
         internal
         pure
         returns (bytes memory attestationData, bytes[] memory signatures)
     {
-        AM.PacketAttestation memory p = AM.PacketAttestation({height: height, packets: packets});
+        AM.PacketAttestation memory p = AM.PacketAttestation({ height: height, packets: packets });
         attestationData = abi.encode(p);
         bytes32 digest = _taggedDigest(attestationData, PACKET_TAG);
         signatures = new bytes[](signers.length);
@@ -542,12 +546,16 @@ contract AttestationLightClientTest is Test {
         }
     }
 
-    function _stateAttestation(uint64 height, uint64 timestamp, uint256[] memory signers)
+    function _stateAttestation(
+        uint64 height,
+        uint64 timestamp,
+        uint256[] memory signers
+    )
         internal
         pure
         returns (bytes memory attestationData, bytes[] memory signatures)
     {
-        AM.StateAttestation memory s = AM.StateAttestation({height: height, timestamp: timestamp});
+        AM.StateAttestation memory s = AM.StateAttestation({ height: height, timestamp: timestamp });
         attestationData = abi.encode(s);
         bytes32 digest = _taggedDigest(attestationData, STATE_TAG);
         signatures = new bytes[](signers.length);

@@ -6,12 +6,12 @@ pragma solidity ^0.8.28;
 // solhint-disable-next-line no-global-import
 import "forge-std/console.sol";
 
-import {IICS20TransferMsgs} from "../../contracts/msgs/IICS20TransferMsgs.sol";
+import { IICS20TransferMsgs } from "../../contracts/msgs/IICS20TransferMsgs.sol";
 
-import {TestERC20} from "./mocks/TestERC20.sol";
-import {ICS20Lib} from "../../contracts/utils/ICS20Lib.sol";
-import {ICS24Host} from "../../contracts/utils/ICS24Host.sol";
-import {FixtureTest} from "./FixtureTest.t.sol";
+import { TestERC20 } from "./mocks/TestERC20.sol";
+import { ICS20Lib } from "../../contracts/utils/ICS20Lib.sol";
+import { ICS24Host } from "../../contracts/utils/ICS24Host.sol";
+import { FixtureTest } from "./FixtureTest.t.sol";
 
 contract BenchmarkTest is FixtureTest {
     function test_ICS20TransferWithSP1Fixtures_Plonk() public {

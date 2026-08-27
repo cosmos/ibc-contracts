@@ -3,8 +3,8 @@ pragma solidity ^0.8.28;
 
 // solhint-disable no-empty-blocks
 
-import {ILightClientMsgs} from "../../../contracts/msgs/ILightClientMsgs.sol";
-import {ILightClient} from "../../../contracts/interfaces/ILightClient.sol";
+import { ILightClientMsgs } from "../../../contracts/msgs/ILightClientMsgs.sol";
+import { ILightClient } from "../../../contracts/interfaces/ILightClient.sol";
 
 contract DummyLightClient is ILightClient, ILightClientMsgs {
     UpdateResult public updateResult;
@@ -39,7 +39,7 @@ contract DummyLightClient is ILightClient, ILightClientMsgs {
         return membershipResult;
     }
 
-    function misbehaviour(bytes calldata misbehaviourMsg) external {}
+    function misbehaviour(bytes calldata misbehaviourMsg) external { }
 
     // custom functions to return values we want
     function setUpdateResult(UpdateResult updateResult_) external {

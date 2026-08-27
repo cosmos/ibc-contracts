@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 
-import {ILightClientMsgs} from "../../contracts/msgs/ILightClientMsgs.sol";
-import {IICS02ClientMsgs} from "../../contracts/msgs/IICS02ClientMsgs.sol";
-import {IICS07TendermintMsgs} from "../../contracts/light-clients/sp1-ics07/msgs/IICS07TendermintMsgs.sol";
-import {IUpdateClientMsgs} from "../../contracts/light-clients/sp1-ics07/msgs/IUpdateClientMsgs.sol";
-import {IMembershipMsgs} from "../../contracts/light-clients/sp1-ics07/msgs/IMembershipMsgs.sol";
-import {IMisbehaviourMsgs} from "../../contracts/light-clients/sp1-ics07/msgs/IMisbehaviourMsgs.sol";
-import {ISP1Msgs} from "../../contracts/light-clients/sp1-ics07/msgs/ISP1Msgs.sol";
+import { ILightClientMsgs } from "../../contracts/msgs/ILightClientMsgs.sol";
+import { IICS02ClientMsgs } from "../../contracts/msgs/IICS02ClientMsgs.sol";
+import { IICS07TendermintMsgs } from "../../contracts/light-clients/sp1-ics07/msgs/IICS07TendermintMsgs.sol";
+import { IUpdateClientMsgs } from "../../contracts/light-clients/sp1-ics07/msgs/IUpdateClientMsgs.sol";
+import { IMembershipMsgs } from "../../contracts/light-clients/sp1-ics07/msgs/IMembershipMsgs.sol";
+import { IMisbehaviourMsgs } from "../../contracts/light-clients/sp1-ics07/msgs/IMisbehaviourMsgs.sol";
+import { ISP1Msgs } from "../../contracts/light-clients/sp1-ics07/msgs/ISP1Msgs.sol";
 
-import {SP1ICS07Tendermint} from "../../contracts/light-clients/sp1-ics07/SP1ICS07Tendermint.sol";
+import { SP1ICS07Tendermint } from "../../contracts/light-clients/sp1-ics07/SP1ICS07Tendermint.sol";
 
-import {SP1MockVerifier} from "@sp1-contracts/SP1MockVerifier.sol";
+import { SP1MockVerifier } from "@sp1-contracts/SP1MockVerifier.sol";
 
 abstract contract SP1ICS07MockTest is Test {
     string public constant MOCK_CHAIN_ID = "mock-chain";
@@ -51,8 +51,8 @@ abstract contract SP1ICS07MockTest is Test {
     function mockClientState(uint64 height) public pure returns (IICS07TendermintMsgs.ClientState memory) {
         return IICS07TendermintMsgs.ClientState({
             chainId: MOCK_CHAIN_ID,
-            trustLevel: IICS07TendermintMsgs.TrustThreshold({numerator: 1, denominator: 3}),
-            latestHeight: IICS02ClientMsgs.Height({revisionNumber: 0, revisionHeight: height}),
+            trustLevel: IICS07TendermintMsgs.TrustThreshold({ numerator: 1, denominator: 3 }),
+            latestHeight: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: height }),
             trustingPeriod: 1 weeks,
             unbondingPeriod: 2 weeks,
             isFrozen: false,
@@ -64,17 +64,16 @@ abstract contract SP1ICS07MockTest is Test {
     /// @param timestamp The timestamp of the consensus state in unix nanoseconds
     /// @return The new consensus state
     function newMockConsensusState(uint128 timestamp) public pure returns (IICS07TendermintMsgs.ConsensusState memory) {
-        return
-            IICS07TendermintMsgs.ConsensusState({
-                timestamp: timestamp, root: MOCK_ROOT, nextValidatorsHash: MOCK_VAL_HASH
-            });
+        return IICS07TendermintMsgs.ConsensusState({
+            timestamp: timestamp, root: MOCK_ROOT, nextValidatorsHash: MOCK_VAL_HASH
+        });
     }
 
     function newUpdateClientMsg() public view returns (bytes memory) {
         IICS07TendermintMsgs.ClientState memory clientState =
             abi.decode(ics07Tendermint.getClientState(), (IICS07TendermintMsgs.ClientState));
         IICS02ClientMsgs.Height memory trustedHeight =
-            IICS02ClientMsgs.Height({revisionNumber: 0, revisionHeight: clientState.latestHeight.revisionHeight});
+            IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: clientState.latestHeight.revisionHeight });
         ++clientState.latestHeight.revisionHeight;
 
         IUpdateClientMsgs.UpdateClientOutput memory output = IUpdateClientMsgs.UpdateClientOutput({
@@ -88,18 +87,18 @@ abstract contract SP1ICS07MockTest is Test {
 
         return abi.encode(
             IUpdateClientMsgs.MsgUpdateClient({
-                sp1Proof: ISP1Msgs.SP1Proof({vKey: MOCK_VKEY, publicValues: abi.encode(output), proof: bytes("")})
+                sp1Proof: ISP1Msgs.SP1Proof({ vKey: MOCK_VKEY, publicValues: abi.encode(output), proof: bytes("") })
             })
         );
     }
 
     function newMembershipMsg(uint64 height) public view returns (ILightClientMsgs.MsgVerifyMembership memory) {
         IMembershipMsgs.MembershipOutput memory output =
-            IMembershipMsgs.MembershipOutput({commitmentRoot: MOCK_ROOT, kvPairs: new IMembershipMsgs.KVPair[](1)});
-        output.kvPairs[0] = IMembershipMsgs.KVPair({path: membershipPath, value: membershipValue});
+            IMembershipMsgs.MembershipOutput({ commitmentRoot: MOCK_ROOT, kvPairs: new IMembershipMsgs.KVPair[](1) });
+        output.kvPairs[0] = IMembershipMsgs.KVPair({ path: membershipPath, value: membershipValue });
 
         IMembershipMsgs.SP1MembershipProof memory sp1Proof = IMembershipMsgs.SP1MembershipProof({
-            sp1Proof: ISP1Msgs.SP1Proof({vKey: MOCK_VKEY, publicValues: abi.encode(output), proof: bytes("")}),
+            sp1Proof: ISP1Msgs.SP1Proof({ vKey: MOCK_VKEY, publicValues: abi.encode(output), proof: bytes("") }),
             trustedConsensusState: newMockConsensusState(height)
         });
 
@@ -109,7 +108,7 @@ abstract contract SP1ICS07MockTest is Test {
 
         return ILightClientMsgs.MsgVerifyMembership({
             proof: abi.encode(proof),
-            proofHeight: IICS02ClientMsgs.Height({revisionNumber: 0, revisionHeight: height}),
+            proofHeight: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: height }),
             path: membershipPath,
             value: membershipValue
         });
@@ -117,11 +116,11 @@ abstract contract SP1ICS07MockTest is Test {
 
     function newNonMembershipMsg(uint64 height) public view returns (ILightClientMsgs.MsgVerifyNonMembership memory) {
         IMembershipMsgs.MembershipOutput memory output =
-            IMembershipMsgs.MembershipOutput({commitmentRoot: MOCK_ROOT, kvPairs: new IMembershipMsgs.KVPair[](1)});
-        output.kvPairs[0] = IMembershipMsgs.KVPair({path: membershipPath, value: bytes("")});
+            IMembershipMsgs.MembershipOutput({ commitmentRoot: MOCK_ROOT, kvPairs: new IMembershipMsgs.KVPair[](1) });
+        output.kvPairs[0] = IMembershipMsgs.KVPair({ path: membershipPath, value: bytes("") });
 
         IMembershipMsgs.SP1MembershipProof memory sp1Proof = IMembershipMsgs.SP1MembershipProof({
-            sp1Proof: ISP1Msgs.SP1Proof({vKey: MOCK_VKEY, publicValues: abi.encode(output), proof: bytes("")}),
+            sp1Proof: ISP1Msgs.SP1Proof({ vKey: MOCK_VKEY, publicValues: abi.encode(output), proof: bytes("") }),
             trustedConsensusState: newMockConsensusState(height)
         });
 
@@ -131,7 +130,7 @@ abstract contract SP1ICS07MockTest is Test {
 
         return ILightClientMsgs.MsgVerifyNonMembership({
             proof: abi.encode(proof),
-            proofHeight: IICS02ClientMsgs.Height({revisionNumber: 0, revisionHeight: height}),
+            proofHeight: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: height }),
             path: membershipPath
         });
     }
@@ -140,15 +139,15 @@ abstract contract SP1ICS07MockTest is Test {
         IMisbehaviourMsgs.MisbehaviourOutput memory output = IMisbehaviourMsgs.MisbehaviourOutput({
             clientState: abi.decode(ics07Tendermint.getClientState(), (IICS07TendermintMsgs.ClientState)),
             time: uint128(block.timestamp * 1e9),
-            trustedHeight1: IICS02ClientMsgs.Height({revisionNumber: 0, revisionHeight: 1}),
-            trustedHeight2: IICS02ClientMsgs.Height({revisionNumber: 0, revisionHeight: 1}),
+            trustedHeight1: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: 1 }),
+            trustedHeight2: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: 1 }),
             trustedConsensusState1: newMockConsensusState(1),
             trustedConsensusState2: newMockConsensusState(1)
         });
 
         return abi.encode(
             IMisbehaviourMsgs.MsgSubmitMisbehaviour({
-                sp1Proof: ISP1Msgs.SP1Proof({vKey: MOCK_VKEY, publicValues: abi.encode(output), proof: bytes("")})
+                sp1Proof: ISP1Msgs.SP1Proof({ vKey: MOCK_VKEY, publicValues: abi.encode(output), proof: bytes("") })
             })
         );
     }

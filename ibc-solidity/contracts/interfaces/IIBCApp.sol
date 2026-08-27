@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.28;
 
-import {IIBCAppCallbacks} from "../msgs/IIBCAppCallbacks.sol";
+import { IIBCAppCallbacks } from "../msgs/IIBCAppCallbacks.sol";
 
 /// @title IBC Application Interface
 /// @notice IIBCApp is an interface for all IBC application contracts to implement.

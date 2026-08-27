@@ -3,15 +3,15 @@ pragma solidity ^0.8.28;
 
 // solhint-disable gas-custom-errors,immutable-vars-naming
 
-import {Test} from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 
-import {ISignatureTransfer} from "@uniswap/permit2/src/interfaces/ISignatureTransfer.sol";
-import {IERC20} from "@openzeppelin-contracts/token/ERC20/IERC20.sol";
+import { ISignatureTransfer } from "@uniswap/permit2/src/interfaces/ISignatureTransfer.sol";
+import { IERC20 } from "@openzeppelin-contracts/token/ERC20/IERC20.sol";
 
-import {TestERC20} from "../mocks/TestERC20.sol";
-import {TestHelper} from "./TestHelper.sol";
-import {DeployPermit2} from "@uniswap/permit2/test/utils/DeployPermit2.sol";
-import {PermitSignature} from "./PermitSignature.sol";
+import { TestERC20 } from "../mocks/TestERC20.sol";
+import { TestHelper } from "./TestHelper.sol";
+import { DeployPermit2 } from "@uniswap/permit2/test/utils/DeployPermit2.sol";
+import { PermitSignature } from "./PermitSignature.sol";
 
 contract IntegrationEnv is Test, DeployPermit2 {
     TestHelper private _th = new TestHelper();
@@ -75,14 +75,23 @@ contract IntegrationEnv is Test, DeployPermit2 {
         token.mint(user, amount);
     }
 
-    function getPermitAndSignature(address user, address spender, uint256 amount)
+    function getPermitAndSignature(
+        address user,
+        address spender,
+        uint256 amount
+    )
         public
         returns (ISignatureTransfer.PermitTransferFrom memory, bytes memory)
     {
         return getPermitAndSignature(user, spender, amount, address(_erc20));
     }
 
-    function getPermitAndSignature(address user, address spender, uint256 amount, address token)
+    function getPermitAndSignature(
+        address user,
+        address spender,
+        uint256 amount,
+        address token
+    )
         public
         returns (ISignatureTransfer.PermitTransferFrom memory permit, bytes memory sig)
     {
@@ -90,7 +99,7 @@ contract IntegrationEnv is Test, DeployPermit2 {
         require(privateKey != 0, "User not found");
 
         permit = ISignatureTransfer.PermitTransferFrom({
-            permitted: ISignatureTransfer.TokenPermissions({token: token, amount: amount}),
+            permitted: ISignatureTransfer.TokenPermissions({ token: token, amount: amount }),
             nonce: vm.randomUint(),
             deadline: block.timestamp + 100
         });
