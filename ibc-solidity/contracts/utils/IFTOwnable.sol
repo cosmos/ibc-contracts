@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.28;
 
-import { IFTBaseUpgradeable } from "./IFTBaseUpgradeable.sol";
-import { OwnableUpgradeable } from "@openzeppelin-upgradeable/access/OwnableUpgradeable.sol";
-import {
-    ERC20BurnableUpgradeable
-} from "@openzeppelin-upgradeable/token/ERC20/extensions/ERC20BurnableUpgradeable.sol";
-import { UUPSUpgradeable } from "@openzeppelin-contracts/proxy/utils/UUPSUpgradeable.sol";
+import {IFTBaseUpgradeable} from "./IFTBaseUpgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin-upgradeable/access/OwnableUpgradeable.sol";
+import {ERC20BurnableUpgradeable} from "@openzeppelin-upgradeable/token/ERC20/extensions/ERC20BurnableUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin-contracts/proxy/utils/UUPSUpgradeable.sol";
 
 /// @title IFT Ownable
 /// @notice This is the ownable and upgradable implementation of IFT
@@ -24,12 +22,7 @@ contract IFTOwnable is IFTBaseUpgradeable, ERC20BurnableUpgradeable, OwnableUpgr
     /// @param erc20Symbol The symbol of the ERC20 token
     /// @param ics27Gmp The address of the ICS27-GMP contract
     // natlint-disable-next-line MissingInheritdoc
-    function initialize(
-        address owner_,
-        string calldata erc20Name,
-        string calldata erc20Symbol,
-        address ics27Gmp
-    )
+    function initialize(address owner_, string calldata erc20Name, string calldata erc20Symbol, address ics27Gmp)
         external
         initializer
     {
@@ -47,10 +40,10 @@ contract IFTOwnable is IFTBaseUpgradeable, ERC20BurnableUpgradeable, OwnableUpgr
     }
 
     /// @inheritdoc IFTBaseUpgradeable
-    function _onlyAuthority() internal view override(IFTBaseUpgradeable) onlyOwner { }
+    function _onlyAuthority() internal view override(IFTBaseUpgradeable) onlyOwner {}
     // solhint-disable-previous-line no-empty-blocks
 
     /// @inheritdoc UUPSUpgradeable
-    function _authorizeUpgrade(address) internal view override(UUPSUpgradeable) onlyOwner { }
+    function _authorizeUpgrade(address) internal view override(UUPSUpgradeable) onlyOwner {}
     // solhint-disable-previous-line no-empty-blocks
 }
