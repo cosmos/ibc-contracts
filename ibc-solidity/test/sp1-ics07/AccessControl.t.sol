@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.28;
 
-import { ILightClientMsgs } from "../../contracts/msgs/ILightClientMsgs.sol";
+import {ILightClientMsgs} from "../../contracts/msgs/ILightClientMsgs.sol";
 
-import { IAccessControl } from "@openzeppelin-contracts/access/IAccessControl.sol";
+import {IAccessControl} from "@openzeppelin-contracts/access/IAccessControl.sol";
 
-import { SP1ICS07MockTest } from "./SP1ICS07MockTest.sol";
+import {SP1ICS07MockTest} from "./SP1ICS07MockTest.sol";
 
 contract SP1ICS07AccessControlTest is SP1ICS07MockTest {
     function test_success_setProofSubmitter() public {

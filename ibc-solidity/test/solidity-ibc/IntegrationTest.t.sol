@@ -3,38 +3,38 @@ pragma solidity ^0.8.28;
 
 // solhint-disable custom-errors,max-line-length,max-states-count,gas-small-strings
 
-import { Test } from "forge-std/Test.sol";
-import { Vm } from "forge-std/Vm.sol";
+import {Test} from "forge-std/Test.sol";
+import {Vm} from "forge-std/Vm.sol";
 
-import { ILightClientMsgs } from "../../contracts/msgs/ILightClientMsgs.sol";
-import { IICS02ClientMsgs } from "../../contracts/msgs/IICS02ClientMsgs.sol";
-import { IICS26RouterMsgs } from "../../contracts/msgs/IICS26RouterMsgs.sol";
-import { IICS20TransferMsgs } from "../../contracts/msgs/IICS20TransferMsgs.sol";
+import {ILightClientMsgs} from "../../contracts/msgs/ILightClientMsgs.sol";
+import {IICS02ClientMsgs} from "../../contracts/msgs/IICS02ClientMsgs.sol";
+import {IICS26RouterMsgs} from "../../contracts/msgs/IICS26RouterMsgs.sol";
+import {IICS20TransferMsgs} from "../../contracts/msgs/IICS20TransferMsgs.sol";
 
-import { IERC20 } from "@openzeppelin-contracts/token/ERC20/IERC20.sol";
-import { IICS26Router, IICS26RouterAccessControlled } from "../../contracts/interfaces/IICS26Router.sol";
-import { IICS26RouterErrors } from "../../contracts/errors/IICS26RouterErrors.sol";
-import { IRateLimitErrors } from "../../contracts/errors/IRateLimitErrors.sol";
-import { ISignatureTransfer } from "@uniswap/permit2/src/interfaces/ISignatureTransfer.sol";
+import {IERC20} from "@openzeppelin-contracts/token/ERC20/IERC20.sol";
+import {IICS26Router, IICS26RouterAccessControlled} from "../../contracts/interfaces/IICS26Router.sol";
+import {IICS26RouterErrors} from "../../contracts/errors/IICS26RouterErrors.sol";
+import {IRateLimitErrors} from "../../contracts/errors/IRateLimitErrors.sol";
+import {ISignatureTransfer} from "@uniswap/permit2/src/interfaces/ISignatureTransfer.sol";
 
-import { ICS20Transfer } from "../../contracts/ICS20Transfer.sol";
-import { RelayerHelper } from "../../contracts/utils/RelayerHelper.sol";
-import { TestERC20 } from "./mocks/TestERC20.sol";
-import { AttackerIBCERC20 } from "./mocks/AttackerIBCERC20.sol";
-import { ICS26Router } from "../../contracts/ICS26Router.sol";
-import { DummyLightClient } from "./mocks/DummyLightClient.sol";
-import { ICS20Lib } from "../../contracts/utils/ICS20Lib.sol";
-import { ICS24Host } from "../../contracts/utils/ICS24Host.sol";
-import { Strings } from "@openzeppelin-contracts/utils/Strings.sol";
-import { Bytes } from "@openzeppelin-contracts/utils/Bytes.sol";
-import { ERC1967Proxy } from "@openzeppelin-contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import { IBCERC20 } from "../../contracts/utils/IBCERC20.sol";
-import { Escrow } from "../../contracts/utils/Escrow.sol";
-import { DeployPermit2 } from "@uniswap/permit2/test/utils/DeployPermit2.sol";
-import { PermitSignature } from "./utils/PermitSignature.sol";
-import { DeployAccessManagerWithRoles } from "../../scripts/deployments/DeployAccessManagerWithRoles.sol";
-import { AccessManager } from "@openzeppelin-contracts/access/manager/AccessManager.sol";
-import { IBCRolesLib } from "../../contracts/utils/IBCRolesLib.sol";
+import {ICS20Transfer} from "../../contracts/ICS20Transfer.sol";
+import {RelayerHelper} from "../../contracts/utils/RelayerHelper.sol";
+import {TestERC20} from "./mocks/TestERC20.sol";
+import {AttackerIBCERC20} from "./mocks/AttackerIBCERC20.sol";
+import {ICS26Router} from "../../contracts/ICS26Router.sol";
+import {DummyLightClient} from "./mocks/DummyLightClient.sol";
+import {ICS20Lib} from "../../contracts/utils/ICS20Lib.sol";
+import {ICS24Host} from "../../contracts/utils/ICS24Host.sol";
+import {Strings} from "@openzeppelin-contracts/utils/Strings.sol";
+import {Bytes} from "@openzeppelin-contracts/utils/Bytes.sol";
+import {ERC1967Proxy} from "@openzeppelin-contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {IBCERC20} from "../../contracts/utils/IBCERC20.sol";
+import {Escrow} from "../../contracts/utils/Escrow.sol";
+import {DeployPermit2} from "@uniswap/permit2/test/utils/DeployPermit2.sol";
+import {PermitSignature} from "./utils/PermitSignature.sol";
+import {DeployAccessManagerWithRoles} from "../../scripts/deployments/DeployAccessManagerWithRoles.sol";
+import {AccessManager} from "@openzeppelin-contracts/access/manager/AccessManager.sol";
+import {IBCRolesLib} from "../../contracts/utils/IBCRolesLib.sol";
 
 contract IntegrationTest is Test, DeployPermit2, PermitSignature, DeployAccessManagerWithRoles {
     using Strings for string;
@@ -157,7 +157,7 @@ contract IntegrationTest is Test, DeployPermit2, PermitSignature, DeployAccessMa
             IICS26RouterMsgs.MsgRecvPacket({
                 packet: recvPacket,
                 proofCommitment: bytes("doesntmatter"), // dummy client will accept
-                proofHeight: IICS02ClientMsgs.Height({ revisionNumber: 1, revisionHeight: 42 }) // will accept
+                proofHeight: IICS02ClientMsgs.Height({revisionNumber: 1, revisionHeight: 42}) // will accept
             })
         );
         multicallData[1] = abi.encodeCall(
@@ -165,7 +165,7 @@ contract IntegrationTest is Test, DeployPermit2, PermitSignature, DeployAccessMa
             IICS26RouterMsgs.MsgRecvPacket({
                 packet: recvPacket2,
                 proofCommitment: bytes("doesntmatter"), // dummy client will accept
-                proofHeight: IICS02ClientMsgs.Height({ revisionNumber: 1, revisionHeight: 42 }) // will accept
+                proofHeight: IICS02ClientMsgs.Height({revisionNumber: 1, revisionHeight: 42}) // will accept
             })
         );
 
@@ -220,7 +220,7 @@ contract IntegrationTest is Test, DeployPermit2, PermitSignature, DeployAccessMa
             IICS26RouterMsgs.MsgRecvPacket({
                 packet: receivePacket,
                 proofCommitment: bytes("doesntmatter"), // dummy client will accept
-                proofHeight: IICS02ClientMsgs.Height({ revisionNumber: 1, revisionHeight: 42 }) // will accept
+                proofHeight: IICS02ClientMsgs.Height({revisionNumber: 1, revisionHeight: 42}) // will accept
             })
         );
         multicallData[1] = abi.encodeCall(
@@ -228,7 +228,7 @@ contract IntegrationTest is Test, DeployPermit2, PermitSignature, DeployAccessMa
             IICS26RouterMsgs.MsgRecvPacket({
                 packet: invalidPacket,
                 proofCommitment: bytes("doesntmatter"), // dummy client will accept
-                proofHeight: IICS02ClientMsgs.Height({ revisionNumber: 1, revisionHeight: 42 }) // will accept
+                proofHeight: IICS02ClientMsgs.Height({revisionNumber: 1, revisionHeight: 42}) // will accept
             })
         );
 
@@ -376,11 +376,7 @@ contract IntegrationTest is Test, DeployPermit2, PermitSignature, DeployAccessMa
         assertFalse(relayerHelper.isPacketReceiveSuccessful(recvPacket));
     }
 
-    function _sendICS20TransferPacket(
-        string memory sender,
-        string memory receiver,
-        address denom
-    )
+    function _sendICS20TransferPacket(string memory sender, string memory receiver, address denom)
         internal
         returns (IICS26RouterMsgs.Packet memory)
     {
@@ -393,10 +389,7 @@ contract IntegrationTest is Test, DeployPermit2, PermitSignature, DeployAccessMa
         address denom,
         uint256 amount,
         string memory sourceClient
-    )
-        internal
-        returns (IICS26RouterMsgs.Packet memory)
-    {
+    ) internal returns (IICS26RouterMsgs.Packet memory) {
         ISignatureTransfer.PermitTransferFrom memory emptyPermit;
         return _sendICS20TransferPacket(sender, receiver, denom, amount, sourceClient, emptyPermit, "");
     }
@@ -409,10 +402,7 @@ contract IntegrationTest is Test, DeployPermit2, PermitSignature, DeployAccessMa
         string memory sourceClient,
         ISignatureTransfer.PermitTransferFrom memory permit,
         bytes memory signature
-    )
-        internal
-        returns (IICS26RouterMsgs.Packet memory)
-    {
+    ) internal returns (IICS26RouterMsgs.Packet memory) {
         uint64 timeoutTimestamp = uint64(block.timestamp + 1000);
 
         IICS20TransferMsgs.SendTransferMsg memory msgSendTransfer = IICS20TransferMsgs.SendTransferMsg({
@@ -444,11 +434,7 @@ contract IntegrationTest is Test, DeployPermit2, PermitSignature, DeployAccessMa
         return packet;
     }
 
-    function _getPacketData(
-        string memory sender,
-        string memory receiver,
-        string memory denom
-    )
+    function _getPacketData(string memory sender, string memory receiver, string memory denom)
         internal
         view
         returns (IICS20TransferMsgs.FungibleTokenPacketData memory)
@@ -456,12 +442,7 @@ contract IntegrationTest is Test, DeployPermit2, PermitSignature, DeployAccessMa
         return _getPacketData(sender, receiver, denom, defaultAmount);
     }
 
-    function _getPacketData(
-        string memory sender,
-        string memory receiver,
-        string memory denom,
-        uint256 amount
-    )
+    function _getPacketData(string memory sender, string memory receiver, string memory denom, uint256 amount)
         internal
         pure
         returns (IICS20TransferMsgs.FungibleTokenPacketData memory)
@@ -471,23 +452,14 @@ contract IntegrationTest is Test, DeployPermit2, PermitSignature, DeployAccessMa
         });
     }
 
-    function _receiveICS20Transfer(
-        string memory sender,
-        string memory receiver,
-        string memory denom
-    )
+    function _receiveICS20Transfer(string memory sender, string memory receiver, string memory denom)
         internal
         returns (IERC20 receivedERC20, string memory receivedDenom, IICS26RouterMsgs.Packet memory receivePacket)
     {
         return _receiveICS20Transfer(sender, receiver, denom, defaultAmount, clientIdentifier);
     }
 
-    function _receiveICS20Transfer(
-        string memory sender,
-        string memory receiver,
-        string memory denom,
-        uint256 amount
-    )
+    function _receiveICS20Transfer(string memory sender, string memory receiver, string memory denom, uint256 amount)
         internal
         returns (IERC20 receivedERC20, string memory receivedDenom, IICS26RouterMsgs.Packet memory receivePacket)
     {
@@ -532,7 +504,7 @@ contract IntegrationTest is Test, DeployPermit2, PermitSignature, DeployAccessMa
             IICS26RouterMsgs.MsgRecvPacket({
                 packet: receivePacket,
                 proofCommitment: bytes("doesntmatter"), // dummy client will accept
-                proofHeight: IICS02ClientMsgs.Height({ revisionNumber: 1, revisionHeight: 42 }) // will accept
+                proofHeight: IICS02ClientMsgs.Height({revisionNumber: 1, revisionHeight: 42}) // will accept
             })
         );
 

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.28;
 
-import { Test } from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 
-import { AttestationLightClient } from "../../contracts/light-clients/attestation/AttestationLightClient.sol";
-import { IAttestationMsgs as AM } from "../../contracts/light-clients/attestation/msgs/IAttestationMsgs.sol";
-import { ILightClientMsgs } from "../../contracts/msgs/ILightClientMsgs.sol";
-import { IICS02ClientMsgs } from "../../contracts/msgs/IICS02ClientMsgs.sol";
+import {AttestationLightClient} from "../../contracts/light-clients/attestation/AttestationLightClient.sol";
+import {IAttestationMsgs as AM} from "../../contracts/light-clients/attestation/msgs/IAttestationMsgs.sol";
+import {ILightClientMsgs} from "../../contracts/msgs/ILightClientMsgs.sol";
+import {IICS02ClientMsgs} from "../../contracts/msgs/IICS02ClientMsgs.sol";
 
 contract AttestationLightClientGasTest is Test {
     uint64 internal constant INITIAL_HEIGHT = 100;
@@ -15,39 +15,39 @@ contract AttestationLightClientGasTest is Test {
     error NeedAtLeastOneCommitment();
 
     function testGas_VerifyMembership_1of1_1Commit() public {
-        _runScenario({ quorum: 1, attestorCount: 1, commitmentCount: 1, label: "verifyMembership 1of1 - 1 commit" });
+        _runScenario({quorum: 1, attestorCount: 1, commitmentCount: 1, label: "verifyMembership 1of1 - 1 commit"});
     }
 
     function testGas_VerifyMembership_1of1_5Commits() public {
-        _runScenario({ quorum: 1, attestorCount: 1, commitmentCount: 5, label: "verify 1of1 - 5 commits" });
+        _runScenario({quorum: 1, attestorCount: 1, commitmentCount: 5, label: "verify 1of1 - 5 commits"});
     }
 
     function testGas_VerifyMembership_1of1_20Commits() public {
-        _runScenario({ quorum: 1, attestorCount: 1, commitmentCount: 20, label: "verify 1of1 - 20 commits" });
+        _runScenario({quorum: 1, attestorCount: 1, commitmentCount: 20, label: "verify 1of1 - 20 commits"});
     }
 
     function testGas_VerifyMembership_3of5_1Commit() public {
-        _runScenario({ quorum: 3, attestorCount: 5, commitmentCount: 1, label: "verifyMembership 3of5 - 1 commit" });
+        _runScenario({quorum: 3, attestorCount: 5, commitmentCount: 1, label: "verifyMembership 3of5 - 1 commit"});
     }
 
     function testGas_VerifyMembership_3of5_5Commits() public {
-        _runScenario({ quorum: 3, attestorCount: 5, commitmentCount: 5, label: "verify 3of5 - 5 commits" });
+        _runScenario({quorum: 3, attestorCount: 5, commitmentCount: 5, label: "verify 3of5 - 5 commits"});
     }
 
     function testGas_VerifyMembership_3of5_20Commits() public {
-        _runScenario({ quorum: 3, attestorCount: 5, commitmentCount: 20, label: "verify 3of5 - 20 commits" });
+        _runScenario({quorum: 3, attestorCount: 5, commitmentCount: 20, label: "verify 3of5 - 20 commits"});
     }
 
     function testGas_VerifyMembership_5of7_1Commit() public {
-        _runScenario({ quorum: 5, attestorCount: 7, commitmentCount: 1, label: "verifyMembership 5of7 - 1 commit" });
+        _runScenario({quorum: 5, attestorCount: 7, commitmentCount: 1, label: "verifyMembership 5of7 - 1 commit"});
     }
 
     function testGas_VerifyMembership_5of7_5Commits() public {
-        _runScenario({ quorum: 5, attestorCount: 7, commitmentCount: 5, label: "verify 5of7 - 5 commits" });
+        _runScenario({quorum: 5, attestorCount: 7, commitmentCount: 5, label: "verify 5of7 - 5 commits"});
     }
 
     function testGas_VerifyMembership_5of7_20Commits() public {
-        _runScenario({ quorum: 5, attestorCount: 7, commitmentCount: 20, label: "verify 5of7 - 20 commits" });
+        _runScenario({quorum: 5, attestorCount: 7, commitmentCount: 20, label: "verify 5of7 - 20 commits"});
     }
 
     function _runScenario(uint8 quorum, uint256 attestorCount, uint256 commitmentCount, string memory label) internal {
@@ -63,7 +63,7 @@ contract AttestationLightClientGasTest is Test {
 
         (AM.PacketCompact[] memory packets, AM.PacketCompact memory target) = _makeCommitments(commitmentCount);
 
-        AM.PacketAttestation memory p = AM.PacketAttestation({ height: INITIAL_HEIGHT, packets: packets });
+        AM.PacketAttestation memory p = AM.PacketAttestation({height: INITIAL_HEIGHT, packets: packets});
         bytes memory attestationData = abi.encode(p);
         bytes32 digest = sha256(abi.encodePacked(bytes1(0x02), sha256(attestationData)));
 
@@ -73,11 +73,11 @@ contract AttestationLightClientGasTest is Test {
         }
 
         AM.AttestationProof memory proof =
-            AM.AttestationProof({ attestationData: attestationData, signatures: signatures });
+            AM.AttestationProof({attestationData: attestationData, signatures: signatures});
 
         ILightClientMsgs.MsgVerifyMembership memory msgVerify;
         msgVerify.proof = abi.encode(proof);
-        msgVerify.proofHeight = IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: INITIAL_HEIGHT });
+        msgVerify.proofHeight = IICS02ClientMsgs.Height({revisionNumber: 0, revisionHeight: INITIAL_HEIGHT});
         msgVerify.path = new bytes[](1);
         msgVerify.path[0] = abi.encodePacked("packet-path", commitmentCount - 1);
         msgVerify.value = abi.encode(target.commitment);

@@ -3,14 +3,14 @@ pragma solidity ^0.8.28;
 
 // solhint-disable custom-errors,max-line-length,gas-small-strings
 
-import { Test } from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 
-import { IICS26RouterMsgs } from "../../contracts/msgs/IICS26RouterMsgs.sol";
-import { IICS20TransferMsgs } from "../../contracts/msgs/IICS20TransferMsgs.sol";
+import {IICS26RouterMsgs} from "../../contracts/msgs/IICS26RouterMsgs.sol";
+import {IICS20TransferMsgs} from "../../contracts/msgs/IICS20TransferMsgs.sol";
 
-import { ICS24Host } from "../../contracts/utils/ICS24Host.sol";
-import { ICS20Lib } from "../../contracts/utils/ICS20Lib.sol";
-import { Strings } from "@openzeppelin-contracts/utils/Strings.sol";
+import {ICS24Host} from "../../contracts/utils/ICS24Host.sol";
+import {ICS20Lib} from "../../contracts/utils/ICS20Lib.sol";
+import {Strings} from "@openzeppelin-contracts/utils/Strings.sol";
 
 contract ICS24HostTest is Test {
     bytes[] public ibcPrefix = [bytes("ibc"), bytes("")];

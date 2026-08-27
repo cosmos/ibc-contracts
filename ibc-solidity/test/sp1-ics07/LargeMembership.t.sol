@@ -5,8 +5,8 @@ pragma solidity ^0.8.28;
 
 // solhint-disable-next-line no-global-import
 import "forge-std/console.sol";
-import { MembershipTest } from "./MembershipTest.sol";
-import { ILightClient } from "../../contracts/interfaces/ILightClient.sol";
+import {MembershipTest} from "./MembershipTest.sol";
+import {ILightClient} from "../../contracts/interfaces/ILightClient.sol";
 
 contract SP1ICS07LargeMembershipTest is MembershipTest {
     SP1MembershipProof public proof;

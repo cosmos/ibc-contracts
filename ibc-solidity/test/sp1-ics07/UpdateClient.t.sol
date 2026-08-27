@@ -5,8 +5,8 @@ pragma solidity ^0.8.28;
 
 // solhint-disable-next-line no-global-import
 import "forge-std/console.sol";
-import { stdJson } from "forge-std/StdJson.sol";
-import { SP1ICS07TendermintTest } from "./SP1ICS07TendermintTest.sol";
+import {stdJson} from "forge-std/StdJson.sol";
+import {SP1ICS07TendermintTest} from "./SP1ICS07TendermintTest.sol";
 
 struct SP1ICS07UpdateClientFixtureJson {
     bytes trustedClientState;
@@ -38,8 +38,8 @@ contract SP1ICS07UpdateClientTest is SP1ICS07TendermintTest {
 
     function fixtureTestCases() public pure returns (FixtureTestCase[] memory) {
         FixtureTestCase[] memory testCases = new FixtureTestCase[](2);
-        testCases[0] = FixtureTestCase({ name: "groth16", fileName: "update_client_fixture-groth16.json" });
-        testCases[1] = FixtureTestCase({ name: "plonk", fileName: "update_client_fixture-plonk.json" });
+        testCases[0] = FixtureTestCase({name: "groth16", fileName: "update_client_fixture-groth16.json"});
+        testCases[1] = FixtureTestCase({name: "plonk", fileName: "update_client_fixture-plonk.json"});
 
         return testCases;
     }

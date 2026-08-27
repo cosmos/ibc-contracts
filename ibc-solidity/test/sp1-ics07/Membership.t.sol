@@ -5,7 +5,7 @@ pragma solidity ^0.8.28;
 
 // solhint-disable-next-line no-global-import
 import "forge-std/console.sol";
-import { MembershipTest } from "./MembershipTest.sol";
+import {MembershipTest} from "./MembershipTest.sol";
 
 contract SP1ICS07MembershipTest is MembershipTest {
     SP1MembershipProof public proof;
@@ -18,8 +18,8 @@ contract SP1ICS07MembershipTest is MembershipTest {
 
     function fixtureTestCases() public pure returns (FixtureTestCase[] memory) {
         FixtureTestCase[] memory testCases = new FixtureTestCase[](2);
-        testCases[0] = FixtureTestCase({ name: "groth16", fileName: "memberships_fixture-groth16.json" });
-        testCases[1] = FixtureTestCase({ name: "plonk", fileName: "memberships_fixture-plonk.json" });
+        testCases[0] = FixtureTestCase({name: "groth16", fileName: "memberships_fixture-groth16.json"});
+        testCases[1] = FixtureTestCase({name: "plonk", fileName: "memberships_fixture-plonk.json"});
 
         return testCases;
     }
@@ -108,9 +108,8 @@ contract SP1ICS07MembershipTest is MembershipTest {
         console.log("Cached VerifyMembership gas used: ", vm.lastCallGas().gasTotalUsed);
 
         // resubmit cached non-membership proof
-        MsgVerifyNonMembership memory cachedNonMembershipMsg = MsgVerifyNonMembership({
-            proof: bytes(""), proofHeight: fixture.proofHeight, path: verifyNonMembershipPath
-        });
+        MsgVerifyNonMembership memory cachedNonMembershipMsg =
+            MsgVerifyNonMembership({proof: bytes(""), proofHeight: fixture.proofHeight, path: verifyNonMembershipPath});
 
         ics07Tendermint.verifyNonMembership(cachedNonMembershipMsg);
 
@@ -136,7 +135,7 @@ contract SP1ICS07MembershipTest is MembershipTest {
             proofMsg.sp1Proof.proof = bytes("invalid");
 
             MembershipProof memory membershipProof =
-                MembershipProof({ proofType: MembershipProofType.SP1MembershipProof, proof: abi.encode(proofMsg) });
+                MembershipProof({proofType: MembershipProofType.SP1MembershipProof, proof: abi.encode(proofMsg)});
 
             MsgVerifyNonMembership memory nonMembershipMsg = MsgVerifyNonMembership({
                 proof: abi.encode(membershipProof), proofHeight: fixture.proofHeight, path: verifyNonMembershipPath
@@ -248,7 +247,7 @@ contract SP1ICS07MembershipTest is MembershipTest {
         });
         testCases[9] = MockInvalidMembershipTestCase({
             name: "Invalid public values",
-            sp1Proof: SP1Proof({ proof: bytes(""), publicValues: bytes("invalid"), vKey: proof.sp1Proof.vKey }),
+            sp1Proof: SP1Proof({proof: bytes(""), publicValues: bytes("invalid"), vKey: proof.sp1Proof.vKey}),
             proofHeight: fixture.proofHeight.revisionHeight,
             path: verifyNonMembershipPath,
             value: bytes(""),
@@ -262,7 +261,7 @@ contract SP1ICS07MembershipTest is MembershipTest {
             proofMsg.sp1Proof = tc.sp1Proof;
 
             MembershipProof memory membershipProof =
-                MembershipProof({ proofType: MembershipProofType.SP1MembershipProof, proof: abi.encode(proofMsg) });
+                MembershipProof({proofType: MembershipProofType.SP1MembershipProof, proof: abi.encode(proofMsg)});
 
             Height memory proofHeight = fixture.proofHeight;
             proofHeight.revisionHeight = tc.proofHeight;

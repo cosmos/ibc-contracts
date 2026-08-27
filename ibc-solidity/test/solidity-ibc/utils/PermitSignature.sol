@@ -6,9 +6,9 @@ pragma solidity ^0.8.28;
 
 // solhint-disable const-name-snakecase,gas-small-strings,gas-calldata-parameters
 
-import { Vm } from "forge-std/Vm.sol";
-import { IAllowanceTransfer } from "@uniswap/permit2/src/interfaces/IAllowanceTransfer.sol";
-import { ISignatureTransfer } from "@uniswap/permit2/src/interfaces/ISignatureTransfer.sol";
+import {Vm} from "forge-std/Vm.sol";
+import {IAllowanceTransfer} from "@uniswap/permit2/src/interfaces/IAllowanceTransfer.sol";
+import {ISignatureTransfer} from "@uniswap/permit2/src/interfaces/ISignatureTransfer.sol";
 
 contract PermitSignature {
     Vm private constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
@@ -38,11 +38,7 @@ contract PermitSignature {
         IAllowanceTransfer.PermitSingle memory permit,
         uint256 privateKey,
         bytes32 domainSeparator
-    )
-        internal
-        pure
-        returns (uint8 v, bytes32 r, bytes32 s)
-    {
+    ) internal pure returns (uint8 v, bytes32 r, bytes32 s) {
         bytes32 permitHash = keccak256(abi.encode(_PERMIT_DETAILS_TYPEHASH, permit.details));
 
         bytes32 msgHash = keccak256(
@@ -60,11 +56,7 @@ contract PermitSignature {
         IAllowanceTransfer.PermitSingle memory permit,
         uint256 privateKey,
         bytes32 domainSeparator
-    )
-        internal
-        pure
-        returns (bytes memory sig)
-    {
+    ) internal pure returns (bytes memory sig) {
         (uint8 v, bytes32 r, bytes32 s) = getPermitSignatureRaw(permit, privateKey, domainSeparator);
         return bytes.concat(r, s, bytes1(v));
     }
@@ -73,11 +65,7 @@ contract PermitSignature {
         IAllowanceTransfer.PermitSingle memory permit,
         uint256 privateKey,
         bytes32 domainSeparator
-    )
-        internal
-        pure
-        returns (bytes memory sig)
-    {
+    ) internal pure returns (bytes memory sig) {
         (uint8 v, bytes32 r, bytes32 s) = getPermitSignatureRaw(permit, privateKey, domainSeparator);
         bytes32 vs;
         (r, vs) = _getCompactSignature(v, r, s);
@@ -88,11 +76,7 @@ contract PermitSignature {
         ISignatureTransfer.PermitTransferFrom memory permit,
         uint256 privateKey,
         bytes32 domainSeparator
-    )
-        external
-        view
-        returns (bytes memory sig)
-    {
+    ) external view returns (bytes memory sig) {
         bytes32 tokenPermissions = keccak256(abi.encode(_TOKEN_PERMISSIONS_TYPEHASH, permit.permitted));
         bytes32 msgHash = keccak256(
             abi.encodePacked(
@@ -126,11 +110,7 @@ contract PermitSignature {
         IAllowanceTransfer.PermitBatch memory permit,
         uint256 privateKey,
         bytes32 domainSeparator
-    )
-        external
-        pure
-        returns (bytes memory sig)
-    {
+    ) external pure returns (bytes memory sig) {
         bytes32[] memory permitHashes = new bytes32[](permit.details.length);
         for (uint256 i = 0; i < permit.details.length; ++i) {
             permitHashes[i] = keccak256(abi.encode(_PERMIT_DETAILS_TYPEHASH, permit.details[i]));
@@ -158,11 +138,7 @@ contract PermitSignature {
         ISignatureTransfer.PermitTransferFrom memory permit,
         address spender,
         bytes32 domainSeparator
-    )
-        external
-        pure
-        returns (bytes32)
-    {
+    ) external pure returns (bytes32) {
         bytes32 tokenPermissions = keccak256(abi.encode(_TOKEN_PERMISSIONS_TYPEHASH, permit.permitted));
         bytes32 msgHash = keccak256(
             abi.encodePacked(
@@ -182,11 +158,7 @@ contract PermitSignature {
         uint256 privateKey,
         address spender,
         bytes32 domainSeparator
-    )
-        external
-        pure
-        returns (bytes memory sig)
-    {
+    ) external pure returns (bytes memory sig) {
         bytes32 tokenPermissions = keccak256(abi.encode(_TOKEN_PERMISSIONS_TYPEHASH, permit.permitted));
         bytes32 msgHash = keccak256(
             abi.encodePacked(
@@ -208,11 +180,7 @@ contract PermitSignature {
         bytes32 typehash,
         bytes32 witness,
         bytes32 domainSeparator
-    )
-        external
-        view
-        returns (bytes memory sig)
-    {
+    ) external view returns (bytes memory sig) {
         bytes32 tokenPermissions = keccak256(abi.encode(_TOKEN_PERMISSIONS_TYPEHASH, permit.permitted));
 
         bytes32 msgHash = keccak256(
@@ -231,11 +199,7 @@ contract PermitSignature {
         ISignatureTransfer.PermitBatchTransferFrom memory permit,
         uint256 privateKey,
         bytes32 domainSeparator
-    )
-        external
-        view
-        returns (bytes memory sig)
-    {
+    ) external view returns (bytes memory sig) {
         bytes32[] memory tokenPermissions = new bytes32[](permit.permitted.length);
         for (uint256 i = 0; i < permit.permitted.length; ++i) {
             tokenPermissions[i] = keccak256(abi.encode(_TOKEN_PERMISSIONS_TYPEHASH, permit.permitted[i]));
@@ -266,11 +230,7 @@ contract PermitSignature {
         bytes32 typeHash,
         bytes32 witness,
         bytes32 domainSeparator
-    )
-        external
-        view
-        returns (bytes memory sig)
-    {
+    ) external view returns (bytes memory sig) {
         bytes32[] memory tokenPermissions = new bytes32[](permit.permitted.length);
         for (uint256 i = 0; i < permit.permitted.length; ++i) {
             tokenPermissions[i] = keccak256(abi.encode(_TOKEN_PERMISSIONS_TYPEHASH, permit.permitted[i]));
@@ -297,29 +257,21 @@ contract PermitSignature {
         return bytes.concat(r, s, bytes1(v));
     }
 
-    function defaultERC20PermitAllowance(
-        address token0,
-        uint160 amount,
-        uint48 expiration,
-        uint48 nonce
-    )
+    function defaultERC20PermitAllowance(address token0, uint160 amount, uint48 expiration, uint48 nonce)
         internal
         view
         returns (IAllowanceTransfer.PermitSingle memory)
     {
-        IAllowanceTransfer.PermitDetails memory details =
-            IAllowanceTransfer.PermitDetails({ token: token0, amount: amount, expiration: expiration, nonce: nonce });
-        return IAllowanceTransfer.PermitSingle({
-            details: details, spender: address(this), sigDeadline: block.timestamp + 100
+        IAllowanceTransfer.PermitDetails memory details = IAllowanceTransfer.PermitDetails({
+            token: token0, amount: amount, expiration: expiration, nonce: nonce
         });
+        return
+            IAllowanceTransfer.PermitSingle({
+                details: details, spender: address(this), sigDeadline: block.timestamp + 100
+            });
     }
 
-    function defaultERC20PermitBatchAllowance(
-        address[] memory tokens,
-        uint160 amount,
-        uint48 expiration,
-        uint48 nonce
-    )
+    function defaultERC20PermitBatchAllowance(address[] memory tokens, uint160 amount, uint48 expiration, uint48 nonce)
         internal
         view
         returns (IAllowanceTransfer.PermitBatch memory)
@@ -332,45 +284,37 @@ contract PermitSignature {
             });
         }
 
-        return IAllowanceTransfer.PermitBatch({
-            details: details, spender: address(this), sigDeadline: block.timestamp + 100
-        });
+        return
+            IAllowanceTransfer.PermitBatch({
+                details: details, spender: address(this), sigDeadline: block.timestamp + 100
+            });
     }
 
-    function defaultERC20PermitTransfer(
-        address token0,
-        uint256 nonce
-    )
+    function defaultERC20PermitTransfer(address token0, uint256 nonce)
         internal
         view
         returns (ISignatureTransfer.PermitTransferFrom memory)
     {
         return ISignatureTransfer.PermitTransferFrom({
-            permitted: ISignatureTransfer.TokenPermissions({ token: token0, amount: 10 ** 18 }),
+            permitted: ISignatureTransfer.TokenPermissions({token: token0, amount: 10 ** 18}),
             nonce: nonce,
             deadline: block.timestamp + 100
         });
     }
 
-    function defaultERC20PermitWitnessTransfer(
-        address token0,
-        uint256 nonce
-    )
+    function defaultERC20PermitWitnessTransfer(address token0, uint256 nonce)
         internal
         view
         returns (ISignatureTransfer.PermitTransferFrom memory)
     {
         return ISignatureTransfer.PermitTransferFrom({
-            permitted: ISignatureTransfer.TokenPermissions({ token: token0, amount: 10 ** 18 }),
+            permitted: ISignatureTransfer.TokenPermissions({token: token0, amount: 10 ** 18}),
             nonce: nonce,
             deadline: block.timestamp + 100
         });
     }
 
-    function defaultERC20PermitMultiple(
-        address[] memory tokens,
-        uint256 nonce
-    )
+    function defaultERC20PermitMultiple(address[] memory tokens, uint256 nonce)
         internal
         view
         returns (ISignatureTransfer.PermitBatchTransferFrom memory)
@@ -378,7 +322,7 @@ contract PermitSignature {
         ISignatureTransfer.TokenPermissions[] memory permitted =
             new ISignatureTransfer.TokenPermissions[](tokens.length);
         for (uint256 i = 0; i < tokens.length; ++i) {
-            permitted[i] = ISignatureTransfer.TokenPermissions({ token: tokens[i], amount: 1 ** 18 });
+            permitted[i] = ISignatureTransfer.TokenPermissions({token: tokens[i], amount: 1 ** 18});
         }
         return ISignatureTransfer.PermitBatchTransferFrom({
             permitted: permitted, nonce: nonce, deadline: block.timestamp + 100

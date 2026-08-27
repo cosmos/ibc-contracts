@@ -3,16 +3,16 @@ pragma solidity ^0.8.28;
 
 // solhint-disable custom-errors,max-line-length
 
-import { Test } from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 
-import { IERC20Errors } from "@openzeppelin-contracts/interfaces/draft-IERC6093.sol";
-import { IIBCERC20Errors } from "../../contracts/errors/IIBCERC20Errors.sol";
+import {IERC20Errors} from "@openzeppelin-contracts/interfaces/draft-IERC6093.sol";
+import {IIBCERC20Errors} from "../../contracts/errors/IIBCERC20Errors.sol";
 
-import { IBCERC20 } from "../../contracts/utils/IBCERC20.sol";
-import { Escrow } from "../../contracts/utils/Escrow.sol";
-import { BeaconProxy } from "@openzeppelin-contracts/proxy/beacon/BeaconProxy.sol";
-import { UpgradeableBeacon } from "@openzeppelin-contracts/proxy/beacon/UpgradeableBeacon.sol";
-import { AccessManager } from "@openzeppelin-contracts/access/manager/AccessManager.sol";
+import {IBCERC20} from "../../contracts/utils/IBCERC20.sol";
+import {Escrow} from "../../contracts/utils/Escrow.sol";
+import {BeaconProxy} from "@openzeppelin-contracts/proxy/beacon/BeaconProxy.sol";
+import {UpgradeableBeacon} from "@openzeppelin-contracts/proxy/beacon/UpgradeableBeacon.sol";
+import {AccessManager} from "@openzeppelin-contracts/access/manager/AccessManager.sol";
 
 contract IBCERC20Test is Test {
     IBCERC20 public ibcERC20;

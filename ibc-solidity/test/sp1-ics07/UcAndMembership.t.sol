@@ -5,8 +5,8 @@ pragma solidity ^0.8.28;
 
 // solhint-disable-next-line no-global-import
 import "forge-std/console.sol";
-import { stdJson } from "forge-std/StdJson.sol";
-import { MembershipTest } from "./MembershipTest.sol";
+import {stdJson} from "forge-std/StdJson.sol";
+import {MembershipTest} from "./MembershipTest.sol";
 
 contract SP1ICS07UpdateClientAndMembershipTest is MembershipTest {
     using stdJson for string;
@@ -26,8 +26,8 @@ contract SP1ICS07UpdateClientAndMembershipTest is MembershipTest {
 
     function fixtureTestCases() public pure returns (FixtureTestCase[] memory) {
         FixtureTestCase[] memory testCases = new FixtureTestCase[](2);
-        testCases[0] = FixtureTestCase({ name: "groth16", fileName: "uc_and_memberships_fixture-groth16.json" });
-        testCases[1] = FixtureTestCase({ name: "plonk", fileName: "uc_and_memberships_fixture-plonk.json" });
+        testCases[0] = FixtureTestCase({name: "groth16", fileName: "uc_and_memberships_fixture-groth16.json"});
+        testCases[1] = FixtureTestCase({name: "plonk", fileName: "uc_and_memberships_fixture-plonk.json"});
 
         return testCases;
     }
@@ -140,9 +140,8 @@ contract SP1ICS07UpdateClientAndMembershipTest is MembershipTest {
         console.log("Cached UpdateClientAndVerifyMembership gas used: ", vm.lastCallGas().gasTotalUsed);
 
         // submit cached non-membership proof
-        MsgVerifyNonMembership memory nonMembershipMsg = MsgVerifyNonMembership({
-            proof: bytes(""), proofHeight: fixture.proofHeight, path: verifyNonMembershipPath
-        });
+        MsgVerifyNonMembership memory nonMembershipMsg =
+            MsgVerifyNonMembership({proof: bytes(""), proofHeight: fixture.proofHeight, path: verifyNonMembershipPath});
 
         // run verify
         ics07Tendermint.verifyNonMembership(nonMembershipMsg);

@@ -1,18 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.28;
 
-import { Test } from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 
-import { BesuLightClientBase } from "../../contracts/light-clients/besu/BesuLightClientBase.sol";
-import { IBesuLightClientErrors } from "../../contracts/light-clients/besu/errors/IBesuLightClientErrors.sol";
+import {BesuLightClientBase} from "../../contracts/light-clients/besu/BesuLightClientBase.sol";
+import {IBesuLightClientErrors} from "../../contracts/light-clients/besu/errors/IBesuLightClientErrors.sol";
 
 contract BesuLightClientQuorumHarness is BesuLightClientBase {
-    constructor(
-        uint64 initialTrustedTimestamp,
-        address[] memory initialValidators
-    )
+    constructor(uint64 initialTrustedTimestamp, address[] memory initialValidators)
         BesuLightClientBase(address(1), 1, initialTrustedTimestamp, bytes32(0), initialValidators, 0, 0, address(0))
-    { }
+    {}
 
     function checkValidatorQuorum(address[] calldata signers, address[] calldata validators) external pure {
         _checkValidatorQuorum(signers, validators);

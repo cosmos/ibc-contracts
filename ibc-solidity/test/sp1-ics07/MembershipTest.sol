@@ -5,8 +5,8 @@ pragma solidity ^0.8.28;
 
 // solhint-disable-next-line no-global-import
 import "forge-std/console.sol";
-import { stdJson } from "forge-std/StdJson.sol";
-import { SP1ICS07TendermintTest } from "./SP1ICS07TendermintTest.sol";
+import {stdJson} from "forge-std/StdJson.sol";
+import {SP1ICS07TendermintTest} from "./SP1ICS07TendermintTest.sol";
 
 abstract contract MembershipTest is SP1ICS07TendermintTest {
     bytes[] public verifyMembershipPath = [bytes("ibc"), bytes("clients/07-tendermint-0/clientState")];

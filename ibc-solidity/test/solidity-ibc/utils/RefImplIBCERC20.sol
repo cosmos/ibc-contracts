@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.28;
 
-import { IMintableAndBurnable } from "../../../contracts/interfaces/IMintableAndBurnable.sol";
+import {IMintableAndBurnable} from "../../../contracts/interfaces/IMintableAndBurnable.sol";
 
-import { ERC20Upgradeable } from "@openzeppelin-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-import { UUPSUpgradeable } from "@openzeppelin-contracts/proxy/utils/UUPSUpgradeable.sol";
-import { OwnableUpgradeable } from "@openzeppelin-upgradeable/access/OwnableUpgradeable.sol";
+import {ERC20Upgradeable} from "@openzeppelin-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin-contracts/proxy/utils/UUPSUpgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin-upgradeable/access/OwnableUpgradeable.sol";
 
 /// @title Reference IBC ERC20 Implementation
 /// @notice This implementation is intended to serve as a base reference for developers creating their own
@@ -39,12 +39,7 @@ contract RefImplIBCERC20 is IMintableAndBurnable, UUPSUpgradeable, ERC20Upgradea
     /// @param ics20_ The ICS20 contract address
     /// @param name_ The name of the token
     /// @param symbol_ The symbol of the token
-    function initialize(
-        address owner_,
-        address ics20_,
-        string calldata name_,
-        string calldata symbol_
-    )
+    function initialize(address owner_, address ics20_, string calldata name_, string calldata symbol_)
         external
         initializer
     {
@@ -99,7 +94,7 @@ contract RefImplIBCERC20 is IMintableAndBurnable, UUPSUpgradeable, ERC20Upgradea
     }
 
     /// @inheritdoc UUPSUpgradeable
-    function _authorizeUpgrade(address) internal view override(UUPSUpgradeable) onlyOwner { }
+    function _authorizeUpgrade(address) internal view override(UUPSUpgradeable) onlyOwner {}
     // solhint-disable-previous-line no-empty-blocks
 
     /// @notice Modifier to check if the caller is the ICS20 contract

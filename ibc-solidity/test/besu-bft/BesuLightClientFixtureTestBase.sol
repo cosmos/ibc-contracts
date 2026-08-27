@@ -3,17 +3,17 @@ pragma solidity ^0.8.28;
 
 // solhint-disable gas-struct-packing
 
-import { Test } from "forge-std/Test.sol";
-import { stdJson } from "forge-std/StdJson.sol";
+import {Test} from "forge-std/Test.sol";
+import {stdJson} from "forge-std/StdJson.sol";
 
-import { ILightClientMsgs } from "../../contracts/msgs/ILightClientMsgs.sol";
-import { IICS02ClientMsgs } from "../../contracts/msgs/IICS02ClientMsgs.sol";
-import { BesuIBFT2LightClient } from "../../contracts/light-clients/besu/BesuIBFT2LightClient.sol";
-import { BesuQBFTLightClient } from "../../contracts/light-clients/besu/BesuQBFTLightClient.sol";
-import { IBesuLightClient } from "../../contracts/light-clients/besu/interfaces/IBesuLightClient.sol";
-import { IBesuLightClientMsgs } from "../../contracts/light-clients/besu/msgs/IBesuLightClientMsgs.sol";
-import { IBesuLightClientErrors } from "../../contracts/light-clients/besu/errors/IBesuLightClientErrors.sol";
-import { RLPReader } from "../../contracts/light-clients/besu/RLPReader.sol";
+import {ILightClientMsgs} from "../../contracts/msgs/ILightClientMsgs.sol";
+import {IICS02ClientMsgs} from "../../contracts/msgs/IICS02ClientMsgs.sol";
+import {BesuIBFT2LightClient} from "../../contracts/light-clients/besu/BesuIBFT2LightClient.sol";
+import {BesuQBFTLightClient} from "../../contracts/light-clients/besu/BesuQBFTLightClient.sol";
+import {IBesuLightClient} from "../../contracts/light-clients/besu/interfaces/IBesuLightClient.sol";
+import {IBesuLightClientMsgs} from "../../contracts/light-clients/besu/msgs/IBesuLightClientMsgs.sol";
+import {IBesuLightClientErrors} from "../../contracts/light-clients/besu/errors/IBesuLightClientErrors.sol";
+import {RLPReader} from "../../contracts/light-clients/besu/RLPReader.sol";
 
 /// @dev Successful update input and expected consensus state.
 struct BesuUpdateFixture {
@@ -321,7 +321,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         return abi.encode(
             IBesuLightClientMsgs.MsgUpdateClient({
                 headerRlp: update.headerRlp,
-                trustedHeight: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: update.trustedHeight }),
+                trustedHeight: IICS02ClientMsgs.Height({revisionNumber: 0, revisionHeight: update.trustedHeight}),
                 accountProof: update.accountProof
             })
         );
@@ -332,11 +332,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         out[0] = path;
     }
 
-    function _membershipMessage(
-        uint64 revisionNumber,
-        bytes[] memory path,
-        bytes memory value
-    )
+    function _membershipMessage(uint64 revisionNumber, bytes[] memory path, bytes memory value)
         internal
         view
         returns (ILightClientMsgs.MsgVerifyMembership memory)
@@ -386,10 +382,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         });
     }
 
-    function _readRejectionUpdate(
-        string memory json,
-        string memory path
-    )
+    function _readRejectionUpdate(string memory json, string memory path)
         internal
         pure
         returns (BesuRejectionUpdateFixture memory)
@@ -406,7 +399,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         return abi.encode(
             IBesuLightClientMsgs.MsgUpdateClient({
                 headerRlp: update.headerRlp,
-                trustedHeight: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: update.trustedHeight }),
+                trustedHeight: IICS02ClientMsgs.Height({revisionNumber: 0, revisionHeight: update.trustedHeight}),
                 accountProof: update.accountProof
             })
         );

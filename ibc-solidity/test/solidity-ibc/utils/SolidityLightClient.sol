@@ -3,10 +3,10 @@ pragma solidity ^0.8.28;
 
 // solhint-disable no-empty-blocks,gas-custom-errors
 
-import { ILightClientMsgs } from "../../../contracts/msgs/ILightClientMsgs.sol";
-import { ILightClient } from "../../../contracts/interfaces/ILightClient.sol";
+import {ILightClientMsgs} from "../../../contracts/msgs/ILightClientMsgs.sol";
+import {ILightClient} from "../../../contracts/interfaces/ILightClient.sol";
 
-import { ICS26Router } from "../../../contracts/ICS26Router.sol";
+import {ICS26Router} from "../../../contracts/ICS26Router.sol";
 
 contract SolidityLightClient is ILightClient {
     ICS26Router private immutable _COUNTERPARTY_ICS26;

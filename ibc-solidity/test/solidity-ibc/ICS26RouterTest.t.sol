@@ -3,26 +3,26 @@ pragma solidity ^0.8.28;
 
 // solhint-disable custom-errors,max-line-length
 
-import { Test } from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 
-import { IICS02ClientMsgs } from "../../contracts/msgs/IICS02ClientMsgs.sol";
-import { IICS26RouterMsgs } from "../../contracts/msgs/IICS26RouterMsgs.sol";
-import { IIBCAppCallbacks } from "../../contracts/msgs/IIBCAppCallbacks.sol";
+import {IICS02ClientMsgs} from "../../contracts/msgs/IICS02ClientMsgs.sol";
+import {IICS26RouterMsgs} from "../../contracts/msgs/IICS26RouterMsgs.sol";
+import {IIBCAppCallbacks} from "../../contracts/msgs/IIBCAppCallbacks.sol";
 
-import { IICS26RouterErrors } from "../../contracts/errors/IICS26RouterErrors.sol";
-import { IICS26Router } from "../../contracts/interfaces/IICS26Router.sol";
-import { ILightClient } from "../../contracts/interfaces/ILightClient.sol";
-import { IAccessManaged } from "@openzeppelin-contracts/access/manager/IAccessManaged.sol";
-import { IIBCApp } from "../../contracts/interfaces/IIBCApp.sol";
+import {IICS26RouterErrors} from "../../contracts/errors/IICS26RouterErrors.sol";
+import {IICS26Router} from "../../contracts/interfaces/IICS26Router.sol";
+import {ILightClient} from "../../contracts/interfaces/ILightClient.sol";
+import {IAccessManaged} from "@openzeppelin-contracts/access/manager/IAccessManaged.sol";
+import {IIBCApp} from "../../contracts/interfaces/IIBCApp.sol";
 
-import { ICS26Router } from "../../contracts/ICS26Router.sol";
-import { ICS20Lib } from "../../contracts/utils/ICS20Lib.sol";
-import { ICS24Host } from "../../contracts/utils/ICS24Host.sol";
-import { Strings } from "@openzeppelin-contracts/utils/Strings.sol";
-import { ERC1967Proxy } from "@openzeppelin-contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import { TestHelper } from "./utils/TestHelper.sol";
-import { AccessManager } from "@openzeppelin-contracts/access/manager/AccessManager.sol";
-import { IBCRolesLib } from "../../contracts/utils/IBCRolesLib.sol";
+import {ICS26Router} from "../../contracts/ICS26Router.sol";
+import {ICS20Lib} from "../../contracts/utils/ICS20Lib.sol";
+import {ICS24Host} from "../../contracts/utils/ICS24Host.sol";
+import {Strings} from "@openzeppelin-contracts/utils/Strings.sol";
+import {ERC1967Proxy} from "@openzeppelin-contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {TestHelper} from "./utils/TestHelper.sol";
+import {AccessManager} from "@openzeppelin-contracts/access/manager/AccessManager.sol";
+import {IBCRolesLib} from "../../contracts/utils/IBCRolesLib.sol";
 
 contract ICS26RouterTest is Test {
     ICS26Router public ics26Router;
@@ -172,7 +172,7 @@ contract ICS26RouterTest is Test {
         IICS26RouterMsgs.MsgRecvPacket memory msgRecvPacket = IICS26RouterMsgs.MsgRecvPacket({
             packet: packet,
             proofCommitment: "0x", // doesn't matter
-            proofHeight: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: 0 }) // doesn't matter
+            proofHeight: IICS02ClientMsgs.Height({revisionNumber: 0, revisionHeight: 0}) // doesn't matter
         });
 
         vm.expectRevert(errorMsg);
@@ -211,7 +211,7 @@ contract ICS26RouterTest is Test {
         IICS26RouterMsgs.MsgRecvPacket memory msgRecvPacket = IICS26RouterMsgs.MsgRecvPacket({
             packet: packet,
             proofCommitment: "0x", // doesn't matter
-            proofHeight: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: 0 }) // doesn't matter
+            proofHeight: IICS02ClientMsgs.Height({revisionNumber: 0, revisionHeight: 0}) // doesn't matter
         });
 
         bytes[] memory expAcks = new bytes[](1);
@@ -256,12 +256,12 @@ contract ICS26RouterTest is Test {
         IICS26RouterMsgs.MsgRecvPacket memory msgRecvPacket = IICS26RouterMsgs.MsgRecvPacket({
             packet: packet,
             proofCommitment: "0x", // doesn't matter
-            proofHeight: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: 0 }) // doesn't matter
+            proofHeight: IICS02ClientMsgs.Height({revisionNumber: 0, revisionHeight: 0}) // doesn't matter
         });
 
         vm.expectRevert(abi.encodeWithSelector(IICS26RouterErrors.IBCFailedCallback.selector));
         vm.prank(relayer);
-        ics26Router.recvPacket{ gas: 900_000 }(msgRecvPacket);
+        ics26Router.recvPacket{gas: 900_000}(msgRecvPacket);
     }
 }
 

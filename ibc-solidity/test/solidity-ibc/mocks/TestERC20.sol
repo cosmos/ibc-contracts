@@ -3,10 +3,10 @@ pragma solidity ^0.8.28;
 
 // solhint-disable no-empty-blocks,gas-custom-errors
 
-import { ERC20 } from "@openzeppelin-contracts/token/ERC20/ERC20.sol";
+import {ERC20} from "@openzeppelin-contracts/token/ERC20/ERC20.sol";
 
 contract TestERC20 is ERC20 {
-    constructor() ERC20("Test ERC20", "TERC") { }
+    constructor() ERC20("Test ERC20", "TERC") {}
 
     function mint(address to, uint256 amount) external {
         _mint(to, amount);
@@ -48,7 +48,7 @@ contract TestERC20Metadata is ERC20 {
 // Test contract to deploy ERC20 with fee on transfer, it takes a fee of 1 unit on every transfer and burns it, so the
 // recipient receives amount - 1
 contract FeeOnTransferERC20 is ERC20 {
-    constructor() ERC20("Fee Token", "FEE") { }
+    constructor() ERC20("Fee Token", "FEE") {}
 
     function mint(address to, uint256 amount) external {
         _mint(to, amount);

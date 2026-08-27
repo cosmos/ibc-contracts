@@ -3,26 +3,26 @@ pragma solidity ^0.8.28;
 
 // solhint-disable custom-errors,max-line-length,no-inline-assembly,gas-small-strings,function-max-lines
 
-import { Test } from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 
-import { IICS26RouterMsgs } from "../../contracts/msgs/IICS26RouterMsgs.sol";
-import { IICS27GMPMsgs } from "../../contracts/msgs/IICS27GMPMsgs.sol";
-import { IIBCAppCallbacks } from "../../contracts/msgs/IIBCAppCallbacks.sol";
-import { IICS27Errors } from "../../contracts/errors/IICS27Errors.sol";
+import {IICS26RouterMsgs} from "../../contracts/msgs/IICS26RouterMsgs.sol";
+import {IICS27GMPMsgs} from "../../contracts/msgs/IICS27GMPMsgs.sol";
+import {IIBCAppCallbacks} from "../../contracts/msgs/IIBCAppCallbacks.sol";
+import {IICS27Errors} from "../../contracts/errors/IICS27Errors.sol";
 
-import { IICS26Router } from "../../contracts/interfaces/IICS26Router.sol";
+import {IICS26Router} from "../../contracts/interfaces/IICS26Router.sol";
 
-import { ERC1967Proxy } from "@openzeppelin-contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import { ICS27Account } from "../../contracts/utils/ICS27Account.sol";
-import { ICS27GMP } from "../../contracts/ICS27GMP.sol";
-import { ICS27Lib } from "../../contracts/utils/ICS27Lib.sol";
-import { ICS24Host } from "../../contracts/utils/ICS24Host.sol";
-import { AccessManager } from "@openzeppelin-contracts/access/manager/AccessManager.sol";
-import { PausableUpgradeable } from "@openzeppelin-upgradeable/utils/PausableUpgradeable.sol";
-import { UpgradeableBeacon } from "@openzeppelin-contracts/proxy/beacon/UpgradeableBeacon.sol";
-import { TestHelper } from "./utils/TestHelper.sol";
-import { IntegrationEnv } from "./utils/IntegrationEnv.sol";
-import { Strings } from "@openzeppelin-contracts/utils/Strings.sol";
+import {ERC1967Proxy} from "@openzeppelin-contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {ICS27Account} from "../../contracts/utils/ICS27Account.sol";
+import {ICS27GMP} from "../../contracts/ICS27GMP.sol";
+import {ICS27Lib} from "../../contracts/utils/ICS27Lib.sol";
+import {ICS24Host} from "../../contracts/utils/ICS24Host.sol";
+import {AccessManager} from "@openzeppelin-contracts/access/manager/AccessManager.sol";
+import {PausableUpgradeable} from "@openzeppelin-upgradeable/utils/PausableUpgradeable.sol";
+import {UpgradeableBeacon} from "@openzeppelin-contracts/proxy/beacon/UpgradeableBeacon.sol";
+import {TestHelper} from "./utils/TestHelper.sol";
+import {IntegrationEnv} from "./utils/IntegrationEnv.sol";
+import {Strings} from "@openzeppelin-contracts/utils/Strings.sol";
 
 contract ICS27GMPTest is Test {
     ICS27GMP public ics27Gmp;
@@ -230,7 +230,7 @@ contract ICS27GMPTest is Test {
 
         // compute the expected account address
         IICS27GMPMsgs.AccountIdentifier memory accountId =
-            IICS27GMPMsgs.AccountIdentifier({ clientId: msg_.destinationClient, sender: sender, salt: salt });
+            IICS27GMPMsgs.AccountIdentifier({clientId: msg_.destinationClient, sender: sender, salt: salt});
 
         address predeterminedAccount = ics27Gmp.getOrComputeAccountAddress(accountId);
         assertTrue(predeterminedAccount != address(0), "Predetermined account address should not be zero");
@@ -369,12 +369,7 @@ contract ICS27GMPTest is Test {
         ics27Gmp.onRecvPacket(msg_);
     }
 
-    function testFuzz_success_onAcknowledgementPacket(
-        uint16 payloadLen,
-        uint16 ackLen,
-        uint16 saltLen,
-        uint64 seq
-    )
+    function testFuzz_success_onAcknowledgementPacket(uint16 payloadLen, uint16 ackLen, uint16 saltLen, uint64 seq)
         public
     {
         vm.assume(payloadLen > 0);
@@ -420,12 +415,7 @@ contract ICS27GMPTest is Test {
         ics27Gmp.onAcknowledgementPacket(msg_);
     }
 
-    function testFuzz_failure_onAcknowledgementPacket(
-        uint16 payloadLen,
-        uint16 ackLen,
-        uint16 saltLen,
-        uint64 seq
-    )
+    function testFuzz_failure_onAcknowledgementPacket(uint16 payloadLen, uint16 ackLen, uint16 saltLen, uint64 seq)
         public
     {
         vm.assume(payloadLen > 0);
