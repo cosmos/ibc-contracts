@@ -69,7 +69,7 @@ struct MsgUpdateClient {
 
 - `headerRlp`: full raw Besu block header RLP, including `extraData` and commit seals.
 - `trustedHeight`: must use `revisionNumber == 0`.
-- `accountProof`: raw RLP-encoded Ethereum account proof for the tracked `ICS26Router` account against the submitted header's `stateRoot`.
+- `accountProof`: Ethereum account proof nodes for the tracked `ICS26Router` account, encoded as `abi.encode(bytes[])`.
 
 On update, the contract:
 
@@ -81,7 +81,7 @@ On update, the contract:
 
 ## Membership / non-membership proofs
 
-`verifyMembership` and `verifyNonMembership` expect the standard `ILightClientMsgs` payloads used by Eureka.
+`verifyMembership` expects the standard `ILightClientMsgs` payload used by Eureka. Non-membership proofs are not currently supported.
 
 For Besu / EVM counterparties, the expected merkle prefix is:
 
@@ -110,15 +110,13 @@ where `IBCSTORE_STORAGE_SLOT` is the ERC-7201 namespace constant used by `IBCSto
 
 ### Membership
 
-- `msg_.proof` must be the raw RLP-encoded Ethereum storage proof for `storageSlot`.
+- `msg_.proof` must contain the Ethereum storage-proof nodes encoded as `abi.encode(bytes[])`.
 - `msg_.value` must be exactly `abi.encodePacked(bytes32Commitment)`.
 - The return value is the trusted consensus timestamp in seconds for `msg_.proofHeight`.
 
 ### Non-membership
 
-- `msg_.proof` must be the raw RLP-encoded Ethereum storage proof for `storageSlot`.
-- The proof must show that the slot is absent.
-- The return value is the trusted consensus timestamp in seconds for `msg_.proofHeight`.
+`verifyNonMembership` reverts with `UnsupportedNonMembershipProof`. Support is tracked separately in FOU-1367.
 
 ## Test fixtures
 

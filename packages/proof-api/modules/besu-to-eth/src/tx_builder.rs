@@ -454,3 +454,30 @@ fn extract_validators_from_extra_data(extra_data: &[u8]) -> Result<Vec<Address>>
     }
     Ok(out)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::map_storage_proofs;
+    use alloy::{
+        primitives::{Bytes, B256, U256},
+        rpc::types::EIP1186StorageProof,
+        sol_types::SolValue,
+    };
+
+    #[test]
+    fn maps_storage_proofs_using_solidity_abi_encoding() {
+        let key = B256::from(U256::from(1));
+        let nodes = vec![Bytes::from(vec![0xc2, 0x01, 0x02])];
+        let mapped = map_storage_proofs(
+            &[key],
+            vec![EIP1186StorageProof {
+                key: U256::from(1).into(),
+                value: U256::ZERO,
+                proof: nodes.clone(),
+            }],
+        )
+        .unwrap();
+
+        assert_eq!(mapped[&key], nodes.abi_encode());
+    }
+}

@@ -7,9 +7,7 @@ import { AccessControl } from "@openzeppelin-contracts/access/AccessControl.sol"
 import { ECDSA } from "@openzeppelin-contracts/utils/cryptography/ECDSA.sol";
 import { RLP } from "@openzeppelin-contracts/utils/RLP.sol";
 import { TrieProof } from "@openzeppelin-contracts/utils/cryptography/TrieProof.sol";
-import { Bytes } from "@openzeppelin-contracts/utils/Bytes.sol";
 import { Memory } from "@openzeppelin-contracts/utils/Memory.sol";
-import { SafeCast } from "@openzeppelin-contracts/utils/math/SafeCast.sol";
 
 import { ILightClient } from "../../interfaces/ILightClient.sol";
 import { ILightClientMsgs } from "../../msgs/ILightClientMsgs.sol";
@@ -21,9 +19,7 @@ import { IBesuLightClient } from "./interfaces/IBesuLightClient.sol";
 /// @title Besu Light Client Base
 /// @notice Shared implementation for Besu BFT light clients that verify headers and EVM storage proofs.
 abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientErrors, IBesuLightClientMsgs, AccessControl {
-    using Bytes for *;
     using RLP for *;
-    using Memory for *;
 
     /// @notice Decoded fields from a submitted Besu header.
     /// @param headerItems Top-level RLP header fields.
@@ -188,14 +184,12 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         bytes32 storageSlot = _commitmentStorageSlot(msg_.path[0]);
         bytes[] memory proofNodes = abi.decode(msg_.proof, (bytes[]));
 
-        bytes memory traversedValue =
-            TrieProof.traverse(consensusState.storageRoot, abi.encodePacked(storageSlot), proofNodes);
-        require(traversedValue.length == 32, InvalidValueLength(32, traversedValue.length));
+        bytes memory storageKey = abi.encodePacked(keccak256(abi.encodePacked(storageSlot)));
+        bytes memory traversedValue = TrieProof.traverse(consensusState.storageRoot, storageKey, proofNodes);
+        bytes32 actualValue = traversedValue.decodeBytes32();
+        bytes32 expectedValue = bytes32(msg_.value);
 
-        require(
-            bytes32(traversedValue) == bytes32(msg_.value),
-            InvalidCommitmentValue(bytes32(msg_.value), bytes32(traversedValue))
-        );
+        require(actualValue == expectedValue, InvalidCommitmentValue(expectedValue, actualValue));
 
         return consensusState.timestamp;
     }
@@ -229,39 +223,39 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             revert InvalidHeaderFormat(header.headerItems.length);
         }
 
-        if (header.headerItems[1].toBytes().decodeBytes32() != EMPTY_OMMERS_HASH) {
-            revert InvalidOmmersHash(header.headerItems[1].toBytes().decodeBytes32());
+        if (header.headerItems[1].readBytes32() != EMPTY_OMMERS_HASH) {
+            revert InvalidOmmersHash(header.headerItems[1].readBytes32());
         }
-        if (header.headerItems[7].toBytes().decodeUint256() != 1) {
-            revert InvalidDifficulty(header.headerItems[7].toBytes().decodeUint256());
+        if (header.headerItems[7].readUint256() != 1) {
+            revert InvalidDifficulty(header.headerItems[7].readUint256());
         }
-        if (header.headerItems[13].toBytes().decodeBytes32() != BESU_BFT_MIX_HASH) {
-            revert InvalidMixHash(header.headerItems[13].toBytes().decodeBytes32());
+        if (header.headerItems[13].readBytes32() != BESU_BFT_MIX_HASH) {
+            revert InvalidMixHash(header.headerItems[13].readBytes32());
         }
 
-        bytes memory nonce = header.headerItems[14].toBytes();
+        bytes memory nonce = header.headerItems[14].readBytes();
         if (nonce.length != 8 || keccak256(nonce) != keccak256(hex"0000000000000000")) {
             revert InvalidNonce(nonce);
         }
 
-        header.height = uint64(header.headerItems[8].toBytes().decodeUint256());
-        header.stateRoot = header.headerItems[3].toBytes().decodeBytes32();
-        header.timestamp = uint64(header.headerItems[11].toBytes().decodeUint256());
+        header.height = uint64(header.headerItems[8].readUint256());
+        header.stateRoot = header.headerItems[3].readBytes32();
+        header.timestamp = uint64(header.headerItems[11].readUint256());
 
-        bytes memory extraData = header.headerItems[12].toBytes();
+        bytes memory extraData = header.headerItems[12].readBytes();
         header.extraDataItems = extraData.decodeList();
         if (header.extraDataItems.length != 5) {
             revert InvalidExtraDataFormat(header.extraDataItems.length);
         }
 
-        Memory.Slice[] memory validatorItems = header.extraDataItems[1].toBytes().decodeList();
+        Memory.Slice[] memory validatorItems = header.extraDataItems[1].readList();
         if (validatorItems.length == 0) {
             revert EmptyValidatorSet();
         }
 
         header.validators = new address[](validatorItems.length);
         for (uint256 i = 0; i < validatorItems.length; ++i) {
-            bytes memory validatorBytes = validatorItems[i].toBytes();
+            bytes memory validatorBytes = validatorItems[i].readBytes();
             if (validatorBytes.length != 20) {
                 revert InvalidValidatorAddressLength(validatorBytes.length);
             }
@@ -278,17 +272,17 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             header.validators[i] = validator;
         }
 
-        Memory.Slice[] memory sealItems = header.extraDataItems[4].toBytes().decodeList();
+        Memory.Slice[] memory sealItems = header.extraDataItems[4].readList();
         header.commitSeals = new bytes[](sealItems.length);
         for (uint256 i = 0; i < sealItems.length; ++i) {
-            header.commitSeals[i] = sealItems[i].toBytes();
+            header.commitSeals[i] = sealItems[i].readBytes();
         }
     }
 
     /// @notice Verifies the tracked account proof against a header state root.
     /// @param account The account address being proven.
     /// @param stateRoot The header state root.
-    /// @param accountProof RLP-encoded account proof.
+    /// @param accountProof ABI-encoded account proof nodes (`abi.encode(bytes[])`).
     /// @return The proven account storage root.
     function _verifyAccountProof(
         address account,
@@ -299,10 +293,11 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         pure
         returns (bytes32)
     {
+        bytes memory accountKey = abi.encodePacked(keccak256(abi.encodePacked(account)));
         bytes[] memory proofNodes = abi.decode(accountProof, (bytes[]));
-        bytes memory accountRlp = TrieProof.traverse(stateRoot, abi.encodePacked(account), proofNodes);
+        bytes memory accountRlp = TrieProof.traverse(stateRoot, accountKey, proofNodes);
         Memory.Slice[] memory accountItems = accountRlp.decodeList();
-        return accountItems[2].toBytes().decodeBytes32();
+        return accountItems[2].readBytes32();
     }
 
     /// @notice Computes the storage slot used for an IBC commitment path.

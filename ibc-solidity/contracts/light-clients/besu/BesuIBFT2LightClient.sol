@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.28;
 
-import {RLP} from "@openzeppelin-contracts/utils/RLP.sol";
-import {Memory} from "@openzeppelin-contracts/utils/Memory.sol";
+import { RLP } from "@openzeppelin-contracts/utils/RLP.sol";
+import { Memory } from "@openzeppelin-contracts/utils/Memory.sol";
 
-import {BesuLightClientBase} from "./BesuLightClientBase.sol";
+import { BesuLightClientBase } from "./BesuLightClientBase.sol";
 
 /// @title Besu IBFT2 Light Client
 /// @notice Verifies Besu IBFT 2.0 headers and ICS26 router storage proofs.
@@ -40,7 +40,7 @@ contract BesuIBFT2LightClient is BesuLightClientBase {
             maxClockDrift,
             roleManager
         )
-    {}
+    { }
 
     /// @inheritdoc BesuLightClientBase
     function _commitSealDigest(ParsedHeader memory header) internal pure override returns (bytes32) {
