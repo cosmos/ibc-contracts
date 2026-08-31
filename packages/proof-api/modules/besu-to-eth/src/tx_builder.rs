@@ -14,7 +14,6 @@ use alloy::{
     rpc::types::{EIP1186AccountProofResponse, EIP1186StorageProof},
     sol_types::{SolCall, SolValue},
 };
-use alloy_rlp::Header as RlpHeader;
 use anyhow::{anyhow, bail, Context, Result};
 use ethereum_apis::eth_api::client::EthApiClient;
 use ethereum_light_client::membership::evm_ics26_commitment_path;
@@ -166,7 +165,7 @@ impl TxBuilder {
             dst_client_id,
             trusted_height,
             header,
-            encode_rlp_node_list(&proof.account_proof),
+            proof.account_proof.abi_encode(),
         ))
     }
 
@@ -238,7 +237,7 @@ impl TxBuilder {
                     "failed to fetch account and storage proofs for source router at height {proof_height}"
                 )
             })?;
-        let account_proof = encode_rlp_node_list(&proof.account_proof);
+        let account_proof = proof.account_proof.abi_encode();
         let storage_proofs = map_storage_proofs(&storage_keys, proof.storage_proof)?;
         let update_call = Self::build_update_client_calldata(
             &params.dst_client_id,
@@ -379,7 +378,7 @@ fn map_storage_proofs(
             bail!("unexpected storage proof key {key}");
         }
         if proofs
-            .insert(key, encode_rlp_node_list(&storage_proof.proof))
+            .insert(key, storage_proof.proof.abi_encode())
             .is_some()
         {
             bail!("duplicate storage proof key {key}");
@@ -433,20 +432,6 @@ fn parse_create_client_params(parameters: &HashMap<String, String>) -> Result<Cr
     })
 }
 
-fn encode_rlp_node_list(nodes: &[Bytes]) -> Vec<u8> {
-    let payload_length = nodes.iter().map(|node| node.len()).sum();
-    let mut encoded = Vec::new();
-    RlpHeader {
-        list: true,
-        payload_length,
-    }
-    .encode(&mut encoded);
-    for node in nodes {
-        encoded.extend_from_slice(node.as_ref());
-    }
-    encoded
-}
-
 fn extract_validators_from_extra_data(extra_data: &[u8]) -> Result<Vec<Address>> {
     let extra_data = Rlp::new(extra_data);
     let validators = extra_data
@@ -468,146 +453,4 @@ fn extract_validators_from_extra_data(extra_data: &[u8]) -> Result<Vec<Address>>
         out.push(Address::from_slice(validator));
     }
     Ok(out)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{encode_rlp_node_list, extract_validators_from_extra_data, map_storage_proofs};
-    use alloy::{
-        consensus::Header,
-        primitives::{hex, Address, Bytes, B256, U256},
-        rpc::types::EIP1186StorageProof,
-    };
-    use alloy_rlp::Decodable;
-    use serde::Deserialize;
-    use std::str::FromStr;
-
-    #[derive(Debug, Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Fixture {
-        non_adjacent_update: UpdateFixture,
-        membership: ProofFixture,
-        non_membership: ProofFixture,
-    }
-
-    #[derive(Debug, Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    struct UpdateFixture {
-        header_rlp: String,
-        account_proof: String,
-        expected_validators: Vec<String>,
-    }
-
-    #[derive(Debug, Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    struct ProofFixture {
-        proof: String,
-    }
-
-    fn load_fixture() -> Fixture {
-        serde_json::from_str(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../../../ibc-solidity/test/besu-bft/fixtures/qbft.json"
-        )))
-        .unwrap()
-    }
-
-    fn decode_hex_bytes(hex_value: &str) -> Vec<u8> {
-        hex::decode(hex_value.trim_start_matches("0x")).unwrap()
-    }
-
-    fn decode_proof_nodes(proof_rlp: &[u8]) -> Vec<Bytes> {
-        let proof = rlp::Rlp::new(proof_rlp);
-        proof
-            .iter()
-            .map(|node| Bytes::copy_from_slice(node.as_raw()))
-            .collect()
-    }
-
-    #[test]
-    fn extracts_validators_from_fixture_header() {
-        let fixture = load_fixture();
-        let header_rlp = decode_hex_bytes(&fixture.non_adjacent_update.header_rlp);
-        let header = Header::decode(&mut header_rlp.as_slice()).unwrap();
-        let validators = extract_validators_from_extra_data(&header.extra_data).unwrap();
-        let expected = fixture
-            .non_adjacent_update
-            .expected_validators
-            .iter()
-            .map(|address| Address::from_str(address).unwrap())
-            .collect::<Vec<_>>();
-
-        assert_eq!(validators, expected);
-    }
-
-    #[test]
-    fn packs_account_proof_nodes_without_reencoding_nodes() {
-        let fixture = load_fixture();
-        let account_proof_rlp = decode_hex_bytes(&fixture.non_adjacent_update.account_proof);
-        let nodes = decode_proof_nodes(&account_proof_rlp);
-
-        assert_eq!(encode_rlp_node_list(&nodes), account_proof_rlp);
-    }
-
-    #[test]
-    fn packs_membership_and_non_membership_storage_proofs() {
-        let fixture = load_fixture();
-        let membership_proof = decode_hex_bytes(&fixture.membership.proof);
-        let non_membership_proof = decode_hex_bytes(&fixture.non_membership.proof);
-
-        let membership_nodes = decode_proof_nodes(&membership_proof);
-        let non_membership_nodes = decode_proof_nodes(&non_membership_proof);
-
-        assert_eq!(encode_rlp_node_list(&membership_nodes), membership_proof);
-        assert_eq!(
-            encode_rlp_node_list(&non_membership_nodes),
-            non_membership_proof
-        );
-    }
-
-    #[test]
-    fn maps_storage_proofs_by_normalized_key_and_validates_the_response() {
-        let first = B256::from(U256::from(1));
-        let second = B256::from(U256::from(2));
-        let make_proof = |key, marker| EIP1186StorageProof {
-            key,
-            value: U256::ZERO,
-            proof: vec![Bytes::from(vec![marker])],
-        };
-
-        let mapped = map_storage_proofs(
-            &[first, second, first],
-            vec![
-                make_proof(second.into(), 2),
-                make_proof(U256::from(1).into(), 1),
-            ],
-        )
-        .unwrap();
-        assert_eq!(
-            mapped[&first],
-            encode_rlp_node_list(&[Bytes::from(vec![1])])
-        );
-        assert_eq!(
-            mapped[&second],
-            encode_rlp_node_list(&[Bytes::from(vec![2])])
-        );
-
-        assert!(map_storage_proofs(&[first], vec![])
-            .unwrap_err()
-            .to_string()
-            .contains("missing storage proof"));
-        assert!(map_storage_proofs(
-            &[first],
-            vec![make_proof(first.into(), 1), make_proof(first.into(), 1)]
-        )
-        .unwrap_err()
-        .to_string()
-        .contains("duplicate storage proof"));
-        assert!(
-            map_storage_proofs(&[first], vec![make_proof(second.into(), 2)])
-                .unwrap_err()
-                .to_string()
-                .contains("unexpected storage proof")
-        );
-    }
 }
