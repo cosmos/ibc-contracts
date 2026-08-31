@@ -186,7 +186,6 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
         bytes memory storageKey = abi.encodePacked(keccak256(abi.encodePacked(storageSlot)));
         bytes memory traversedValue = TrieProof.traverse(consensusState.storageRoot, storageKey, proofNodes);
-        require(traversedValue.length == 33, InvalidValueLength(33, traversedValue.length));
         bytes32 actualValue = traversedValue.decodeBytes32();
         bytes32 expectedValue = bytes32(msg_.value);
 
