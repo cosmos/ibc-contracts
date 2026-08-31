@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.28;
 
-import { RLP } from "@openzeppelin-contracts/utils/RLP.sol";
+import {RLP} from "@openzeppelin-contracts/utils/RLP.sol";
+import {Memory} from "@openzeppelin-contracts/utils/Memory.sol";
 
-import { BesuLightClientBase } from "./BesuLightClientBase.sol";
+import {BesuLightClientBase} from "./BesuLightClientBase.sol";
 
 /// @title Besu IBFT2 Light Client
 /// @notice Verifies Besu IBFT 2.0 headers and ICS26 router storage proofs.
 contract BesuIBFT2LightClient is BesuLightClientBase {
+    using Memory for *;
+
     /// @notice Creates a Besu IBFT2 light client from an initial trusted consensus state.
     /// @param ibcRouter Counterparty ICS26 router address whose storage is proven.
     /// @param initialTrustedHeight Initial trusted Besu height.
@@ -37,20 +40,20 @@ contract BesuIBFT2LightClient is BesuLightClientBase {
             maxClockDrift,
             roleManager
         )
-    { }
+    {}
 
     /// @inheritdoc BesuLightClientBase
     function _commitSealDigest(ParsedHeader memory header) internal pure override returns (bytes32) {
         bytes[] memory extraItems = new bytes[](4);
-        extraItems[0] = _rlpItemBytes(header.extraDataItems[0]);
-        extraItems[1] = _rlpItemBytes(header.extraDataItems[1]);
-        extraItems[2] = _rlpItemBytes(header.extraDataItems[2]);
-        extraItems[3] = _rlpItemBytes(header.extraDataItems[3]);
+        extraItems[0] = header.extraDataItems[0].toBytes();
+        extraItems[1] = header.extraDataItems[1].toBytes();
+        extraItems[2] = header.extraDataItems[2].toBytes();
+        extraItems[3] = header.extraDataItems[3].toBytes();
 
         bytes memory signingExtraData = RLP.encode(extraItems);
         bytes[] memory headerItems = new bytes[](header.headerItems.length);
         for (uint256 i = 0; i < header.headerItems.length; ++i) {
-            headerItems[i] = i == 12 ? RLP.encode(signingExtraData) : _rlpItemBytes(header.headerItems[i]);
+            headerItems[i] = i == 12 ? RLP.encode(signingExtraData) : header.headerItems[i].toBytes();
         }
         return keccak256(RLP.encode(headerItems));
     }

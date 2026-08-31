@@ -3,20 +3,20 @@ pragma solidity ^0.8.28;
 
 // solhint-disable gas-struct-packing, named-parameters-mapping, gas-strict-inequalities, code-complexity
 
-import {AccessControl} from "@openzeppelin-contracts/access/AccessControl.sol";
-import {ECDSA} from "@openzeppelin-contracts/utils/cryptography/ECDSA.sol";
-import {RLP} from "@openzeppelin-contracts/utils/RLP.sol";
-import {TrieProof} from "@openzeppelin-contracts/utils/cryptography/TrieProof.sol";
-import {Bytes} from "@openzeppelin-contracts/utils/Bytes.sol";
-import {Memory} from "@openzeppelin-contracts/utils/Memory.sol";
-import {SafeCast} from "@openzeppelin-contracts/utils/math/SafeCast.sol";
+import { AccessControl } from "@openzeppelin-contracts/access/AccessControl.sol";
+import { ECDSA } from "@openzeppelin-contracts/utils/cryptography/ECDSA.sol";
+import { RLP } from "@openzeppelin-contracts/utils/RLP.sol";
+import { TrieProof } from "@openzeppelin-contracts/utils/cryptography/TrieProof.sol";
+import { Bytes } from "@openzeppelin-contracts/utils/Bytes.sol";
+import { Memory } from "@openzeppelin-contracts/utils/Memory.sol";
+import { SafeCast } from "@openzeppelin-contracts/utils/math/SafeCast.sol";
 
-import {ILightClient} from "../../interfaces/ILightClient.sol";
-import {ILightClientMsgs} from "../../msgs/ILightClientMsgs.sol";
-import {IICS02ClientMsgs} from "../../msgs/IICS02ClientMsgs.sol";
-import {IBesuLightClientMsgs} from "./msgs/IBesuLightClientMsgs.sol";
-import {IBesuLightClientErrors} from "./errors/IBesuLightClientErrors.sol";
-import {IBesuLightClient} from "./interfaces/IBesuLightClient.sol";
+import { ILightClient } from "../../interfaces/ILightClient.sol";
+import { ILightClientMsgs } from "../../msgs/ILightClientMsgs.sol";
+import { IICS02ClientMsgs } from "../../msgs/IICS02ClientMsgs.sol";
+import { IBesuLightClientMsgs } from "./msgs/IBesuLightClientMsgs.sol";
+import { IBesuLightClientErrors } from "./errors/IBesuLightClientErrors.sol";
+import { IBesuLightClient } from "./interfaces/IBesuLightClient.sol";
 
 /// @title Besu Light Client Base
 /// @notice Shared implementation for Besu BFT light clients that verify headers and EVM storage proofs.
@@ -90,7 +90,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
         clientState = ClientState({
             ibcRouter: ibcRouter,
-            latestHeight: IICS02ClientMsgs.Height({revisionNumber: 0, revisionHeight: initialTrustedHeight}),
+            latestHeight: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: initialTrustedHeight }),
             trustingPeriod: trustingPeriod,
             maxClockDrift: maxClockDrift
         });
@@ -290,7 +290,11 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @param stateRoot The header state root.
     /// @param accountProof RLP-encoded account proof.
     /// @return The proven account storage root.
-    function _verifyAccountProof(address account, bytes32 stateRoot, bytes memory accountProof)
+    function _verifyAccountProof(
+        address account,
+        bytes32 stateRoot,
+        bytes memory accountProof
+    )
         internal
         pure
         returns (bytes32)
@@ -346,7 +350,10 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @notice Checks that signers overlap enough with the trusted validator set.
     /// @param signers The recovered commit seal signers.
     /// @param trustedValidators The trusted validator set.
-    function _checkTrustedValidatorOverlap(address[] memory signers, address[] storage trustedValidators)
+    function _checkTrustedValidatorOverlap(
+        address[] memory signers,
+        address[] storage trustedValidators
+    )
         internal
         view
     {
@@ -410,7 +417,11 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         uint64 timestamp,
         bytes32 storageRoot,
         address[] memory validators
-    ) internal view returns (bool) {
+    )
+        internal
+        view
+        returns (bool)
+    {
         if (consensusState.timestamp != timestamp || consensusState.storageRoot != storageRoot) {
             return false;
         }
