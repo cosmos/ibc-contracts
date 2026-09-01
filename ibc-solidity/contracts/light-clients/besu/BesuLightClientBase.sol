@@ -243,7 +243,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             require(validatorBytes.length == 20, InvalidValidatorAddressLength(validatorBytes.length));
 
             address validator = address(bytes20(validatorBytes));
-            require(validator != address(0), InvalidValidatorAddress(validator));
+            require(validator != address(0), InvalidValidatorAddress(address(0)));
             for (uint256 j = 0; j < i; ++j) {
                 require(header.validators[j] != validator, DuplicateValidator(validator));
             }
