@@ -13,6 +13,7 @@
   optimizer_runs = 10_000
   out = "out"
   script = "scripts"
+  snapshots = "benchmarks/snapshots"
   solc = "0.8.28"
   src = "contracts"
   test = "test"

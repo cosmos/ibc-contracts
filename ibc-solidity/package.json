@@ -11,6 +11,7 @@
   "devDependencies": {
     "sp1-contracts": "github:succinctlabs/sp1-contracts#d3629729c3216eb51bd4859d027a8eb729399fa4",
     "forge-std": "github:foundry-rs/forge-std#v1.15.0",
+    "prettier": "^3.8.3",
     "solhint": "^6.2.4",
     "quicktype": "^23.3.25"
   },
@@ -25,8 +26,13 @@
   ],
   "private": true,
   "scripts": {
+    "benchmarks:check": "bun benchmarks/generate.ts check",
+    "benchmarks:ci": "bun run lint:benchmarks && bun run test:benchmarks && bun run benchmarks:check",
+    "benchmarks:update": "bun benchmarks/generate.ts update",
+    "lint:benchmarks": "prettier --check 'benchmarks/*.ts'",
     "lint:sol": "forge fmt --check && bun solhint -w 0 '{scripts,contracts,test}/**/*.sol'",
     "lint:natspec": "bun natspec-smells --include 'contracts/**/*.sol'",
+    "test:benchmarks": "bun test benchmarks",
     "test:coverage": "forge coverage",
     "test:coverage:report": "forge coverage --report lcov && genhtml lcov.info --branch-coverage --output-dir coverage"
   }

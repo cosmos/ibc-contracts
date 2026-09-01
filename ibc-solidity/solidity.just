@@ -28,10 +28,15 @@ test-foundry testname=".\\*":
 	forge test -vvv --show-progress --fuzz-runs 5000 --match-test ^{{testname}}\(.\*\)\$ {{shadowfork}}
 	@ {{ if shadowfork == "" { "" } else { 'echo ' + BOLD + YELLOW + 'Ran without shadowfork tests since ETH_RPC_URL was not set' } }}
 
-# Run the benchmark tests
+# Run the benchmark tests and update the committed snapshots and Markdown tables
 [group('test')]
-test-benchmark testname=".\\*":
-	forge test -vvv --show-progress --gas-report --match-path test/solidity-ibc/BenchmarkTest.t.sol --match-test {{testname}}
+test-benchmark:
+	bun run benchmarks:update
+
+# Verify that the committed benchmark snapshots and Markdown tables are current
+[group('test')]
+check-benchmarks:
+	bun run benchmarks:check
 
 # Generate all tracked contract artifacts and Go abigen bindings
 [group('generate')]

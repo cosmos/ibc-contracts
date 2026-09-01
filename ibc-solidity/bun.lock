@@ -11,7 +11,8 @@
       },
       "devDependencies": {
         "forge-std": "github:foundry-rs/forge-std#v1.15.0",
-        "quicktype": "^23.2.6",
+        "prettier": "^3.8.3",
+        "quicktype": "^23.3.25",
         "solhint": "^6.2.4",
         "sp1-contracts": "github:succinctlabs/sp1-contracts#d3629729c3216eb51bd4859d027a8eb729399fa4",
       },
