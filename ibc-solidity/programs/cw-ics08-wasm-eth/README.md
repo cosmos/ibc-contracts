@@ -30,7 +30,7 @@ Misbehavior is defined as the submission of two conflicting—but individually v
 We use the [`cosmwasm/optimizer`](https://github.com/CosmWasm/optimizer) Docker image to build the `CosmWasm` contracts. Ensure you have Docker installed and running.
 
 ```bash
-just build-cw-ics08-wasm-eth
+just solidity::build-cw-ics08-wasm-eth
 ```
 
 ### Storing the Wasm Binary
