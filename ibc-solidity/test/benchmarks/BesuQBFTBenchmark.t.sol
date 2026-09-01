@@ -13,9 +13,8 @@ contract BesuQBFTBenchmark is BesuLightClientFixtureTestBase {
         vm.warp(fixture.initialTrustedTimestamp + 1);
         bytes memory update = _encodeUpdate(fixture.adjacentUpdate);
 
-        vm.startSnapshotGas(SNAPSHOT_GROUP, "update.adjacent.gas");
         client.updateClient(update);
-        vm.stopSnapshotGas();
+        vm.snapshotGasLastFrame(SNAPSHOT_GROUP, "update.adjacent.gas");
         vm.snapshotValue(
             SNAPSHOT_GROUP, "update.adjacent.calldata", abi.encodeCall(ILightClient.updateClient, (update)).length
         );
@@ -25,9 +24,8 @@ contract BesuQBFTBenchmark is BesuLightClientFixtureTestBase {
         vm.warp(fixture.initialTrustedTimestamp + 1);
         bytes memory update = _encodeUpdate(fixture.nonAdjacentUpdate);
 
-        vm.startSnapshotGas(SNAPSHOT_GROUP, "update.non_adjacent.gas");
         client.updateClient(update);
-        vm.stopSnapshotGas();
+        vm.snapshotGasLastFrame(SNAPSHOT_GROUP, "update.non_adjacent.gas");
         vm.snapshotValue(
             SNAPSHOT_GROUP, "update.non_adjacent.calldata", abi.encodeCall(ILightClient.updateClient, (update)).length
         );
@@ -39,9 +37,8 @@ contract BesuQBFTBenchmark is BesuLightClientFixtureTestBase {
         ILightClientMsgs.MsgVerifyMembership memory message =
             _membershipMessage(0, _singlePath(fixture.membership.path), fixture.membership.value);
 
-        vm.startSnapshotGas(SNAPSHOT_GROUP, "verify_membership.gas");
         uint256 timestamp = client.verifyMembership(message);
-        vm.stopSnapshotGas();
+        vm.snapshotGasLastFrame(SNAPSHOT_GROUP, "verify_membership.gas");
         vm.snapshotValue(
             SNAPSHOT_GROUP,
             "verify_membership.calldata",

@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 // solhint-disable custom-errors,max-line-length,avoid-low-level-calls,gas-small-strings
 
 import { IICS20TransferMsgs } from "../../contracts/msgs/IICS20TransferMsgs.sol";
+import { IICS20Transfer } from "../../contracts/interfaces/IICS20Transfer.sol";
 
 import { TestERC20 } from "../solidity-ibc/mocks/TestERC20.sol";
 import { ICS20Lib } from "../../contracts/utils/ICS20Lib.sol";
@@ -69,13 +70,14 @@ contract SP1Benchmark is FixtureTest {
     {
         Fixture memory ackFixture = loadInitialFixture(acknowledgementFixture);
 
+        uint256 totalSendGas;
         for (uint64 i = 0; i < packetCount; ++i) {
-            _sendTransfer(ackFixture);
+            totalSendGas += _sendTransfer(ackFixture, snapshotPrefix);
         }
+        vm.snapshotValue(SNAPSHOT_GROUP, string.concat(snapshotPrefix, ".send.gas"), totalSendGas / packetCount);
 
-        vm.startSnapshotGas(SNAPSHOT_GROUP, string.concat(snapshotPrefix, ".ack.gas"));
         (bool success,) = address(ics26Router).call(ackFixture.msg);
-        vm.stopSnapshotGas();
+        vm.snapshotGasLastFrame(SNAPSHOT_GROUP, string.concat(snapshotPrefix, ".ack.gas"));
         vm.snapshotValue(SNAPSHOT_GROUP, string.concat(snapshotPrefix, ".ack.calldata"), ackFixture.msg.length);
         assertTrue(success);
 
@@ -83,9 +85,8 @@ contract SP1Benchmark is FixtureTest {
         assertEq(ics26Router.getCommitment(path), 0);
 
         Fixture memory recvFixture = loadFixture(receiveFixture);
-        vm.startSnapshotGas(SNAPSHOT_GROUP, string.concat(snapshotPrefix, ".recv.gas"));
         (success,) = address(ics26Router).call(recvFixture.msg);
-        vm.stopSnapshotGas();
+        vm.snapshotGasLastFrame(SNAPSHOT_GROUP, string.concat(snapshotPrefix, ".recv.gas"));
         vm.snapshotValue(SNAPSHOT_GROUP, string.concat(snapshotPrefix, ".recv.calldata"), recvFixture.msg.length);
         assertTrue(success);
 
@@ -100,9 +101,8 @@ contract SP1Benchmark is FixtureTest {
     function _benchmarkICS20TransferNativeSdkCoin(string memory receiveFixture, string memory snapshotPrefix) internal {
         Fixture memory recvNativeFixture = loadInitialFixture(receiveFixture);
 
-        vm.startSnapshotGas(SNAPSHOT_GROUP, string.concat(snapshotPrefix, ".recv.gas"));
         (bool success,) = address(ics26Router).call(recvNativeFixture.msg);
-        vm.stopSnapshotGas();
+        vm.snapshotGasLastFrame(SNAPSHOT_GROUP, string.concat(snapshotPrefix, ".recv.gas"));
         vm.snapshotValue(SNAPSHOT_GROUP, string.concat(snapshotPrefix, ".recv.calldata"), recvNativeFixture.msg.length);
         assertTrue(success);
 
@@ -118,12 +118,11 @@ contract SP1Benchmark is FixtureTest {
         Fixture memory fixture = loadInitialFixture(timeoutFixture);
 
         vm.warp(fixture.packet.timeoutTimestamp - 30);
-        _sendTransfer(fixture);
+        _sendTransfer(fixture, snapshotPrefix);
 
         vm.warp(fixture.packet.timeoutTimestamp + 180);
-        vm.startSnapshotGas(SNAPSHOT_GROUP, string.concat(snapshotPrefix, ".timeout.gas"));
         (bool success,) = address(ics26Router).call(fixture.msg);
-        vm.stopSnapshotGas();
+        vm.snapshotGasLastFrame(SNAPSHOT_GROUP, string.concat(snapshotPrefix, ".timeout.gas"));
         vm.snapshotValue(SNAPSHOT_GROUP, string.concat(snapshotPrefix, ".timeout.calldata"), fixture.msg.length);
         assertTrue(success);
 
@@ -131,27 +130,32 @@ contract SP1Benchmark is FixtureTest {
         assertEq(ics26Router.getCommitment(path), 0);
     }
 
-    function _sendTransfer(Fixture memory fixture) internal {
+    function _sendTransfer(Fixture memory fixture, string memory snapshotPrefix) internal returns (uint256 gasUsed) {
         TestERC20 erc20 = TestERC20(fixture.erc20Address);
         IICS20TransferMsgs.FungibleTokenPacketData memory packetData =
             abi.decode(fixture.packet.payloads[0].value, (IICS20TransferMsgs.FungibleTokenPacketData));
         address user = ICS20Lib.mustHexStringToAddress(packetData.sender);
+        IICS20TransferMsgs.SendTransferMsg memory message = IICS20TransferMsgs.SendTransferMsg({
+            denom: ICS20Lib.mustHexStringToAddress(packetData.denom),
+            amount: packetData.amount,
+            receiver: packetData.receiver,
+            sourceClient: fixture.packet.sourceClient,
+            destPort: fixture.packet.payloads[0].destPort,
+            timeoutTimestamp: fixture.packet.timeoutTimestamp,
+            memo: packetData.memo
+        });
 
         erc20.mint(user, packetData.amount);
         vm.prank(user);
         erc20.approve(address(ics20Transfer), packetData.amount);
 
         vm.prank(user);
-        ics20Transfer.sendTransfer(
-            IICS20TransferMsgs.SendTransferMsg({
-                denom: ICS20Lib.mustHexStringToAddress(packetData.denom),
-                amount: packetData.amount,
-                receiver: packetData.receiver,
-                sourceClient: fixture.packet.sourceClient,
-                destPort: fixture.packet.payloads[0].destPort,
-                timeoutTimestamp: fixture.packet.timeoutTimestamp,
-                memo: packetData.memo
-            })
+        ics20Transfer.sendTransfer(message);
+        gasUsed = vm.snapshotGasLastFrame(SNAPSHOT_GROUP, string.concat(snapshotPrefix, ".send.gas"));
+        vm.snapshotValue(
+            SNAPSHOT_GROUP,
+            string.concat(snapshotPrefix, ".send.calldata"),
+            abi.encodeCall(IICS20Transfer.sendTransfer, (message)).length
         );
 
         bytes32 path = ICS24Host.packetCommitmentKeyCalldata(fixture.packet.sourceClient, fixture.packet.sequence);
