@@ -309,7 +309,7 @@
     "name": "verifyNonMembership",
     "inputs": [
       {
-        "name": "msg_",
+        "name": "",
         "type": "tuple",
         "internalType": "struct ILightClientMsgs.MsgVerifyNonMembership",
         "components": [
@@ -746,7 +746,28 @@
   },
   {
     "type": "error",
+    "name": "RLPInvalidEncoding",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "TrieProofTraversalError",
+    "inputs": [
+      {
+        "name": "err",
+        "type": "uint8",
+        "internalType": "enum TrieProof.ProofError"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "UnsupportedMisbehaviour",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "UnsupportedNonMembershipProof",
     "inputs": []
   },
   {

@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -486,11 +487,15 @@ func fetchStorageProof(
 }
 
 func encodeProofNodes(nodes []string) ([]byte, error) {
-	rawNodes := make([]rlp.RawValue, len(nodes))
+	proofNodes := make([][]byte, len(nodes))
 	for i, node := range nodes {
-		rawNodes[i] = ethcommon.FromHex(node)
+		proofNodes[i] = ethcommon.FromHex(node)
 	}
-	return rlp.EncodeToBytes(rawNodes)
+	bytesArrayType, err := abi.NewType("bytes[]", "", nil)
+	if err != nil {
+		return nil, fmt.Errorf("create bytes[] ABI type: %w", err)
+	}
+	return (abi.Arguments{{Type: bytesArrayType}}).Pack(proofNodes)
 }
 
 func packetCommitment(packet ics26router.IICS26RouterMsgsPacket) []byte {

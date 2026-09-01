@@ -5,6 +5,8 @@ pragma solidity ^0.8.28;
 
 import { Test } from "forge-std/Test.sol";
 import { stdJson } from "forge-std/StdJson.sol";
+import { RLP } from "@openzeppelin-contracts/utils/RLP.sol";
+import { Memory } from "@openzeppelin-contracts/utils/Memory.sol";
 
 import { ILightClientMsgs } from "../../contracts/msgs/ILightClientMsgs.sol";
 import { IICS02ClientMsgs } from "../../contracts/msgs/IICS02ClientMsgs.sol";
@@ -13,7 +15,6 @@ import { BesuQBFTLightClient } from "../../contracts/light-clients/besu/BesuQBFT
 import { IBesuLightClient } from "../../contracts/light-clients/besu/interfaces/IBesuLightClient.sol";
 import { IBesuLightClientMsgs } from "../../contracts/light-clients/besu/msgs/IBesuLightClientMsgs.sol";
 import { IBesuLightClientErrors } from "../../contracts/light-clients/besu/errors/IBesuLightClientErrors.sol";
-import { RLPReader } from "../../contracts/light-clients/besu/RLPReader.sol";
 
 /// @dev Successful update input and expected consensus state.
 struct BesuUpdateFixture {
@@ -81,8 +82,8 @@ struct BesuFixture {
 
 abstract contract BesuLightClientFixtureTestBase is Test {
     using stdJson for string;
-    using RLPReader for bytes;
-    using RLPReader for RLPReader.RLPItem;
+    using RLP for bytes;
+    using Memory for Memory.Slice;
 
     string internal constant FIXTURE_DIR = "/test/besu-bft/fixtures/";
 
@@ -97,10 +98,8 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     }
 
     function test_verifyNonMembership() public {
-        vm.warp(fixture.initialTrustedTimestamp + 1);
-        client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
-
-        uint256 timestamp = client.verifyNonMembership(
+        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.UnsupportedNonMembershipProof.selector));
+        client.verifyNonMembership(
             ILightClientMsgs.MsgVerifyNonMembership({
                 proof: fixture.nonMembership.proof,
                 proofHeight: IICS02ClientMsgs.Height({
@@ -109,8 +108,6 @@ abstract contract BesuLightClientFixtureTestBase is Test {
                 path: _singlePath(fixture.nonMembership.path)
             })
         );
-
-        assertEq(timestamp, fixture.nonMembership.expectedTimestamp);
     }
 
     function tableUpdateClientTest(BesuUpdateTestCase memory update) public {
@@ -288,12 +285,12 @@ abstract contract BesuLightClientFixtureTestBase is Test {
 
     function _zeroTimestampUpdate() internal view returns (bytes memory) {
         BesuUpdateFixture memory update = fixture.nonAdjacentUpdate;
-        RLPReader.RLPItem memory headerItem = update.headerRlp.toRlpItem();
-        RLPReader.RLPItem[] memory headerItems = headerItem.toList();
-        (uint256 timestampPtr, uint256 timestampLen) = headerItems[11].payloadLocation();
-        for (uint256 i = 0; i < timestampLen; ++i) {
-            update.headerRlp[timestampPtr - headerItem.memPtr + i] = 0;
+        Memory.Slice[] memory headerItems = update.headerRlp.decodeList();
+        bytes[] memory encodedHeaderItems = new bytes[](headerItems.length);
+        for (uint256 i = 0; i < headerItems.length; ++i) {
+            encodedHeaderItems[i] = i == 11 ? RLP.encode(uint256(0)) : headerItems[i].toBytes();
         }
+        update.headerRlp = RLP.encode(encodedHeaderItems);
         return _encodeUpdate(update);
     }
 

@@ -86,10 +86,10 @@ just test-e2e TestWithBesuToBesuTestSuite/Test_Deploy
 just test-e2e TestWithBesuToBesuTestSuite/Test_ICS20TransferERC20FromChainAToChainB
 
 # Regenerate the QBFT light-client fixture used by test/besu-bft/*
-GENERATE_BESU_LIGHT_CLIENT_FIXTURES=true \
-just test-e2e TestWithBesuToBesuTestSuite/Test_ICS20TransferERC20FromChainAToChainB
+just generate-fixtures-besu
 ```
 
-When `GENERATE_BESU_LIGHT_CLIENT_FIXTURES=true` is set, the focused Besu↔Besu transfer test writes:
+The fixture command runs the focused Besu↔Besu transfer test with
+`GENERATE_BESU_LIGHT_CLIENT_FIXTURES=true` and writes:
 
 - `ibc-solidity/test/besu-bft/fixtures/qbft.json`
