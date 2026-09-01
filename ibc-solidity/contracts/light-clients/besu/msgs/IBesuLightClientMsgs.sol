@@ -31,7 +31,7 @@ interface IBesuLightClientMsgs {
     /// @notice Update message containing a Besu header and account proof.
     /// @param headerRlp RLP-encoded Besu block header.
     /// @param trustedHeight Previously trusted height used for weak-subjectivity checks.
-    /// @param accountProof Ethereum account proof for the tracked ICS26 router.
+    /// @param accountProof ABI-encoded Ethereum account proof nodes (`abi.encode(bytes[])`) for the tracked router.
     struct MsgUpdateClient {
         bytes headerRlp;
         IICS02ClientMsgs.Height trustedHeight;
