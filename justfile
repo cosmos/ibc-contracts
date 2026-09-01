@@ -147,6 +147,13 @@ generate-fixtures-tendermint-light-client: install-proof-api
 	@echo "Generating basic membership and update client fixtures..."
 	cd e2e/interchaintestv8 && GENERATE_TENDERMINT_LIGHT_CLIENT_FIXTURES=true go test -v -run '^TestWithCosmosProofAPITestSuite/Test_UpdateClient$' -timeout 40m
 
+# Generate the Besu QBFT light client fixtures using the focused Besu-to-Besu e2e test
+[group('generate')]
+generate-fixtures-besu: solidity::clean-foundry install-proof-api
+	@echo "Generating Besu QBFT light client fixtures... This may take a while."
+	cd e2e/interchaintestv8 && GENERATE_BESU_LIGHT_CLIENT_FIXTURES=true go test -v -run '^TestWithBesuToBesuTestSuite/Test_ICS20TransferERC20FromChainAToChainB$' -timeout 120m
+	@echo "Fixtures generated at 'ibc-solidity/test/besu-bft/fixtures'"
+
 # Generate go types for the e2e tests from the ethereum light client code
 [group('generate')]
 generate-ethereum-types:

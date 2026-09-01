@@ -5,6 +5,9 @@ pragma solidity ^0.8.28;
 
 import { AccessControl } from "@openzeppelin-contracts/access/AccessControl.sol";
 import { ECDSA } from "@openzeppelin-contracts/utils/cryptography/ECDSA.sol";
+import { RLP } from "@openzeppelin-contracts/utils/RLP.sol";
+import { TrieProof } from "@openzeppelin-contracts/utils/cryptography/TrieProof.sol";
+import { Memory } from "@openzeppelin-contracts/utils/Memory.sol";
 
 import { ILightClient } from "../../interfaces/ILightClient.sol";
 import { ILightClientMsgs } from "../../msgs/ILightClientMsgs.sol";
@@ -12,15 +15,11 @@ import { IICS02ClientMsgs } from "../../msgs/IICS02ClientMsgs.sol";
 import { IBesuLightClientMsgs } from "./msgs/IBesuLightClientMsgs.sol";
 import { IBesuLightClientErrors } from "./errors/IBesuLightClientErrors.sol";
 import { IBesuLightClient } from "./interfaces/IBesuLightClient.sol";
-import { RLPReader } from "./RLPReader.sol";
-import { MPTProof } from "./MPTProof.sol";
 
 /// @title Besu Light Client Base
 /// @notice Shared implementation for Besu BFT light clients that verify headers and EVM storage proofs.
 abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientErrors, IBesuLightClientMsgs, AccessControl {
-    using MPTProof for bytes;
-    using RLPReader for RLPReader.RLPItem;
-    using RLPReader for bytes;
+    using RLP for *;
 
     /// @notice Decoded fields from a submitted Besu header.
     /// @param headerItems Top-level RLP header fields.
@@ -31,8 +30,8 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @param validators Validator set from `extraData`.
     /// @param commitSeals Commit seals from `extraData`.
     struct ParsedHeader {
-        RLPReader.RLPItem[] headerItems;
-        RLPReader.RLPItem[] extraDataItems;
+        Memory.Slice[] headerItems;
+        Memory.Slice[] extraDataItems;
         uint64 height;
         bytes32 stateRoot;
         uint64 timestamp;
@@ -76,12 +75,8 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         uint64 maxClockDrift,
         address roleManager
     ) {
-        if (initialTrustedHeight == 0) {
-            revert InvalidHeaderHeight();
-        }
-        if (initialTrustedTimestamp == 0) {
-            revert InvalidHeaderTimestamp();
-        }
+        require(initialTrustedHeight != 0, InvalidHeaderHeight());
+        require(initialTrustedTimestamp != 0, InvalidHeaderTimestamp());
 
         _validateValidators(initialTrustedValidators);
 
@@ -126,23 +121,19 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         _requireZeroRevision(msg_.trustedHeight.revisionNumber);
 
         ParsedHeader memory header = _parseHeader(msg_.headerRlp);
-        if (header.height == 0) {
-            revert InvalidHeaderHeight();
-        }
-        if (header.timestamp == 0) {
-            revert InvalidHeaderTimestamp();
-        }
-        if (block.timestamp + clientState.maxClockDrift < header.timestamp) {
-            revert HeaderFromFuture(block.timestamp, header.timestamp, clientState.maxClockDrift);
-        }
+        require(header.height != 0, InvalidHeaderHeight());
+        require(header.timestamp != 0, InvalidHeaderTimestamp());
+        require(
+            block.timestamp + clientState.maxClockDrift >= header.timestamp,
+            HeaderFromFuture(block.timestamp, header.timestamp, clientState.maxClockDrift)
+        );
 
         ConsensusState storage trustedConsensusState = _getConsensusState(msg_.trustedHeight.revisionHeight);
-        if (
-            clientState.trustingPeriod != 0
-                && uint256(trustedConsensusState.timestamp) + clientState.trustingPeriod <= block.timestamp
-        ) {
-            revert ConsensusStateExpired(trustedConsensusState.timestamp, block.timestamp, clientState.trustingPeriod);
-        }
+        require(
+            clientState.trustingPeriod == 0
+                || uint256(trustedConsensusState.timestamp) + clientState.trustingPeriod > block.timestamp,
+            ConsensusStateExpired(trustedConsensusState.timestamp, block.timestamp, clientState.trustingPeriod)
+        );
 
         address[] memory signers = _recoverSigners(_commitSealDigest(header), header.commitSeals);
         _checkTrustedValidatorOverlap(signers, trustedConsensusState.validators);
@@ -178,49 +169,31 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         returns (uint256)
     {
         _requireZeroRevision(msg_.proofHeight.revisionNumber);
-        if (msg_.path.length != 1) {
-            revert InvalidPathLength(1, msg_.path.length);
-        }
-        if (msg_.value.length != 32) {
-            revert InvalidValueLength(32, msg_.value.length);
-        }
+        require(msg_.path.length == 1, InvalidPathLength(1, msg_.path.length));
+        require(msg_.value.length == 32, InvalidValueLength(32, msg_.value.length));
 
         ConsensusState storage consensusState = _getConsensusState(msg_.proofHeight.revisionHeight);
         bytes32 storageSlot = _commitmentStorageSlot(msg_.path[0]);
-        bytes32 expectedValue = abi.decode(msg_.value, (bytes32));
-        bytes memory valueRlp =
-            msg_.proof.verifyRLPProof(consensusState.storageRoot, keccak256(abi.encodePacked(storageSlot)));
-        if (valueRlp.length == 0) {
-            revert InvalidCommitmentValue(expectedValue, bytes32(0));
-        }
+        bytes[] memory proofNodes = abi.decode(msg_.proof, (bytes[]));
 
-        bytes32 actualValue = bytes32(valueRlp.toRlpItem().toUint());
-        if (actualValue != expectedValue) {
-            revert InvalidCommitmentValue(expectedValue, actualValue);
-        }
+        bytes memory storageKey = abi.encodePacked(keccak256(abi.encodePacked(storageSlot)));
+        bytes memory traversedValue = TrieProof.traverse(consensusState.storageRoot, storageKey, proofNodes);
+        bytes32 actualValue = traversedValue.decodeBytes32();
+        bytes32 expectedValue = bytes32(msg_.value);
+
+        require(actualValue == expectedValue, InvalidCommitmentValue(expectedValue, actualValue));
+
         return consensusState.timestamp;
     }
 
     /// @inheritdoc ILightClient
-    function verifyNonMembership(ILightClientMsgs.MsgVerifyNonMembership calldata msg_)
+    function verifyNonMembership(ILightClientMsgs.MsgVerifyNonMembership calldata)
         external
         view
         onlyProofSubmitter
         returns (uint256)
     {
-        _requireZeroRevision(msg_.proofHeight.revisionNumber);
-        if (msg_.path.length != 1) {
-            revert InvalidPathLength(1, msg_.path.length);
-        }
-
-        ConsensusState storage consensusState = _getConsensusState(msg_.proofHeight.revisionHeight);
-        bytes32 storageSlot = _commitmentStorageSlot(msg_.path[0]);
-        bytes memory valueRlp =
-            msg_.proof.verifyRLPProof(consensusState.storageRoot, keccak256(abi.encodePacked(storageSlot)));
-        if (valueRlp.length != 0) {
-            revert ValueExists(bytes32(valueRlp.toRlpItem().toUint()));
-        }
-        return consensusState.timestamp;
+        revert UnsupportedNonMembershipProof();
     }
 
     /// @inheritdoc ILightClient
@@ -237,71 +210,57 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @param headerRlp RLP-encoded Besu block header.
     /// @return header The parsed header fields used by update and proof verification.
     function _parseHeader(bytes memory headerRlp) internal pure returns (ParsedHeader memory header) {
-        header.headerItems = headerRlp.toRlpItem().toList();
-        if (header.headerItems.length < 15) {
-            revert InvalidHeaderFormat(header.headerItems.length);
-        }
+        header.headerItems = headerRlp.decodeList();
+        require(header.headerItems.length >= 15, InvalidHeaderFormat(header.headerItems.length));
 
-        if (bytes32(header.headerItems[1].toUintStrict()) != EMPTY_OMMERS_HASH) {
-            revert InvalidOmmersHash(bytes32(header.headerItems[1].toUintStrict()));
-        }
-        if (header.headerItems[7].toUint() != 1) {
-            revert InvalidDifficulty(header.headerItems[7].toUint());
-        }
-        if (bytes32(header.headerItems[13].toUintStrict()) != BESU_BFT_MIX_HASH) {
-            revert InvalidMixHash(bytes32(header.headerItems[13].toUintStrict()));
-        }
+        require(
+            header.headerItems[1].readBytes32() == EMPTY_OMMERS_HASH,
+            InvalidOmmersHash(header.headerItems[1].readBytes32())
+        );
+        require(header.headerItems[7].readUint256() == 1, InvalidDifficulty(header.headerItems[7].readUint256()));
+        require(
+            header.headerItems[13].readBytes32() == BESU_BFT_MIX_HASH,
+            InvalidMixHash(header.headerItems[13].readBytes32())
+        );
 
-        bytes memory nonce = header.headerItems[14].toBytes();
-        if (nonce.length != 8 || keccak256(nonce) != keccak256(hex"0000000000000000")) {
-            revert InvalidNonce(nonce);
-        }
+        bytes memory nonce = header.headerItems[14].readBytes();
+        require(nonce.length == 8 && keccak256(nonce) == keccak256(hex"0000000000000000"), InvalidNonce(nonce));
 
-        header.height = uint64(header.headerItems[8].toUint());
-        header.stateRoot = bytes32(header.headerItems[3].toUintStrict());
-        header.timestamp = uint64(header.headerItems[11].toUint());
+        header.height = uint64(header.headerItems[8].readUint256());
+        header.stateRoot = header.headerItems[3].readBytes32();
+        header.timestamp = uint64(header.headerItems[11].readUint256());
 
-        bytes memory extraData = header.headerItems[12].toBytes();
-        header.extraDataItems = extraData.toRlpItem().toList();
-        if (header.extraDataItems.length != 5) {
-            revert InvalidExtraDataFormat(header.extraDataItems.length);
-        }
+        bytes memory extraData = header.headerItems[12].readBytes();
+        header.extraDataItems = extraData.decodeList();
+        require(header.extraDataItems.length == 5, InvalidExtraDataFormat(header.extraDataItems.length));
 
-        RLPReader.RLPItem[] memory validatorItems = header.extraDataItems[1].toList();
-        if (validatorItems.length == 0) {
-            revert EmptyValidatorSet();
-        }
+        Memory.Slice[] memory validatorItems = header.extraDataItems[1].readList();
+        require(validatorItems.length != 0, EmptyValidatorSet());
 
         header.validators = new address[](validatorItems.length);
         for (uint256 i = 0; i < validatorItems.length; ++i) {
-            bytes memory validatorBytes = validatorItems[i].toBytes();
-            if (validatorBytes.length != 20) {
-                revert InvalidValidatorAddressLength(validatorBytes.length);
-            }
+            bytes memory validatorBytes = validatorItems[i].readBytes();
+            require(validatorBytes.length == 20, InvalidValidatorAddressLength(validatorBytes.length));
 
             address validator = address(bytes20(validatorBytes));
-            if (validator == address(0)) {
-                revert InvalidValidatorAddress(validator);
-            }
+            require(validator != address(0), InvalidValidatorAddress(address(0)));
             for (uint256 j = 0; j < i; ++j) {
-                if (header.validators[j] == validator) {
-                    revert DuplicateValidator(validator);
-                }
+                require(header.validators[j] != validator, DuplicateValidator(validator));
             }
             header.validators[i] = validator;
         }
 
-        RLPReader.RLPItem[] memory sealItems = header.extraDataItems[4].toList();
+        Memory.Slice[] memory sealItems = header.extraDataItems[4].readList();
         header.commitSeals = new bytes[](sealItems.length);
         for (uint256 i = 0; i < sealItems.length; ++i) {
-            header.commitSeals[i] = sealItems[i].toBytes();
+            header.commitSeals[i] = sealItems[i].readBytes();
         }
     }
 
     /// @notice Verifies the tracked account proof against a header state root.
     /// @param account The account address being proven.
     /// @param stateRoot The header state root.
-    /// @param accountProof RLP-encoded account proof.
+    /// @param accountProof ABI-encoded account proof nodes (`abi.encode(bytes[])`).
     /// @return The proven account storage root.
     function _verifyAccountProof(
         address account,
@@ -312,9 +271,11 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         pure
         returns (bytes32)
     {
-        bytes memory accountRlp = accountProof.verifyRLPProof(stateRoot, keccak256(abi.encodePacked(account)));
-        RLPReader.RLPItem[] memory accountItems = accountRlp.toRlpItem().toList();
-        return bytes32(accountItems[2].toUintStrict());
+        bytes memory accountKey = abi.encodePacked(keccak256(abi.encodePacked(account)));
+        bytes[] memory proofNodes = abi.decode(accountProof, (bytes[]));
+        bytes memory accountRlp = TrieProof.traverse(stateRoot, accountKey, proofNodes);
+        Memory.Slice[] memory accountItems = accountRlp.decodeList();
+        return accountItems[2].readBytes32();
     }
 
     /// @notice Computes the storage slot used for an IBC commitment path.
@@ -333,9 +294,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         for (uint256 i = 0; i < seals.length; ++i) {
             address signer = _recoverSigner(digest, seals[i]);
             for (uint256 j = 0; j < i; ++j) {
-                if (signers[j] == signer) {
-                    revert DuplicateCommitSealSigner(signer);
-                }
+                require(signers[j] != signer, DuplicateCommitSealSigner(signer));
             }
             signers[i] = signer;
         }
@@ -346,16 +305,15 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @param seal The 65-byte ECDSA commit seal.
     /// @return The recovered signer address.
     function _recoverSigner(bytes32 digest, bytes memory seal) internal pure returns (address) {
-        if (seal.length != 65) {
-            revert InvalidECDSASignatureLength(seal.length);
-        }
+        require(seal.length == 65, InvalidECDSASignatureLength(seal.length));
         if (uint8(seal[64]) < 27) {
             seal[64] = bytes1(uint8(seal[64]) + 27);
         }
         (address signer, ECDSA.RecoverError err, bytes32 errorArgument) = ECDSA.tryRecover(digest, seal);
-        if (err != ECDSA.RecoverError.NoError || errorArgument != bytes32(0) || signer == address(0)) {
-            revert InvalidCommitSeal();
-        }
+        require(
+            err == ECDSA.RecoverError.NoError && errorArgument == bytes32(0) && signer != address(0),
+            InvalidCommitSeal()
+        );
         return signer;
     }
 
@@ -377,9 +335,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         }
 
         uint256 required = trustedValidators.length / 3 + 1;
-        if (actual < required) {
-            revert InsufficientTrustedValidatorOverlap(actual, required);
-        }
+        require(actual >= required, InsufficientTrustedValidatorOverlap(actual, required));
     }
 
     /// @notice Checks that signers meet quorum for the submitted header validator set.
@@ -395,25 +351,17 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
         // Besu requires ceil(2n / 3), equivalently n - floor(n / 3).
         uint256 required = validators.length - validators.length / 3;
-        if (actual < required) {
-            revert InsufficientValidatorQuorum(actual, required);
-        }
+        require(actual >= required, InsufficientValidatorQuorum(actual, required));
     }
 
     /// @notice Validates that a validator set is non-empty and unique.
     /// @param validators The validator set to validate.
     function _validateValidators(address[] memory validators) internal pure {
-        if (validators.length == 0) {
-            revert EmptyValidatorSet();
-        }
+        require(validators.length != 0, EmptyValidatorSet());
         for (uint256 i = 0; i < validators.length; ++i) {
-            if (validators[i] == address(0)) {
-                revert InvalidValidatorAddress(validators[i]);
-            }
+            require(validators[i] != address(0), InvalidValidatorAddress(validators[i]));
             for (uint256 j = 0; j < i; ++j) {
-                if (validators[j] == validators[i]) {
-                    revert DuplicateValidator(validators[i]);
-                }
+                require(validators[j] != validators[i], DuplicateValidator(validators[i]));
             }
         }
     }
@@ -445,17 +393,13 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @return consensusState The stored consensus state.
     function _getConsensusState(uint64 revisionHeight) internal view returns (ConsensusState storage consensusState) {
         consensusState = consensusStates[revisionHeight];
-        if (consensusState.timestamp == 0) {
-            revert ConsensusStateNotFound(revisionHeight);
-        }
+        require(consensusState.timestamp != 0, ConsensusStateNotFound(revisionHeight));
     }
 
     /// @notice Reverts unless the revision number is zero.
     /// @param revisionNumber The revision number to validate.
     function _requireZeroRevision(uint64 revisionNumber) internal pure {
-        if (revisionNumber != 0) {
-            revert InvalidRevisionNumber(revisionNumber);
-        }
+        require(revisionNumber == 0, InvalidRevisionNumber(revisionNumber));
     }
 
     /// @notice Checks whether a storage validator set contains a signer.
@@ -482,13 +426,6 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             }
         }
         return false;
-    }
-
-    /// @notice Returns the full RLP bytes for an item.
-    /// @param item The RLP item.
-    /// @return The RLP-encoded bytes.
-    function _rlpItemBytes(RLPReader.RLPItem memory item) internal pure returns (bytes memory) {
-        return item.toRlpBytes();
     }
 
     /// @notice Restricts access to proof submitters unless submission is open to anyone.
