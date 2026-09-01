@@ -75,12 +75,8 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         uint64 maxClockDrift,
         address roleManager
     ) {
-        if (initialTrustedHeight == 0) {
-            revert InvalidHeaderHeight();
-        }
-        if (initialTrustedTimestamp == 0) {
-            revert InvalidHeaderTimestamp();
-        }
+        require(initialTrustedHeight != 0, InvalidHeaderHeight());
+        require(initialTrustedTimestamp != 0, InvalidHeaderTimestamp());
 
         _validateValidators(initialTrustedValidators);
 
@@ -125,23 +121,19 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         _requireZeroRevision(msg_.trustedHeight.revisionNumber);
 
         ParsedHeader memory header = _parseHeader(msg_.headerRlp);
-        if (header.height == 0) {
-            revert InvalidHeaderHeight();
-        }
-        if (header.timestamp == 0) {
-            revert InvalidHeaderTimestamp();
-        }
-        if (block.timestamp + clientState.maxClockDrift < header.timestamp) {
-            revert HeaderFromFuture(block.timestamp, header.timestamp, clientState.maxClockDrift);
-        }
+        require(header.height != 0, InvalidHeaderHeight());
+        require(header.timestamp != 0, InvalidHeaderTimestamp());
+        require(
+            block.timestamp + clientState.maxClockDrift >= header.timestamp,
+            HeaderFromFuture(block.timestamp, header.timestamp, clientState.maxClockDrift)
+        );
 
         ConsensusState storage trustedConsensusState = _getConsensusState(msg_.trustedHeight.revisionHeight);
-        if (
-            clientState.trustingPeriod != 0
-                && uint256(trustedConsensusState.timestamp) + clientState.trustingPeriod <= block.timestamp
-        ) {
-            revert ConsensusStateExpired(trustedConsensusState.timestamp, block.timestamp, clientState.trustingPeriod);
-        }
+        require(
+            clientState.trustingPeriod == 0
+                || uint256(trustedConsensusState.timestamp) + clientState.trustingPeriod > block.timestamp,
+            ConsensusStateExpired(trustedConsensusState.timestamp, block.timestamp, clientState.trustingPeriod)
+        );
 
         address[] memory signers = _recoverSigners(_commitSealDigest(header), header.commitSeals);
         _checkTrustedValidatorOverlap(signers, trustedConsensusState.validators);
@@ -219,24 +211,20 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @return header The parsed header fields used by update and proof verification.
     function _parseHeader(bytes memory headerRlp) internal pure returns (ParsedHeader memory header) {
         header.headerItems = headerRlp.decodeList();
-        if (header.headerItems.length < 15) {
-            revert InvalidHeaderFormat(header.headerItems.length);
-        }
+        require(header.headerItems.length >= 15, InvalidHeaderFormat(header.headerItems.length));
 
-        if (header.headerItems[1].readBytes32() != EMPTY_OMMERS_HASH) {
-            revert InvalidOmmersHash(header.headerItems[1].readBytes32());
-        }
-        if (header.headerItems[7].readUint256() != 1) {
-            revert InvalidDifficulty(header.headerItems[7].readUint256());
-        }
-        if (header.headerItems[13].readBytes32() != BESU_BFT_MIX_HASH) {
-            revert InvalidMixHash(header.headerItems[13].readBytes32());
-        }
+        require(
+            header.headerItems[1].readBytes32() == EMPTY_OMMERS_HASH,
+            InvalidOmmersHash(header.headerItems[1].readBytes32())
+        );
+        require(header.headerItems[7].readUint256() == 1, InvalidDifficulty(header.headerItems[7].readUint256()));
+        require(
+            header.headerItems[13].readBytes32() == BESU_BFT_MIX_HASH,
+            InvalidMixHash(header.headerItems[13].readBytes32())
+        );
 
         bytes memory nonce = header.headerItems[14].readBytes();
-        if (nonce.length != 8 || keccak256(nonce) != keccak256(hex"0000000000000000")) {
-            revert InvalidNonce(nonce);
-        }
+        require(nonce.length == 8 && keccak256(nonce) == keccak256(hex"0000000000000000"), InvalidNonce(nonce));
 
         header.height = uint64(header.headerItems[8].readUint256());
         header.stateRoot = header.headerItems[3].readBytes32();
@@ -244,30 +232,20 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
         bytes memory extraData = header.headerItems[12].readBytes();
         header.extraDataItems = extraData.decodeList();
-        if (header.extraDataItems.length != 5) {
-            revert InvalidExtraDataFormat(header.extraDataItems.length);
-        }
+        require(header.extraDataItems.length == 5, InvalidExtraDataFormat(header.extraDataItems.length));
 
         Memory.Slice[] memory validatorItems = header.extraDataItems[1].readList();
-        if (validatorItems.length == 0) {
-            revert EmptyValidatorSet();
-        }
+        require(validatorItems.length != 0, EmptyValidatorSet());
 
         header.validators = new address[](validatorItems.length);
         for (uint256 i = 0; i < validatorItems.length; ++i) {
             bytes memory validatorBytes = validatorItems[i].readBytes();
-            if (validatorBytes.length != 20) {
-                revert InvalidValidatorAddressLength(validatorBytes.length);
-            }
+            require(validatorBytes.length == 20, InvalidValidatorAddressLength(validatorBytes.length));
 
             address validator = address(bytes20(validatorBytes));
-            if (validator == address(0)) {
-                revert InvalidValidatorAddress(validator);
-            }
+            require(validator != address(0), InvalidValidatorAddress(address(0)));
             for (uint256 j = 0; j < i; ++j) {
-                if (header.validators[j] == validator) {
-                    revert DuplicateValidator(validator);
-                }
+                require(header.validators[j] != validator, DuplicateValidator(validator));
             }
             header.validators[i] = validator;
         }
@@ -316,9 +294,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         for (uint256 i = 0; i < seals.length; ++i) {
             address signer = _recoverSigner(digest, seals[i]);
             for (uint256 j = 0; j < i; ++j) {
-                if (signers[j] == signer) {
-                    revert DuplicateCommitSealSigner(signer);
-                }
+                require(signers[j] != signer, DuplicateCommitSealSigner(signer));
             }
             signers[i] = signer;
         }
@@ -329,16 +305,15 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @param seal The 65-byte ECDSA commit seal.
     /// @return The recovered signer address.
     function _recoverSigner(bytes32 digest, bytes memory seal) internal pure returns (address) {
-        if (seal.length != 65) {
-            revert InvalidECDSASignatureLength(seal.length);
-        }
+        require(seal.length == 65, InvalidECDSASignatureLength(seal.length));
         if (uint8(seal[64]) < 27) {
             seal[64] = bytes1(uint8(seal[64]) + 27);
         }
         (address signer, ECDSA.RecoverError err, bytes32 errorArgument) = ECDSA.tryRecover(digest, seal);
-        if (err != ECDSA.RecoverError.NoError || errorArgument != bytes32(0) || signer == address(0)) {
-            revert InvalidCommitSeal();
-        }
+        require(
+            err == ECDSA.RecoverError.NoError && errorArgument == bytes32(0) && signer != address(0),
+            InvalidCommitSeal()
+        );
         return signer;
     }
 
@@ -360,9 +335,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         }
 
         uint256 required = trustedValidators.length / 3 + 1;
-        if (actual < required) {
-            revert InsufficientTrustedValidatorOverlap(actual, required);
-        }
+        require(actual >= required, InsufficientTrustedValidatorOverlap(actual, required));
     }
 
     /// @notice Checks that signers meet quorum for the submitted header validator set.
@@ -378,25 +351,17 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
         // Besu requires ceil(2n / 3), equivalently n - floor(n / 3).
         uint256 required = validators.length - validators.length / 3;
-        if (actual < required) {
-            revert InsufficientValidatorQuorum(actual, required);
-        }
+        require(actual >= required, InsufficientValidatorQuorum(actual, required));
     }
 
     /// @notice Validates that a validator set is non-empty and unique.
     /// @param validators The validator set to validate.
     function _validateValidators(address[] memory validators) internal pure {
-        if (validators.length == 0) {
-            revert EmptyValidatorSet();
-        }
+        require(validators.length != 0, EmptyValidatorSet());
         for (uint256 i = 0; i < validators.length; ++i) {
-            if (validators[i] == address(0)) {
-                revert InvalidValidatorAddress(validators[i]);
-            }
+            require(validators[i] != address(0), InvalidValidatorAddress(validators[i]));
             for (uint256 j = 0; j < i; ++j) {
-                if (validators[j] == validators[i]) {
-                    revert DuplicateValidator(validators[i]);
-                }
+                require(validators[j] != validators[i], DuplicateValidator(validators[i]));
             }
         }
     }
@@ -428,17 +393,13 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @return consensusState The stored consensus state.
     function _getConsensusState(uint64 revisionHeight) internal view returns (ConsensusState storage consensusState) {
         consensusState = consensusStates[revisionHeight];
-        if (consensusState.timestamp == 0) {
-            revert ConsensusStateNotFound(revisionHeight);
-        }
+        require(consensusState.timestamp != 0, ConsensusStateNotFound(revisionHeight));
     }
 
     /// @notice Reverts unless the revision number is zero.
     /// @param revisionNumber The revision number to validate.
     function _requireZeroRevision(uint64 revisionNumber) internal pure {
-        if (revisionNumber != 0) {
-            revert InvalidRevisionNumber(revisionNumber);
-        }
+        require(revisionNumber == 0, InvalidRevisionNumber(revisionNumber));
     }
 
     /// @notice Checks whether a storage validator set contains a signer.
