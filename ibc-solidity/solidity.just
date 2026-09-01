@@ -30,12 +30,12 @@ test-foundry testname=".\\*":
 
 # Run the benchmark tests and update the committed snapshots and Markdown tables
 [group('test')]
-test-benchmark:
+benchmark-update:
 	bun run benchmarks:update
 
 # Verify that the committed benchmark snapshots and Markdown tables are current
 [group('test')]
-check-benchmarks:
+benchmark-check:
 	bun run benchmarks:check
 
 # Generate all tracked contract artifacts and Go abigen bindings

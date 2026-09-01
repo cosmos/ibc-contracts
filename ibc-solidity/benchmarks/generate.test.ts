@@ -46,7 +46,7 @@ describe("benchmark generator", () => {
 
   test("detects stale generated content", () => {
     expect(() => assertGeneratedContent("old", "new", "README.md")).toThrow(
-      "README.md is stale; run `just solidity::test-benchmark`",
+      "README.md is stale; run `just solidity::benchmark-update`",
     );
     expect(() =>
       assertGeneratedContent("same", "same", "README.md"),
