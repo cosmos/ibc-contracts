@@ -2,7 +2,7 @@
 
 # Solidity Benchmarks
 
-These values are generated from deterministic Foundry tests and checked into the repository so benchmark changes are visible in GitHub diffs. Except where noted, gas is measured around the complete external call from the caller frame; fixture preparation and post-call assertions are excluded.
+These values are generated from deterministic Foundry tests and checked into the repository so benchmark changes are visible in GitHub diffs. They report EVM execution gas and do not include transaction intrinsic gas or calldata pricing.
 
 The benchmark profile uses Solidity 0.8.28, the Cancun EVM, IR compilation, 10,000 optimizer runs, and the fixtures committed under `test/`.
 
@@ -12,32 +12,42 @@ Regenerate the JSON snapshots and this document from the repository root:
 just solidity::test-benchmark
 ```
 
+## SP1 packet function gas report
+
+These are Forge's isolated function-level gas statistics from the existing 50-packet scenarios. Top-level calls receive fresh transaction contexts while contract state advances across the scenario. `sendTransfer` is called at the top level; `ackPacket` and `recvPacket` are attributed nested calls within the proof-bearing router multicalls.
+
+| Proof fixture | Function | Calls | Min gas | Average gas | Median gas | Max gas |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Groth16 | sendTransfer | 50 | 139,953 | 145,197 | 139,953 | 402,181 |
+| Groth16 | ackPacket | 50 | 82,523 | 92,999 | 82,523 | 606,326 |
+| Groth16 | recvPacket | 50 | 147,559 | 158,883 | 147,559 | 713,800 |
+| Plonk | sendTransfer | 50 | 139,953 | 145,197 | 139,953 | 402,181 |
+| Plonk | ackPacket | 50 | 81,995 | 93,626 | 81,995 | 663,564 |
+| Plonk | recvPacket | 50 | 147,295 | 159,775 | 147,295 | 771,309 |
+
 ## SP1 Tendermint end-to-end packet benchmarks
 
-These measurements exercise packet handling through the IBC router with SP1 Tendermint proofs. Calldata is the complete encoded router call in bytes.
+These measurements capture the complete external router multicall, including SP1 proof verification, router overhead, packet handling, and application callbacks. Calldata is the complete encoded router call in bytes.
 
-The Send ERC20 row uses the original benchmark's last-call gas measurement. It is the average of the 50 sends already performed by each 50-packet scenario, including the more expensive first send.
-
-### Packet operations
+### Single-packet router calls
 
 | Operation | Groth16 gas | Plonk gas | Groth16 calldata | Plonk calldata |
 | --- | ---: | ---: | ---: | ---: |
-| Send ERC20 (50-call average) | 86,088 | 86,088 | — | — |
-| Acknowledge ERC20 | 344,464 | 401,894 | 3,748 | 4,356 |
-| Receive returning ERC20 | 487,740 | 549,577 | 3,652 | 4,260 |
-| Receive new Cosmos token | 1,058,468 | 1,115,702 | 3,652 | 4,260 |
-| Timeout ERC20 | 382,642 | 440,337 | 3,652 | 4,260 |
+| Acknowledge ERC20 end-to-end | 344,449 | 401,879 | 3,748 | 4,356 |
+| Receive returning ERC20 end-to-end | 487,504 | 549,327 | 3,652 | 4,260 |
+| Receive new Cosmos token end-to-end | 1,058,468 | 1,115,702 | 3,652 | 4,260 |
+| Timeout ERC20 end-to-end | 382,642 | 440,337 | 3,652 | 4,260 |
 
-### Aggregated packets
+### Batched router multicalls
 
 | Proof | Packets | Operation | Total gas | Average gas / packet | Calldata bytes |
 | --- | ---: | --- | ---: | ---: | ---: |
-| Groth16 | 25 | Acknowledge ERC20 | 2,392,609 | 95,704 | 53,668 |
-| Groth16 | 25 | Receive returning ERC20 | 5,236,156 | 209,446 | 51,268 |
-| Groth16 | 50 | Acknowledge ERC20 | 4,544,283 | 90,885 | 105,668 |
-| Groth16 | 50 | Receive returning ERC20 | 11,659,528 | 233,190 | 100,868 |
-| Plonk | 50 | Acknowledge ERC20 | 4,576,547 | 91,530 | 106,276 |
-| Plonk | 50 | Receive returning ERC20 | 11,741,655 | 234,833 | 101,476 |
+| Groth16 | 25 | Acknowledge ERC20 end-to-end | 2,392,609 | 95,704 | 53,668 |
+| Groth16 | 25 | Receive returning ERC20 end-to-end | 5,209,585 | 208,383 | 51,268 |
+| Groth16 | 50 | Acknowledge ERC20 end-to-end | 4,544,268 | 90,885 | 105,668 |
+| Groth16 | 50 | Receive returning ERC20 end-to-end | 11,560,736 | 231,214 | 100,868 |
+| Plonk | 50 | Acknowledge ERC20 end-to-end | 4,576,532 | 91,530 | 106,276 |
+| Plonk | 50 | Receive returning ERC20 end-to-end | 11,642,341 | 232,846 | 101,476 |
 
 ## Besu QBFT light-client benchmarks
 
