@@ -2,7 +2,7 @@
 
 # Solidity Benchmarks
 
-These values are generated from deterministic Foundry tests and checked into the repository so benchmark changes are visible in GitHub diffs. Gas is measured around the complete external call from the caller frame; fixture preparation and post-call assertions are excluded.
+These values are generated from deterministic Foundry tests and checked into the repository so benchmark changes are visible in GitHub diffs. Except where noted, gas is measured around the complete external call from the caller frame; fixture preparation and post-call assertions are excluded.
 
 The benchmark profile uses Solidity 0.8.28, the Cancun EVM, IR compilation, 10,000 optimizer runs, and the fixtures committed under `test/`.
 
@@ -16,26 +16,28 @@ just solidity::test-benchmark
 
 These measurements exercise packet handling through the IBC router with SP1 Tendermint proofs. Calldata is the complete encoded router call in bytes.
 
-### Single packet
+The Send ERC20 row uses the original benchmark's last-call gas measurement. It is the average of the 50 sends already performed by each 50-packet scenario, including the more expensive first send.
+
+### Packet operations
 
 | Operation | Groth16 gas | Plonk gas | Groth16 calldata | Plonk calldata |
 | --- | ---: | ---: | ---: | ---: |
-| Send ERC20 | 395,682 | 395,748 | — | — |
-| Acknowledge ERC20 | 351,735 | 409,165 | 3,748 | 4,356 |
-| Receive returning ERC20 | 487,588 | 549,416 | 3,652 | 4,260 |
+| Send ERC20 (50-call average) | 86,088 | 86,088 | — | — |
+| Acknowledge ERC20 | 344,464 | 401,894 | 3,748 | 4,356 |
+| Receive returning ERC20 | 487,740 | 549,577 | 3,652 | 4,260 |
 | Receive new Cosmos token | 1,058,468 | 1,115,702 | 3,652 | 4,260 |
-| Timeout ERC20 | 390,393 | 448,088 | 3,652 | 4,260 |
+| Timeout ERC20 | 382,642 | 440,337 | 3,652 | 4,260 |
 
 ### Aggregated packets
 
 | Proof | Packets | Operation | Total gas | Average gas / packet | Calldata bytes |
 | --- | ---: | --- | ---: | ---: | ---: |
 | Groth16 | 25 | Acknowledge ERC20 | 2,392,609 | 95,704 | 53,668 |
-| Groth16 | 25 | Receive returning ERC20 | 5,212,189 | 208,487 | 51,268 |
-| Groth16 | 50 | Acknowledge ERC20 | 4,544,256 | 90,885 | 105,668 |
-| Groth16 | 50 | Receive returning ERC20 | 11,570,431 | 231,408 | 100,868 |
-| Plonk | 50 | Acknowledge ERC20 | 4,576,520 | 91,530 | 106,276 |
-| Plonk | 50 | Receive returning ERC20 | 11,652,088 | 233,041 | 101,476 |
+| Groth16 | 25 | Receive returning ERC20 | 5,236,156 | 209,446 | 51,268 |
+| Groth16 | 50 | Acknowledge ERC20 | 4,544,283 | 90,885 | 105,668 |
+| Groth16 | 50 | Receive returning ERC20 | 11,659,528 | 233,190 | 100,868 |
+| Plonk | 50 | Acknowledge ERC20 | 4,576,547 | 91,530 | 106,276 |
+| Plonk | 50 | Receive returning ERC20 | 11,741,655 | 234,833 | 101,476 |
 
 ## Besu QBFT light-client benchmarks
 

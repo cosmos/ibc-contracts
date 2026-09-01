@@ -69,9 +69,11 @@ contract SP1Benchmark is FixtureTest {
     {
         Fixture memory ackFixture = loadInitialFixture(acknowledgementFixture);
 
+        uint64 sendGasUsed;
         for (uint64 i = 0; i < packetCount; ++i) {
-            _sendTransfer(ackFixture, packetCount == 1 ? string.concat(snapshotPrefix, ".send.gas") : "");
+            sendGasUsed += _sendTransfer(ackFixture);
         }
+        vm.snapshotValue(SNAPSHOT_GROUP, string.concat(snapshotPrefix, ".send.gas"), sendGasUsed / packetCount);
 
         vm.startSnapshotGas(SNAPSHOT_GROUP, string.concat(snapshotPrefix, ".ack.gas"));
         (bool success,) = address(ics26Router).call(ackFixture.msg);
@@ -118,7 +120,8 @@ contract SP1Benchmark is FixtureTest {
         Fixture memory fixture = loadInitialFixture(timeoutFixture);
 
         vm.warp(fixture.packet.timeoutTimestamp - 30);
-        _sendTransfer(fixture, string.concat(snapshotPrefix, ".send.gas"));
+        uint64 sendGasUsed = _sendTransfer(fixture);
+        vm.snapshotValue(SNAPSHOT_GROUP, string.concat(snapshotPrefix, ".send.gas"), sendGasUsed);
 
         vm.warp(fixture.packet.timeoutTimestamp + 180);
         vm.startSnapshotGas(SNAPSHOT_GROUP, string.concat(snapshotPrefix, ".timeout.gas"));
@@ -131,7 +134,7 @@ contract SP1Benchmark is FixtureTest {
         assertEq(ics26Router.getCommitment(path), 0);
     }
 
-    function _sendTransfer(Fixture memory fixture, string memory snapshotName) internal {
+    function _sendTransfer(Fixture memory fixture) internal returns (uint64 gasUsed) {
         TestERC20 erc20 = TestERC20(fixture.erc20Address);
         IICS20TransferMsgs.FungibleTokenPacketData memory packetData =
             abi.decode(fixture.packet.payloads[0].value, (IICS20TransferMsgs.FungibleTokenPacketData));
@@ -141,9 +144,6 @@ contract SP1Benchmark is FixtureTest {
         vm.prank(user);
         erc20.approve(address(ics20Transfer), packetData.amount);
 
-        if (bytes(snapshotName).length != 0) {
-            vm.startSnapshotGas(SNAPSHOT_GROUP, snapshotName);
-        }
         vm.prank(user);
         ics20Transfer.sendTransfer(
             IICS20TransferMsgs.SendTransferMsg({
@@ -156,9 +156,7 @@ contract SP1Benchmark is FixtureTest {
                 memo: packetData.memo
             })
         );
-        if (bytes(snapshotName).length != 0) {
-            vm.stopSnapshotGas();
-        }
+        gasUsed = vm.lastCallGas().gasTotalUsed;
 
         bytes32 path = ICS24Host.packetCommitmentKeyCalldata(fixture.packet.sourceClient, fixture.packet.sequence);
         assertEq(ics26Router.getCommitment(path), ICS24Host.packetCommitmentBytes32(fixture.packet));

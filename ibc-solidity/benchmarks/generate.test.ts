@@ -6,6 +6,7 @@ import {
   assertGeneratedContent,
   averagePerPacket,
   formatInteger,
+  SP1_KEYS,
   validateSnapshot,
 } from "./generate";
 
@@ -42,6 +43,11 @@ describe("benchmark generator", () => {
   test("formats integers and derives per-packet averages deterministically", () => {
     expect(formatInteger(1234567)).toBe("1,234,567");
     expect(averagePerPacket(100, 6)).toBe(16);
+  });
+
+  test("uses the existing 50-packet scenarios for send averages", () => {
+    expect(SP1_KEYS).toContain("erc20.groth16.50.send.gas");
+    expect(SP1_KEYS).toContain("erc20.plonk.50.send.gas");
   });
 
   test("detects stale generated content", () => {
