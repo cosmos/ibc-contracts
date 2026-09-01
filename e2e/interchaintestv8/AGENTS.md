@@ -16,6 +16,6 @@ Use the smallest relevant validation from the repo root:
 Local constraints:
 - Prefer the smallest targeted test; full e2e runs are slow and environment-dependent.
 - Local runs expect `.env` set up from `.env.example`; `just test-e2e` installs the relayer, and `just test-e2e-sp1-ics07` also installs the operator.
-- If contract interfaces or ABI-exposed types change, run `just generate-abi` before e2e validation.
+- If contract interfaces or ABI-exposed types change, run `just solidity::generate-abi` before e2e validation.
 - If Solana IDLs change, run `just generate-solana-types`; if `.proto` files change, run `just generate-buf`.
 - Do not hand-edit generated code under `e2e/interchaintestv8/types/` or `e2e/interchaintestv8/solana/go-anchor/`.
