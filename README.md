@@ -125,7 +125,7 @@ cd ibc-solidity && bun install
 You also need to have the operator and proof API binaries installed on your machine to run some of the end-to-end tests. You can install them by running the following commands:
 
 ```sh
-just install-operator
+just solidity::install-operator
 just install-proof-api
 ```
 

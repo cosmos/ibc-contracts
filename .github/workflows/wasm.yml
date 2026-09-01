@@ -35,7 +35,7 @@ jobs:
           echo "sha256=$(gunzip -c e2e/interchaintestv8/wasm/cw_ics08_wasm_eth.wasm.gz | sha256sum | awk '{print $1}')" >> "$GITHUB_OUTPUT"
 
       - name: Build optimized WASM binary with Docker
-        run: just build-cw-ics08-wasm-eth
+        run: just solidity::build-cw-ics08-wasm-eth
 
       - name: Verify built binary matches committed binary
         run: |

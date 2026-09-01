@@ -9,10 +9,6 @@ mod solidity 'ibc-solidity/solidity.just'
 mod solana 'ibc-solana/solana.just'
 
 
-# Detect which cargo-prove command is available for building SP1 programs
-prove_cmd := `command -v cargo-prove >/dev/null 2>&1 && echo "cargo-prove" || echo "~/.sp1/bin/cargo-prove"`
-
-
 # Default task lists all available tasks
 default:
   just --list
@@ -22,46 +18,15 @@ default:
 build-proof-api:
 	cargo build --bin proof-api --release --locked
 
-# Build the operator using `cargo build`
-[group('build')]
-build-operator:
-	cargo build --bin operator --release --locked
-
 # Build the solana-ibc CLI tool using `go build`
 [group('build')]
 build-solana-ibc:
 	cd tools/solana-ibc && go build -o ../../bin/solana-ibc .
 
-# Build riscv elf files using `~/.sp1/bin/cargo-prove`
-[group('build')]
-build-sp1-programs:
-  @echo "Building SP1 programs in 'ibc-solidity/programs/sp1-programs/target/elf-compilation/riscv64im-succinct-zkvm-elf/release/'"
-  cd ibc-solidity/programs/sp1-programs && {{prove_cmd}} prove build -p sp1-ics07-tendermint-update-client --locked
-  cd ibc-solidity/programs/sp1-programs && {{prove_cmd}} prove build -p sp1-ics07-tendermint-membership --locked
-  cd ibc-solidity/programs/sp1-programs && {{prove_cmd}} prove build -p sp1-ics07-tendermint-uc-and-membership --locked
-  cd ibc-solidity/programs/sp1-programs && {{prove_cmd}} prove build -p sp1-ics07-tendermint-misbehaviour --locked
-
-
-# Build and optimize the eth wasm light client using a local docker image. Requires `docker` and `gzip`
-[group('build')]
-build-cw-ics08-wasm-eth:
-  -@docker image rm cosmwasm-builder:latest
-  cd ibc-solidity/programs/cw-ics08-wasm-eth && docker buildx build --platform linux/amd64 -t cosmwasm-builder:latest .
-  docker run --rm --platform=linux/amd64  -t \
-    -v "$PWD":/code \
-    cosmwasm-builder:latest
-  cp artifacts/cw_ics08_wasm_eth.wasm e2e/interchaintestv8/wasm
-  gzip -n e2e/interchaintestv8/wasm/cw_ics08_wasm_eth.wasm -f
-
 # Build the proof API docker image
 [group('build')]
 build-proof-api-image:
     docker build -t proof-api:latest -f programs/proof-api/Dockerfile .
-
-# Install the sp1-ics07-tendermint operator for use in the e2e tests
-[group('install')]
-install-operator:
-	cargo install --bin operator --path ibc-solidity/programs/operator --locked --force
 
 # Install the proof API using `cargo install`
 [group('install')]
@@ -109,23 +74,9 @@ lint-rust:
 	@echo "Linting the Rust code..."
 	cargo fmt --all -- --check
 	cargo clippy --all-targets -- -D warnings
-	just lint-sp1
-	just lint-cw
+	just solidity::lint-sp1
+	just solidity::lint-cw
 	just solana::lint-solana
-
-# Lint the SP1 programs using `cargo fmt` and `cargo clippy`
-[group('lint')]
-lint-sp1:
-	@echo "Linting the SP1 programs..."
-	cd ibc-solidity/programs/sp1-programs && cargo fmt --all -- --check
-	cd ibc-solidity/programs/sp1-programs && cargo clippy --all-targets --all-features -- -D warnings
-
-# Lint the CosmWasm eth light client (its own workspace) using `cargo fmt` and `cargo clippy`
-[group('lint')]
-lint-cw:
-	@echo "Linting the cw-ics08-wasm-eth contract..."
-	cd ibc-solidity/programs/cw-ics08-wasm-eth && cargo fmt --all -- --check
-	cd ibc-solidity/programs/cw-ics08-wasm-eth && cargo clippy --all-targets --locked -- -D warnings
 
 # Generate the fixtures for the wasm tests using the e2e tests
 [group('generate')]
@@ -166,7 +117,7 @@ generate-ethereum-types:
 
 # Generate the fixtures for the Solidity tests using the e2e tests
 [group('generate')]
-generate-fixtures-solidity: solidity::clean-foundry install-operator install-proof-api
+generate-fixtures-solidity: solidity::clean-foundry solidity::install-operator install-proof-api
 	@echo "Generating fixtures... This may take a while."
 	@echo "Generating recvPacket and acknowledgePacket groth16 fixtures..."
 	cd e2e/interchaintestv8 && GENERATE_SOLIDITY_FIXTURES=true SP1_PROVER=network E2E_PROOF_TYPE=groth16 go test -v -run '^TestWithIbcEurekaTestSuite/Test_ICS20TransferERC20TokenfromEthereumToCosmosAndBack$' -timeout 40m
@@ -191,7 +142,7 @@ private_cluster := if env("E2E_PRIVATE_CLUSTER", "") == "true" { "--private-clus
 
 # Generate the fixture files for `TENDERMINT_RPC_URL` using the prover parameter.
 [group('generate')]
-generate-fixtures-sp1-ics07: solidity::clean-foundry install-operator install-proof-api
+generate-fixtures-sp1-ics07: solidity::clean-foundry solidity::install-operator install-proof-api
   @echo "Generating fixtures... This may take a while (up to 20 minutes)"
   TENDERMINT_RPC_URL="${TENDERMINT_RPC_URL%/}" && \
   CURRENT_HEIGHT=$(curl "$TENDERMINT_RPC_URL"/block | jq -r ".result.block.header.height") && \
@@ -221,12 +172,7 @@ generate-buf:
 [group('test')]
 test-cargo testname="--all":
 	cargo test {{testname}} --locked --no-fail-fast -- --nocapture
-	just test-cargo-cw
-
-# Run the cargo tests for the cw-ics08-wasm-eth contract (its own workspace)
-[group('test')]
-test-cargo-cw:
-	cd ibc-solidity/programs/cw-ics08-wasm-eth && cargo test --locked --no-fail-fast -- --nocapture
+	just solidity::test-cargo-cw
 
 # Run the tests in abigen
 [group('test')]
@@ -260,7 +206,7 @@ test-e2e-cosmos-proof-api testname:
 
 # Run anu e2e test in the SP1ICS07TendermintTestSuite. For example, `just test-e2e-sp1-ics07 Test_Deploy`
 [group('test')]
-test-e2e-sp1-ics07 testname: install-operator
+test-e2e-sp1-ics07 testname: solidity::install-operator
 	@echo "Running {{testname}} test..."
 	just test-e2e TestWithSP1ICS07TendermintTestSuite/{{testname}}
 
@@ -342,7 +288,7 @@ test-e2e-solana-attestation testname:
 clean-cargo:
 	@echo "Cleaning up cargo target directory"
 	cargo clean
-	cd ibc-solidity/programs/sp1-programs && cargo clean
+	just solidity::clean-sp1
 
 # Compute IFT contract address and ICA address from deployer private key
 # Example: just compute-ift-addresses ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 18 08-wasm-0 wf

@@ -35,7 +35,7 @@ jobs:
 
       - name: Build SP1 Programs
         shell: bash
-        run: just build-sp1-programs
+        run: just solidity::build-sp1-programs
 
       - name: Upload SP1 programs to release
         uses: svenstaro/upload-release-action@29e53e917877a24fad85510ded594ab3c9ca12de # 2.11.5

@@ -14,7 +14,7 @@ In the repo root:
 
 ```
 cp .env.example .env
-just install-proof-api && just install-operator
+just install-proof-api && just solidity::install-operator
 ```
 
 ### Run tests

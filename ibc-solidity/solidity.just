@@ -7,10 +7,43 @@
 # Loads the repository root .env (the search walks up parent directories).
 set dotenv-load
 
+# Detect which cargo-prove command is available for building SP1 programs
+prove_cmd := `command -v cargo-prove >/dev/null 2>&1 && echo "cargo-prove" || echo "~/.sp1/bin/cargo-prove"`
+
 # Build the contracts using `forge build`
 [group('build')]
 build-contracts: clean-foundry
 	forge build
+
+# Build the operator using `cargo build`
+[group('build')]
+build-operator:
+	cargo build --bin operator --release --locked
+
+# Build RISC-V ELF files using `cargo prove`
+[group('build')]
+build-sp1-programs:
+	@echo "Building SP1 programs in 'programs/sp1-programs/target/elf-compilation/riscv64im-succinct-zkvm-elf/release/'"
+	cd programs/sp1-programs && {{prove_cmd}} prove build -p sp1-ics07-tendermint-update-client --locked
+	cd programs/sp1-programs && {{prove_cmd}} prove build -p sp1-ics07-tendermint-membership --locked
+	cd programs/sp1-programs && {{prove_cmd}} prove build -p sp1-ics07-tendermint-uc-and-membership --locked
+	cd programs/sp1-programs && {{prove_cmd}} prove build -p sp1-ics07-tendermint-misbehaviour --locked
+
+# Build and optimize the Ethereum WASM light client using Docker and gzip
+[group('build')]
+build-cw-ics08-wasm-eth:
+	-@docker image rm cosmwasm-builder:latest
+	cd programs/cw-ics08-wasm-eth && docker buildx build --platform linux/amd64 -t cosmwasm-builder:latest .
+	docker run --rm --platform=linux/amd64 -t \
+		-v "$PWD/..":/code \
+		cosmwasm-builder:latest
+	cp ../artifacts/cw_ics08_wasm_eth.wasm ../e2e/interchaintestv8/wasm
+	gzip -n ../e2e/interchaintestv8/wasm/cw_ics08_wasm_eth.wasm -f
+
+# Install the SP1 Tendermint operator for use in e2e tests
+[group('install')]
+install-operator:
+	cargo install --bin operator --path programs/operator --locked --force
 
 # Lint the Solidity code using `forge fmt`, `bun:solhint` and `natlint`
 [group('lint')]
@@ -20,6 +53,20 @@ lint-solidity:
 	bun solhint -w 0 '{scripts,contracts,test}/**/*.sol'
 	natlint run --include 'contracts/**/*.sol'
 
+# Lint the SP1 programs using `cargo fmt` and `cargo clippy`
+[group('lint')]
+lint-sp1:
+	@echo "Linting the SP1 programs..."
+	cd programs/sp1-programs && cargo fmt --all -- --check
+	cd programs/sp1-programs && cargo clippy --all-targets --all-features -- -D warnings
+
+# Lint the CosmWasm Ethereum light client workspace
+[group('lint')]
+lint-cw:
+	@echo "Linting the cw-ics08-wasm-eth contract..."
+	cd programs/cw-ics08-wasm-eth && cargo fmt --all -- --check
+	cd programs/cw-ics08-wasm-eth && cargo clippy --all-targets --locked -- -D warnings
+
 shadowfork := if env("ETH_RPC_URL", "") == "" { "--no-match-path test/shadowfork/*" } else { "" }
 
 # Run all the foundry tests
@@ -27,6 +74,11 @@ shadowfork := if env("ETH_RPC_URL", "") == "" { "--no-match-path test/shadowfork
 test-foundry testname=".\\*":
 	forge test -vvv --show-progress --fuzz-runs 5000 --match-test ^{{testname}}\(.\*\)\$ {{shadowfork}}
 	@ {{ if shadowfork == "" { "" } else { 'echo ' + BOLD + YELLOW + 'Ran without shadowfork tests since ETH_RPC_URL was not set' } }}
+
+# Run the CosmWasm Ethereum light client tests
+[group('test')]
+test-cargo-cw:
+	cd programs/cw-ics08-wasm-eth && cargo test --locked --no-fail-fast -- --nocapture
 
 # Run the benchmark tests and update the committed snapshots and Markdown tables
 [group('test')]
@@ -93,6 +145,11 @@ generate-abi: build-contracts
 clean-foundry:
 	@echo "Cleaning up cache and out directories"
 	-rm -rf cache out broadcast # ignore errors
+
+# Clean the SP1 programs workspace
+[group('clean')]
+clean-sp1:
+	cd programs/sp1-programs && cargo clean
 
 # Run Slither static analysis on contracts
 [group('security')]
