@@ -57,7 +57,7 @@ jobs:
         if: matrix.language == 'rust'
         uses: taiki-e/install-action@312abea5c48d4b2c63c1b730153f73b8c69e1123 # protoc
 
-      - uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
+      - uses: github/codeql-action/init@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
