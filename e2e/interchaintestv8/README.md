@@ -85,6 +85,9 @@ just test-e2e TestWithBesuToBesuTestSuite/Test_Deploy
 # One-way Besu A -> Besu B ICS20 transfer with acknowledgement relay back to A
 just test-e2e TestWithBesuToBesuTestSuite/Test_ICS20TransferERC20FromChainAToChainB
 
+# Besu A -> Besu B ICS20 timeout with a packet-receipt non-membership proof
+just test-e2e TestWithBesuToBesuTestSuite/Test_TimeoutICS20TransferERC20FromChainAToChainB
+
 # Regenerate the QBFT light-client fixture used by test/besu-bft/*
 just solidity::generate-fixtures-besu
 ```
