@@ -6,7 +6,7 @@ pragma solidity ^0.8.28;
 import { AccessControl } from "@openzeppelin-contracts/access/AccessControl.sol";
 import { ECDSA } from "@openzeppelin-contracts/utils/cryptography/ECDSA.sol";
 import { RLP } from "@openzeppelin-contracts/utils/RLP.sol";
-import { TrieProof } from "@openzeppelin-contracts/utils/cryptography/TrieProof.sol";
+import { TrieProof } from "../../utils/TrieProof.sol";
 import { Memory } from "@openzeppelin-contracts/utils/Memory.sol";
 
 import { ILightClient } from "../../interfaces/ILightClient.sol";
@@ -175,8 +175,8 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         ConsensusState storage consensusState = _getConsensusState(msg_.proofHeight.revisionHeight);
         bytes32 storageSlot = _commitmentStorageSlot(msg_.path[0]);
         bytes[] memory proofNodes = abi.decode(msg_.proof, (bytes[]));
-
         bytes memory storageKey = abi.encodePacked(keccak256(abi.encodePacked(storageSlot)));
+
         bytes memory traversedValue = TrieProof.traverse(consensusState.storageRoot, storageKey, proofNodes);
         bytes32 actualValue = traversedValue.decodeBytes32();
         bytes32 expectedValue = bytes32(msg_.value);
@@ -187,13 +187,23 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     }
 
     /// @inheritdoc ILightClient
-    function verifyNonMembership(ILightClientMsgs.MsgVerifyNonMembership calldata)
+    function verifyNonMembership(ILightClientMsgs.MsgVerifyNonMembership calldata msg_)
         external
         view
         onlyProofSubmitter
         returns (uint256)
     {
-        revert UnsupportedNonMembershipProof();
+        _requireZeroRevision(msg_.proofHeight.revisionNumber);
+        require(msg_.path.length == 1, InvalidPathLength(1, msg_.path.length));
+
+        ConsensusState storage consensusState = _getConsensusState(msg_.proofHeight.revisionHeight);
+        bytes32 storageSlot = _commitmentStorageSlot(msg_.path[0]);
+        bytes[] memory proofNodes = abi.decode(msg_.proof, (bytes[]));
+        bytes memory storageKey = abi.encodePacked(keccak256(abi.encodePacked(storageSlot)));
+
+        require(TrieProof.verifyExclusion(consensusState.storageRoot, storageKey, proofNodes), InvalidExclusionProof());
+
+        return consensusState.timestamp;
     }
 
     /// @inheritdoc ILightClient
