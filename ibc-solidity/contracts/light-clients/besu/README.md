@@ -81,7 +81,7 @@ On update, the contract:
 
 ## Membership / non-membership proofs
 
-`verifyMembership` expects the standard `ILightClientMsgs` payload used by Eureka. Non-membership proofs are not currently supported.
+`verifyMembership` and `verifyNonMembership` expect the standard `ILightClientMsgs` payloads used by Eureka.
 
 For Besu / EVM counterparties, the expected merkle prefix is:
 
@@ -104,6 +104,7 @@ The proof key is derived as:
 ```solidity
 bytes32 hashedPath = keccak256(rawPath);
 bytes32 storageSlot = keccak256(abi.encode(hashedPath, IBCSTORE_STORAGE_SLOT));
+bytes memory storageKey = abi.encodePacked(keccak256(abi.encodePacked(storageSlot)));
 ```
 
 where `IBCSTORE_STORAGE_SLOT` is the ERC-7201 namespace constant used by `IBCStoreUpgradeable`.
@@ -116,7 +117,13 @@ where `IBCSTORE_STORAGE_SLOT` is the ERC-7201 namespace constant used by `IBCSto
 
 ### Non-membership
 
-`verifyNonMembership` reverts with `UnsupportedNonMembershipProof`. Support is tracked separately in FOU-1367.
+- `msg_.proof` must contain the ordered, RLP-encoded Ethereum storage-trie nodes encoded as `abi.encode(bytes[])`. These are the nodes in the storage proof returned for `storageSlot` by `eth_getProof`.
+- `msg_.path` must contain exactly one element: the raw Eureka commitment path. `msg_.proofHeight` must use revision number `0` and identify a stored consensus state.
+- The proof must establish that `storageKey` is absent from the trusted storage root. Accepted exclusion witnesses include an empty trie (encoded as an empty `bytes[]`), an empty branch child or value, and a leaf or extension path that diverges from the derived key.
+- The proof must end at the node that establishes exclusion; extra trailing proof nodes are rejected.
+- A valid exclusion proof returns the trusted consensus timestamp in seconds for `msg_.proofHeight`. If the decoded trie proof does not establish exclusion for the trusted root and derived key, including when it proves an existing value, the call reverts with `InvalidExclusionProof`. Malformed ABI or RLP data may revert while being decoded.
+
+This verification supports packet timeout flows that prove the absence of a packet receipt on a Besu counterparty.
 
 ## Test fixtures
 
