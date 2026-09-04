@@ -1,7 +1,6 @@
 {
   "compile_force_framework": "foundry",
-  "include_paths": "contracts/",
-  "filter_paths": "test/,scripts/,node_modules/",
+  "filter_paths": "test/,scripts/,node_modules/,contracts/utils/TrieProof.sol",
   "exclude_informational": true,
   "exclude_low": true,
   "exclude_medium": false,

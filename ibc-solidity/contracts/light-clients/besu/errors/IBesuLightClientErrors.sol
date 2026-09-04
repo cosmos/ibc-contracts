@@ -89,7 +89,6 @@ interface IBesuLightClientErrors {
     error ConflictingConsensusState(uint64 revisionHeight);
     /// @notice Misbehaviour handling is not supported by this client.
     error UnsupportedMisbehaviour();
-    /// @notice Non-membership proof handling is not supported by this client.
-    // TODO: Implement non-membership proof handling for Besu light clients. (FOU-1367)
-    error UnsupportedNonMembershipProof();
+    /// @notice The submitted exclusion proof is invalid.
+    error InvalidExclusionProof();
 }

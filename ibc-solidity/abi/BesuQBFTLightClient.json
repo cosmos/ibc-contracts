@@ -309,7 +309,7 @@
     "name": "verifyNonMembership",
     "inputs": [
       {
-        "name": "",
+        "name": "msg_",
         "type": "tuple",
         "internalType": "struct ILightClientMsgs.MsgVerifyNonMembership",
         "components": [
@@ -616,6 +616,11 @@
   },
   {
     "type": "error",
+    "name": "InvalidExclusionProof",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "InvalidExtraDataFormat",
     "inputs": [
       {
@@ -763,11 +768,6 @@
   {
     "type": "error",
     "name": "UnsupportedMisbehaviour",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "UnsupportedNonMembershipProof",
     "inputs": []
   },
   {
