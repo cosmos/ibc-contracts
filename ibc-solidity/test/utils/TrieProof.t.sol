@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.28;
 
+// This file is AI generated based on the OpenZeppelin TypeScript test suite for TrieProof.sol
+// This file includes additional test cases for exclusion proofs
 // solhint-disable gas-struct-packing,function-max-lines,gas-small-strings
 
 import { Test } from "forge-std/Test.sol";
@@ -38,6 +40,7 @@ struct TrieMalformedTestCase {
     bytes[] proof;
 }
 
+/// @dev Libraries can only be tested if they are imported by a contract
 contract TrieProofHarness {
     function verify(
         bytes calldata value,
@@ -144,7 +147,7 @@ contract TrieProofTest is Test {
         testCases = new TrieMembershipTestCase[](18);
 
         testCases[0] = _membership(
-            "OpenZeppelin valid proof 1",
+            "success: OpenZeppelin valid proof 1",
             0xd582f99275e227a1cf4284899e5ff06ee56da8859be71b553397c69151bc942f,
             hex"6b6579326262",
             hex"6176616c32",
@@ -155,7 +158,7 @@ contract TrieProofTest is Test {
             )
         );
         testCases[1] = _membership(
-            "OpenZeppelin valid proof 2",
+            "success: OpenZeppelin valid proof 2",
             0xd582f99275e227a1cf4284899e5ff06ee56da8859be71b553397c69151bc942f,
             hex"6b6579316161",
             hex"303132333435363738393031323334353637383930313233343536373839303132333435363738397878",
@@ -166,7 +169,7 @@ contract TrieProofTest is Test {
             )
         );
         testCases[2] = _membership(
-            "OpenZeppelin valid proof 3",
+            "success: OpenZeppelin valid proof 3",
             0xf838216fa749aefa91e0b672a9c06d3e6e983f913d7107b5dab4af60b5f5abed,
             hex"6b6579316161",
             hex"303132333435363738393031323334353637383930313233343536373839303132333435363738397878",
@@ -175,14 +178,14 @@ contract TrieProofTest is Test {
             )
         );
         testCases[3] = _membership(
-            "OpenZeppelin valid proof 4",
+            "success: OpenZeppelin valid proof 4",
             0x37956bab6bba472308146808d5311ac19cb4a7daae5df7efcc0f32badc97f55e,
             hex"6b6579316161",
             hex"3031323334",
             _proof1(hex"ce87206b6579316161853031323334")
         );
         testCases[4] = _membership(
-            "OpenZeppelin valid proof 5",
+            "success: OpenZeppelin valid proof 5",
             0xcb65032e2f76c48b82b5c24b3db8f670ce73982869d38cd39a624f23d62a9e89,
             hex"6b657931",
             hex"30313233343536373839303132333435363738393031323334353637383930313233343536373839566572795f4c6f6e67",
@@ -193,7 +196,7 @@ contract TrieProofTest is Test {
             )
         );
         testCases[5] = _membership(
-            "OpenZeppelin valid proof 6",
+            "success: OpenZeppelin valid proof 6",
             0xcb65032e2f76c48b82b5c24b3db8f670ce73982869d38cd39a624f23d62a9e89,
             hex"6b657932",
             hex"73686f7274",
@@ -204,7 +207,7 @@ contract TrieProofTest is Test {
             )
         );
         testCases[6] = _membership(
-            "OpenZeppelin valid proof 7",
+            "success: OpenZeppelin valid proof 7",
             0xcb65032e2f76c48b82b5c24b3db8f670ce73982869d38cd39a624f23d62a9e89,
             hex"6b657933",
             hex"31323334353637383930313233343536373839303132333435363738393031",
@@ -215,7 +218,7 @@ contract TrieProofTest is Test {
             )
         );
         testCases[7] = _membership(
-            "OpenZeppelin valid proof 8",
+            "success: OpenZeppelin valid proof 8",
             0x72e6c01ad0c9a7b517d4bc68a5b323287fe80f0e68f5415b4b95ecbc8ad83978,
             hex"61",
             hex"61",
@@ -226,7 +229,7 @@ contract TrieProofTest is Test {
             )
         );
         testCases[8] = _membership(
-            "OpenZeppelin valid proof 9",
+            "success: OpenZeppelin valid proof 9",
             0x72e6c01ad0c9a7b517d4bc68a5b323287fe80f0e68f5415b4b95ecbc8ad83978,
             hex"62",
             hex"62",
@@ -237,7 +240,7 @@ contract TrieProofTest is Test {
             )
         );
         testCases[9] = _membership(
-            "OpenZeppelin valid proof 10",
+            "success: OpenZeppelin valid proof 10",
             0x72e6c01ad0c9a7b517d4bc68a5b323287fe80f0e68f5415b4b95ecbc8ad83978,
             hex"63",
             hex"63",
@@ -258,23 +261,28 @@ contract TrieProofTest is Test {
         bytes memory largeLeaf = _leaf(hex"30", _longValue());
         bytes memory inlineBranch = _branch(10, smallLeaf, false, "");
         bytes memory hashedBranch = _branch(10, largeLeaf, true, "");
-        testCases[10] = _membership("generated even leaf", keccak256(evenLeaf), hex"abcd", hex"2a", _proof1(evenLeaf));
+        testCases[10] =
+            _membership("success: generated even leaf", keccak256(evenLeaf), hex"abcd", hex"2a", _proof1(evenLeaf));
         testCases[11] = _membership(
-            "generated hashed branch child",
+            "success: generated hashed branch child",
             keccak256(hashedBranch),
             hex"a0",
             _longValue(),
             _proof2(hashedBranch, largeLeaf)
         );
         testCases[12] = _membership(
-            "generated inline branch full proof",
+            "success: generated inline branch full proof",
             keccak256(inlineBranch),
             hex"a0",
             hex"2a",
             _proof2(inlineBranch, smallLeaf)
         );
         testCases[13] = _membership(
-            "generated inline branch compressed proof", keccak256(inlineBranch), hex"a0", hex"2a", _proof1(inlineBranch)
+            "success: generated inline branch compressed proof",
+            keccak256(inlineBranch),
+            hex"a0",
+            hex"2a",
+            _proof1(inlineBranch)
         );
     }
 
@@ -286,28 +294,28 @@ contract TrieProofTest is Test {
         bytes memory terminalBranch = _branch(0, "", false, hex"2a");
         bytes memory terminalExtension = _extension(hex"00ab", terminalBranch, false);
         testCases[14] = _membership(
-            "generated hashed extension child",
+            "success: generated hashed extension child",
             keccak256(hashedExtension),
             hex"abcd",
             _longValue(),
             _proof2(hashedExtension, oddLargeLeaf)
         );
         testCases[15] = _membership(
-            "generated inline extension full proof",
+            "success: generated inline extension full proof",
             keccak256(inlineExtension),
             hex"abcd",
             hex"2a",
             _proof2(inlineExtension, oddSmallLeaf)
         );
         testCases[16] = _membership(
-            "generated inline extension compressed proof",
+            "success: generated inline extension compressed proof",
             keccak256(inlineExtension),
             hex"abcd",
             hex"2a",
             _proof1(inlineExtension)
         );
         testCases[17] = _membership(
-            "generated branch terminal value",
+            "success: generated branch terminal value",
             keccak256(terminalExtension),
             hex"ab",
             hex"2a",
@@ -326,19 +334,25 @@ contract TrieProofTest is Test {
         bytes memory terminalBranch = _branch(12, _leaf(hex"30", hex"2c"), false, "");
         bytes memory terminalExtension = _extension(hex"00ab", terminalBranch, false);
 
-        testCases[0] = _exclusion("empty trie", EMPTY_ROOT_HASH, hex"01", _proof0());
-        testCases[1] = _exclusion("divergent leaf", keccak256(divergentLeaf), hex"abcd", _proof1(divergentLeaf));
-        testCases[2] = _exclusion("leaf path is key prefix", keccak256(shortLeaf), hex"abcd", _proof1(shortLeaf));
-        testCases[3] = _exclusion("leaf path longer than key", keccak256(longLeaf), hex"abcd", _proof1(longLeaf));
-        testCases[4] =
-            _exclusion("divergent extension", keccak256(extensionMismatch), hex"ac00", _proof1(extensionMismatch));
-        testCases[5] = _exclusion("missing branch child", keccak256(populatedBranch), hex"a0", _proof1(populatedBranch));
+        testCases[0] = _exclusion("success: empty trie", EMPTY_ROOT_HASH, hex"01", _proof0());
+        testCases[1] =
+            _exclusion("success: divergent leaf", keccak256(divergentLeaf), hex"abcd", _proof1(divergentLeaf));
+        testCases[2] =
+            _exclusion("success: leaf path is key prefix", keccak256(shortLeaf), hex"abcd", _proof1(shortLeaf));
+        testCases[3] =
+            _exclusion("success: leaf path longer than key", keccak256(longLeaf), hex"abcd", _proof1(longLeaf));
+        testCases[4] = _exclusion(
+            "success: divergent extension", keccak256(extensionMismatch), hex"ac00", _proof1(extensionMismatch)
+        );
+        testCases[5] = _exclusion(
+            "success: missing branch child", keccak256(populatedBranch), hex"a0", _proof1(populatedBranch)
+        );
         testCases[6] = _exclusion(
-            "empty branch terminal value", keccak256(terminalExtension), hex"ab", _proof1(terminalExtension)
+            "success: empty branch terminal value", keccak256(terminalExtension), hex"ab", _proof1(terminalExtension)
         );
 
         testCases[7] = _exclusion(
-            "OpenZeppelin nonexistent key 1",
+            "success: OpenZeppelin nonexistent key 1",
             0xd582f99275e227a1cf4284899e5ff06ee56da8859be71b553397c69151bc942f,
             hex"6b657932",
             _proof3(
@@ -348,13 +362,13 @@ contract TrieProofTest is Test {
             )
         );
         testCases[8] = _exclusion(
-            "OpenZeppelin nonexistent key 2",
+            "success: OpenZeppelin nonexistent key 2",
             0xd582f99275e227a1cf4284899e5ff06ee56da8859be71b553397c69151bc942f,
             hex"616e7972616e646f6d6b6579",
             _proof1(hex"e68416b65793a03101b4447781f1e6c51ce76c709274fc80bd064f3a58ff981b6015348a826386")
         );
         testCases[9] = _exclusion(
-            "OpenZeppelin zero branch value",
+            "success: OpenZeppelin zero branch value",
             0xe04b3589eef96b237cd49ccb5dcf6e654a47682bfa0961d563ab843f7ad1e035,
             hex"aa",
             _proof2(
@@ -363,7 +377,7 @@ contract TrieProofTest is Test {
             )
         );
         testCases[10] = _exclusion(
-            "OpenZeppelin smaller path 1",
+            "success: OpenZeppelin smaller path 1",
             0xa513ba530659356fb7588a2c831944e80fd8aedaa5a4dc36f918152be2be0605,
             hex"01",
             _proof3(
@@ -373,7 +387,7 @@ contract TrieProofTest is Test {
             )
         );
         testCases[11] = _exclusion(
-            "OpenZeppelin smaller path 2",
+            "success: OpenZeppelin smaller path 2",
             0xa06abffaec4ebe8ccde595f4547b864b4421b21c1fc699973f94710c9bc17979,
             hex"aa",
             _proof3(
@@ -401,44 +415,58 @@ contract TrieProofTest is Test {
         bytes memory unparsable = _list3(hex"00", hex"00", hex"00");
         bytes memory emptyValue = _leaf(hex"20abcd", "");
 
-        testCases[0] = _invalid("empty key", bytes32(0), "", _proof0(), TrieProof.ProofError.EMPTY_KEY);
+        testCases[0] = _invalid("failure: empty key", bytes32(0), "", _proof0(), TrieProof.ProofError.EMPTY_KEY);
         testCases[1] = _invalid(
-            "proof after empty trie",
+            "failure: proof after empty trie",
             EMPTY_ROOT_HASH,
             hex"01",
             _proof1(dummy),
             TrieProof.ProofError.INVALID_EXTRA_PROOF_ELEMENT
         );
         testCases[2] = _invalid(
-            "wrong root", bytes32(0), hex"abcd", _proof1(_leaf(hex"20abcd", hex"2a")), TrieProof.ProofError.INVALID_ROOT
+            "failure: wrong root",
+            bytes32(0),
+            hex"abcd",
+            _proof1(_leaf(hex"20abcd", hex"2a")),
+            TrieProof.ProofError.INVALID_ROOT
         );
-        testCases[3] = _invalid("proof exhausted", bytes32(0), hex"abcd", _proof0(), TrieProof.ProofError.INVALID_PROOF);
+        testCases[3] = _invalid(
+            "failure: proof exhausted", bytes32(0), hex"abcd", _proof0(), TrieProof.ProofError.INVALID_PROOF
+        );
         testCases[4] = _invalid(
-            "empty compact path", keccak256(emptyPath), hex"00", _proof1(emptyPath), TrieProof.ProofError.EMPTY_PATH
+            "failure: empty compact path",
+            keccak256(emptyPath),
+            hex"00",
+            _proof1(emptyPath),
+            TrieProof.ProofError.EMPTY_PATH
         );
         testCases[5] = _invalid(
-            "empty extension path",
+            "failure: empty extension path",
             keccak256(emptyExtensionPath),
             hex"00",
             _proof1(emptyExtensionPath),
             TrieProof.ProofError.EMPTY_EXTENSION_PATH_REMAINDER
         );
         testCases[6] = _invalid(
-            "unknown compact prefix",
+            "failure: unknown compact prefix",
             keccak256(unknownPrefix),
             hex"00",
             _proof1(unknownPrefix),
             TrieProof.ProofError.UNKNOWN_NODE_PREFIX
         );
         testCases[7] = _invalid(
-            "unparseable node",
+            "failure: unparseable node",
             keccak256(unparsable),
             hex"00",
             _proof1(unparsable),
             TrieProof.ProofError.UNPARSEABLE_NODE
         );
         testCases[8] = _invalid(
-            "empty leaf value", keccak256(emptyValue), hex"abcd", _proof1(emptyValue), TrieProof.ProofError.EMPTY_VALUE
+            "failure: empty leaf value",
+            keccak256(emptyValue),
+            hex"abcd",
+            _proof1(emptyValue),
+            TrieProof.ProofError.EMPTY_VALUE
         );
     }
 
@@ -451,28 +479,28 @@ contract TrieProofTest is Test {
         bytes memory dummy = RLP.encode(new bytes[](0));
 
         testCases[9] = _invalid(
-            "proof after leaf",
+            "failure: proof after leaf",
             keccak256(validLeaf),
             hex"abcd",
             _proof2(validLeaf, dummy),
             TrieProof.ProofError.INVALID_EXTRA_PROOF_ELEMENT
         );
         testCases[10] = _invalid(
-            "proof after divergent leaf",
+            "failure: proof after divergent leaf",
             keccak256(divergentLeaf),
             hex"abcd",
             _proof2(divergentLeaf, dummy),
             TrieProof.ProofError.INVALID_EXTRA_PROOF_ELEMENT
         );
         testCases[11] = _invalid(
-            "proof after missing branch child",
+            "failure: proof after missing branch child",
             keccak256(populatedBranch),
             hex"a0",
             _proof2(populatedBranch, dummy),
             TrieProof.ProofError.INVALID_EXTRA_PROOF_ELEMENT
         );
         testCases[12] = _invalid(
-            "proof after branch terminal",
+            "failure: proof after branch terminal",
             keccak256(terminalExtension),
             hex"ab",
             _proof2(terminalExtension, dummy),
@@ -488,14 +516,14 @@ contract TrieProofTest is Test {
         bytes memory invalidShortRoot = _extension(hex"1a", rawThirtyOneByteChild, false);
 
         testCases[13] = _invalid(
-            "invalid large child",
+            "failure: invalid large child",
             keccak256(hashedBranch),
             hex"a0",
             _proof2(hashedBranch, wrongLargeLeaf),
             TrieProof.ProofError.INVALID_LARGE_NODE
         );
         testCases[14] = _invalid(
-            "invalid short child",
+            "failure: invalid short child",
             keccak256(invalidShortRoot),
             hex"abcd",
             _proof2(invalidShortRoot, _leaf(hex"3bcd", hex"2a")),
@@ -505,7 +533,7 @@ contract TrieProofTest is Test {
 
     function _setOpenZeppelinInvalidCases(TrieInvalidTestCase[] memory testCases) private pure {
         testCases[15] = _invalid(
-            "OpenZeppelin wrong key proof",
+            "failure: OpenZeppelin wrong key proof",
             0x2858eebfa9d96c8a9e6a0cae9d86ec9189127110f132d63f07d3544c2a75a696,
             hex"6b6579316161",
             _proof3(
@@ -516,7 +544,7 @@ contract TrieProofTest is Test {
             TrieProof.ProofError.INVALID_SHORT_NODE
         );
         testCases[16] = _invalid(
-            "OpenZeppelin invalid internal node hash",
+            "failure: OpenZeppelin invalid internal node hash",
             0xa827dff1a657bb9bb9a1c3abe9db173e2f1359f15eb06f1647ea21ac7c95d8fa,
             hex"aa",
             _proof3(
@@ -527,7 +555,7 @@ contract TrieProofTest is Test {
             TrieProof.ProofError.INVALID_SHORT_NODE
         );
         testCases[17] = _invalid(
-            "OpenZeppelin extra proof elements",
+            "failure: OpenZeppelin extra proof elements",
             0x278c88eb59beba4f8b94f940c41614bb0dd80c305859ebffcd6ce07c93ca3749,
             hex"aa",
             _proof4(
@@ -542,9 +570,9 @@ contract TrieProofTest is Test {
 
     function fixtureMalformed() public pure returns (TrieMalformedTestCase[] memory testCases) {
         testCases = new TrieMalformedTestCase[](3);
-        testCases[0] = _malformed("RLP scalar instead of list", hex"01", hex"00");
-        testCases[1] = _malformed("truncated long string", hex"b801", hex"00");
-        testCases[2] = _malformed("OpenZeppelin invalid short child encoding", hex"c7820000822bad", hex"00");
+        testCases[0] = _malformed("failure: RLP scalar instead of list", hex"01", hex"00");
+        testCases[1] = _malformed("failure: truncated long string", hex"b801", hex"00");
+        testCases[2] = _malformed("failure: OpenZeppelin invalid short child encoding", hex"c7820000822bad", hex"00");
     }
 
     function _membership(
