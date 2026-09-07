@@ -1,10 +1,10 @@
 {
   "compile_force_framework": "foundry",
-  "filter_paths": "test/,scripts/,node_modules/,contracts/utils/TrieProof.sol",
+  "filter_paths": "test/,scripts/,node_modules/",
   "exclude_informational": true,
   "exclude_low": true,
   "exclude_medium": false,
   "exclude_high": false,  
   "exclude_dependencies": true,
-  "detectors_to_exclude": ""
+  "detectors_to_exclude": "uninitialized-local"
 }
