@@ -769,16 +769,5 @@
     "type": "error",
     "name": "UnsupportedMisbehaviour",
     "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "ValueExists",
-    "inputs": [
-      {
-        "name": "actualValue",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ]
   }
 ]

@@ -81,9 +81,6 @@ interface IBesuLightClientErrors {
     /// @param expectedValue The expected commitment value.
     /// @param actualValue The proven commitment value.
     error InvalidCommitmentValue(bytes32 expectedValue, bytes32 actualValue);
-    /// @notice A non-membership proof found an existing value.
-    /// @param actualValue The value found at the proven storage slot.
-    error ValueExists(bytes32 actualValue);
     /// @notice A different consensus state already exists at the submitted height.
     /// @param revisionHeight The conflicting revision height.
     error ConflictingConsensusState(uint64 revisionHeight);
