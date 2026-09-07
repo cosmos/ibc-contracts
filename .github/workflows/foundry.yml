@@ -91,6 +91,19 @@ jobs:
           echo "## Tests result" >> $GITHUB_STEP_SUMMARY
           echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
 
+  benchmarks:
+    needs: [build]
+    runs-on: depot-ubuntu-24.04-4
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Set up environment
+        uses: ./.github/actions/foundry-setup
+
+      - name: Check generated benchmarks
+        run: bun run benchmarks:ci
+
   security:
     needs: [build]
     runs-on: depot-ubuntu-24.04-4

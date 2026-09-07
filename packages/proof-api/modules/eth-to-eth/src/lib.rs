@@ -35,8 +35,6 @@ pub struct EthToEthProofApiModule;
 
 /// The `EthToEthProofApiModuleService` defines the proof API service from Ethereum to Ethereum.
 struct EthToEthProofApiModuleService {
-    /// The source chain ID.
-    src_chain_id: String,
     /// The source ICS26 address.
     src_ics26_address: Address,
     /// The chain listener for source Ethereum.
@@ -61,8 +59,6 @@ struct AttestedTxBuilder {
 /// The configuration for the Ethereum to Ethereum proof API module.
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub struct EthToEthConfig {
-    /// The source chain ID.
-    pub src_chain_id: String,
     /// The source Ethereum RPC URL.
     pub src_rpc_url: String,
     /// The source ICS26 address.
@@ -113,7 +109,6 @@ impl EthToEthProofApiModuleService {
         };
 
         Ok(Self {
-            src_chain_id: config.src_chain_id,
             src_ics26_address: config.src_ics26_address,
             src_listener,
             dst_listener,
@@ -140,9 +135,10 @@ fn parse_eth_tx_hashes(tx_ids: Vec<Vec<u8>>) -> Result<Vec<TxHash>, tonic::Statu
 impl ProofApiService for EthToEthProofApiModuleService {
     async fn info(
         &self,
-        _request: Request<api::InfoRequest>,
+        request: Request<api::InfoRequest>,
     ) -> Result<Response<api::InfoResponse>, tonic::Status> {
         tracing::info!("Handling info request for Eth to Eth...");
+        let src_chain = request.into_inner().src_chain;
 
         Ok(Response::new(api::InfoResponse {
             target_chain: Some(api::Chain {
@@ -155,7 +151,7 @@ impl ProofApiService for EthToEthProofApiModuleService {
                 ibc_contract: self.tx_builder.ics26_router_address().to_string(),
             }),
             source_chain: Some(api::Chain {
-                chain_id: self.src_chain_id.clone(),
+                chain_id: src_chain,
                 ibc_version: "2".to_string(),
                 ibc_contract: self.src_ics26_address.to_string(),
             }),
@@ -325,7 +321,32 @@ impl EthToEthTxBuilder {
 
 #[cfg(test)]
 mod tests {
+    use super::EthToEthConfig;
     use alloy::providers::{Provider, RootProvider};
+
+    #[test]
+    fn obsolete_src_chain_id_is_ignored() {
+        let config: EthToEthConfig = serde_json::from_value(serde_json::json!({
+            "src_chain_id": "legacy",
+            "src_rpc_url": "http://localhost:8545",
+            "src_ics26_address": "0x0000000000000000000000000000000000000001",
+            "dst_rpc_url": "http://localhost:9545",
+            "dst_ics26_address": "0x0000000000000000000000000000000000000002",
+            "mode": { "attested": {
+                "attestor": {
+                    "attestor_query_timeout_ms": 5000,
+                    "quorum_threshold": 1,
+                    "attestor_endpoints": ["http://localhost:2025"]
+                }
+            }}
+        }))
+        .unwrap();
+
+        assert!(
+            serde_json::to_value(config).unwrap()["src_chain_id"].is_null(),
+            "obsolete field must be accepted but not emitted"
+        );
+    }
 
     #[tokio::test]
     async fn https_provider_can_fetch_chain_id() {
