@@ -123,7 +123,7 @@ where `IBCSTORE_STORAGE_SLOT` is the ERC-7201 namespace constant used by `IBCSto
 The Foundry fixtures under `test/besu-bft/fixtures/` can be regenerated from the focused Besu↔Besu e2e flow:
 
 ```sh
-just generate-fixtures-besu
+just solidity::generate-fixtures-besu
 ```
 
 This writes `test/besu-bft/fixtures/qbft.json` using live Besu QBFT headers, account proofs, and storage proofs captured during the e2e transfer flow. The negative cases in that fixture are still derived by deterministic off-chain header mutation so the contract tests can keep explicit overlap / quorum / conflict coverage.

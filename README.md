@@ -32,9 +32,7 @@ This is an implementation of IBC v2 in Solidity and Solana. IBC v2 is a simplifi
     - [Requirements](#requirements)
     - [Running the tests](#running-the-tests)
   - [Development](#development)
-  - [End to End Benchmarks](#end-to-end-benchmarks)
-    - [Single Packet Benchmarks](#single-packet-benchmarks)
-    - [Aggregated Packet Benchmarks](#aggregated-packet-benchmarks)
+  - [Benchmarks](#benchmarks)
   - [Security Assumptions](#security-assumptions)
     - [Handling Frozen Light Clients](#handling-frozen-light-clients)
     - [Security Council and Governance Admin](#security-council-and-governance-admin)
@@ -51,6 +49,7 @@ This project is structured with the following directories:
 
 - `ibc-solidity/`: Contains the Solidity implementation of IBC and its related light-client programs.
     - `solidity.just`: Contains the namespaced `just solidity::...` development recipes.
+    - `benchmarks/`: Contains generated gas snapshots and GitHub-readable benchmark tables.
     - `contracts/`: Contains the Solidity contracts.
     - `test/`: Contains the Solidity tests.
     - `scripts/`: Contains Solidity scripts and tools.
@@ -126,7 +125,7 @@ cd ibc-solidity && bun install
 You also need to have the operator and proof API binaries installed on your machine to run some of the end-to-end tests. You can install them by running the following commands:
 
 ```sh
-just install-operator
+just solidity::install-operator
 just install-proof-api
 ```
 
@@ -285,33 +284,9 @@ Before committing, you should lint your code to ensure it follows the style guid
 just lint
 ```
 
-## End to End Benchmarks
+## Benchmarks
 
-The contracts in this repository are benchmarked end-to-end using foundry. The following benchmarks were ran with the underlying [sp1-ics07-tendermint](https://github.com/cosmos/sp1-ics07-tendermint). About ~230,000 gas is used for each light client verification (groth16), and this is included in the gas costs below for `recvPacket`, `timeoutPacket` and `ackPacket`. At the time of writing, proof generation takes around 25 seconds. More granular and in-depth benchmarks are planned for the future.
-
-### Single Packet Benchmarks
-
-The following benchmarks are for a single packet transfer without aggregation.
-
-| **Contract** | **Method** | **Description** | **Gas (groth16)** | **Gas (plonk)** |
-|:---:|:---:|:---:|:---:|:---:|
-| `ICS26Router.sol` | `sendPacket` | Initiating an IBC transfer with an `ERC20`. | ~165,000 | ~165,000 |
-| `ICS26Router.sol` | `recvPacket` | Receiving _back_ an `ERC20` token. | ~524,474 | ~608,862 |
-| `ICS26Router.sol` | `recvPacket` | Receiving a _new_ Cosmos token for the first time. (Deploying an `ERC20` contract) | ~1,072,445 | ~1,156,233 |
-| `ICS26Router.sol` | `ackPacket` | Acknowledging an ICS20 packet. | ~399,576 | ~483,375 |
-| `ICS26Router.sol` | `timeoutPacket` | Timing out an ICS20 packet | ~473,505 | ~556,640 |
-
-### Aggregated Packet Benchmarks
-
-The gas costs are substantially lower when aggregating multiple packets into a single proof, as long as the packets are submitted in the same tx.
-Since there is no meaningful difference in gas costs between plonk and groth16 in the aggregated case, they are not separated in the table below.
-
-| **ICS26Router Method** | **Description** | **Avg Gas (25 packets)** | **Avg Gas (50 packets)** | **Calldata size (25 packets)** | **Calldata size (50 packets)** |
-|:---:|:---:|:---:|:---:|:---:|:---:|
-| `multicall/recvPacket` | Receiving _back_ an `ERC20` token. | ~179,471 | ~172,804 | ~51,172B | ~100,772B |
-| `multicall/ackPacket` | Acknowledging an ICS20 packet. | ~92,621 | ~88,485 | ~53,572B | ~105,572B |
-
-Note: These gas benchmarks are with Groth16.
+The generated [Solidity benchmark tables](./ibc-solidity/benchmarks/README.md) include SP1 Tendermint end-to-end packet costs and direct Besu QBFT light-client operation costs. Their machine-readable gas snapshots are committed alongside the tables so benchmark changes are visible in GitHub diffs.
 
 ## Security Assumptions
 
