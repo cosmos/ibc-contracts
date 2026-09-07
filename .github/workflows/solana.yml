@@ -72,7 +72,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-solana-
 
-      - uses: solana-developers/github-actions/setup-all@860d4e7d3afc9f180f3c5016593a1e86e77eede4 # v0.2.5
+      - uses: solana-developers/github-actions/setup-all@e6ed2eb93c55eca911dbc711fb08683b42926a28 # v0.2.15
         with:
           anchor_version: ${{ env.ANCHOR_VERSION }}
           solana_version: ${{ env.SOLANA_VERSION }}

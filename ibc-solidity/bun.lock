@@ -10,8 +10,9 @@
         "@uniswap/permit2": "github:Uniswap/permit2#cc56ad0f3439c502c246fc5cfcc3db92bb8b7219",
       },
       "devDependencies": {
-        "forge-std": "github:foundry-rs/forge-std#v1.15.0",
-        "quicktype": "^23.2.6",
+        "forge-std": "github:foundry-rs/forge-std#v1.16.2",
+        "prettier": "^3.8.3",
+        "quicktype": "^23.3.25",
         "solhint": "^6.2.4",
         "sp1-contracts": "github:succinctlabs/sp1-contracts#d3629729c3216eb51bd4859d027a8eb729399fa4",
       },
@@ -162,7 +163,7 @@
 
     "find-replace": ["find-replace@3.0.0", "", { "dependencies": { "array-back": "^3.0.1" } }, "sha512-6Tb2myMioCAgv5kfvP5/PkZZ/ntTpVK39fHY7WkWBgvbeE+VHd/tZuZ4mrC+bxh4cfOZeYKVPaJIZtZXV7GNCQ=="],
 
-    "forge-std": ["forge-std@github:foundry-rs/forge-std#0844d7e", {}, "foundry-rs-forge-std-0844d7e", "sha512-IFVoUt33vyL6694tcykownk5fKlN1FaVP2ZIOVQs8CZ8oIi52m5TKjb1nV8PF6vvnIQhUIp2s8D0Am5HcqskoA=="],
+    "forge-std": ["forge-std@github:foundry-rs/forge-std#bf647bd", {}, "foundry-rs-forge-std-bf647bd", "sha512-YRYu4Jg0V000bFg3dCXp8MoIaG6f7/TfgxqBFd7fd1gdU83uL4F3YH1ld8zdF41m+7Qc8Ew6z1/3HSyGC/5l9g=="],
 
     "form-data-encoder": ["form-data-encoder@2.1.4", "", {}, "sha512-yDYSgNMraqvnxiEXO4hi88+YZxaHC6QKzb5N84iRCTDeRO7ZALpir/lVmf/uXUhnwUr2O4HU8s/n6x+yNjQkHw=="],
 
