@@ -21,7 +21,8 @@
  * SOFTWARE.
  */
 
-// This file is forked from OpenZeppelin Contracts to support exclusion proofs.
+// This file is forked from OpenZeppelin Contracts v5.7.0 at revision
+// 641ba990cad2f7f70878e0d66be1bfbef95710e8 to support exclusion proofs.
 // Based on https://github.com/OpenZeppelin/openzeppelin-contracts/blob/641ba990cad2f7f70878e0d66be1bfbef95710e8/contracts/utils/cryptography/TrieProof.sol[this implementation from OpenZeppelin Contracts].
 
 pragma solidity ^0.8.26;

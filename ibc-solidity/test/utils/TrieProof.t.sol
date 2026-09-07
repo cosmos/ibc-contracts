@@ -23,7 +23,8 @@
 
 pragma solidity ^0.8.28;
 
-// This file is AI generated based on the OpenZeppelin TypeScript test suite for TrieProof.sol:
+// This file is AI generated based on the OpenZeppelin Contracts v5.7.0 TypeScript test suite
+// at revision 641ba990cad2f7f70878e0d66be1bfbef95710e8:
 // https://github.com/OpenZeppelin/openzeppelin-contracts/blob/641ba990cad2f7f70878e0d66be1bfbef95710e8/test/utils/cryptography/TrieProof.test.js
 // This file includes additional test cases for exclusion proofs
 // solhint-disable gas-struct-packing,function-max-lines,gas-small-strings
