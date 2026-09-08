@@ -21,9 +21,10 @@
  * SOFTWARE.
  */
 
-// This file is forked from OpenZeppelin Contracts v5.7.0 at revision
+// This file is forked from OpenZeppelin Contracts at revision
 // 641ba990cad2f7f70878e0d66be1bfbef95710e8 to support exclusion proofs.
 // Based on https://github.com/OpenZeppelin/openzeppelin-contracts/blob/641ba990cad2f7f70878e0d66be1bfbef95710e8/contracts/utils/cryptography/TrieProof.sol[this implementation from OpenZeppelin Contracts].
+// slither-disable-start uninitialized-local
 
 pragma solidity ^0.8.26;
 
@@ -331,3 +332,8 @@ library TrieProof {
         return index < array.length && slice.equal(array[index].asSlice());
     }
 }
+
+// This file is forked from OpenZeppelin Contracts at revision
+// 641ba990cad2f7f70878e0d66be1bfbef95710e8 to support exclusion proofs.
+// Based on https://github.com/OpenZeppelin/openzeppelin-contracts/blob/641ba990cad2f7f70878e0d66be1bfbef95710e8/contracts/utils/cryptography/TrieProof.sol[this implementation from OpenZeppelin Contracts].
+// slither-disable-end uninitialized-local
