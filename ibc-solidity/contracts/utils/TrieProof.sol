@@ -184,7 +184,7 @@ library TrieProof {
 
                         if (_isEmptyNode(currentNodeId, currentNodeIdLength)) {
                             // Special case: the last proof element is a branch node with an empty value.
-                            // This is a valid proof for a non-existent key, so we return an empty value.
+                            // This is a valid proof for a non-existent key.
                             return _validateExclusionProof(proof.length, i);
                         }
 
@@ -238,6 +238,9 @@ library TrieProof {
                         //
                         // Leaf node (terminal) - return its value if key matches completely
                         // we already know that pathRemainder is a prefix of keyRemainder, so checking the length sufficient
+                        //
+                        // If length don't match, Special case: the last proof element is a leaf node with a path that is
+                        // a prefix of the key. This is a valid proof for a non-existent key.
                         return
                             pathRemainderLength == keyRemainder.length()
                                 ? _validateLastItem(decoded[1], proof_.length, i)
