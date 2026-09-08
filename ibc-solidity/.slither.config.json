@@ -1,11 +1,10 @@
 {
   "compile_force_framework": "foundry",
-  "include_paths": "contracts/",
   "filter_paths": "test/,scripts/,node_modules/",
   "exclude_informational": true,
   "exclude_low": true,
   "exclude_medium": false,
-  "exclude_high": false,  
+  "exclude_high": false,
   "exclude_dependencies": true,
   "detectors_to_exclude": ""
 }

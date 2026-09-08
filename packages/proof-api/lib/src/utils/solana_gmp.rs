@@ -230,7 +230,9 @@ fn decode_abi_gmp_payload(payload_value: &[u8]) -> Result<Option<DecodedGmpPaylo
         .map_err(|_| anyhow::anyhow!("Invalid salt"))?;
 
     let execution_accounts = packed
-        .chunks_exact(PACKED_ACCOUNT_SIZE)
+        .as_chunks::<PACKED_ACCOUNT_SIZE>()
+        .0
+        .iter()
         .map(|chunk| {
             let pubkey_bytes: [u8; 32] = chunk[..32]
                 .try_into()

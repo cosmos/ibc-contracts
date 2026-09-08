@@ -4,7 +4,7 @@
 
 use crate::events::{EurekaEvent, EurekaEventWithHeight};
 use alloy::{primitives::Bytes, sol_types::SolValue};
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use futures::future;
 use ibc_eureka_solidity_types::{
     ics26::{
@@ -78,7 +78,9 @@ pub fn target_events_to_timeout_msgs(
 /// - `dst_packet_seqs`: The list of dest packet sequences to filter by. If empty, no filtering.
 /// - `target_height`: The target height for the proofs.
 /// - `now`: The current time.
-#[must_use]
+///
+/// # Errors
+/// Returns an error when a selected acknowledgement event contains no acknowledgements.
 pub fn src_events_to_recv_and_ack_msgs(
     src_events: Vec<EurekaEventWithHeight>,
     src_client_id: &str,
@@ -87,36 +89,50 @@ pub fn src_events_to_recv_and_ack_msgs(
     dst_packet_seqs: &[u64],
     target_height: &Height,
     now: u64,
-) -> Vec<routerCalls> {
-    src_events
-        .into_iter()
-        .filter_map(|e| match e.event {
-            EurekaEvent::SendPacket(packet) => (packet.timeoutTimestamp > now
-                && packet.sourceClient == src_client_id
-                && packet.destClient == dst_client_id
-                && (src_packet_seqs.is_empty() || src_packet_seqs.contains(&packet.sequence)))
-            .then_some(routerCalls::recvPacket(recvPacketCall {
-                msg_: MsgRecvPacket {
-                    packet,
-                    proofHeight: target_height.clone(),
-                    proofCommitment: Bytes::default(),
-                },
-            })),
-            EurekaEvent::WriteAcknowledgement(packet, acks) => {
-                (packet.sourceClient == dst_client_id
+) -> Result<Vec<routerCalls>> {
+    let mut calls = Vec::new();
+    for event in src_events {
+        match event.event {
+            EurekaEvent::SendPacket(packet)
+                if packet.timeoutTimestamp > now
+                    && packet.sourceClient == src_client_id
+                    && packet.destClient == dst_client_id
+                    && (src_packet_seqs.is_empty()
+                        || src_packet_seqs.contains(&packet.sequence)) =>
+            {
+                calls.push(routerCalls::recvPacket(recvPacketCall {
+                    msg_: MsgRecvPacket {
+                        packet,
+                        proofHeight: target_height.clone(),
+                        proofCommitment: Bytes::default(),
+                    },
+                }));
+            }
+            EurekaEvent::WriteAcknowledgement(packet, acks)
+                if packet.sourceClient == dst_client_id
                     && packet.destClient == src_client_id
-                    && (dst_packet_seqs.is_empty() || dst_packet_seqs.contains(&packet.sequence)))
-                .then_some(routerCalls::ackPacket(ackPacketCall {
+                    && (dst_packet_seqs.is_empty()
+                        || dst_packet_seqs.contains(&packet.sequence)) =>
+            {
+                let acknowledgement = acks.into_iter().next().ok_or_else(|| {
+                    anyhow!(
+                        "write acknowledgement event for packet {} has no acknowledgements",
+                        packet.sequence
+                    )
+                })?;
+                calls.push(routerCalls::ackPacket(ackPacketCall {
                     msg_: MsgAckPacket {
                         packet,
-                        acknowledgement: acks[0].clone(), // TODO: handle multiple acks (#93)
+                        acknowledgement, // TODO: handle multiple acks (#93)
                         proofHeight: target_height.clone(),
                         proofAcked: Bytes::default(),
                     },
-                }))
+                }));
             }
-        })
-        .collect()
+            _ => {}
+        }
+    }
+    Ok(calls)
 }
 
 /// Generates and injects an SP1 proof into the first message in `msgs`.
@@ -197,4 +213,42 @@ pub async fn inject_sp1_proof(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ibc_eureka_solidity_types::ics26::IICS26RouterMsgs::Packet;
+
+    #[test]
+    fn rejects_selected_event_without_acknowledgements() {
+        let event = EurekaEventWithHeight {
+            event: EurekaEvent::WriteAcknowledgement(
+                Packet {
+                    sequence: 7,
+                    sourceClient: "dst".to_string(),
+                    destClient: "src".to_string(),
+                    timeoutTimestamp: u64::MAX,
+                    payloads: vec![],
+                },
+                vec![],
+            ),
+            height: 1,
+        };
+
+        let error = src_events_to_recv_and_ack_msgs(
+            vec![event],
+            "src",
+            "dst",
+            &[],
+            &[],
+            &Height {
+                revisionNumber: 0,
+                revisionHeight: 1,
+            },
+            0,
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("has no acknowledgements"));
+    }
 }

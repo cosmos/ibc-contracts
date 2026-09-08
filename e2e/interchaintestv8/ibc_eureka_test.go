@@ -184,7 +184,11 @@ func (s *IbcEurekaTestSuite) SetupSuite(ctx context.Context, proofType types.Sup
 	s.solidityFixtureGenerator = types.NewSolidityFixtureGenerator()
 
 	s.Require().True(s.Run("Deploy IBC contracts", func() {
-		stdout, err := eth.ForgeScript(s.deployer, testvalues.E2EDeployScriptPath)
+		var forgeArgs []string
+		if os.Getenv(testvalues.EnvKeyEthTestnetType) == testvalues.EthTestnetTypeBesuQBFT {
+			forgeArgs = []string{"--slow"}
+		}
+		stdout, err := eth.ForgeScript(s.deployer, testvalues.E2EDeployScriptPath, forgeArgs...)
 		s.Require().NoError(err)
 
 		s.contractAddresses, err = ethereum.GetEthContractsFromDeployOutput(string(stdout))

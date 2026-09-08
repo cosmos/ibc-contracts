@@ -261,7 +261,7 @@ impl SolanaTxBuilder {
     /// # Errors
     ///
     /// Always returns an error because this is not yet implemented.
-    #[allow(clippy::unused_async)]
+    #[allow(clippy::unused_async, clippy::unused_async_trait_impl)]
     pub async fn create_client(
         &self,
         _parameters: &std::collections::HashMap<String, String>,

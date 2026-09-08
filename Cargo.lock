@@ -8491,6 +8491,7 @@ dependencies = [
  "opentelemetry-otlp",
  "opentelemetry_sdk",
  "prometheus",
+ "proof-api-besu-to-eth",
  "proof-api-core",
  "proof-api-cosmos-to-cosmos",
  "proof-api-cosmos-to-eth",
@@ -8509,6 +8510,25 @@ dependencies = [
  "tracing-subscriber",
  "uuid",
  "warp",
+]
+
+[[package]]
+name = "proof-api-besu-to-eth"
+version = "0.1.0"
+dependencies = [
+ "alloy 2.0.4",
+ "alloy-rlp",
+ "anyhow",
+ "ethereum-apis 0.1.0",
+ "ethereum-light-client 0.1.0",
+ "ibc-eureka-solidity-types 0.1.0",
+ "proof-api-core",
+ "proof-api-lib",
+ "rlp 0.6.1",
+ "serde",
+ "serde_json",
+ "tonic 0.13.1",
+ "tracing",
 ]
 
 [[package]]

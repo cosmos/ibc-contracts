@@ -174,7 +174,7 @@ where
             &dst_packet_seqs,
             &latest_height,
             now_since_unix.as_secs(),
-        );
+        )?;
 
         let mut all_msgs = timeout_msgs
             .into_iter()

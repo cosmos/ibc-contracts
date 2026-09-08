@@ -47,7 +47,7 @@ runs:
     - name: Build SP1 Programs
       if: steps.cache-sp1-programs.outputs.cache-hit != 'true'
       shell: bash
-      run: just build-sp1-programs
+      run: just solidity::build-sp1-programs
 
     - name: Cache Proof API
       id: cache-proof-api

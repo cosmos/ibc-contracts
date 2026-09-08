@@ -1,0 +1,21 @@
+[package]
+name = "proof-api-besu-to-eth"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+alloy = { workspace = true, features = ["full"] }
+alloy-rlp = { workspace = true }
+anyhow = { workspace = true, features = ["std"] }
+ethereum-apis = { workspace = true }
+ethereum-light-client = { workspace = true }
+proof-api-core = { workspace = true, default-features = false }
+proof-api-lib = { workspace = true, default-features = false }
+ibc-eureka-solidity-types = { workspace = true, features = ["rpc"] }
+rlp = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tonic = { workspace = true, default-features = true }
+tracing = { workspace = true, default-features = true }
