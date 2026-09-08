@@ -50,10 +50,10 @@ EXCLUDED_PATHS=(
 # left alone. Anything listed here is checked for *having* a header, but its value is not
 # forced to ${LICENSE}.
 #
-# Deliberately empty: every file this repository owns is published under ${LICENSE}. This
-# stays as an escape hatch for future third-party code that cannot be relicensed -- add the
-# path together with a comment saying why, rather than weakening the check.
-PRESERVED_HEADERS=()
+# Forked from OpenZeppelin Contracts; retain the upstream MIT license identifier.
+PRESERVED_HEADERS=(
+  'ibc-solidity/contracts/utils/TrieProof.sol'
+)
 
 # Markers that identify machine-generated files, matched case-insensitively against the
 # first 10 lines. Headers added to such files would be lost on the next regeneration.

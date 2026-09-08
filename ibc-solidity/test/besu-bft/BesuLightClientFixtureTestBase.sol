@@ -98,8 +98,10 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     }
 
     function test_verifyNonMembership() public {
-        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.UnsupportedNonMembershipProof.selector));
-        client.verifyNonMembership(
+        vm.warp(fixture.initialTrustedTimestamp + 1);
+        client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
+
+        uint256 timestamp = client.verifyNonMembership(
             ILightClientMsgs.MsgVerifyNonMembership({
                 proof: fixture.nonMembership.proof,
                 proofHeight: IICS02ClientMsgs.Height({
@@ -108,6 +110,8 @@ abstract contract BesuLightClientFixtureTestBase is Test {
                 path: _singlePath(fixture.nonMembership.path)
             })
         );
+
+        assertEq(timestamp, fixture.nonMembership.expectedTimestamp);
     }
 
     function tableUpdateClientTest(BesuUpdateTestCase memory update) public {

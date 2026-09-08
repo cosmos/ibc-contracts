@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import { ILightClientMsgs } from "../../contracts/msgs/ILightClientMsgs.sol";
+import { IICS02ClientMsgs } from "../../contracts/msgs/IICS02ClientMsgs.sol";
 import { ILightClient } from "../../contracts/interfaces/ILightClient.sol";
 import { IBesuLightClient } from "../../contracts/light-clients/besu/interfaces/IBesuLightClient.sol";
 import { BesuLightClientFixtureTestBase } from "../besu-bft/BesuLightClientFixtureTestBase.sol";
@@ -46,6 +47,28 @@ contract BesuQBFTBenchmark is BesuLightClientFixtureTestBase {
         );
 
         assertEq(timestamp, fixture.membership.expectedTimestamp);
+    }
+
+    function testBenchmark_VerifyNonMembership() public {
+        vm.warp(fixture.initialTrustedTimestamp + 1);
+        client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
+        ILightClientMsgs.MsgVerifyNonMembership memory message = ILightClientMsgs.MsgVerifyNonMembership({
+            proof: fixture.nonMembership.proof,
+            proofHeight: IICS02ClientMsgs.Height({
+                revisionNumber: 0, revisionHeight: fixture.nonMembership.proofHeight
+            }),
+            path: _singlePath(fixture.nonMembership.path)
+        });
+
+        uint256 timestamp = client.verifyNonMembership(message);
+        vm.snapshotGasLastFrame(SNAPSHOT_GROUP, "verify_non_membership.gas");
+        vm.snapshotValue(
+            SNAPSHOT_GROUP,
+            "verify_non_membership.calldata",
+            abi.encodeCall(ILightClient.verifyNonMembership, (message)).length
+        );
+
+        assertEq(timestamp, fixture.nonMembership.expectedTimestamp);
     }
 
     function _fixtureFile() internal pure override returns (string memory) {
