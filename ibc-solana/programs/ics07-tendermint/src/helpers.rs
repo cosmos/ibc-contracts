@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::error::ErrorCode;
 use anchor_lang::prelude::*;
 use borsh::BorshDeserialize;

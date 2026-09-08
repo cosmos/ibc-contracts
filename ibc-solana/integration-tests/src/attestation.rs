@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Attestation light client helpers for integration tests.
 //!
 //! Provides proof construction (state and packet membership) and an

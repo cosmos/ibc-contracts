@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Contains types and traits for `verify_header` validation within the program.
 
 use std::collections::HashMap;

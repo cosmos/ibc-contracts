@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! This is a one-sided proof API module from Ethereum to a Cosmos SDK chain.
 
 #![deny(

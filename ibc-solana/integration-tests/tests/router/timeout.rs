@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use super::*;
 
 /// Timeout lifecycle: send on A -> timeout on A (packet never delivered to B).

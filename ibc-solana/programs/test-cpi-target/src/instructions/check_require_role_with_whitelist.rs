@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use anchor_lang::prelude::*;
 
 /// Accounts for [`require_role_with_whitelist`](access_manager::require_role_with_whitelist) wrapper.

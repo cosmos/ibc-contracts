@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use super::*;
 
 /// Error ack lifecycle: `mock_ibc_app` returns `b"error"` when payload starts

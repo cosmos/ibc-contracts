@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::types::ConsensusState;
 use anchor_lang::prelude::*;
 pub use solana_ibc_constants::CHUNK_DATA_SIZE;

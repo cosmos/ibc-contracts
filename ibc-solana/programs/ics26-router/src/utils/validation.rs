@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 const CLIENT_ID_PREFIX: &str = "client-";
 const CHANNEL_ID_PREFIX: &str = "channel-";
 

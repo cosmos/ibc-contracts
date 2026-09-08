@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use anchor_lang::{AnchorSerialize, Discriminator, InstructionData, Space};
 use mollusk_svm::result::Check;
 use mollusk_svm::Mollusk;

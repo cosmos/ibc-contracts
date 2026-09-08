@@ -1,9 +1,9 @@
 error: IBC app is missing required callback function(s): on_recv_packet, on_acknowledgement_packet, on_timeout_packet
- --> tests/ui/all_callbacks_missing.rs:5:1
-  |
-5 | / pub mod my_app {
-6 | |     pub fn some_other_function() -> Result<()> {
-7 | |         Ok(())
-8 | |     }
-9 | | }
-  | |_^
+  --> tests/ui/all_callbacks_missing.rs:7:1
+   |
+7  | / pub mod my_app {
+8  | |     pub fn some_other_function() -> Result<()> {
+9  | |         Ok(())
+10 | |     }
+11 | | }
+   | |_^

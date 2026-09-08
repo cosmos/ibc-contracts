@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+
 #
 # Build a Solana program instance under a different program ID.
 #

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use super::*;
 
 /// Two-step admin transfer: propose -> accept. Then propose -> cancel.

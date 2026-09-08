@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 pub mod access_manager_transfer;
 pub mod ack_packet;
 pub mod add_ibc_app;

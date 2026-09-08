@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Prover for SP1 ICS07 Tendermint programs.
 
 use crate::programs::{

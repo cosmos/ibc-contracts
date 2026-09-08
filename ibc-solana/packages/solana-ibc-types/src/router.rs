@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Router message types for IBC on Solana
 //!
 //! These types define the messages for packet handling in the ICS26 router.

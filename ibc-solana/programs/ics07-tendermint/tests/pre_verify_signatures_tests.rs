@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use access_manager::AccessManagerState;
 use anchor_lang::{
     AccountSerialize, AnchorDeserialize, AnchorSerialize, Discriminator, InstructionData,

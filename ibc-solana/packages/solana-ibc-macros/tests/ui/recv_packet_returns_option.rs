@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use solana_ibc_macros::ibc_app;
 
 // on_recv_packet returning Option instead of Result

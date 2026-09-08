@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Attestation-based transaction builder for Eth-to-Solana relay.
 
 use std::time::Duration;

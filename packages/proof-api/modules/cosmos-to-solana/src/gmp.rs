@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! GMP account extraction - delegates to shared `proof_api_lib::utils::solana_gmp`.
 
 pub use proof_api_lib::utils::solana_gmp::{

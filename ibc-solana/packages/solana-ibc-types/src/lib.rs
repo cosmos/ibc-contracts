@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! IBC types and utilities for Solana programs
 //!
 //! This crate provides all the types, messages, and utilities needed for

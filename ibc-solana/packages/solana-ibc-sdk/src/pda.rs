@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Manual PDA helpers for accounts that Anchor doesn't export to the IDL.
 //!
 //! Anchor omits PDA seed definitions for `init_if_needed` accounts, so

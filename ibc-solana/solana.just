@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+
 # Recipes for the Solana IBC implementation. Invoked from the repository
 # root justfile as the `solana` module; recipes run with `ibc-solana/`
 # as the working directory.

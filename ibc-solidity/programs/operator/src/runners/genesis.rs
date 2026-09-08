@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Contains the runner for the genesis command.
 
 use alloy::sol_types::SolValue;

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Integration tests for combined update client and membership functionality
 
 mod helpers;

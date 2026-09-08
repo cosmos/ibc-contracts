@@ -1,5 +1,5 @@
 error: Callback 'on_recv_packet' must have exactly 2 parameters (ctx: Context<...>, msg: OnRecvPacketMsg), found 3
- --> tests/ui/multiple_errors.rs:6:27
+ --> tests/ui/multiple_errors.rs:8:27
   |
-6 |     pub fn on_recv_packet(ctx: Ctx, msg: WrongMsg, extra: u8) -> Result<()> {
+8 |     pub fn on_recv_packet(ctx: Ctx, msg: WrongMsg, extra: u8) -> Result<()> {
   |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

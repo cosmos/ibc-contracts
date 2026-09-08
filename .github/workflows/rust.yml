@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+
 # Based on https://github.com/actions-rs/example/blob/master/.github/workflows/quickstart.yml
 name: rust
 

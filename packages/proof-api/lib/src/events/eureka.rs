@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Define the events that can be retrieved by the proof API.
 
 use super::cosmos_sdk;

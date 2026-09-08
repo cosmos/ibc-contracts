@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use alloy_primitives::{Address, U128, U160, U256};
 use ssz_derive::Encode;
 use tree_hash::{

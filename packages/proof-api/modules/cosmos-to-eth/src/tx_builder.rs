@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module defines [`TxBuilder`] which is responsible for building transactions to be sent to
 //! the Ethereum chain from events received from the Cosmos SDK chain.
 
@@ -172,7 +174,7 @@ where
             &dst_packet_seqs,
             &latest_height,
             now_since_unix.as_secs(),
-        );
+        )?;
 
         let mut all_msgs = timeout_msgs
             .into_iter()

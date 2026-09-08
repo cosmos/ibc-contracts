@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 pub mod check_direct_or_whitelisted;
 pub mod check_is_cpi;
 pub mod check_reject_cpi;

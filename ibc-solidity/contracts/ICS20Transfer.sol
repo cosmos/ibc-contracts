@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.28;
 
 import { IICS26RouterMsgs } from "./msgs/IICS26RouterMsgs.sol";
@@ -255,16 +255,16 @@ contract ICS20Transfer is
         return _getICS26Router()
             .sendPacket(
                 IICS26RouterMsgs.MsgSendPacket({
-                sourceClient: msg_.sourceClient,
-                timeoutTimestamp: msg_.timeoutTimestamp,
-                payload: IICS26RouterMsgs.Payload({
-                sourcePort: ICS20Lib.DEFAULT_PORT_ID,
-                destPort: ICS20Lib.DEFAULT_PORT_ID,
-                version: ICS20Lib.ICS20_VERSION,
-                encoding: ICS20Lib.ICS20_ENCODING,
-                value: abi.encode(packetData)
-            })
-            })
+                    sourceClient: msg_.sourceClient,
+                    timeoutTimestamp: msg_.timeoutTimestamp,
+                    payload: IICS26RouterMsgs.Payload({
+                        sourcePort: ICS20Lib.DEFAULT_PORT_ID,
+                        destPort: ICS20Lib.DEFAULT_PORT_ID,
+                        version: ICS20Lib.ICS20_VERSION,
+                        encoding: ICS20Lib.ICS20_ENCODING,
+                        value: abi.encode(packetData)
+                    })
+                })
             );
     }
 

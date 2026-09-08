@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::events::UpgradeAuthorityClaimedEvent;
 use crate::helpers::{cpi, require_admin};
 use crate::state::AccessManager;

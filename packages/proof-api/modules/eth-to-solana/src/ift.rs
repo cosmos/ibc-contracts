@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! IFT `claim_refund` instruction builder for ack/timeout packets.
 //!
 //! After GMP processes ack/timeout and creates `GMPCallResultAccount`,

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use super::*;
 use integration_tests::chain::{attestation_lc_accounts, ChainConfig};
 use integration_tests::gmp::{self, GmpAckPacketParams, GmpRecvPacketParams};

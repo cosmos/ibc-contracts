@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Quorum-based consensus utilities for aggregating attestor responses.
 
 use thiserror::Error;

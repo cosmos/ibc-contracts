@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use anchor_lang::prelude::*;
 
 /// Emitted when conflicting timestamps are submitted for the same height.

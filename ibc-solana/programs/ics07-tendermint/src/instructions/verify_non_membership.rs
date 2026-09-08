@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::error::ErrorCode;
 use crate::helpers::deserialize_merkle_proof;
 use crate::state::ConsensusStateStore;

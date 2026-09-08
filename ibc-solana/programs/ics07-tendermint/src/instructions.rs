@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 pub mod access_manager_transfer;
 pub mod assemble_and_submit_misbehaviour;
 pub mod assemble_and_update_client;

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Per-crate test constants for AM-to-AM migration tests.
 //!
 //! This file is NOT shared (hardlinked/symlinked) between `access-manager`

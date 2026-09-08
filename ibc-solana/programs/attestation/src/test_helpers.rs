@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use access_manager::AccessManagerState;
 
 pub const PROGRAM_BINARY_PATH: &str = "../../target/deploy/attestation";

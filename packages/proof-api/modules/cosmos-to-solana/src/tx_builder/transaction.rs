@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Transaction building utilities for Solana.
 
 use anchor_lang::prelude::*;

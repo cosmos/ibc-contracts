@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Access Manager admin actor.
 //!
 //! Signs access-manager transfer operations (propose, accept, cancel)

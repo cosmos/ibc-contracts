@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module defines [`ClientState`].
 
 use alloy_primitives::{Address, B256, U256};

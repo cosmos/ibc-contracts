@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Proof API utilities for `solana-eureka` chains.
 use anyhow::Context;
 use solana_ibc_constants::CHUNK_DATA_SIZE;

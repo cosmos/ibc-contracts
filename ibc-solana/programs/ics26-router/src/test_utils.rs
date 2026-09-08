@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::state::*;
 use access_manager::{AccessManagerState, RoleData};
 use anchor_lang::{AccountSerialize, AnchorSerialize, Discriminator, Space};

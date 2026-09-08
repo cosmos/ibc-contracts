@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module defines types related to beacon's block api endpoints.
 
 use alloy_primitives::{Address, Bloom, Bytes, B256, U256};

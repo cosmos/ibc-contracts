@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Runners for generating fixtures for testing of the programs.
 
 pub mod membership;

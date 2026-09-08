@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Defines the [`ProofApiBuilder`] struct that is used to build the proof API server.
 
 use std::collections::HashMap;

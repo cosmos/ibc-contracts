@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Defines the [`Chain`] interface and some of its implementations.
 
 use alloy::primitives::TxHash;

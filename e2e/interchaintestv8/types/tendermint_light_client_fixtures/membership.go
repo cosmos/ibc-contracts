@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 // Package tendermint_light_client_fixtures generates test fixtures for IBC Tendermint light client verification.
 //
 // IBC Cross-Chain Architecture:

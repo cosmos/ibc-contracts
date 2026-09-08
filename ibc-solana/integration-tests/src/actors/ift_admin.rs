@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! IFT program admin actor.
 //!
 //! Signs IFT-specific admin operations: pause/unpause, admin transfer

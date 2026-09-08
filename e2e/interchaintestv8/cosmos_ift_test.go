@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 package main
 
 import (
@@ -20,7 +22,6 @@ import (
 	clienttypes "github.com/cosmos/ibc-go/v11/modules/core/02-client/types"
 	clienttypesv2 "github.com/cosmos/ibc-go/v11/modules/core/02-client/v2/types"
 	ibcexported "github.com/cosmos/ibc-go/v11/modules/core/exported"
-	ibctesting "github.com/cosmos/ibc-go/v11/testing"
 
 	interchaintest "github.com/cosmos/interchaintest/v11"
 	"github.com/cosmos/interchaintest/v11/chain/cosmos"
@@ -29,6 +30,7 @@ import (
 	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/chainconfig"
 	cosmosutils "github.com/srdtrk/solidity-ibc-eureka/e2e/v8/cosmos"
 	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/e2esuite"
+	ibctesting "github.com/srdtrk/solidity-ibc-eureka/e2e/v8/ibctesting"
 	proofapi "github.com/srdtrk/solidity-ibc-eureka/e2e/v8/proofapi"
 	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/testvalues"
 	proofapitypes "github.com/srdtrk/solidity-ibc-eureka/e2e/v8/types/proofapi"

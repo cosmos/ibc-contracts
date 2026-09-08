@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Inter-chain Fungible Token (IFT) transfer instruction builders.
 //!
 //! Covers SPL / Token-2022 token creation, bridge registration, transfers,

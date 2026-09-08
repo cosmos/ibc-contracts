@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module defines [`compute_signing_root`].
 
 use alloy_primitives::B256;

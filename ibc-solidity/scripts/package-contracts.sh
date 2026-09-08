@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+
 #
 # Build and package pre-compiled solidity contract artifacts as a release tarball.
 #

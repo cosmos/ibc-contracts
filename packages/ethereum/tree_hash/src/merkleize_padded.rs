@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::sha256::{hash32_concat, hash_fixed};
 
 use super::{get_zero_hash, Hash256, BYTES_PER_CHUNK};

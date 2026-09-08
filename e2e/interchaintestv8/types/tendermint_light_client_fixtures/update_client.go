@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 package tendermint_light_client_fixtures
 
 import (

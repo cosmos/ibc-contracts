@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! [`ChainProgram`] implementations for every on-chain program used in tests.
 //!
 //! Each struct knows how to register its `.so` binary on `ProgramTest`,

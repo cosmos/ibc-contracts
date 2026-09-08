@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::types::{PendingAuthorityTransfer, RoleData};
 use anchor_lang::prelude::*;
 use solana_ibc_types::roles;

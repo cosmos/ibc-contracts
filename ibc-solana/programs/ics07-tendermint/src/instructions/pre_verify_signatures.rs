@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::types::AppState;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::sysvar::instructions as ix_sysvar;

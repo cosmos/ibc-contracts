@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::error::ErrorCode;
 use crate::state::{HeaderChunk, CHUNK_DATA_SIZE};
 use crate::types::{AppState, ClientState, UploadChunkParams};

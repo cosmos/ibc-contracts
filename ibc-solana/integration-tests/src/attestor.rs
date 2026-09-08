@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! ECDSA attestor for signing attestation proofs in integration tests.
 //!
 //! Replicates the `TestAttestor` from `attestation::test_helpers::signing`

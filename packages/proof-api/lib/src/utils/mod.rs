@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module contains the utilities for proof API implementations.
 
 use crate::events::EurekaEventWithHeight;

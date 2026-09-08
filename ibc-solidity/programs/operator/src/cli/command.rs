@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Contains the command line interface for the application.
 
 use clap::Parser;

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Constants and program IDs for IBC on Solana
 //!
 //! This crate provides all the program IDs and constants used by IBC on Solana

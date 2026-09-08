@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use ibc_client_tendermint::types::{ConsensusState, Misbehaviour};
 use ibc_core_client_types::Height;
 use ibc_core_commitment_types::commitment::CommitmentRoot;

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 package solana
 
 // GMP PDA helpers - manually maintained because the GMP account PDA

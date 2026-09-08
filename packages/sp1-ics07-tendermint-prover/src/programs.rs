@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Programs for `sp1-ics07-tendermint`.
 
 use sp1_sdk::{Elf, SP1VerifyingKey};

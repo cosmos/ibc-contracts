@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Reusable aggregator for attester proof API modules
 
 #[allow(clippy::all, clippy::pedantic, clippy::nursery)]
@@ -116,7 +118,7 @@ impl Aggregator {
             .try_get_with(height, async {
                 let state_attestations = self
                     .query_attestations(AttestationQuery::State(height))
-                    .await?;
+                    .await;
 
                 let quorumed_aggregation =
                     agg_quorumed_attestations(self.quorum_threshold, state_attestations)
@@ -162,7 +164,7 @@ impl Aggregator {
                         height,
                         commitment_type,
                     ))
-                    .await?;
+                    .await;
 
                 let quorumed_aggregation =
                     agg_quorumed_attestations(self.quorum_threshold, packet_attestations)
@@ -178,7 +180,7 @@ impl Aggregator {
             .try_get_with(packet_attestation.height, async {
                 let state_attestations = self
                     .query_attestations(AttestationQuery::State(packet_attestation.height))
-                    .await?;
+                    .await;
 
                 let quorumed_aggregation =
                     agg_quorumed_attestations(self.quorum_threshold, state_attestations)
@@ -195,10 +197,7 @@ impl Aggregator {
         })
     }
 
-    async fn query_attestations(
-        &self,
-        query: AttestationQuery,
-    ) -> Result<Vec<Option<Attestation>>, Status> {
+    async fn query_attestations(&self, query: AttestationQuery) -> Vec<Option<Attestation>> {
         let timeout_duration = self.attestor_timeout_duration;
         let query_futures = self.attestor_clients.iter().map(|(endpoint, client)| {
             let query = query.clone();
@@ -255,7 +254,7 @@ impl Aggregator {
             })
             .collect();
 
-        Ok(successful_responses)
+        successful_responses
     }
 
     fn make_packet_cache_key(packets: &[Vec<u8>], height: u64) -> ([u8; 32], u64) {

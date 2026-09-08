@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Utilities for Tendermint light client configuration
 //! This module provides common functionality for creating and configuring Tendermint client states
 

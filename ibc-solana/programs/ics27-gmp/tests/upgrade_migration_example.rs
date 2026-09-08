@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 /// Upgrade migration example for `GMPAppState`
 ///
 /// This example demonstrates how to migrate `GMPAppState` from V1 to a hypothetical V2

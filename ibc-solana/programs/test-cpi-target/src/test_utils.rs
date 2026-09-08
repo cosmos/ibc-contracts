@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use access_manager::{state::AccessManager, RoleData};
 use anchor_lang::{AnchorSerialize, Discriminator, InstructionData, Space, ToAccountMetas};
 use solana_program_test::{BanksClient, BanksClientError, ProgramTest};

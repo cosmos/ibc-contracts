@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Test actors that model distinct on-chain roles.
 //!
 //! Each actor wraps a [`Keypair`] and exposes high-level async methods

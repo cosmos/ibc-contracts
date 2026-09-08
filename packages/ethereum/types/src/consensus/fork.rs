@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module defines types related to forks in Ethereum.
 
 use alloy_primitives::{aliases::B32, B256};

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use anchor_lang::prelude::*;
 
 /// Closes incomplete `MisbehaviourChunk` PDAs, returning the rent to the original submitter.

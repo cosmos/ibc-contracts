@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! ABI encoding and decoding for GMP Solana payload using `alloy-sol-types`.
 
 use alloy_sol_types::SolValue;

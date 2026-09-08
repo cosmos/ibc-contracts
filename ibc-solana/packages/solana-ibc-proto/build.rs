@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use std::io::Result;
 
 fn main() -> Result<()> {

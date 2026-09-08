@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Simulated Solana chain backed by `ProgramTest` / `BanksClient`.
 //!
 //! Handles program registration, deterministic clock setup, actor funding,

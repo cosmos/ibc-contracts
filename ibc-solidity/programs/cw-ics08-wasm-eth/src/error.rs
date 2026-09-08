@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Defines the [`ContractError`] type.
 
 use cosmwasm_std::StdError;

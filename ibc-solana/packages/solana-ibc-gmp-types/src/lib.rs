@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! ICS27 GMP (General Message Passing) types for PDA derivation
 //!
 //! These types are shared between the ICS27 GMP program and relayer

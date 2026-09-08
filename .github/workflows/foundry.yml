@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+
 name: foundry
 
 env:
@@ -34,8 +36,10 @@ jobs:
 
       - uses: srdtrk/natlint@94f472f15c25c18091b8532cfa660f46379e2a02 # main
         with:
-          include: 'ibc-solidity/contracts/**/*.sol'
+          include: 'contracts/**/*.sol'
+          exclude: 'contracts/utils/TrieProof.sol'
           config: 'ibc-solidity/natlint.toml'
+          root: 'ibc-solidity'
 
       - name: Add lint summary
         run: |
@@ -88,6 +92,19 @@ jobs:
         run: |
           echo "## Tests result" >> $GITHUB_STEP_SUMMARY
           echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
+
+  benchmarks:
+    needs: [build]
+    runs-on: depot-ubuntu-24.04-4
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Set up environment
+        uses: ./.github/actions/foundry-setup
+
+      - name: Check generated benchmarks
+        run: bun run benchmarks:ci
 
   security:
     needs: [build]
@@ -143,7 +160,7 @@ jobs:
       - name: Remove the test directory from the coverage report
         run: lcov --remove lcov.info "test/**" "scripts/**" -o lcov.info
 
-      - uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5.5.5
+      - uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
           working-directory: ibc-solidity
           exclude: test

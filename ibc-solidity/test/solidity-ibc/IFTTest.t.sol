@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.28;
 
 // solhint-disable
@@ -53,9 +53,8 @@ contract IFTTest is Test {
 
     function setUpOwnable() public {
         address impl = address(new IFTOwnable());
-        ERC1967Proxy proxy = new ERC1967Proxy(
-            impl, abi.encodeCall(IFTOwnable.initialize, (admin, TOKEN_NAME, TOKEN_SYMBOL, mockICS27))
-        );
+        ERC1967Proxy proxy =
+            new ERC1967Proxy(impl, abi.encodeCall(IFTOwnable.initialize, (admin, TOKEN_NAME, TOKEN_SYMBOL, mockICS27)));
         ift = IIFT(address(proxy));
     }
 

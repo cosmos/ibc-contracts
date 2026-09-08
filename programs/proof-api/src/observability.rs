@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Observability configuration for the proof API.
 //!
 //! Stdout logging + optional OpenTelemetry OTLP export.

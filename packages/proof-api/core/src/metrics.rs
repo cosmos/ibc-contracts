@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Metrics module for the proof API.
 
 #![allow(missing_docs)]
@@ -41,6 +43,7 @@ pub static CONNECTED_CLIENTS: LazyLock<IntGauge> = LazyLock::new(|| {
 /// Generic metrics tracking middleware for service calls
 /// # Errors
 /// Returns an error if the function itself returns an error.
+#[allow(clippy::result_large_err)]
 pub async fn track_metrics<F, Fut, R>(
     method: &str,
     src_chain: &str,

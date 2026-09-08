@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use super::*;
 use integration_tests::programs::ATTESTATION_PROGRAM_ID;
 

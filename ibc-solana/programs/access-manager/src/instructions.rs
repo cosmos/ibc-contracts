@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 pub mod claim_upgrade_authority;
 pub mod grant_role;
 pub mod initialize;

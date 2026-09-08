@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module implements the `BeaconApiClient` to interact with the Ethereum Beacon API.
 
 use ethereum_types::consensus::{

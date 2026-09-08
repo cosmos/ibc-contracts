@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Solana IBC event parsing utilities
 //!
 //! This module provides utilities for parsing IBC events from Solana transaction logs.

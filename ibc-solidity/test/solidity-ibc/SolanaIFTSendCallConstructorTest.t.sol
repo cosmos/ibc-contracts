@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.28;
 
 // solhint-disable custom-errors,gas-small-strings,no-inline-assembly,gas-increment-by-one

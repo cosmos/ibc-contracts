@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Conversion functions between `BorshHeader` types and ibc-rs types
 //!
 //! These conversions are implemented here (instead of in solana-ibc-types)

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 /// Upgrade migration example. This example defines it's own V2 structs into
 /// which the existing data is loaded. In reality new fields would be added to
 /// the existing account structs. The existing data would then be loaded into

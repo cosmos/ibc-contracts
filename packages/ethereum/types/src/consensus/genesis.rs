@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module defines types related to the genesis endpoint of the Beacon API.
 
 use alloy_primitives::B256;

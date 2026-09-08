@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module contains the sudo message handlers
 
 use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut};

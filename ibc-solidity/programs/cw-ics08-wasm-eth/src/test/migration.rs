@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 pub mod v1_2_0 {
     use std::marker::PhantomData;
 

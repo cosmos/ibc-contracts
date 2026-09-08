@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! ICS07 Tendermint light client types for Solana
 //!
 //! These types define the messages for the ICS07 Tendermint light client.

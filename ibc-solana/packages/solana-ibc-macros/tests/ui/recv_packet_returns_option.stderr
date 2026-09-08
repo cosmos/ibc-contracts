@@ -1,5 +1,5 @@
 error: Callback 'on_recv_packet' must return 'Result<Vec<u8>>', found '-> Option < Vec < u8 > >'
- --> tests/ui/recv_packet_returns_option.rs:6:59
+ --> tests/ui/recv_packet_returns_option.rs:8:59
   |
-6 |     pub fn on_recv_packet(ctx: Ctx, msg: OnRecvPacketMsg) -> Option<Vec<u8>> {
+8 |     pub fn on_recv_packet(ctx: Ctx, msg: OnRecvPacketMsg) -> Option<Vec<u8>> {
   |                                                           ^^^^^^^^^^^^^^^^^^

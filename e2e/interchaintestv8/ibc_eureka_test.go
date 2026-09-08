@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 package main
 
 import (
@@ -30,7 +32,6 @@ import (
 	channeltypesv2 "github.com/cosmos/ibc-go/v11/modules/core/04-channel/v2/types"
 	ibchostv2 "github.com/cosmos/ibc-go/v11/modules/core/24-host/v2"
 	ibcexported "github.com/cosmos/ibc-go/v11/modules/core/exported"
-	ibctesting "github.com/cosmos/ibc-go/v11/testing"
 
 	"github.com/cosmos/interchaintest/v11/ibc"
 
@@ -44,6 +45,7 @@ import (
 	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/cosmos"
 	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/e2esuite"
 	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/ethereum"
+	ibctesting "github.com/srdtrk/solidity-ibc-eureka/e2e/v8/ibctesting"
 	proofapi "github.com/srdtrk/solidity-ibc-eureka/e2e/v8/proofapi"
 	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/testvalues"
 	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/types"
@@ -182,7 +184,11 @@ func (s *IbcEurekaTestSuite) SetupSuite(ctx context.Context, proofType types.Sup
 	s.solidityFixtureGenerator = types.NewSolidityFixtureGenerator()
 
 	s.Require().True(s.Run("Deploy IBC contracts", func() {
-		stdout, err := eth.ForgeScript(s.deployer, testvalues.E2EDeployScriptPath)
+		var forgeArgs []string
+		if os.Getenv(testvalues.EnvKeyEthTestnetType) == testvalues.EthTestnetTypeBesuQBFT {
+			forgeArgs = []string{"--slow"}
+		}
+		stdout, err := eth.ForgeScript(s.deployer, testvalues.E2EDeployScriptPath, forgeArgs...)
 		s.Require().NoError(err)
 
 		s.contractAddresses, err = ethereum.GetEthContractsFromDeployOutput(string(stdout))

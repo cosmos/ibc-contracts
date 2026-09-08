@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 pub mod admin;
 pub mod create_and_initialize_spl_token;
 pub mod finalize_transfer;

@@ -1,9 +1,9 @@
 error: IBC app is missing required callback function(s): on_acknowledgement_packet
-  --> tests/ui/missing_ack_packet.rs:4:1
+  --> tests/ui/missing_ack_packet.rs:6:1
    |
-4  | / pub mod my_app {
-5  | |     pub fn on_recv_packet(ctx: Ctx, msg: OnRecvPacketMsg) -> Result<Vec<u8>> {
-6  | |         Ok(vec![])
+6  | / pub mod my_app {
+7  | |     pub fn on_recv_packet(ctx: Ctx, msg: OnRecvPacketMsg) -> Result<Vec<u8>> {
+8  | |         Ok(vec![])
 ...  |
-12 | | }
+14 | | }
    | |_^

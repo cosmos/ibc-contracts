@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use super::*;
 
 /// Full lifecycle with a 2-chunk proof: the attestation proof exceeds

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::state::AccessManager;
 use crate::types::{PendingAuthorityTransfer, RoleData};
 use anchor_lang::prelude::*;

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Transaction builder for Solana-to-Eth relay using attestation proofs.
 //!
 //! Delegates to `eth_attested` utilities for building ABI-encoded EVM

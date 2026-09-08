@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Shared helper functions for IFT operations
 
 use anchor_lang::prelude::*;

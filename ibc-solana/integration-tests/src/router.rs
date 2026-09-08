@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! ICS26 Router instruction builders for the full packet lifecycle.
 //!
 //! Covers `send_packet`, `recv_packet`, `ack_packet`, `timeout_packet`,

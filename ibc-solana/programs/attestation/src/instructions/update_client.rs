@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::error::ErrorCode;
 use crate::events::MisbehaviourDetected;
 use crate::proof::deserialize_membership_proof;

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 mod access_manager_transfer;
 pub mod cpi;
 mod role_checks;

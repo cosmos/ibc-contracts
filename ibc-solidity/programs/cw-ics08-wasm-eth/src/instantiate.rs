@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module contains the instantiate helper functions
 
 use cosmwasm_std::{ensure, Storage};

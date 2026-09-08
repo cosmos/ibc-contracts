@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module defines [`TxBuilder`] which is responsible for building transactions to be sent to
 //! Solana from events received from a Cosmos SDK chain.
 

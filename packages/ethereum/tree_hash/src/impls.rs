@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use super::*;
 use alloy_primitives::{Bloom, Bytes, FixedBytes, B256, U128, U256};
 use std::sync::Arc;

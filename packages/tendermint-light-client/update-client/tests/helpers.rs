@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Common test utilities and fixtures for update client tests
 
 use serde::Deserialize;

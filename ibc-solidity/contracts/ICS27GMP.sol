@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.28;
 
 import { IICS26RouterMsgs } from "./msgs/IICS26RouterMsgs.sol";
@@ -114,19 +114,20 @@ contract ICS27GMP is
             memo: msg_.memo
         });
 
-        return _getICS27GMPStorage()._ics26
+        return _getICS27GMPStorage()
+            ._ics26
             .sendPacket(
                 IICS26RouterMsgs.MsgSendPacket({
-                sourceClient: msg_.sourceClient,
-                timeoutTimestamp: msg_.timeoutTimestamp,
-                payload: IICS26RouterMsgs.Payload({
-                sourcePort: ICS27Lib.DEFAULT_PORT_ID,
-                destPort: ICS27Lib.DEFAULT_PORT_ID,
-                version: ICS27Lib.ICS27_VERSION,
-                encoding: ICS27Lib.ICS27_ENCODING,
-                value: abi.encode(packetData)
-            })
-            })
+                    sourceClient: msg_.sourceClient,
+                    timeoutTimestamp: msg_.timeoutTimestamp,
+                    payload: IICS26RouterMsgs.Payload({
+                        sourcePort: ICS27Lib.DEFAULT_PORT_ID,
+                        destPort: ICS27Lib.DEFAULT_PORT_ID,
+                        version: ICS27Lib.ICS27_VERSION,
+                        encoding: ICS27Lib.ICS27_ENCODING,
+                        value: abi.encode(packetData)
+                    })
+                })
             );
     }
 

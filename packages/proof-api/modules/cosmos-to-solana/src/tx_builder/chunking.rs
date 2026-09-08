@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Chunking operations for large payloads and proofs.
 
 use std::collections::HashSet;

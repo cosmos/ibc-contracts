@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::error::ErrorCode;
 use crate::state::{MisbehaviourChunk, CHUNK_DATA_SIZE};
 use crate::test_helpers::access_control::create_access_manager_account;

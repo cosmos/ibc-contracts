@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! # This module defines the [`ChainListenerService`] trait and some of its implementations.
 
 pub mod cosmos_sdk;

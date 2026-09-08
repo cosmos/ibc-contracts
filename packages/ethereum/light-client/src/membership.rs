@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module provides [`verify_membership`] function to verify the membership of a key in the
 //! storage trie.
 

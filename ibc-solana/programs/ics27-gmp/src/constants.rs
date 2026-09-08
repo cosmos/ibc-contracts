@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 /// Program constants for ICS27 GMP
 // Re-export validation constants
 pub use solana_ibc_types::{

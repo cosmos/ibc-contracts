@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Build script for generating discriminators for light client instructions
 //!
 //! This generates standard discriminators that all light clients must use

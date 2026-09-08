@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Defines the [`ProofApiModule`] trait that must be implemented by all proof API modules.
 
 use crate::api::proof_api_service_server::ProofApiService;

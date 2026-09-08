@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Contains the types needed to parse Cosmos SDK's IBC Eureka events.
 //!
 //! Should be kept in sync with

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Build script to generate compile-time constants.
 
 use sha2::{Digest, Sha256};

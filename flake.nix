@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+
 {
   description = "Development environment for Solidity IBC Eureka";
 
@@ -10,7 +12,10 @@
     };
     foundry.url = "github:shazow/foundry.nix/stable";
     rust-overlay.url = "github:oxalica/rust-overlay";
-    natlint.url = "github:srdtrk/natlint";
+    natlint = {
+      url = "github:srdtrk/natlint";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     sp1 = {
       url = "github:vaporif/sp1-overlay";
       inputs.nixpkgs.follows = "nixpkgs";

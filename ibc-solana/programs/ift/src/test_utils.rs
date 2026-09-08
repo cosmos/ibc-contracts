@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Test utilities for ICS27 IFT program
 //!
 //! Provides helper functions for mollusk-based unit tests.

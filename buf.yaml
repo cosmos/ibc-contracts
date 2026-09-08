@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+
 # Learn more at https://buf.build/docs/configuration/v2/buf-yaml/
 version: v2
 modules:

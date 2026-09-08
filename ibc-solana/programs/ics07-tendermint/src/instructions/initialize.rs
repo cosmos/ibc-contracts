@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::error::ErrorCode;
 use crate::state::ConsensusStateStore;
 use crate::types::{AppState, ClientState, ConsensusState};

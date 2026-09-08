@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Provides helpers for deriving other types from `LightBlock`.
 
 use ibc_client_tendermint_types::ConsensusState;

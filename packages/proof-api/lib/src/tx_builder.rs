@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! Defines the [`TxBuilderService`] trait for building transactions
 
 use crate::chain::Chain;

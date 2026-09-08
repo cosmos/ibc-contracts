@@ -3,6 +3,11 @@ name = "ethereum-trie-db"
 version = { workspace = true }
 edition = { workspace = true }
 repository = { workspace = true }
+# NOTE: `license` is intentionally omitted. `src/types.rs` is derived from Open Ethereum
+# (Copyright 2015-2020 Parity Technologies) and carries a GPL-3.0-or-later notice, which is
+# not compatible with the Apache-2.0 license the rest of this repository is published under.
+# This crate is excluded from license-header enforcement (see scripts/check-license-headers.sh)
+# and needs a licensing decision before it can be published or relicensed.
 
 [dependencies]
 hex = { workspace = true }

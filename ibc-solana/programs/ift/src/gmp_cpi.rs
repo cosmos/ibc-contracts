@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 //! CPI helpers for calling ICS27-GMP program
 
 use anchor_lang::prelude::*;
