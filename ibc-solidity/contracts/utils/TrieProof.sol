@@ -234,12 +234,6 @@ library TrieProof {
                         }
                         decoded = childNode.readList();
                     } else if (prefix <= uint8(Prefix.LEAF_ODD)) {
-                        if (pathRemainderLength < keyRemainder.length() && proof_.length == i + 1) {
-                            // Special case: the last proof element is a leaf node with a path that is a prefix of the key.
-                            // This is a valid proof for a non-existent key, so we return an empty value.
-                            return (_emptyBytesMemory(), ProofError.VALID_EXCLUSION_PROOF);
-                        }
-
                         // Eq to: prefix == LEAF_EVEN || prefix == LEAF_ODD
                         //
                         // Leaf node (terminal) - return its value if key matches completely
