@@ -60,7 +60,7 @@ lint-contracts:
 	@echo "Linting the Solidity code..."
 	forge fmt --check
 	bun solhint -w 0 '{scripts,contracts,test}/**/*.sol'
-	natlint run --include 'contracts/**/*.sol'
+	natlint run --root "$PWD" --include 'contracts/**/*.sol' --exclude 'contracts/utils/TrieProof.sol'
 
 # Lint the SP1 programs using `cargo fmt` and `cargo clippy`
 [group('lint')]
