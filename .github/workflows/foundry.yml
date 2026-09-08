@@ -36,8 +36,10 @@ jobs:
 
       - uses: srdtrk/natlint@94f472f15c25c18091b8532cfa660f46379e2a02 # main
         with:
-          include: 'ibc-solidity/contracts/**/*.sol'
+          include: 'contracts/**/*.sol'
+          exclude: 'contracts/utils/TrieProof.sol'
           config: 'ibc-solidity/natlint.toml'
+          root: 'ibc-solidity'
 
       - name: Add lint summary
         run: |

@@ -63,6 +63,8 @@ export const BESU_QBFT_KEYS = [
   "update.non_adjacent.gas",
   "verify_membership.calldata",
   "verify_membership.gas",
+  "verify_non_membership.calldata",
+  "verify_non_membership.gas",
 ] as const;
 
 export function validateSnapshot(
@@ -288,6 +290,7 @@ export function renderReadme(sp1: Snapshot, besu: Snapshot): string {
     `| Adjacent client update | ${value(besu, "update.adjacent.gas")} | ${value(besu, "update.adjacent.calldata")} |`,
     `| Non-adjacent client update | ${value(besu, "update.non_adjacent.gas")} | ${value(besu, "update.non_adjacent.calldata")} |`,
     `| Membership verification | ${value(besu, "verify_membership.gas")} | ${value(besu, "verify_membership.calldata")} |`,
+    `| Non-membership verification | ${value(besu, "verify_non_membership.gas")} | ${value(besu, "verify_non_membership.calldata")} |`,
     "",
   ];
 
