@@ -31,7 +31,7 @@ interface IBesuLightClientMsgs {
     /// @notice Update message containing a Besu header and account proof.
     /// @param headerRlp RLP-encoded Besu block header.
     /// @param trustedHeight Previously trusted height used for weak-subjectivity checks.
-    /// @param consensusStatePreimage Preimage of the trusted consensus state for the tracked router at trustedHeight.
+    /// @param consensusStatePreimage Preimage of the trusted consensus state at `trustedHeight`.
     /// @param accountProof ABI-encoded Ethereum account proof nodes (`abi.encode(bytes[])`) for the tracked router.
     struct MsgUpdateClient {
         bytes headerRlp;
@@ -40,9 +40,9 @@ interface IBesuLightClientMsgs {
         bytes accountProof;
     }
 
-    /// @notice Membership proof for a Besu account at a given height.
-    /// @param consensusStatePreimage Preimage of the consensus state at the given height.
-    /// @param proofNodes ABI-encoded MPT proof nodes in the contract storage trie.
+    /// @notice Storage proof against the tracked router account, used for membership and non-membership.
+    /// @param consensusStatePreimage Preimage of the trusted consensus state at `msg_.proofHeight`.
+    /// @param proofNodes Ordered, RLP-encoded MPT nodes from the router account storage trie.
     struct MembershipProof {
         ConsensusState consensusStatePreimage;
         bytes[] proofNodes;

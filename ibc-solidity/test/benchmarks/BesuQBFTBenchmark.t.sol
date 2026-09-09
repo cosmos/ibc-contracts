@@ -2,10 +2,11 @@
 pragma solidity ^0.8.28;
 
 import { ILightClientMsgs } from "../../contracts/msgs/ILightClientMsgs.sol";
-import { IICS02ClientMsgs } from "../../contracts/msgs/IICS02ClientMsgs.sol";
 import { ILightClient } from "../../contracts/interfaces/ILightClient.sol";
-import { IBesuLightClient } from "../../contracts/light-clients/besu/interfaces/IBesuLightClient.sol";
-import { BesuLightClientFixtureTestBase } from "../besu-bft/BesuLightClientFixtureTestBase.sol";
+import {
+    BesuLightClientFixtureTestBase,
+    IBesuLightClientHarness
+} from "../besu-bft/BesuLightClientFixtureTestBase.sol";
 
 contract BesuQBFTBenchmark is BesuLightClientFixtureTestBase {
     string internal constant SNAPSHOT_GROUP = "BesuQBFT";
@@ -52,13 +53,8 @@ contract BesuQBFTBenchmark is BesuLightClientFixtureTestBase {
     function testBenchmark_VerifyNonMembership() public {
         vm.warp(fixture.initialTrustedTimestamp + 1);
         client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
-        ILightClientMsgs.MsgVerifyNonMembership memory message = ILightClientMsgs.MsgVerifyNonMembership({
-            proof: fixture.nonMembership.proof,
-            proofHeight: IICS02ClientMsgs.Height({
-                revisionNumber: 0, revisionHeight: fixture.nonMembership.proofHeight
-            }),
-            path: _singlePath(fixture.nonMembership.path)
-        });
+        ILightClientMsgs.MsgVerifyNonMembership memory message =
+            _nonMembershipMessage(fixture.nonMembership.proofHeight);
 
         uint256 timestamp = client.verifyNonMembership(message);
         vm.snapshotGasLastFrame(SNAPSHOT_GROUP, "verify_non_membership.gas");
@@ -75,11 +71,11 @@ contract BesuQBFTBenchmark is BesuLightClientFixtureTestBase {
         return "qbft.json";
     }
 
-    function _deployPrimaryClient() internal override returns (IBesuLightClient) {
+    function _deployPrimaryClient() internal override returns (IBesuLightClientHarness) {
         return _deployQBFT();
     }
 
-    function _deployWrongWrapper() internal override returns (IBesuLightClient) {
+    function _deployWrongWrapper() internal override returns (IBesuLightClientHarness) {
         return _deployIBFT2();
     }
 }
