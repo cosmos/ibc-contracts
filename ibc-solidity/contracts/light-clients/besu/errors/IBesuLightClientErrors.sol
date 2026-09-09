@@ -87,6 +87,7 @@ interface IBesuLightClientErrors {
     error InvalidCommitmentValue(bytes32 expectedValue, bytes32 actualValue);
     /// @notice A different consensus state already exists at the submitted height.
     /// @param revisionHeight The conflicting revision height.
+    // TODO:This is a misbehaviour condition and should be handled by the client. (FOU-1374)
     error ConflictingConsensusState(uint64 revisionHeight);
     /// @notice Misbehaviour handling is not supported by this client.
     error UnsupportedMisbehaviour();

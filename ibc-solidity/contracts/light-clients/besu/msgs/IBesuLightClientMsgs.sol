@@ -41,11 +41,9 @@ interface IBesuLightClientMsgs {
     }
 
     /// @notice Membership proof for a Besu account at a given height.
-    /// @param height Height of the Besu block containing the account.
     /// @param consensusStatePreimage Preimage of the consensus state at the given height.
     /// @param proofNodes ABI-encoded MPT proof nodes in the contract storage trie.
     struct MembershipProof {
-        IICS02ClientMsgs.Height height;
         ConsensusState consensusStatePreimage;
         bytes[] proofNodes;
     }

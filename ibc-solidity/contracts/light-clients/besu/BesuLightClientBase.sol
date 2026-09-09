@@ -124,13 +124,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             HeaderFromFuture(block.timestamp, header.timestamp, clientState.maxClockDrift)
         );
 
-        require(
-            _isTrustedConsensusState(msg_.trustedHeight.revisionHeight, msg_.consensusStatePreimage),
-            ConsensusStatePreimageMismatch(
-                _getConsensusStateHash(msg_.trustedHeight.revisionHeight),
-                keccak256(abi.encode(msg_.consensusStatePreimage))
-            )
-        );
+        _requireTrustedConsensusState(msg_.trustedHeight.revisionHeight, msg_.consensusStatePreimage);
         require(
             clientState.trustingPeriod == 0
                 || uint256(msg_.consensusStatePreimage.timestamp) + clientState.trustingPeriod > block.timestamp,
@@ -145,13 +139,18 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
         ConsensusState memory newConsensusState =
             ConsensusState({ timestamp: header.timestamp, storageRoot: storageRoot, validators: header.validators });
-        if (_isTrustedConsensusState(header.height, newConsensusState)) {
-            return ILightClientMsgs.UpdateResult.NoOp;
-        } else if (consensusStateHashes[header.height] != bytes32(0)) {
-            revert ConflictingConsensusState(header.height);
+
+        bytes32 newHash = keccak256(abi.encode(newConsensusState));
+        bytes32 existingHash = consensusStateHashes[header.height];
+        if (existingHash != bytes32(0)) {
+            if (existingHash == newHash) {
+                return ILightClientMsgs.UpdateResult.NoOp;
+            } else {
+                revert ConflictingConsensusState(header.height); // misbehaviour, FOU-1374
+            }
         }
 
-        consensusStateHashes[header.height] = keccak256(abi.encode(newConsensusState));
+        consensusStateHashes[header.height] = newHash;
 
         if (header.height > clientState.latestHeight.revisionHeight) {
             clientState.latestHeight.revisionHeight = header.height;
@@ -172,12 +171,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         require(msg_.value.length == 32, InvalidValueLength(32, msg_.value.length));
 
         MembershipProof memory proof = abi.decode(msg_.proof, (MembershipProof));
-        require(
-            _isTrustedConsensusState(proof.height.revisionHeight, proof.consensusStatePreimage),
-            ConsensusStatePreimageMismatch(
-                _getConsensusStateHash(proof.height.revisionHeight), keccak256(abi.encode(proof.consensusStatePreimage))
-            )
-        );
+        _requireTrustedConsensusState(msg_.proofHeight.revisionHeight, proof.consensusStatePreimage);
 
         bytes32 storageSlot = _commitmentStorageSlot(msg_.path[0]);
         bytes memory storageKey = abi.encodePacked(keccak256(abi.encodePacked(storageSlot)));
@@ -203,12 +197,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         require(msg_.path.length == 1, InvalidPathLength(1, msg_.path.length));
 
         MembershipProof memory proof = abi.decode(msg_.proof, (MembershipProof));
-        require(
-            _isTrustedConsensusState(proof.height.revisionHeight, proof.consensusStatePreimage),
-            ConsensusStatePreimageMismatch(
-                _getConsensusStateHash(proof.height.revisionHeight), keccak256(abi.encode(proof.consensusStatePreimage))
-            )
-        );
+        _requireTrustedConsensusState(msg_.proofHeight.revisionHeight, proof.consensusStatePreimage);
 
         bytes32 storageSlot = _commitmentStorageSlot(msg_.path[0]);
         bytes memory storageKey = abi.encodePacked(keccak256(abi.encodePacked(storageSlot)));
@@ -385,20 +374,13 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         }
     }
 
-    /// @notice Returns whether the given consensus state matches the stored hash for a revision height.
+    /// @notice Reverts unless the given consensus state matches the stored hash for a revision height.
     /// @param revisionHeight The consensus state revision height.
-    /// @param consensusState The consensus state to check.
-    /// @return True if the consensus state matches the stored hash.
-    function _isTrustedConsensusState(
-        uint64 revisionHeight,
-        ConsensusState memory consensusState
-    )
-        internal
-        view
-        returns (bool)
-    {
-        bytes32 consensusStateHash = consensusStateHashes[revisionHeight];
-        return consensusStateHash != bytes32(0) && consensusStateHash == keccak256(abi.encode(consensusState));
+    /// @param preimage The consensus state preimage to check.
+    function _requireTrustedConsensusState(uint64 revisionHeight, ConsensusState memory preimage) internal view {
+        bytes32 consensusStateHash = _getConsensusStateHash(revisionHeight);
+        bytes32 preimageHash = keccak256(abi.encode(preimage));
+        require(consensusStateHash == preimageHash, ConsensusStatePreimageMismatch(consensusStateHash, preimageHash));
     }
 
     /// @notice Returns a stored consensus state hash or reverts if it is missing.
