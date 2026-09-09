@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeSet, HashMap, HashSet},
     str::FromStr,
     time::UNIX_EPOCH,
 };
@@ -14,7 +14,7 @@ use alloy::{
     rpc::types::{EIP1186AccountProofResponse, EIP1186StorageProof},
     sol_types::{SolCall, SolValue},
 };
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{anyhow, bail, ensure, Context, Result};
 use ethereum_apis::eth_api::client::EthApiClient;
 use ethereum_light_client::membership::evm_ics26_commitment_path;
 use ibc_eureka_solidity_types::{
@@ -47,6 +47,33 @@ struct CreateClientParams {
     max_clock_drift: u64,
     trusted_height: Option<u64>,
     role_manager: Address,
+}
+
+/// Source chain data at a single height from which the light client derives its consensus state.
+///
+/// The light client stores only `keccak256(abi.encode(ConsensusState))` per height, so every
+/// message that references a height must carry the full consensus state, rebuilt from the header
+/// and the tracked router account at that height.
+struct SourceSnapshot {
+    header: Header,
+    proof: EIP1186AccountProofResponse,
+}
+
+impl SourceSnapshot {
+    fn consensus_state(&self) -> Result<IBesuLightClientMsgs::ConsensusState> {
+        Ok(IBesuLightClientMsgs::ConsensusState {
+            timestamp: self.header.timestamp,
+            storageRoot: self.proof.storage_hash,
+            validators: extract_validators_from_extra_data(&self.header.extra_data).with_context(
+                || {
+                    format!(
+                        "failed to extract validators from source block {}",
+                        self.header.number
+                    )
+                },
+            )?,
+        })
+    }
 }
 
 const TRUSTING_PERIOD: &str = "trusting_period";
@@ -86,31 +113,19 @@ impl TxBuilder {
                 .context("failed to fetch latest source block number")?,
         };
 
-        let header = self
-            .fetch_source_header(trusted_height)
-            .await
-            .with_context(|| format!("failed to fetch source block at height {trusted_height}"))?;
-        let validators =
-            extract_validators_from_extra_data(&header.extra_data).with_context(|| {
-                format!("failed to extract validators from source block {trusted_height}")
-            })?;
-        let proof = self
-            .fetch_source_proofs(trusted_height, &[])
-            .await
-            .with_context(|| {
-                format!(
-                    "failed to fetch account proof for source router at height {trusted_height}"
-                )
-            })?;
+        let trusted_state = self
+            .fetch_source_snapshot(trusted_height, &[])
+            .await?
+            .consensus_state()?;
 
         let calldata = match self.consensus_type {
             BesuConsensusType::Qbft => besu_qbft_light_client::BesuQBFTLightClient::deploy_builder(
                 self.dst_provider.clone(),
                 *self.src_ics26_router.address(),
                 trusted_height,
-                header.timestamp,
-                proof.storage_hash,
-                validators,
+                trusted_state.timestamp,
+                trusted_state.storageRoot,
+                trusted_state.validators,
                 params.trusting_period,
                 params.max_clock_drift,
                 params.role_manager,
@@ -122,9 +137,9 @@ impl TxBuilder {
                     self.dst_provider.clone(),
                     *self.src_ics26_router.address(),
                     trusted_height,
-                    header.timestamp,
-                    proof.storage_hash,
-                    validators,
+                    trusted_state.timestamp,
+                    trusted_state.storageRoot,
+                    trusted_state.validators,
                     params.trusting_period,
                     params.max_clock_drift,
                     params.role_manager,
@@ -138,34 +153,24 @@ impl TxBuilder {
     }
 
     pub async fn update_client(&self, dst_client_id: &str) -> Result<Vec<u8>> {
-        let client_state = self
-            .fetch_destination_client_state(dst_client_id)
-            .await
-            .with_context(|| {
-                format!("failed to decode destination Besu client state for client {dst_client_id}")
-            })?;
-        let trusted_height = client_state.latestHeight.revisionHeight;
+        let trusted_height = self.fetch_destination_trusted_height(dst_client_id).await?;
         let target_height = self
             .src_provider
             .get_block_number()
             .await
             .context("failed to fetch latest source block number")?;
-        let header = self
-            .fetch_source_header(target_height)
-            .await
-            .with_context(|| format!("failed to fetch source block at height {target_height}"))?;
-        let proof = self
-            .fetch_source_proofs(target_height, &[])
-            .await
-            .with_context(|| {
-                format!("failed to fetch account proof for source router at height {target_height}")
-            })?;
+
+        let trusted_state = self
+            .fetch_source_snapshot(trusted_height, &[])
+            .await?
+            .consensus_state()?;
+        let target = self.fetch_source_snapshot(target_height, &[]).await?;
 
         Ok(Self::build_update_client_calldata(
             dst_client_id,
             trusted_height,
-            header,
-            proof.account_proof.abi_encode(),
+            trusted_state,
+            target,
         ))
     }
 
@@ -214,39 +219,40 @@ impl TxBuilder {
             bail!("no packets collected")
         }
 
-        let client_state = self
-            .fetch_destination_client_state(&params.dst_client_id)
-            .await
-            .with_context(|| {
-                format!(
-                    "failed to decode destination Besu client state for client {}",
-                    params.dst_client_id
-                )
-            })?;
-        let mut storage_keys = packet_calls
+        let trusted_height = self
+            .fetch_destination_trusted_height(&params.dst_client_id)
+            .await?;
+        let trusted_state = self
+            .fetch_source_snapshot(trusted_height, &[])
+            .await?
+            .consensus_state()?;
+
+        let storage_keys = packet_calls
             .iter()
             .map(packet_storage_key)
+            .collect::<BTreeSet<_>>()
+            .into_iter()
             .collect::<Vec<_>>();
-        storage_keys.sort_unstable();
-        storage_keys.dedup();
         let proof = self
             .fetch_source_proofs(proof_height, &storage_keys)
             .await
             .with_context(|| {
-                format!(
-                    "failed to fetch account and storage proofs for source router at height {proof_height}"
-                )
+                format!("failed to fetch proofs for source router at height {proof_height}")
             })?;
-        let account_proof = proof.account_proof.abi_encode();
-        let storage_proofs = map_storage_proofs(&storage_keys, proof.storage_proof)?;
+        let target = SourceSnapshot { header, proof };
+        let storage_proofs = map_storage_proofs(&storage_keys, &target.proof.storage_proof)?;
+        attach_packet_proofs(
+            &mut packet_calls,
+            &storage_proofs,
+            &target.consensus_state()?,
+        )?;
+
         let update_call = Self::build_update_client_calldata(
             &params.dst_client_id,
-            client_state.latestHeight.revisionHeight,
-            header,
-            account_proof,
+            trusted_height,
+            trusted_state,
+            target,
         );
-
-        attach_packet_proofs(&mut packet_calls, &storage_proofs)?;
 
         let all_calls: Vec<Bytes> = std::iter::once(update_call.into())
             .chain(packet_calls.into_iter().map(|call| match call {
@@ -263,16 +269,17 @@ impl TxBuilder {
     fn build_update_client_calldata(
         dst_client_id: &str,
         trusted_height: u64,
-        header: Header,
-        account_proof: Vec<u8>,
+        trusted_state: IBesuLightClientMsgs::ConsensusState,
+        target: SourceSnapshot,
     ) -> Vec<u8> {
         let update_msg = IBesuLightClientMsgs::MsgUpdateClient {
-            headerRlp: alloy_rlp::encode(header).into(),
+            headerRlp: alloy_rlp::encode(target.header).into(),
             trustedHeight: MsgHeight {
                 revisionNumber: 0,
                 revisionHeight: trusted_height,
             },
-            accountProof: account_proof.into(),
+            consensusStatePreimage: trusted_state,
+            accountProof: target.proof.account_proof.abi_encode().into(),
         };
 
         updateClientCall {
@@ -280,6 +287,24 @@ impl TxBuilder {
             updateMsg: update_msg.abi_encode().into(),
         }
         .abi_encode()
+    }
+
+    async fn fetch_source_snapshot(
+        &self,
+        block_height: u64,
+        storage_keys: &[B256],
+    ) -> Result<SourceSnapshot> {
+        let header = self
+            .fetch_source_header(block_height)
+            .await
+            .with_context(|| format!("failed to fetch source block at height {block_height}"))?;
+        let proof = self
+            .fetch_source_proofs(block_height, storage_keys)
+            .await
+            .with_context(|| {
+                format!("failed to fetch proofs for source router at height {block_height}")
+            })?;
+        Ok(SourceSnapshot { header, proof })
     }
 
     async fn fetch_source_header(&self, block_height: u64) -> Result<Header> {
@@ -307,10 +332,8 @@ impl TxBuilder {
             .await?)
     }
 
-    async fn fetch_destination_client_state(
-        &self,
-        dst_client_id: &str,
-    ) -> Result<IBesuLightClientMsgs::ClientState> {
+    /// Returns the latest height trusted by the destination Besu light client.
+    async fn fetch_destination_trusted_height(&self, dst_client_id: &str) -> Result<u64> {
         let client_address = self
             .dst_ics26_router
             .getClient(dst_client_id.to_string())
@@ -328,9 +351,11 @@ impl TxBuilder {
         .await
         .with_context(|| format!("failed to fetch destination client state for {dst_client_id}"))?;
 
-        IBesuLightClientMsgs::ClientState::abi_decode(client_state_bz.as_ref()).with_context(|| {
-            format!("failed to decode destination client state for {dst_client_id}")
-        })
+        IBesuLightClientMsgs::ClientState::abi_decode(client_state_bz.as_ref())
+            .map(|client_state| client_state.latestHeight.revisionHeight)
+            .with_context(|| {
+                format!("failed to decode destination client state for {dst_client_id}")
+            })
     }
 }
 
@@ -344,46 +369,56 @@ fn packet_storage_key(call: &routerCalls) -> B256 {
     evm_ics26_commitment_path(&path, U256::from_be_slice(&ICS26_IBC_STORAGE_SLOT)).into()
 }
 
+/// Attaches an `IBesuLightClientMsgs::MembershipProof` to every packet call, pairing the storage
+/// proof nodes for the packet's commitment slot with the consensus state they are verified against.
 fn attach_packet_proofs(
     packet_calls: &mut [routerCalls],
-    storage_proofs: &HashMap<B256, Vec<u8>>,
+    storage_proofs: &HashMap<B256, Vec<Bytes>>,
+    proven_state: &IBesuLightClientMsgs::ConsensusState,
 ) -> Result<()> {
-    for call in packet_calls {
+    packet_calls.iter_mut().try_for_each(|call| {
         let storage_key = packet_storage_key(call);
-        let proof: Bytes = storage_proofs
+        let proof_nodes = storage_proofs
             .get(&storage_key)
-            .ok_or_else(|| anyhow!("missing storage proof for key {storage_key}"))?
-            .clone()
-            .into();
+            .ok_or_else(|| anyhow!("missing storage proof for key {storage_key}"))?;
+        let proof: Bytes = IBesuLightClientMsgs::MembershipProof {
+            consensusStatePreimage: proven_state.clone(),
+            proofNodes: proof_nodes.clone(),
+        }
+        .abi_encode()
+        .into();
+
         match call {
             routerCalls::recvPacket(call) => call.msg_.proofCommitment = proof,
             routerCalls::ackPacket(call) => call.msg_.proofAcked = proof,
             routerCalls::timeoutPacket(call) => call.msg_.proofTimeout = proof,
             _ => unreachable!("only recv, ack, and timeout calls are constructed"),
         }
-    }
-    Ok(())
+        Ok(())
+    })
 }
 
+/// Indexes storage proof nodes by slot key, requiring exactly one proof per expected key.
 fn map_storage_proofs(
     expected_keys: &[B256],
-    storage_proofs: Vec<EIP1186StorageProof>,
-) -> Result<HashMap<B256, Vec<u8>>> {
+    storage_proofs: &[EIP1186StorageProof],
+) -> Result<HashMap<B256, Vec<Bytes>>> {
     let expected_keys = expected_keys.iter().copied().collect::<HashSet<_>>();
-    let mut proofs = HashMap::with_capacity(expected_keys.len());
-
-    for storage_proof in storage_proofs {
-        let key = storage_proof.key.as_b256();
-        if !expected_keys.contains(&key) {
-            bail!("unexpected storage proof key {key}");
-        }
-        if proofs
-            .insert(key, storage_proof.proof.abi_encode())
-            .is_some()
-        {
-            bail!("duplicate storage proof key {key}");
-        }
-    }
+    let proofs = storage_proofs.iter().try_fold(
+        HashMap::with_capacity(expected_keys.len()),
+        |mut proofs, storage_proof| {
+            let key = storage_proof.key.as_b256();
+            ensure!(
+                expected_keys.contains(&key),
+                "unexpected storage proof key {key}"
+            );
+            ensure!(
+                proofs.insert(key, storage_proof.proof.clone()).is_none(),
+                "duplicate storage proof key {key}"
+            );
+            Ok(proofs)
+        },
+    )?;
 
     if let Some(key) = expected_keys.iter().find(|key| !proofs.contains_key(*key)) {
         bail!("missing storage proof for key {key}");
@@ -432,45 +467,48 @@ fn parse_create_client_params(parameters: &HashMap<String, String>) -> Result<Cr
     })
 }
 
+/// Reads the validator set committed in a Besu BFT header's `extraData`.
 fn extract_validators_from_extra_data(extra_data: &[u8]) -> Result<Vec<Address>> {
-    let extra_data = Rlp::new(extra_data);
-    let validators = extra_data
+    Rlp::new(extra_data)
         .at(1)
-        .context("failed to read validator list from extraData")?;
-
-    let mut out = Vec::with_capacity(
-        validators
-            .item_count()
-            .context("failed to read validator count")?,
-    );
-    for validator in &validators {
-        let validator = validator
-            .data()
-            .context("failed to decode validator address")?;
-        if validator.len() != 20 {
-            bail!("invalid validator address length: {}", validator.len());
-        }
-        out.push(Address::from_slice(validator));
-    }
-    Ok(out)
+        .context("failed to read validator list from extraData")?
+        .iter()
+        .map(|validator| {
+            let validator = validator
+                .data()
+                .context("failed to decode validator address")?;
+            Address::try_from(validator)
+                .map_err(|_| anyhow!("invalid validator address length: {}", validator.len()))
+        })
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
-    use super::map_storage_proofs;
+    use std::collections::HashMap;
+
+    use super::{attach_packet_proofs, map_storage_proofs, packet_storage_key};
     use alloy::{
-        primitives::{Bytes, B256, U256},
+        primitives::{Address, Bytes, B256, U256},
         rpc::types::EIP1186StorageProof,
         sol_types::SolValue,
     };
+    use ibc_eureka_solidity_types::{
+        ics26::{
+            router::{recvPacketCall, routerCalls},
+            IICS02ClientMsgs::Height,
+            IICS26RouterMsgs::{MsgRecvPacket, Packet},
+        },
+        msgs::IBesuLightClientMsgs,
+    };
 
     #[test]
-    fn maps_storage_proofs_using_solidity_abi_encoding() {
+    fn maps_storage_proof_nodes_by_key() {
         let key = B256::from(U256::from(1));
         let nodes = vec![Bytes::from(vec![0xc2, 0x01, 0x02])];
         let mapped = map_storage_proofs(
             &[key],
-            vec![EIP1186StorageProof {
+            &[EIP1186StorageProof {
                 key: U256::from(1).into(),
                 value: U256::ZERO,
                 proof: nodes.clone(),
@@ -478,6 +516,67 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(mapped[&key], nodes.abi_encode());
+        assert_eq!(mapped[&key], nodes);
+    }
+
+    #[test]
+    fn rejects_missing_duplicate_and_unexpected_storage_proofs() {
+        let key = B256::from(U256::from(1));
+        let proof = |key: U256| EIP1186StorageProof {
+            key: key.into(),
+            value: U256::ZERO,
+            proof: vec![],
+        };
+
+        assert!(map_storage_proofs(&[key], &[]).is_err());
+        assert!(map_storage_proofs(&[key], &[proof(U256::from(1)), proof(U256::from(1))]).is_err());
+        assert!(map_storage_proofs(&[key], &[proof(U256::from(2))]).is_err());
+    }
+
+    #[test]
+    fn attaches_membership_proofs_with_consensus_state_preimage() {
+        let packet = Packet {
+            sequence: 1,
+            sourceClient: "client-0".to_string(),
+            destClient: "client-1".to_string(),
+            timeoutTimestamp: 0,
+            payloads: vec![],
+        };
+        let mut calls = vec![routerCalls::recvPacket(recvPacketCall {
+            msg_: MsgRecvPacket {
+                packet,
+                proofHeight: Height {
+                    revisionNumber: 0,
+                    revisionHeight: 1,
+                },
+                proofCommitment: Bytes::default(),
+            },
+        })];
+        let storage_key = packet_storage_key(&calls[0]);
+        let nodes = vec![Bytes::from(vec![0xc2, 0x01, 0x02])];
+        let proven_state = IBesuLightClientMsgs::ConsensusState {
+            timestamp: 7,
+            storageRoot: B256::repeat_byte(0xaa),
+            validators: vec![Address::repeat_byte(0x11)],
+        };
+
+        assert!(
+            attach_packet_proofs(&mut calls, &HashMap::default(), &proven_state).is_err(),
+            "missing storage proof must be rejected"
+        );
+
+        let storage_proofs = HashMap::from([(storage_key, nodes.clone())]);
+        attach_packet_proofs(&mut calls, &storage_proofs, &proven_state).unwrap();
+
+        let routerCalls::recvPacket(call) = &calls[0] else {
+            unreachable!("call kind is preserved");
+        };
+        let proof = IBesuLightClientMsgs::MembershipProof::abi_decode(&call.msg_.proofCommitment)
+            .expect("proof decodes as MembershipProof");
+        assert_eq!(
+            proof.consensusStatePreimage.abi_encode(),
+            proven_state.abi_encode()
+        );
+        assert_eq!(proof.proofNodes, nodes);
     }
 }
