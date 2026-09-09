@@ -144,9 +144,9 @@ abstract contract BesuLightClientBase is ILightClient, IBesuLightClientErrors, I
         if (existingHash != bytes32(0)) {
             if (existingHash == newHash) {
                 return ILightClientMsgs.UpdateResult.NoOp;
-            } else {
-                revert ConflictingConsensusState(header.height); // misbehaviour, FOU-1374
             }
+
+            revert ConflictingConsensusState(header.height); // misbehaviour, FOU-1374
         }
 
         consensusStateHashes[header.height] = newHash;
