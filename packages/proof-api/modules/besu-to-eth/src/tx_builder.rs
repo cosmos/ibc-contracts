@@ -114,7 +114,7 @@ impl TxBuilder {
         };
 
         let trusted_state = self
-            .fetch_source_snapshot(trusted_height, &[])
+            .fetch_source_snapshot(trusted_height)
             .await?
             .consensus_state()?;
 
@@ -161,10 +161,10 @@ impl TxBuilder {
             .context("failed to fetch latest source block number")?;
 
         let trusted_state = self
-            .fetch_source_snapshot(trusted_height, &[])
+            .fetch_source_snapshot(trusted_height)
             .await?
             .consensus_state()?;
-        let target = self.fetch_source_snapshot(target_height, &[]).await?;
+        let target = self.fetch_source_snapshot(target_height).await?;
 
         Ok(Self::build_update_client_calldata(
             dst_client_id,
@@ -223,7 +223,7 @@ impl TxBuilder {
             .fetch_destination_trusted_height(&params.dst_client_id)
             .await?;
         let trusted_state = self
-            .fetch_source_snapshot(trusted_height, &[])
+            .fetch_source_snapshot(trusted_height)
             .await?
             .consensus_state()?;
 
@@ -289,17 +289,13 @@ impl TxBuilder {
         .abi_encode()
     }
 
-    async fn fetch_source_snapshot(
-        &self,
-        block_height: u64,
-        storage_keys: &[B256],
-    ) -> Result<SourceSnapshot> {
+    async fn fetch_source_snapshot(&self, block_height: u64) -> Result<SourceSnapshot> {
         let header = self
             .fetch_source_header(block_height)
             .await
             .with_context(|| format!("failed to fetch source block at height {block_height}"))?;
         let proof = self
-            .fetch_source_proofs(block_height, storage_keys)
+            .fetch_source_proofs(block_height, &[])
             .await
             .with_context(|| {
                 format!("failed to fetch proofs for source router at height {block_height}")
