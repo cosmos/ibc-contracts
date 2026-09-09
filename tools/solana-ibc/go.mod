@@ -6,7 +6,7 @@ replace github.com/cosmos/solidity-ibc-eureka/packages/go-anchor => ../../packag
 
 require (
 	github.com/cosmos/solidity-ibc-eureka/packages/go-anchor v0.0.0
-	github.com/gagliardetto/solana-go v1.22.0
+	github.com/gagliardetto/solana-go v1.23.0
 	github.com/spf13/cobra v1.9.1
 )
 
@@ -30,7 +30,6 @@ require (
 	github.com/oasisprotocol/curve25519-voi v0.0.0-20251114093237-2ab5a27a1729 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/streamingfast/logging v0.0.0-20250404134358-92b15d2fbd2e // indirect
-	github.com/tyler-smith/go-bip39 v1.1.0 // indirect
 	go.mongodb.org/mongo-driver/v2 v2.5.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/ratelimit v0.3.1 // indirect
