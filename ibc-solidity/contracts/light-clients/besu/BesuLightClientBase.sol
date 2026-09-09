@@ -14,11 +14,10 @@ import { ILightClientMsgs } from "../../msgs/ILightClientMsgs.sol";
 import { IICS02ClientMsgs } from "../../msgs/IICS02ClientMsgs.sol";
 import { IBesuLightClientMsgs } from "./msgs/IBesuLightClientMsgs.sol";
 import { IBesuLightClientErrors } from "./errors/IBesuLightClientErrors.sol";
-import { IBesuLightClient } from "./interfaces/IBesuLightClient.sol";
 
 /// @title Besu Light Client Base
 /// @notice Shared implementation for Besu BFT light clients that verify headers and EVM storage proofs.
-abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientErrors, IBesuLightClientMsgs, AccessControl {
+abstract contract BesuLightClientBase is ILightClient, IBesuLightClientErrors, IBesuLightClientMsgs, AccessControl {
     using RLP for *;
 
     /// @notice Decoded fields from a submitted Besu header.
