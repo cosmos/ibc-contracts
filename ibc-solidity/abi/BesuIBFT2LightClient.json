@@ -86,25 +86,6 @@
   },
   {
     "type": "function",
-    "name": "getConsensusState",
-    "inputs": [
-      {
-        "name": "revisionHeight",
-        "type": "uint64",
-        "internalType": "uint64"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes",
-        "internalType": "bytes"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "getRoleAdmin",
     "inputs": [
       {
@@ -488,6 +469,22 @@
         "name": "revisionHeight",
         "type": "uint64",
         "internalType": "uint64"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "ConsensusStatePreimageMismatch",
+    "inputs": [
+      {
+        "name": "expectedHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "actualHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ]
   },
