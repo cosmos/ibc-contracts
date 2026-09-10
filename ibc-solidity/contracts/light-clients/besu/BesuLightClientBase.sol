@@ -53,8 +53,8 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
     /// @notice Current client state.
     ClientState internal clientState;
-    /// @notice Trusted consensus states by revision height.
-    mapping(uint64 revisionHeight => ConsensusState) internal consensusStates;
+    /// @notice Keccak256 hash of trusted consensus states by revision height.
+    mapping(uint64 revisionHeight => bytes32 consensusStateHash) internal consensusStateHashes;
 
     /// @notice Initializes shared Besu light client state.
     /// @param ibcRouter Counterparty ICS26 router address whose storage is proven.
@@ -87,10 +87,12 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             maxClockDrift: maxClockDrift
         });
 
-        ConsensusState storage consensusState = consensusStates[initialTrustedHeight];
-        consensusState.timestamp = initialTrustedTimestamp;
-        consensusState.storageRoot = initialTrustedStorageRoot;
-        consensusState.validators = initialTrustedValidators;
+        ConsensusState memory initialConsensusState = ConsensusState({
+            timestamp: initialTrustedTimestamp,
+            storageRoot: initialTrustedStorageRoot,
+            validators: initialTrustedValidators
+        });
+        consensusStateHashes[initialTrustedHeight] = keccak256(abi.encode(initialConsensusState));
 
         if (roleManager == address(0)) {
             _grantRole(PROOF_SUBMITTER_ROLE, address(0));
@@ -106,9 +108,10 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     }
 
     /// @inheritdoc IBesuLightClient
-    function getConsensusState(uint64 revisionHeight) external view returns (bytes memory) {
-        ConsensusState storage consensusState = _getConsensusState(revisionHeight);
-        return abi.encode(consensusState.timestamp, consensusState.storageRoot, consensusState.validators);
+    function getConsensusStateHash(uint64 revisionHeight) external view returns (bytes32) {
+        bytes32 consensusStateHash = consensusStateHashes[revisionHeight];
+        require(consensusStateHash != bytes32(0), ConsensusStateNotFound(revisionHeight));
+        return consensusStateHash;
     }
 
     /// @inheritdoc ILightClient
@@ -128,31 +131,33 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             HeaderFromFuture(block.timestamp, header.timestamp, clientState.maxClockDrift)
         );
 
-        ConsensusState storage trustedConsensusState = _getConsensusState(msg_.trustedHeight.revisionHeight);
+        _requireTrustedConsensusState(msg_.trustedHeight.revisionHeight, msg_.consensusStatePreimage);
         require(
             clientState.trustingPeriod == 0
-                || uint256(trustedConsensusState.timestamp) + clientState.trustingPeriod > block.timestamp,
-            ConsensusStateExpired(trustedConsensusState.timestamp, block.timestamp, clientState.trustingPeriod)
+                || uint256(msg_.consensusStatePreimage.timestamp) + clientState.trustingPeriod > block.timestamp,
+            ConsensusStateExpired(msg_.consensusStatePreimage.timestamp, block.timestamp, clientState.trustingPeriod)
         );
 
         address[] memory signers = _recoverSigners(_commitSealDigest(header), header.commitSeals);
-        _checkTrustedValidatorOverlap(signers, trustedConsensusState.validators);
+        _checkTrustedValidatorOverlap(signers, msg_.consensusStatePreimage.validators);
         _checkValidatorQuorum(signers, header.validators);
 
         bytes32 storageRoot = _verifyAccountProof(clientState.ibcRouter, header.stateRoot, msg_.accountProof);
 
-        ConsensusState storage existingConsensusState = consensusStates[header.height];
-        if (existingConsensusState.timestamp != 0) {
-            if (_isSameConsensusState(existingConsensusState, header.timestamp, storageRoot, header.validators)) {
+        ConsensusState memory newConsensusState =
+            ConsensusState({ timestamp: header.timestamp, storageRoot: storageRoot, validators: header.validators });
+
+        bytes32 newHash = keccak256(abi.encode(newConsensusState));
+        bytes32 existingHash = consensusStateHashes[header.height];
+        if (existingHash != bytes32(0)) {
+            if (existingHash == newHash) {
                 return ILightClientMsgs.UpdateResult.NoOp;
             }
-            revert ConflictingConsensusState(header.height);
+
+            revert ConflictingConsensusState(header.height); // misbehaviour, FOU-1374
         }
 
-        ConsensusState storage newConsensusState = consensusStates[header.height];
-        newConsensusState.timestamp = header.timestamp;
-        newConsensusState.storageRoot = storageRoot;
-        newConsensusState.validators = header.validators;
+        consensusStateHashes[header.height] = newHash;
 
         if (header.height > clientState.latestHeight.revisionHeight) {
             clientState.latestHeight.revisionHeight = header.height;
@@ -172,18 +177,20 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         require(msg_.path.length == 1, InvalidPathLength(1, msg_.path.length));
         require(msg_.value.length == 32, InvalidValueLength(32, msg_.value.length));
 
-        ConsensusState storage consensusState = _getConsensusState(msg_.proofHeight.revisionHeight);
+        MembershipProof memory proof = abi.decode(msg_.proof, (MembershipProof));
+        _requireTrustedConsensusState(msg_.proofHeight.revisionHeight, proof.consensusStatePreimage);
+
         bytes32 storageSlot = _commitmentStorageSlot(msg_.path[0]);
-        bytes[] memory proofNodes = abi.decode(msg_.proof, (bytes[]));
         bytes memory storageKey = abi.encodePacked(keccak256(abi.encodePacked(storageSlot)));
 
-        bytes memory traversedValue = TrieProof.traverse(consensusState.storageRoot, storageKey, proofNodes);
+        bytes memory traversedValue =
+            TrieProof.traverse(proof.consensusStatePreimage.storageRoot, storageKey, proof.proofNodes);
+
         bytes32 actualValue = traversedValue.decodeBytes32();
         bytes32 expectedValue = bytes32(msg_.value);
-
         require(actualValue == expectedValue, InvalidCommitmentValue(expectedValue, actualValue));
 
-        return consensusState.timestamp;
+        return proof.consensusStatePreimage.timestamp;
     }
 
     /// @inheritdoc ILightClient
@@ -196,14 +203,18 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         _requireZeroRevision(msg_.proofHeight.revisionNumber);
         require(msg_.path.length == 1, InvalidPathLength(1, msg_.path.length));
 
-        ConsensusState storage consensusState = _getConsensusState(msg_.proofHeight.revisionHeight);
+        MembershipProof memory proof = abi.decode(msg_.proof, (MembershipProof));
+        _requireTrustedConsensusState(msg_.proofHeight.revisionHeight, proof.consensusStatePreimage);
+
         bytes32 storageSlot = _commitmentStorageSlot(msg_.path[0]);
-        bytes[] memory proofNodes = abi.decode(msg_.proof, (bytes[]));
         bytes memory storageKey = abi.encodePacked(keccak256(abi.encodePacked(storageSlot)));
 
-        require(TrieProof.verifyExclusion(consensusState.storageRoot, storageKey, proofNodes), InvalidExclusionProof());
+        require(
+            TrieProof.verifyExclusion(proof.consensusStatePreimage.storageRoot, storageKey, proof.proofNodes),
+            InvalidExclusionProof()
+        );
 
-        return consensusState.timestamp;
+        return proof.consensusStatePreimage.timestamp;
     }
 
     /// @inheritdoc ILightClient
@@ -330,16 +341,10 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @notice Checks that signers overlap enough with the trusted validator set.
     /// @param signers The recovered commit seal signers.
     /// @param trustedValidators The trusted validator set.
-    function _checkTrustedValidatorOverlap(
-        address[] memory signers,
-        address[] storage trustedValidators
-    )
-        internal
-        view
-    {
+    function _checkTrustedValidatorOverlap(address[] memory signers, address[] memory trustedValidators) internal pure {
         uint256 actual = 0;
         for (uint256 i = 0; i < signers.length; ++i) {
-            if (_containsStorage(trustedValidators, signers[i])) {
+            if (_containsMemory(trustedValidators, signers[i])) {
                 ++actual;
             }
         }
@@ -376,53 +381,21 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         }
     }
 
-    /// @notice Compares a stored consensus state with proposed fields.
-    /// @param consensusState The stored consensus state.
-    /// @param timestamp The proposed timestamp.
-    /// @param storageRoot The proposed storage root.
-    /// @param validators The proposed validator set.
-    /// @return True if all fields match.
-    function _isSameConsensusState(
-        ConsensusState storage consensusState,
-        uint64 timestamp,
-        bytes32 storageRoot,
-        address[] memory validators
-    )
-        internal
-        view
-        returns (bool)
-    {
-        if (consensusState.timestamp != timestamp || consensusState.storageRoot != storageRoot) {
-            return false;
-        }
-        return keccak256(abi.encode(consensusState.validators)) == keccak256(abi.encode(validators));
-    }
-
-    /// @notice Returns a stored consensus state or reverts if it is missing.
+    /// @notice Reverts unless the given consensus state matches the stored hash for a revision height.
     /// @param revisionHeight The consensus state revision height.
-    /// @return consensusState The stored consensus state.
-    function _getConsensusState(uint64 revisionHeight) internal view returns (ConsensusState storage consensusState) {
-        consensusState = consensusStates[revisionHeight];
-        require(consensusState.timestamp != 0, ConsensusStateNotFound(revisionHeight));
+    /// @param preimage The consensus state preimage to check.
+    function _requireTrustedConsensusState(uint64 revisionHeight, ConsensusState memory preimage) internal view {
+        bytes32 consensusStateHash = consensusStateHashes[revisionHeight];
+        require(consensusStateHash != bytes32(0), ConsensusStateNotFound(revisionHeight));
+
+        bytes32 preimageHash = keccak256(abi.encode(preimage));
+        require(consensusStateHash == preimageHash, ConsensusStatePreimageMismatch(consensusStateHash, preimageHash));
     }
 
     /// @notice Reverts unless the revision number is zero.
     /// @param revisionNumber The revision number to validate.
     function _requireZeroRevision(uint64 revisionNumber) internal pure {
         require(revisionNumber == 0, InvalidRevisionNumber(revisionNumber));
-    }
-
-    /// @notice Checks whether a storage validator set contains a signer.
-    /// @param validators The storage validator set.
-    /// @param signer The signer to find.
-    /// @return True if `signer` is present.
-    function _containsStorage(address[] storage validators, address signer) internal view returns (bool) {
-        for (uint256 i = 0; i < validators.length; ++i) {
-            if (validators[i] == signer) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /// @notice Checks whether a memory validator set contains a signer.

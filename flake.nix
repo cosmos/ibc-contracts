@@ -48,6 +48,16 @@
           inherit anchor;
         };
         anchor-go = pkgs.callPackage ./nix/anchor-go.nix {};
+
+        # Always replace `ibc-solidity/node_modules` with the Nix-managed one so that the shell never
+        # picks up a stale local install, whether it is a symlink or a real directory.
+        linkNodeModules = ''
+          if [ -d "${node-modules}/node_modules" ]; then
+            repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+            rm -rf "$repo_root/ibc-solidity/node_modules"
+            ln -sfn "${node-modules}/node_modules" "$repo_root/ibc-solidity/node_modules"
+          fi
+        '';
       in {
         devShells = {
           default = pkgs.mkShell {
@@ -68,11 +78,7 @@
             shellHook =
               rust.shellHook
               + ''
-                if [ -d "${node-modules}/node_modules" ]; then
-                  if [ ! -e ibc-solidity/node_modules ] || [ -L ibc-solidity/node_modules ]; then
-                    ln -sfn "${node-modules}/node_modules" ibc-solidity/node_modules
-                  fi
-                fi
+                ${linkNodeModules}
               '';
           };
 
@@ -87,11 +93,7 @@
             shellHook =
               rust.shellHook
               + ''
-                if [ -d "${node-modules}/node_modules" ]; then
-                  if [ ! -e ibc-solidity/node_modules ] || [ -L ibc-solidity/node_modules ]; then
-                    ln -sfn "${node-modules}/node_modules" ibc-solidity/node_modules
-                  fi
-                fi
+                ${linkNodeModules}
 
                 export PATH="${solana-agave}/bin:$PATH"
                 echo "Solana shell: solana, anchor-nix (build|test|unit-test|keys|deploy)"

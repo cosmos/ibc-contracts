@@ -86,7 +86,7 @@
   },
   {
     "type": "function",
-    "name": "getConsensusState",
+    "name": "getConsensusStateHash",
     "inputs": [
       {
         "name": "revisionHeight",
@@ -97,8 +97,8 @@
     "outputs": [
       {
         "name": "",
-        "type": "bytes",
-        "internalType": "bytes"
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "stateMutability": "view"
@@ -488,6 +488,22 @@
         "name": "revisionHeight",
         "type": "uint64",
         "internalType": "uint64"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "ConsensusStatePreimageMismatch",
+    "inputs": [
+      {
+        "name": "expectedHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "actualHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ]
   },

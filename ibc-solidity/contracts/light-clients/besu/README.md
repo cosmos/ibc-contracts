@@ -7,6 +7,22 @@ This module contains two Solidity light clients for Besu BFT chains:
 
 Both wrappers share the same storage model and proof surface through `BesuLightClientBase.sol`. They differ only in how the commit-seal signing digest is reconstructed from the raw Besu header.
 
+## Storage model
+
+The client stores the `ClientState` and, per trusted height, only the `keccak256(abi.encode(ConsensusState))` hash:
+
+```solidity
+struct ConsensusState {
+    uint64 timestamp;
+    bytes32 storageRoot;
+    address[] validators;
+}
+```
+
+The full consensus state is **not** retrievable from the contract; `getConsensusStateHash(uint64)` on `IBesuLightClient` returns only the stored hash and reverts with `ConsensusStateNotFound` for unknown heights. Every `updateClient`, `verifyMembership`, and `verifyNonMembership` call must carry the preimage of the consensus state it relies on, and the contract checks it against the stored hash before use. A mismatch reverts with `ConsensusStatePreimageMismatch(expectedHash, actualHash)`; an unknown height reverts with `ConsensusStateNotFound(height)`.
+
+Relayers therefore need to keep the preimages of the heights they intend to reference, or rebuild them from the Besu chain: `timestamp` and `validators` come from the header at that height, and `storageRoot` is the tracked router account's storage hash from `eth_getProof` at that height.
+
 ## Verification model notes
 
 - Commit-seal verification follows the existing **YUI Solidity client + besu-ibc-relay-prover** model: reconstruct the sealing header by rewriting `extraData` into the protocol-specific signing form, then recover commit-seal signers from the `keccak256(RLP(header))` digest.
@@ -63,25 +79,42 @@ constructor(
 struct MsgUpdateClient {
     bytes headerRlp;
     IICS02ClientMsgs.Height trustedHeight;
+    ConsensusState consensusStatePreimage;
     bytes accountProof;
 }
 ```
 
 - `headerRlp`: full raw Besu block header RLP, including `extraData` and commit seals.
-- `trustedHeight`: must use `revisionNumber == 0`.
+- `trustedHeight`: must use `revisionNumber == 0` and identify a stored consensus state hash.
+- `consensusStatePreimage`: the consensus state trusted at `trustedHeight`. Its hash must match the stored hash.
 - `accountProof`: Ethereum account proof nodes for the tracked `ICS26Router` account, encoded as `abi.encode(bytes[])`.
 
 On update, the contract:
 
 1. parses and validates the Besu header,
-2. reconstructs the protocol-specific commit-seal digest following the YUI + prover sealing-header model,
-3. checks trusted-validator overlap and new-validator quorum,
-4. verifies the tracked router account proof,
-5. stores the router account `storageRoot` plus the new validator set.
+2. checks the trusted consensus state preimage against the stored hash and the trusting period,
+3. reconstructs the protocol-specific commit-seal digest following the YUI + prover sealing-header model,
+4. checks trusted-validator overlap against the preimage validators and quorum against the new header validators,
+5. verifies the tracked router account proof,
+6. stores `keccak256(abi.encode(ConsensusState))` for the new height, built from the header timestamp, the proven router `storageRoot`, and the header validator set.
+
+Submitting a header whose derived consensus state hash already matches the stored hash at that height returns `UpdateResult.NoOp`. A different consensus state at an already stored height reverts with `ConflictingConsensusState`.
 
 ## Membership / non-membership proofs
 
-`verifyMembership` and `verifyNonMembership` expect the standard `ILightClientMsgs` payloads used by Eureka.
+`verifyMembership` and `verifyNonMembership` expect the standard `ILightClientMsgs` payloads used by Eureka, with `msg_.proof` set to `abi.encode(IBesuLightClientMsgs.MembershipProof)`:
+
+```solidity
+struct MembershipProof {
+    ConsensusState consensusStatePreimage;
+    bytes[] proofNodes;
+}
+```
+
+- `consensusStatePreimage`: the consensus state trusted at `msg_.proofHeight`. Its hash must match the stored hash.
+- `proofNodes`: the ordered, RLP-encoded Ethereum storage-trie nodes for `storageSlot` as returned by `eth_getProof` at `msg_.proofHeight`.
+
+`msg_.proofHeight` must use revision number `0` and identify a stored consensus state hash.
 
 For Besu / EVM counterparties, the expected merkle prefix is:
 
@@ -111,17 +144,16 @@ where `IBCSTORE_STORAGE_SLOT` is the ERC-7201 namespace constant used by `IBCSto
 
 ### Membership
 
-- `msg_.proof` must contain the Ethereum storage-proof nodes encoded as `abi.encode(bytes[])`.
+- `proofNodes` must prove the commitment value under the preimage `storageRoot`.
 - `msg_.value` must be exactly `abi.encodePacked(bytes32Commitment)`.
-- The return value is the trusted consensus timestamp in seconds for `msg_.proofHeight`.
+- The return value is the trusted consensus timestamp in seconds for `msg_.proofHeight`, taken from the verified preimage.
 
 ### Non-membership
 
-- `msg_.proof` must contain the ordered, RLP-encoded Ethereum storage-trie nodes encoded as `abi.encode(bytes[])`. These are the nodes in the storage proof returned for `storageSlot` by `eth_getProof`.
-- `msg_.path` must contain exactly one element: the raw Eureka commitment path. `msg_.proofHeight` must use revision number `0` and identify a stored consensus state.
-- The proof must establish that `storageKey` is absent from the trusted storage root. Accepted exclusion witnesses include an empty trie (encoded as an empty `bytes[]`), an empty branch child or value, and a leaf or extension path that diverges from the derived key.
+- `msg_.path` must contain exactly one element: the raw Eureka commitment path.
+- `proofNodes` must establish that `storageKey` is absent from the preimage `storageRoot`. Accepted exclusion witnesses include an empty trie (encoded as an empty `bytes[]`), an empty branch child or value, and a leaf or extension path that diverges from the derived key.
 - The proof must end at the node that establishes exclusion; extra trailing proof nodes are rejected.
-- A valid exclusion proof returns the trusted consensus timestamp in seconds for `msg_.proofHeight`. If the decoded trie proof does not establish exclusion for the trusted root and derived key, including when it proves an existing value, the call reverts with `InvalidExclusionProof`. Malformed ABI or RLP data may revert while being decoded.
+- A valid exclusion proof returns the trusted consensus timestamp in seconds for `msg_.proofHeight`, taken from the verified preimage. If the decoded trie proof does not establish exclusion for the trusted root and derived key, including when it proves an existing value, the call reverts with `InvalidExclusionProof`. Malformed ABI or RLP data may revert while being decoded.
 
 This verification supports packet timeout flows that prove the absence of a packet receipt on a Besu counterparty.
 
@@ -133,6 +165,6 @@ The Foundry fixtures under `test/besu-bft/fixtures/` can be regenerated from the
 just solidity::generate-fixtures-besu
 ```
 
-This writes `test/besu-bft/fixtures/qbft.json` using live Besu QBFT headers, account proofs, and storage proofs captured during the e2e transfer flow. The negative cases in that fixture are still derived by deterministic off-chain header mutation so the contract tests can keep explicit overlap / quorum / conflict coverage.
+This writes `test/besu-bft/fixtures/qbft.json` using live Besu QBFT headers, account proofs, and storage proofs captured during the e2e transfer flow. The fixture `proof` fields hold the raw storage proof nodes as `abi.encode(bytes[])`; the Foundry tests wrap them into `MembershipProof` together with the consensus state preimage derived from the fixture's expected update state. The negative cases in that fixture are still derived by deterministic off-chain header mutation so the contract tests can keep explicit overlap / quorum / conflict coverage.
 
 `ibft2.json` remains synthetic until an IBFT2-focused e2e fixture path is added.

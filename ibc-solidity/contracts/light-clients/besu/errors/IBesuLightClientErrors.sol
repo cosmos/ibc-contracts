@@ -30,6 +30,10 @@ interface IBesuLightClientErrors {
     /// @param currentTimestamp The current block timestamp.
     /// @param trustingPeriod The configured trusting period.
     error ConsensusStateExpired(uint64 trustedTimestamp, uint256 currentTimestamp, uint64 trustingPeriod);
+    /// @notice The submitted consensus state preimage does not match the expected hash.
+    /// @param expectedHash The expected consensus state hash.
+    /// @param actualHash The hash of the submitted consensus state preimage.
+    error ConsensusStatePreimageMismatch(bytes32 expectedHash, bytes32 actualHash);
     /// @notice The Besu BFT mix hash is invalid.
     /// @param actualMixHash The mix hash found in the header.
     error InvalidMixHash(bytes32 actualMixHash);
@@ -83,6 +87,7 @@ interface IBesuLightClientErrors {
     error InvalidCommitmentValue(bytes32 expectedValue, bytes32 actualValue);
     /// @notice A different consensus state already exists at the submitted height.
     /// @param revisionHeight The conflicting revision height.
+    // TODO:This is a misbehaviour condition and should be handled by the client. (FOU-1374)
     error ConflictingConsensusState(uint64 revisionHeight);
     /// @notice Misbehaviour handling is not supported by this client.
     error UnsupportedMisbehaviour();

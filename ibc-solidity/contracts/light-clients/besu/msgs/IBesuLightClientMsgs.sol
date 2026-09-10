@@ -31,10 +31,20 @@ interface IBesuLightClientMsgs {
     /// @notice Update message containing a Besu header and account proof.
     /// @param headerRlp RLP-encoded Besu block header.
     /// @param trustedHeight Previously trusted height used for weak-subjectivity checks.
+    /// @param consensusStatePreimage Preimage of the trusted consensus state at `trustedHeight`.
     /// @param accountProof ABI-encoded Ethereum account proof nodes (`abi.encode(bytes[])`) for the tracked router.
     struct MsgUpdateClient {
         bytes headerRlp;
         IICS02ClientMsgs.Height trustedHeight;
+        ConsensusState consensusStatePreimage;
         bytes accountProof;
+    }
+
+    /// @notice Storage proof against the tracked router account, used for membership and non-membership.
+    /// @param consensusStatePreimage Preimage of the trusted consensus state at `msg_.proofHeight`.
+    /// @param proofNodes Ordered, RLP-encoded MPT nodes from the router account storage trie.
+    struct MembershipProof {
+        ConsensusState consensusStatePreimage;
+        bytes[] proofNodes;
     }
 }
