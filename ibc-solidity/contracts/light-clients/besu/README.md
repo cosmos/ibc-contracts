@@ -19,7 +19,7 @@ struct ConsensusState {
 }
 ```
 
-The full consensus state is **not** retrievable from the contract. Every `updateClient`, `verifyMembership`, and `verifyNonMembership` call must carry the preimage of the consensus state it relies on, and the contract checks it against the stored hash before use. A mismatch reverts with `ConsensusStatePreimageMismatch(expectedHash, actualHash)`; an unknown height reverts with `ConsensusStateNotFound(height)`.
+The full consensus state is **not** retrievable from the contract; `getConsensusStateHash(uint64)` on `IBesuLightClient` returns only the stored hash and reverts with `ConsensusStateNotFound` for unknown heights. Every `updateClient`, `verifyMembership`, and `verifyNonMembership` call must carry the preimage of the consensus state it relies on, and the contract checks it against the stored hash before use. A mismatch reverts with `ConsensusStatePreimageMismatch(expectedHash, actualHash)`; an unknown height reverts with `ConsensusStateNotFound(height)`.
 
 Relayers therefore need to keep the preimages of the heights they intend to reference, or rebuild them from the Besu chain: `timestamp` and `validators` come from the header at that height, and `storageRoot` is the tracked router account's storage hash from `eth_getProof` at that height.
 

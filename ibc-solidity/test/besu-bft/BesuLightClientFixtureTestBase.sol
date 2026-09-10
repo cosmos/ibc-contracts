@@ -8,77 +8,13 @@ import { stdJson } from "forge-std/StdJson.sol";
 import { RLP } from "@openzeppelin-contracts/utils/RLP.sol";
 import { Memory } from "@openzeppelin-contracts/utils/Memory.sol";
 
-import { ILightClient } from "../../contracts/interfaces/ILightClient.sol";
 import { ILightClientMsgs } from "../../contracts/msgs/ILightClientMsgs.sol";
 import { IICS02ClientMsgs } from "../../contracts/msgs/IICS02ClientMsgs.sol";
 import { BesuIBFT2LightClient } from "../../contracts/light-clients/besu/BesuIBFT2LightClient.sol";
 import { BesuQBFTLightClient } from "../../contracts/light-clients/besu/BesuQBFTLightClient.sol";
+import { IBesuLightClient } from "../../contracts/light-clients/besu/interfaces/IBesuLightClient.sol";
 import { IBesuLightClientMsgs } from "../../contracts/light-clients/besu/msgs/IBesuLightClientMsgs.sol";
 import { IBesuLightClientErrors } from "../../contracts/light-clients/besu/errors/IBesuLightClientErrors.sol";
-
-/// @dev Light client surface used by the tests, extended with a consensus state hash getter.
-interface IBesuLightClientHarness is ILightClient {
-    /// @dev Returns the stored consensus state hash for a revision height, or zero if none is stored.
-    function consensusStateHash(uint64 revisionHeight) external view returns (bytes32);
-}
-
-/// @dev IBFT2 client exposing stored consensus state hashes for assertions.
-contract BesuIBFT2LightClientHarness is BesuIBFT2LightClient, IBesuLightClientHarness {
-    constructor(
-        address ibcRouter,
-        uint64 initialTrustedHeight,
-        uint64 initialTrustedTimestamp,
-        bytes32 initialTrustedStorageRoot,
-        address[] memory initialTrustedValidators,
-        uint64 trustingPeriod,
-        uint64 maxClockDrift,
-        address roleManager
-    )
-        BesuIBFT2LightClient(
-            ibcRouter,
-            initialTrustedHeight,
-            initialTrustedTimestamp,
-            initialTrustedStorageRoot,
-            initialTrustedValidators,
-            trustingPeriod,
-            maxClockDrift,
-            roleManager
-        )
-    { }
-
-    function consensusStateHash(uint64 revisionHeight) external view returns (bytes32) {
-        return consensusStateHashes[revisionHeight];
-    }
-}
-
-/// @dev QBFT client exposing stored consensus state hashes for assertions.
-contract BesuQBFTLightClientHarness is BesuQBFTLightClient, IBesuLightClientHarness {
-    constructor(
-        address ibcRouter,
-        uint64 initialTrustedHeight,
-        uint64 initialTrustedTimestamp,
-        bytes32 initialTrustedStorageRoot,
-        address[] memory initialTrustedValidators,
-        uint64 trustingPeriod,
-        uint64 maxClockDrift,
-        address roleManager
-    )
-        BesuQBFTLightClient(
-            ibcRouter,
-            initialTrustedHeight,
-            initialTrustedTimestamp,
-            initialTrustedStorageRoot,
-            initialTrustedValidators,
-            trustingPeriod,
-            maxClockDrift,
-            roleManager
-        )
-    { }
-
-    function consensusStateHash(uint64 revisionHeight) external view returns (bytes32) {
-        return consensusStateHashes[revisionHeight];
-    }
-}
 
 /// @dev Successful update input and expected consensus state.
 struct BesuUpdateFixture {
@@ -154,8 +90,8 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     string internal constant FIXTURE_DIR = "/test/besu-bft/fixtures/";
 
     BesuFixture internal fixture;
-    IBesuLightClientHarness internal client;
-    IBesuLightClientHarness internal wrongWrapper;
+    IBesuLightClient internal client;
+    IBesuLightClient internal wrongWrapper;
 
     function setUp() public virtual {
         fixture = _loadFixture(_fixtureFile());
@@ -164,7 +100,15 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     }
 
     function test_constructor_storesInitialConsensusStateHash() public view {
-        assertEq(client.consensusStateHash(fixture.initialTrustedHeight), _consensusStateHash(_initialConsensusState()));
+        assertEq(
+            client.getConsensusStateHash(fixture.initialTrustedHeight), _consensusStateHash(_initialConsensusState())
+        );
+    }
+
+    function test_getConsensusStateHash_revertUnknownHeight() public {
+        uint64 unknownHeight = fixture.initialTrustedHeight + 1000;
+        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.ConsensusStateNotFound.selector, unknownHeight));
+        client.getConsensusStateHash(unknownHeight);
     }
 
     function test_verifyNonMembership() public {
@@ -212,12 +156,12 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     function test_updateClient_noOpOnSameState() public {
         vm.warp(fixture.initialTrustedTimestamp + 1);
         client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
-        bytes32 storedHash = client.consensusStateHash(fixture.nonAdjacentUpdate.height);
+        bytes32 storedHash = client.getConsensusStateHash(fixture.nonAdjacentUpdate.height);
 
         ILightClientMsgs.UpdateResult result = client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
 
         assertEq(uint8(result), uint8(ILightClientMsgs.UpdateResult.NoOp));
-        assertEq(client.consensusStateHash(fixture.nonAdjacentUpdate.height), storedHash);
+        assertEq(client.getConsensusStateHash(fixture.nonAdjacentUpdate.height), storedHash);
         _assertClientState(fixture.nonAdjacentUpdate);
     }
 
@@ -236,13 +180,13 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         }
 
         bytes memory clientStateBefore = client.getClientState();
-        bytes32 consensusStateHashBefore = client.consensusStateHash(fixture.initialTrustedHeight);
+        bytes32 consensusStateHashBefore = client.getConsensusStateHash(fixture.initialTrustedHeight);
 
         vm.expectRevert(update.expectedRevert);
         client.updateClient(update.update);
 
         assertEq(client.getClientState(), clientStateBefore);
-        assertEq(client.consensusStateHash(fixture.initialTrustedHeight), consensusStateHashBefore);
+        assertEq(client.getConsensusStateHash(fixture.initialTrustedHeight), consensusStateHashBefore);
     }
 
     function tableVerifyMembershipTest(BesuMembershipTestCase memory membership) public {
@@ -480,7 +424,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         assertEq(trustingPeriod, fixture.trustingPeriod);
         assertEq(maxClockDrift, fixture.maxClockDrift);
 
-        assertEq(client.consensusStateHash(update.height), _consensusStateHash(_expectedConsensusState(update)));
+        assertEq(client.getConsensusStateHash(update.height), _consensusStateHash(_expectedConsensusState(update)));
     }
 
     /// @dev Consensus state committed by the constructor at `fixture.initialTrustedHeight`.
@@ -675,8 +619,8 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         });
     }
 
-    function _deployIBFT2() internal returns (IBesuLightClientHarness) {
-        return new BesuIBFT2LightClientHarness(
+    function _deployIBFT2() internal returns (IBesuLightClient) {
+        return new BesuIBFT2LightClient(
             fixture.routerAddress,
             fixture.initialTrustedHeight,
             fixture.initialTrustedTimestamp,
@@ -688,8 +632,8 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         );
     }
 
-    function _deployQBFT() internal returns (IBesuLightClientHarness) {
-        return new BesuQBFTLightClientHarness(
+    function _deployQBFT() internal returns (IBesuLightClient) {
+        return new BesuQBFTLightClient(
             fixture.routerAddress,
             fixture.initialTrustedHeight,
             fixture.initialTrustedTimestamp,
@@ -702,6 +646,6 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     }
 
     function _fixtureFile() internal pure virtual returns (string memory);
-    function _deployPrimaryClient() internal virtual returns (IBesuLightClientHarness);
-    function _deployWrongWrapper() internal virtual returns (IBesuLightClientHarness);
+    function _deployPrimaryClient() internal virtual returns (IBesuLightClient);
+    function _deployWrongWrapper() internal virtual returns (IBesuLightClient);
 }

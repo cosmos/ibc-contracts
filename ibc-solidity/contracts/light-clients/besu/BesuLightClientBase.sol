@@ -14,10 +14,11 @@ import { ILightClientMsgs } from "../../msgs/ILightClientMsgs.sol";
 import { IICS02ClientMsgs } from "../../msgs/IICS02ClientMsgs.sol";
 import { IBesuLightClientMsgs } from "./msgs/IBesuLightClientMsgs.sol";
 import { IBesuLightClientErrors } from "./errors/IBesuLightClientErrors.sol";
+import { IBesuLightClient } from "./interfaces/IBesuLightClient.sol";
 
 /// @title Besu Light Client Base
 /// @notice Shared implementation for Besu BFT light clients that verify headers and EVM storage proofs.
-abstract contract BesuLightClientBase is ILightClient, IBesuLightClientErrors, IBesuLightClientMsgs, AccessControl {
+abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientErrors, IBesuLightClientMsgs, AccessControl {
     using RLP for *;
 
     /// @notice Decoded fields from a submitted Besu header.
@@ -104,6 +105,13 @@ abstract contract BesuLightClientBase is ILightClient, IBesuLightClientErrors, I
     /// @inheritdoc ILightClient
     function getClientState() external view returns (bytes memory) {
         return abi.encode(clientState);
+    }
+
+    /// @inheritdoc IBesuLightClient
+    function getConsensusStateHash(uint64 revisionHeight) external view returns (bytes32) {
+        bytes32 consensusStateHash = consensusStateHashes[revisionHeight];
+        require(consensusStateHash != bytes32(0), ConsensusStateNotFound(revisionHeight));
+        return consensusStateHash;
     }
 
     /// @inheritdoc ILightClient
@@ -377,18 +385,11 @@ abstract contract BesuLightClientBase is ILightClient, IBesuLightClientErrors, I
     /// @param revisionHeight The consensus state revision height.
     /// @param preimage The consensus state preimage to check.
     function _requireTrustedConsensusState(uint64 revisionHeight, ConsensusState memory preimage) internal view {
-        bytes32 consensusStateHash = _getConsensusStateHash(revisionHeight);
-        bytes32 preimageHash = keccak256(abi.encode(preimage));
-        require(consensusStateHash == preimageHash, ConsensusStatePreimageMismatch(consensusStateHash, preimageHash));
-    }
-
-    /// @notice Returns a stored consensus state hash or reverts if it is missing.
-    /// @param revisionHeight The consensus state revision height.
-    /// @return The stored consensus state hash.
-    function _getConsensusStateHash(uint64 revisionHeight) internal view returns (bytes32) {
         bytes32 consensusStateHash = consensusStateHashes[revisionHeight];
         require(consensusStateHash != bytes32(0), ConsensusStateNotFound(revisionHeight));
-        return consensusStateHash;
+
+        bytes32 preimageHash = keccak256(abi.encode(preimage));
+        require(consensusStateHash == preimageHash, ConsensusStatePreimageMismatch(consensusStateHash, preimageHash));
     }
 
     /// @notice Reverts unless the revision number is zero.
