@@ -44,7 +44,7 @@ available = available - amount
 
 The window is the time needed to refill an empty bucket, not a promise that only `C` tokens can pass in every trailing window. Over an interval of length `T`, the upper bound is `C + C * T / W`: the initial burst plus the refill. For example, a capacity of 1,000 tokens and a one-hour window permits 1,000 tokens immediately from a full bucket, followed by another 500 after half an hour. Up to 2,000 tokens can pass over an hour if the refill is fully consumed. This bound assumes capacity and refill parameters do not change during the interval.
 
-An exact sliding window provides a stricter guarantee: no more than the limit can pass in any trailing window. However, recording transfers and expiring their contributions requires more storage and processing as activity grows. Coarser time buckets can reduce that cost, but introduce approximation and additional accounting choices. We choose the refilling bucket for predictable accounting cost and gradual recovery, accepting the weaker trailing-window bound. The gas advantage over an exact transfer log does not establish that it is cheaper than every fixed-window implementation.
+An exact sliding window provides a stricter guarantee: no more than the limit can pass in any trailing window. However, recording transfers and expiring their contributions requires more storage and processing as activity grows. Coarser time buckets can reduce that cost, but introduce approximation and additional accounting choices. We choose the refilling bucket for predictable accounting cost and gradual recovery, accepting the weaker trailing-window bound.
 
 ### Capacity
 
@@ -74,7 +74,9 @@ However, rewinding usage creates a security risk. An attacker who can cause frau
 
 **Decision: share each token's directional limits across all of its registered IBC clients on a given chain.** Here, “per token” means per local IFT contract. Separate tokens have separate budgets, and deployments on other chains enforce their own limits; this does not create a synchronized global bucket.
 
-Given that the IFT contract is the authority for its own supply, it is reasonable to treat all clients as a single source of demand. This avoids multiplying the token's aggregate allowance by the number of clients, which could
+Given that the IFT contract is the authority for its own supply, it is reasonable to treat all clients as a single source of demand. This avoids multiplying the token's aggregate allowance by the number of clients.
+
+On the other hand, per client limits would allow implementers to configure different limits on fast paths versus slow and more secure paths. However, the added complexity of per-client accounting is not justified until we have such use cases.
 
 ## Open Implementation Questions
 
