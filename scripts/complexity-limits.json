@@ -1,0 +1,18 @@
+{
+  "go": {
+    "max": 30,
+    "exceptions": {
+      "e2e/interchaintestv8/solana/test_helpers.go::(*Solana).SubmitChunkedRelayPackets": {
+        "max": 48,
+        "reason": "Existing chunked-relay test orchestration; cap at its rollout score until refactored."
+      },
+      "e2e/interchaintestv8/solana/test_helpers.go::(*Solana).submitChunkedUpdateClient": {
+        "max": 51,
+        "reason": "Existing chunked-update test orchestration; cap at its rollout score until refactored."
+      }
+    }
+  },
+  "rust": {
+    "max": 30
+  }
+}

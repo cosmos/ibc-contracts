@@ -6,6 +6,7 @@
     gopls
     gofumpt
     golangci-lint
+    gocyclo
     # Proto tooling
     protobuf
     buf

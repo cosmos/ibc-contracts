@@ -13,6 +13,7 @@ in {
       openssl.dev
       sccache
       cargo-nextest
+      rust-code-analysis
     ]
     ++ lib.optionals stdenv.isDarwin [
       apple-sdk_15
