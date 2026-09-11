@@ -205,6 +205,8 @@ generate-abi: build-contracts
 	jq -r '.bytecode.object' out/AttestationLightClient.sol/AttestationLightClient.json > tmp/abigen/AttestationLightClient.bin
 	jq '.abi' out/BesuIBFT2LightClient.sol/BesuIBFT2LightClient.json > abi/BesuIBFT2LightClient.json
 	jq '.abi' out/BesuQBFTLightClient.sol/BesuQBFTLightClient.json > abi/BesuQBFTLightClient.json
+	jq '.abi' out/IBesuLightClientEncoding.sol/IBesuLightClientEncoding.json > abi/IBesuLightClientEncoding.json
+	jq -r '.bytecode.object' out/BesuQBFTLightClient.sol/BesuQBFTLightClient.json > tmp/abigen/BesuQBFTLightClient.bin
 	jq '.abi' out/IFTOwnable.sol/IFTOwnable.json > abi/IFTOwnable.json
 	jq -r '.bytecode.object' out/IFTOwnable.sol/IFTOwnable.json > tmp/abigen/IFTOwnable.bin
 	jq '.abi' out/ERC1967Proxy.sol/ERC1967Proxy.json > abi/ERC1967Proxy.json
@@ -221,6 +223,10 @@ generate-abi: build-contracts
 	abigen --abi abi/ICS27GMP.json --bin tmp/abigen/ICS27GMP.bin --pkg ics27gmp --type Contract --out ../packages/go-abigen/ics27gmp/contract.go
 	abigen --abi abi/RelayerHelper.json --bin tmp/abigen/RelayerHelper.bin --pkg relayerhelper --type Contract --out ../packages/go-abigen/relayerhelper/contract.go
 	abigen --abi abi/AttestationLightClient.json --bin tmp/abigen/AttestationLightClient.bin --pkg attestation --type Contract --out ../packages/go-abigen/attestation/contract.go
+	mkdir -p ../packages/go-abigen/besuqbft
+	abigen --abi abi/BesuQBFTLightClient.json --bin tmp/abigen/BesuQBFTLightClient.bin --pkg besuqbft --type Contract --out ../packages/go-abigen/besuqbft/contract.go
+	mkdir -p ../packages/go-abigen/besumsgs
+	abigen --abi abi/IBesuLightClientEncoding.json --pkg besumsgs --type Encoding --out ../packages/go-abigen/besumsgs/encoding.go
 	abigen --abi abi/ERC1967Proxy.json --bin tmp/abigen/ERC1967Proxy.bin --pkg erc1967proxy --type Contract --out ../packages/go-abigen/erc1967proxy/contract.go
 	abigen --abi abi/EVMIFTSendCallConstructor.json --bin tmp/abigen/EVMIFTSendCallConstructor.bin --pkg evmiftsendcall --type Contract --out ../packages/go-abigen/evmiftsendcall/contract.go
 	rm -rf abi/bytecode
