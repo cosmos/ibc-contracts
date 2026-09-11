@@ -50,6 +50,16 @@
         anchor-go = pkgs.callPackage ./nix/anchor-go.nix {};
       in {
         devShells = {
+          # Source-only complexity checks need no compiler or chain toolchains.
+          complexity = pkgs.mkShell {
+            packages = with pkgs; [git just bun python3 gocyclo rust-code-analysis node-modules];
+            shellHook = ''
+              if [ ! -e ibc-solidity/node_modules ] || [ -L ibc-solidity/node_modules ]; then
+                ln -sfn "${node-modules}/node_modules" ibc-solidity/node_modules
+              fi
+            '';
+          };
+
           default = pkgs.mkShell {
             buildInputs =
               rust.packages
