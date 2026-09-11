@@ -44,8 +44,6 @@ available = available - amount
 
 The window is the time needed to refill an empty bucket, not a promise that only `C` tokens can pass in every trailing window. Over an interval of length `T`, the upper bound is `C + C * T / W`: the initial burst plus the refill. For example, a capacity of 1,000 tokens and a one-hour window permits 1,000 tokens immediately from a full bucket, followed by another 500 after half an hour. Up to 2,000 tokens can pass over an hour if the refill is fully consumed. This bound assumes capacity and refill parameters do not change during the interval.
 
-A fixed window is simple and also supports constant-size accounting, but its reset creates a timing opportunity. An attacker can consume 1,000 tokens just before a boundary and another 1,000 just after it. A refilling bucket permits bursts while requiring time to pass before more allowance becomes available.
-
 An exact sliding window provides a stricter guarantee: no more than the limit can pass in any trailing window. However, recording transfers and expiring their contributions requires more storage and processing as activity grows. Coarser time buckets can reduce that cost, but introduce approximation and additional accounting choices. We choose the refilling bucket for predictable accounting cost and gradual recovery, accepting the weaker trailing-window bound. The gas advantage over an exact transfer log does not establish that it is cheaper than every fixed-window implementation.
 
 ### Capacity
@@ -58,57 +56,28 @@ capacity = max(capacityFloor, referenceSupply * capacityBps / 10_000)
 
 `referenceSupply` is the local supply selected by the sampling policy, which remains an implementation decision. IFT burns and mints tokens rather than holding an escrow balance, so local token supply is the relevant baseline here. It is not a measure of backing, global supply, or market liquidity.
 
-A fixed token amount is easy to understand, but the same setting can be too permissive for a small deployment and too restrictive once that deployment grows. Keeping it useful requires repeated authority transactions. A percentage tracks changes in the scale of the local deployment without requiring an adjustment for every change in supply. The authority still needs to choose and review the percentage, floor, and refill window.
-
 The floor makes bootstrapping possible. A newly deployed token with zero local supply would otherwise have zero inbound capacity and could never receive its first transfer. For example, with a 1% capacity and a 1,000-token floor, capacity is 1,000 at zero supply, remains 1,000 at a supply of 50,000, and becomes 10,000 at a supply of 1,000,000. These numbers illustrate the formula; they are not proposed deployment defaults.
-
-The floor is a minimum allowance, not a maximum exposure. At low supply it can permit transfers much larger than the selected percentage, so its value must reflect how much initial exposure the issuer accepts. At unchanged capacity, a single transfer larger than the bucket cannot succeed merely by waiting for a refill; it must be split or capacity must increase.
-
-Supply-based capacity also creates feedback: inbound minting increases supply, while outbound burning reduces it. If capacity follows live supply, an attacker able to mint can increase future allowance. Checking against pre-mint supply prevents a transfer from increasing its own limit, but does not prevent later transfers from benefiting. The choice between live supply, a snapshot, or another constrained update policy must therefore be resolved before implementation. The fixed-capacity bound in the algorithm section must not be presented as an invariant across supply-driven capacity changes.
-
-Rate limits must be configured before IFT bridging is enabled. An unset configuration must not silently mean unlimited transfers. This makes selecting a risk budget part of deployment, while ordinary local ERC20 transfers are outside the cross-chain policy described here.
 
 ### Inbound and Outbound
 
 **Decision: limit both inbound mints and outbound burns.** The proposed accounting uses an independent bucket for each direction, shared across all clients for that token. An inbound transfer consumes inbound allowance; an outbound transfer consumes outbound allowance. Receiving tokens does not spend the allowance needed to send tokens, and vice versa.
 
-Inbound limits directly address fraudulent minting. If an IBC exploit allows a message to pass the normal bridge authorization checks, the rate limiter bounds how much that message and subsequent messages can mint locally before capacity is exhausted. It cannot prevent the newly minted tokens from being sold or transferred locally.
-
-Outbound limits bound how quickly tokens can leave through IFT, including tokens obtained through an exploit. They provide another restriction on spreading exposure to connected chains. An outbound limit alone cannot protect local holders from fraudulent inbound minting, and an inbound limit alone does not bound how quickly an existing local balance can be bridged out.
-
-The cost is reduced availability during legitimate surges. A large migration or many simultaneous transfers can exhaust either bucket. The source may have sufficient outbound allowance while the destination has insufficient inbound allowance, because each deployment enforces its own limits. Passing the source check is therefore not a guarantee that the destination mint will succeed.
-
-The rate-limit check and its associated mint or burn must be atomic. A reverted local operation must not leave usage behind. Failed acknowledgements and timeouts are different: the original send has already committed, and IFT later remints the pending amount as a refund. That refund needs an explicit policy, discussed below.
-
 ### Rewinding Usage
 
 **Decision: do not restore allowance in response to transfers in the opposite direction.** The limiter tracks gross activity in each direction rather than net flow. With unchanged parameters, allowance recovers through time-based refill only.
 
-Rewinding can improve throughput for legitimate round trips. If 100 tokens arrive and then leave, a net-flow limiter treats the local exposure as cancelled and makes room for another inbound transfer. This is attractive for escrow-backed flows where the goal is to limit net withdrawals.
+Rewinding guards against round trips that would otherwise consume allowance in both directions. For example, without rewinding, if a user sends 100 tokens back and forth, then they can continue to do so until the entire allowance is consumed. Note that with refilling buckets, the allowance continuously recovers.
 
-For IFT, an outbound burn does not demonstrate that the preceding inbound mint was legitimate. An attacker who can cause fraudulent mints could mint 100 tokens, send them to another chain, and recover 100 of inbound allowance if outbound flow rewound inbound usage. The local burn can result in a mint elsewhere, so the attacker has moved the tokens while regaining permission to mint locally. An independent outbound bucket would still constrain that route, but rewinding would weaken the inbound restriction by allowing it to reuse allowance before its own refill.
-
-Without rewinding, a legitimate round trip consumes allowance in both directions. This deliberately accepts lower throughput and the possibility that ordinary traffic exhausts a bucket, in exchange for retaining a bound on gross minting and burning.
-
-A refund of a failed or timed-out transfer is not the same as an opposite-direction transfer. The current IFT implementation authenticates the callback and refunds an amount recorded in a pending transfer. Before implementation, we must decide whether refund mints consume inbound allowance and whether they restore the original outbound usage. Charging inbound allowance can delay refunds during congestion; restoring outbound usage needs careful accounting so time-based refill plus a refund cannot over-credit the bucket. Rejecting opposite-direction rewinding does not, by itself, settle these refund semantics.
+However, rewinding usage creates a security risk. An attacker who can cause fraudulent mints could mint until they hit the rate limit, then send them to another chain, and recover allowance to continue minting. The local burn can result in a mint elsewhere, so the attacker has moved the tokens while regaining permission to mint locally.
 
 ### Per Token vs Per Client
 
 **Decision: share each token's directional limits across all of its registered IBC clients on a given chain.** Here, “per token” means per local IFT contract. Separate tokens have separate budgets, and deployments on other chains enforce their own limits; this does not create a synchronized global bucket.
 
-With independent per-client limits of `C`, a token connected through `N` clients could permit an aggregate burst of `N * C`. Adding a route would increase the total allowance even if the issuer had not intended to increase the token's exposure. A shared token-level bucket keeps the aggregate allowance independent of how many routes are registered or used.
-
-For example, if a token has 1,000 tokens of inbound allowance and client A consumes 700, client B can consume only the remaining 300 before refill. Neither registering another client nor splitting a transfer across clients creates additional allowance.
-
-Per-client limits can isolate traffic and assign smaller budgets to less trusted connections. Their tradeoff is more configuration and the need to account for the sum of all route budgets. The shared design instead prioritizes the total exposure of the token, accepting that a busy or compromised route can consume capacity needed by healthy routes. It provides no fairness or reserved capacity between clients.
-
-Per-client limits could later be added beneath the token-level limit if route isolation is needed. A transfer would then have to fit within both budgets. Such limits would supplement the aggregate restriction rather than replace it.
+Given that the IFT contract is the authority for its own supply, it is reasonable to treat all clients as a single source of demand. This avoids multiplying the token's aggregate allowance by the number of clients, which could
 
 ## Open Implementation Questions
 
-The choices above establish the policy, but the following details still need agreement:
+The choices above establish the policy, but the implementation must still address some details:
 
 - **Supply sampling and capacity updates:** When is reference supply sampled, and how are remaining allowance and elapsed refill handled when supply or configuration changes? Updates must not accidentally reset consumed usage or apply a new refill rate retroactively.
-- **Refund accounting:** Do refunds consume inbound capacity, and do they restore outbound usage? The implementation must preserve the pending-transfer amount and exactly-once refund checks.
-- **Directional configuration:** Can inbound and outbound percentages, floors, and windows differ, and what validation and authority controls apply to updates?
-- **Bucket implementation:** Select and pin the concrete primitive, including initialization and rounding behavior. If using OpenZeppelin, verify that the selected version supports the required semantics, including blocking transfers before configuration. See the [OpenZeppelin Solidity utilities reference](https://docs.openzeppelin.com/contracts/5.x/api/utils) when evaluating available primitives.
