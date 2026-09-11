@@ -54,7 +54,7 @@ An exact sliding window provides a stricter guarantee: no more than the limit ca
 capacity = max(capacityFloor, referenceSupply * capacityBps / 10_000)
 ```
 
-`referenceSupply` is the local supply selected by the sampling policy, which remains an implementation decision. IFT burns and mints tokens rather than holding an escrow balance, so local token supply is the relevant baseline here. It is not a measure of backing, global supply, or market liquidity.
+`referenceSupply` is a snapshot of local supply, not the live `totalSupply()`. Reading live supply would let fraudulent mints raise their own capacity. When the snapshot is taken and refreshed remains an implementation decision. IFT burns and mints tokens rather than holding an escrow balance, so local token supply is the relevant baseline here. It is not a measure of backing, global supply, or market liquidity.
 
 The floor makes bootstrapping possible. A newly deployed token with zero local supply would otherwise have zero inbound capacity and could never receive its first transfer. For example, with a 1% capacity and a 1,000-token floor, capacity is 1,000 at zero supply, remains 1,000 at a supply of 50,000, and becomes 10,000 at a supply of 1,000,000. These numbers illustrate the formula; they are not proposed deployment defaults.
 
