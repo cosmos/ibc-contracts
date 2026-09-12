@@ -157,6 +157,27 @@ where `IBCSTORE_STORAGE_SLOT` is the ERC-7201 namespace constant used by `IBCSto
 
 This verification supports packet timeout flows that prove the absence of a packet receipt on a Besu counterparty.
 
+## Generated Go payload types
+
+`scripts/IBesuLightClientEncoding.sol` is a generation-only interface referencing the
+`IBesuLightClientMsgs` structs. It exposes the tuple schemas that are hidden inside
+the production light client's `bytes` inputs and outputs; it is never deployed.
+
+Run `just solidity::generate-abi` from the repository root to regenerate
+`ibc-solidity/abi/IBesuLightClientEncoding.json` and
+`packages/go-abigen/besumsgs/encoding.go`.
+Use the same `abigen` version pinned in `.github/workflows/abigen.yaml` (currently
+v1.17.2); newer versions can produce different generated output.
+
+Use the generated Go structs with the hand-maintained `besumsgs.Encode*` and
+`Decode*` helpers in `packages/go-abigen/besumsgs/codec.go`.
+`ConsensusStateHash` computes the on-chain consensus state commitment;
+`EncodeProofNodes` handles the nested `abi.encode(bytes[])` account proof.
+These helpers encode wire values only; callers retain light-client policy checks.
+
+Do not use `ABI.Pack` or the generated contract call methods: the payload must be
+`abi.encode(value)`, without a function selector.
+
 ## Test fixtures
 
 The Foundry fixtures under `test/besu-bft/fixtures/` can be regenerated from the focused Besu↔Besu e2e flow:
