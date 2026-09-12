@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -23,6 +22,7 @@ import (
 	channeltypesv2 "github.com/cosmos/ibc-go/v11/modules/core/04-channel/v2/types"
 	ibchostv2 "github.com/cosmos/ibc-go/v11/modules/core/24-host/v2"
 
+	"github.com/cosmos/solidity-ibc-eureka/packages/go-abigen/besumsgs"
 	"github.com/cosmos/solidity-ibc-eureka/packages/go-abigen/ics26router"
 
 	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/ethereum"
@@ -491,11 +491,7 @@ func encodeProofNodes(nodes []string) ([]byte, error) {
 	for i, node := range nodes {
 		proofNodes[i] = ethcommon.FromHex(node)
 	}
-	bytesArrayType, err := abi.NewType("bytes[]", "", nil)
-	if err != nil {
-		return nil, fmt.Errorf("create bytes[] ABI type: %w", err)
-	}
-	return (abi.Arguments{{Type: bytesArrayType}}).Pack(proofNodes)
+	return besumsgs.EncodeProofNodes(proofNodes)
 }
 
 func packetCommitment(packet ics26router.IICS26RouterMsgsPacket) []byte {
