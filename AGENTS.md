@@ -17,6 +17,7 @@ Use the smallest relevant validation from the repo root:
 
 Hard constraints:
 - Do not hand-edit generated outputs in `packages/go-abigen/`, most of `packages/go-anchor/`, `e2e/interchaintestv8/solana/go-anchor/`, or protobuf outputs under `e2e/interchaintestv8/types/`; regenerate with `just solidity::generate-abi`, `just solana::generate-solana-types`, or `just generate-buf`.
+- `packages/go-abigen/besumsgs/codec.go` and `codec_test.go` are hand-maintained codec helpers and tests; preserve them across regeneration.
 - `packages/go-anchor/ics07_tendermint_patches/` is the hand-maintained exception inside `packages/go-anchor/`; preserve it across regeneration.
 - If Solidity interfaces, ABI-exposed structs, or contract types change, run `just solidity::generate-abi` before validating Go or e2e code.
 - If Solana program interfaces or IDLs change, run `just solana::generate-solana-types`.

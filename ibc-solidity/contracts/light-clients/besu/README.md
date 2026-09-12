@@ -167,11 +167,14 @@ Run `just solidity::generate-abi` from the repository root to regenerate
 `ibc-solidity/abi/IBesuLightClientEncoding.json` and
 `packages/go-abigen/besumsgs/encoding.go`.
 
-Use the generated Go structs with the corresponding method's `Inputs.Pack(value)`
-and `Inputs.Unpack(data)` from `besumsgs.EncodingMetaData.GetAbi()`.
+Use the generated Go structs with the hand-maintained `besumsgs.Encode*` and
+`Decode*` helpers in `packages/go-abigen/besumsgs/codec.go`.
+`ConsensusStateHash` computes the on-chain consensus state commitment;
+`EncodeProofNodes` handles the nested `abi.encode(bytes[])` account proof.
+These helpers encode wire values only; callers retain light-client policy checks.
+
 Do not use `ABI.Pack` or the generated contract call methods: the payload must be
-`abi.encode(value)`, without a function selector. The `proofNodes` method describes
-the nested `abi.encode(bytes[])` account proof.
+`abi.encode(value)`, without a function selector.
 
 ## Test fixtures
 
