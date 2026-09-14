@@ -3,6 +3,7 @@
 package types
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"encoding/hex"
@@ -11,6 +12,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -353,8 +355,6 @@ func buildLowOverlapFixture(
 		crypto.PubkeyToAddress(syntheticKeys[1].PublicKey),
 		crypto.PubkeyToAddress(syntheticKeys[2].PublicKey),
 	}
-	mutable.setValidators(lowOverlapValidators)
-
 	signerKeys, err := signerKeysFor([]ethcommon.Address{
 		lowOverlapValidators[0],
 		lowOverlapValidators[1],
@@ -363,6 +363,11 @@ func buildLowOverlapFixture(
 	if err != nil {
 		return besuRejectionUpdateFixture{}, err
 	}
+	// Preserve the selected signers (one trusted, two synthetic) independently of validator order.
+	slices.SortFunc(lowOverlapValidators, func(a, b ethcommon.Address) int {
+		return bytes.Compare(a[:], b[:])
+	})
+	mutable.setValidators(lowOverlapValidators)
 	mutable.setCommitSeals(signQBFTCommitSeals(mutable, signerKeys))
 	mutatedHeader, err := mutable.encode()
 	if err != nil {
@@ -582,7 +587,10 @@ func (h *mutableQBFTHeader) setCommitSeals(seals [][]byte) {
 }
 
 func signQBFTCommitSeals(header *mutableQBFTHeader, keys []*ecdsa.PrivateKey) [][]byte {
-	digest := header.commitSealDigest()
+	return signCommitSeals(header.commitSealDigest(), keys)
+}
+
+func signCommitSeals(digest ethcommon.Hash, keys []*ecdsa.PrivateKey) [][]byte {
 	seals := make([][]byte, len(keys))
 	for i, key := range keys {
 		seal, err := crypto.Sign(digest.Bytes(), key)

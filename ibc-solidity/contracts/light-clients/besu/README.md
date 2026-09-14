@@ -167,4 +167,14 @@ just solidity::generate-fixtures-besu
 
 This writes `test/besu-bft/fixtures/qbft.json` using live Besu QBFT headers, account proofs, and storage proofs captured during the e2e transfer flow. The fixture `proof` fields hold the raw storage proof nodes as `abi.encode(bytes[])`; the Foundry tests wrap them into `MembershipProof` together with the consensus state preimage derived from the fixture's expected update state. The negative cases in that fixture are still derived by deterministic off-chain header mutation so the contract tests can keep explicit overlap / quorum / conflict coverage.
 
-`ibft2.json` remains synthetic until an IBFT2-focused e2e fixture path is added.
+The synthetic IBFT2 validator sets and commit seals, and QBFT's synthetic low-overlap
+case, can be regenerated offline with the existing Go header and signing helpers:
+
+```sh
+cd e2e/interchaintestv8
+go test ./types -run '^TestBesu(IBFT2Fixture|QBFTLowOverlapFixture)$' -args -update-besu-synthetic
+```
+
+Run this in the Nix development shell. Omitting the update flag checks that the
+fixtures match the generators. Regeneration preserves the other header fields and
+trie proofs. `ibft2.json` remains synthetic until an IBFT2-focused e2e fixture path is added.

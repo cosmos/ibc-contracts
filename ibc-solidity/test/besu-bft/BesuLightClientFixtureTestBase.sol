@@ -291,7 +291,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     function fixtureUpdate() public view returns (BesuUpdateTestCase[] memory testCases) {
         BesuUpdateFixture memory emptyExpectedState;
 
-        testCases = new BesuUpdateTestCase[](10);
+        testCases = new BesuUpdateTestCase[](14);
         testCases[0] = BesuUpdateTestCase({
             name: "success: valid adjacent update",
             timestamp: fixture.initialTrustedTimestamp + 1,
@@ -402,6 +402,68 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             ),
             expectedState: emptyExpectedState
         });
+
+        testCases[10] = BesuUpdateTestCase({
+            name: "failure: empty validators",
+            timestamp: fixture.initialTrustedTimestamp + 1,
+            update: _validatorsUpdate(new address[](0)),
+            preUpdate: "",
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.EmptyValidatorSet.selector),
+            expectedState: emptyExpectedState
+        });
+
+        address[] memory validators = fixture.nonAdjacentUpdate.expectedValidators;
+        validators[0] = address(0);
+        testCases[11] = BesuUpdateTestCase({
+            name: "failure: zero validator",
+            timestamp: fixture.initialTrustedTimestamp + 1,
+            update: _validatorsUpdate(validators),
+            preUpdate: "",
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidValidatorAddress.selector, address(0)),
+            expectedState: emptyExpectedState
+        });
+
+        validators = fixture.nonAdjacentUpdate.expectedValidators;
+        (validators[1], validators[2]) = (validators[2], validators[1]);
+        testCases[12] = BesuUpdateTestCase({
+            name: "failure: descending validators",
+            timestamp: fixture.initialTrustedTimestamp + 1,
+            update: _validatorsUpdate(validators),
+            preUpdate: "",
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.UnsortedValidatorSet.selector, 1),
+            expectedState: emptyExpectedState
+        });
+
+        validators = fixture.nonAdjacentUpdate.expectedValidators;
+        validators[2] = validators[1];
+        testCases[13] = BesuUpdateTestCase({
+            name: "failure: duplicate validators",
+            timestamp: fixture.initialTrustedTimestamp + 1,
+            update: _validatorsUpdate(validators),
+            preUpdate: "",
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.UnsortedValidatorSet.selector, 1),
+            expectedState: emptyExpectedState
+        });
+    }
+
+    function _validatorsUpdate(address[] memory validators) internal view returns (bytes memory) {
+        BesuUpdateFixture memory update = fixture.nonAdjacentUpdate;
+        Memory.Slice[] memory headerItems = update.headerRlp.decodeList();
+        Memory.Slice[] memory extraItems = RLP.readBytes(headerItems[12]).decodeList();
+        bytes[] memory encodedValidators = new bytes[](validators.length);
+        for (uint256 i = 0; i < validators.length; ++i) {
+            encodedValidators[i] = RLP.encode(abi.encodePacked(validators[i]));
+        }
+        bytes[] memory encodedExtraItems = new bytes[](extraItems.length);
+        for (uint256 i = 0; i < extraItems.length; ++i) {
+            encodedExtraItems[i] = i == 1 ? RLP.encode(encodedValidators) : extraItems[i].toBytes();
+        }
+        bytes[] memory encodedHeaderItems = new bytes[](headerItems.length);
+        for (uint256 i = 0; i < headerItems.length; ++i) {
+            encodedHeaderItems[i] = i == 12 ? RLP.encode(RLP.encode(encodedExtraItems)) : headerItems[i].toBytes();
+        }
+        update.headerRlp = RLP.encode(encodedHeaderItems);
+        return _encodeUpdate(update);
     }
 
     function _zeroTimestampUpdate() internal view returns (bytes memory) {
