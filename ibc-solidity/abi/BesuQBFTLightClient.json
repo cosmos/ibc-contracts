@@ -520,17 +520,6 @@
   },
   {
     "type": "error",
-    "name": "DuplicateValidator",
-    "inputs": [
-      {
-        "name": "validator",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
-  },
-  {
-    "type": "error",
     "name": "EmptyValidatorSet",
     "inputs": []
   },
@@ -778,6 +767,17 @@
         "name": "err",
         "type": "uint8",
         "internalType": "enum TrieProof.ProofError"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "UnsortedValidatorSet",
+    "inputs": [
+      {
+        "name": "index",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ]
   },
