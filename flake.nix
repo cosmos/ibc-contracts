@@ -51,11 +51,22 @@
 
         # Always replace `ibc-solidity/node_modules` with the Nix-managed one so that the shell never
         # picks up a stale local install, whether it is a symlink or a real directory.
+        #
+        # The hook only knows the caller's working directory, not where the flake was loaded from, so
+        # before deleting anything it checks that the directory is a checkout of this repository whose
+        # lockfile matches the one `node-modules` was built from. Running `nix develop <this repo>`
+        # from an unrelated checkout therefore leaves that checkout's `node_modules` untouched.
         linkNodeModules = ''
           if [ -d "${node-modules}/node_modules" ]; then
             repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-            rm -rf "$repo_root/ibc-solidity/node_modules"
-            ln -sfn "${node-modules}/node_modules" "$repo_root/ibc-solidity/node_modules"
+            solidity_dir="$repo_root/ibc-solidity"
+            if cmp -s "${node-modules.src}/package.json" "$solidity_dir/package.json" \
+              && cmp -s "${node-modules.src}/bun.lock" "$solidity_dir/bun.lock"; then
+              rm -rf "$solidity_dir/node_modules"
+              ln -sfn "${node-modules}/node_modules" "$solidity_dir/node_modules"
+            else
+              echo "warning: $solidity_dir does not match this flake's ibc-solidity; leaving node_modules alone" >&2
+            fi
           fi
         '';
       in {
