@@ -463,20 +463,26 @@ fn parse_create_client_params(parameters: &HashMap<String, String>) -> Result<Cr
     })
 }
 
-/// Reads the validator set committed in a Besu BFT header's `extraData`.
+/// Extracts the list of validators from the `extraData` field in ascending order.
 fn extract_validators_from_extra_data(extra_data: &[u8]) -> Result<Vec<Address>> {
-    Rlp::new(extra_data)
+    let out = Rlp::new(extra_data)
         .at(1)
         .context("failed to read validator list from extraData")?
-        .iter()
-        .map(|validator| {
-            let validator = validator
+        .into_iter()
+        .map(|validator_rlp| {
+            let validator = validator_rlp
                 .data()
                 .context("failed to decode validator address")?;
             Address::try_from(validator)
                 .map_err(|_| anyhow!("invalid validator address length: {}", validator.len()))
         })
-        .collect()
+        .collect::<Result<Vec<Address>>>()?;
+    // Besu returns the validators in ascending order, so we can check that the list is sorted.
+    if !out.is_sorted() {
+        bail!("validators are not sorted in ascending order");
+    }
+
+    Ok(out)
 }
 
 #[cfg(test)]

@@ -54,9 +54,9 @@ interface IBesuLightClientErrors {
     /// @notice A validator address is invalid.
     /// @param validator The invalid validator address.
     error InvalidValidatorAddress(address validator);
-    /// @notice A validator appears more than once.
-    /// @param validator The duplicate validator address.
-    error DuplicateValidator(address validator);
+    /// @notice The validator set is not sorted in ascending order.
+    /// @param index The index of the first unsorted validator.
+    error UnsortedValidatorSet(uint256 index);
     /// @notice A commit seal signer appears more than once.
     /// @param signer The duplicate signer address.
     error DuplicateCommitSealSigner(address signer);

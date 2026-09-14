@@ -126,6 +126,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         ParsedHeader memory header = _parseHeader(msg_.headerRlp);
         require(header.height != 0, InvalidHeaderHeight());
         require(header.timestamp != 0, InvalidHeaderTimestamp());
+        _validateValidators(header.validators);
         require(
             block.timestamp + clientState.maxClockDrift >= header.timestamp,
             HeaderFromFuture(block.timestamp, header.timestamp, clientState.maxClockDrift)
@@ -260,15 +261,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
         header.validators = new address[](validatorItems.length);
         for (uint256 i = 0; i < validatorItems.length; ++i) {
-            bytes memory validatorBytes = validatorItems[i].readBytes();
-            require(validatorBytes.length == 20, InvalidValidatorAddressLength(validatorBytes.length));
-
-            address validator = address(bytes20(validatorBytes));
-            require(validator != address(0), InvalidValidatorAddress(address(0)));
-            for (uint256 j = 0; j < i; ++j) {
-                require(header.validators[j] != validator, DuplicateValidator(validator));
-            }
-            header.validators[i] = validator;
+            header.validators[i] = validatorItems[i].readAddress();
         }
 
         Memory.Slice[] memory sealItems = header.extraDataItems[4].readList();
@@ -369,14 +362,14 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         require(actual >= required, InsufficientValidatorQuorum(actual, required));
     }
 
-    /// @notice Validates that a validator set is non-empty and unique.
+    /// @notice Validates that a validator set is non-empty, unique, and sorted.
     /// @param validators The validator set to validate.
     function _validateValidators(address[] memory validators) internal pure {
         require(validators.length != 0, EmptyValidatorSet());
+        require(validators[0] != address(0), InvalidValidatorAddress(address(0)));
         for (uint256 i = 0; i < validators.length; ++i) {
-            require(validators[i] != address(0), InvalidValidatorAddress(validators[i]));
-            for (uint256 j = 0; j < i; ++j) {
-                require(validators[j] != validators[i], DuplicateValidator(validators[i]));
+            if (i < validators.length - 1) {
+                require(validators[i] < validators[i + 1], UnsortedValidatorSet(i));
             }
         }
     }
