@@ -302,7 +302,7 @@
         "internalType": "uint256"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -350,7 +350,7 @@
         "internalType": "uint256"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "nonpayable"
   },
   {
     "type": "event",
@@ -747,6 +747,17 @@
     "type": "error",
     "name": "RLPInvalidEncoding",
     "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "StorageRootNotInCache",
+    "inputs": [
+      {
+        "name": "revisionHeight",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ]
   },
   {
     "type": "error",
