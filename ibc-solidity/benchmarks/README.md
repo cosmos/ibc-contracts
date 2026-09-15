@@ -47,5 +47,5 @@ These isolated transactions use the live Besu QBFT header and proof fixture in `
 | --- | ---: | ---: |
 | Adjacent client update | 180,302 | 1,444 |
 | Non-adjacent client update | 181,532 | 1,444 |
-| Membership verification | 126,395 | 2,116 |
-| Non-membership verification | 138,814 | 2,020 |
+| Membership verification | 126,849 | 2,116 |
+| Non-membership verification | 139,269 | 2,020 |
