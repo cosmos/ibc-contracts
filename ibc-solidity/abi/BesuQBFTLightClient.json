@@ -18,7 +18,7 @@
         "internalType": "uint64"
       },
       {
-        "name": "initialTrustedStorageRoot",
+        "name": "initialTrustedStateRoot",
         "type": "bytes32",
         "internalType": "bytes32"
       },

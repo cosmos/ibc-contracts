@@ -20,7 +20,7 @@ interface IBesuLightClientMsgs {
 
     /// @notice Trusted consensus state for a Besu height.
     /// @param timestamp Header timestamp in seconds.
-    /// @param stateRoot Storage root of the state trie at the given height.
+    /// @param stateRoot Root of the state trie at the given height.
     /// @param validators Validator set committed in the header.
     struct ConsensusState {
         uint64 timestamp;
@@ -28,7 +28,7 @@ interface IBesuLightClientMsgs {
         address[] validators;
     }
 
-    /// @notice Update message containing a Besu header and account proof.
+    /// @notice Update message containing a Besu header and the trusted consensus state preimage.
     /// @param headerRlp RLP-encoded Besu block header.
     /// @param trustedHeight Previously trusted height used for weak-subjectivity checks.
     /// @param consensusStatePreimage Preimage of the trusted consensus state at `trustedHeight`.
