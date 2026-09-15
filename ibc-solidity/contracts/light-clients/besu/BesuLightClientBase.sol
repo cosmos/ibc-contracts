@@ -8,6 +8,7 @@ import { ECDSA } from "@openzeppelin-contracts/utils/cryptography/ECDSA.sol";
 import { RLP } from "@openzeppelin-contracts/utils/RLP.sol";
 import { TrieProof } from "../../utils/TrieProof.sol";
 import { Memory } from "@openzeppelin-contracts/utils/Memory.sol";
+import { TransientSlot } from "@openzeppelin-contracts/utils/TransientSlot.sol";
 
 import { ILightClient } from "../../interfaces/ILightClient.sol";
 import { ILightClientMsgs } from "../../msgs/ILightClientMsgs.sol";
@@ -20,6 +21,7 @@ import { IBesuLightClient } from "./interfaces/IBesuLightClient.sol";
 /// @notice Shared implementation for Besu BFT light clients that verify headers and EVM storage proofs.
 abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientErrors, IBesuLightClientMsgs, AccessControl {
     using RLP for *;
+    using TransientSlot for TransientSlot.Bytes32Slot;
 
     /// @notice Decoded fields from a submitted Besu header.
     /// @param headerItems Top-level RLP header fields.
@@ -166,7 +168,6 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @inheritdoc ILightClient
     function verifyMembership(ILightClientMsgs.MsgVerifyMembership calldata msg_)
         external
-        view
         onlyProofSubmitter
         returns (uint256)
     {
@@ -177,8 +178,9 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         MembershipProof memory proof = abi.decode(msg_.proof, (MembershipProof));
         _requireTrustedConsensusState(msg_.proofHeight.revisionHeight, proof.consensusStatePreimage);
 
-        bytes32 storageRoot =
-            _verifyAccountProof(clientState.ibcRouter, proof.consensusStatePreimage.stateRoot, proof.accountProofNodes);
+        bytes32 storageRoot = _verifiedStorageRoot(
+            msg_.proofHeight.revisionHeight, proof.consensusStatePreimage.stateRoot, proof.accountProofNodes
+        );
 
         bytes32 storageSlot = _commitmentStorageSlot(msg_.path[0]);
         bytes memory storageKey = abi.encodePacked(keccak256(abi.encodePacked(storageSlot)));
@@ -195,7 +197,6 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @inheritdoc ILightClient
     function verifyNonMembership(ILightClientMsgs.MsgVerifyNonMembership calldata msg_)
         external
-        view
         onlyProofSubmitter
         returns (uint256)
     {
@@ -205,8 +206,9 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         MembershipProof memory proof = abi.decode(msg_.proof, (MembershipProof));
         _requireTrustedConsensusState(msg_.proofHeight.revisionHeight, proof.consensusStatePreimage);
 
-        bytes32 storageRoot =
-            _verifyAccountProof(clientState.ibcRouter, proof.consensusStatePreimage.stateRoot, proof.accountProofNodes);
+        bytes32 storageRoot = _verifiedStorageRoot(
+            msg_.proofHeight.revisionHeight, proof.consensusStatePreimage.stateRoot, proof.accountProofNodes
+        );
 
         bytes32 storageSlot = _commitmentStorageSlot(msg_.path[0]);
         bytes memory storageKey = abi.encodePacked(keccak256(abi.encodePacked(storageSlot)));
@@ -267,6 +269,31 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         for (uint256 i = 0; i < sealItems.length; ++i) {
             header.commitSeals[i] = sealItems[i].readBytes();
         }
+    }
+
+    /// @notice Returns the storage root for a revision height, verifying the account proof if provided.
+    /// @dev If the account proof is empty, the storage root is retrieved from a transient cache
+    /// which can only be populated by a previous call to this function with a non-empty account proof.
+    /// @param revisionHeight The revision height for the storage root.
+    /// @param stateRoot The header state root.
+    /// @param accountProofNodes The ordered, RLP-encoded MPT nodes from the state trie proving the account.
+    /// @return The storage root for the revision height.
+    function _verifiedStorageRoot(
+        uint64 revisionHeight,
+        bytes32 stateRoot,
+        bytes[] memory accountProofNodes
+    )
+        internal
+        returns (bytes32)
+    {
+        address counterpartyRouter = clientState.ibcRouter;
+        if (accountProofNodes.length == 0) {
+            return _getCachedStorageRoot(counterpartyRouter, revisionHeight);
+        }
+
+        bytes32 storageRoot = _verifyAccountProof(counterpartyRouter, stateRoot, accountProofNodes);
+        _cacheStorageRoot(counterpartyRouter, revisionHeight, storageRoot);
+        return storageRoot;
     }
 
     /// @notice Verifies the tracked account proof against a header state root.
@@ -399,6 +426,34 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             }
         }
         return false;
+    }
+
+    /// @notice Caches a storage root for a revision height in a transient slot.
+    /// @param ibcRouter The ICS26 router address whose storageRoot was proven.
+    /// @param revisionHeight The revision height for the storage root.
+    /// @param storageRoot The storage root to cache.
+    function _cacheStorageRoot(address ibcRouter, uint64 revisionHeight, bytes32 storageRoot) internal {
+        bytes32 cacheKey = _cacheKey(ibcRouter, revisionHeight);
+        TransientSlot.asBytes32(cacheKey).tstore(storageRoot);
+    }
+
+    /// @notice Retrieves a cached storage root for a revision height from a transient slot.
+    /// @param ibcRouter The ICS26 router address whose storageRoot was proven.
+    /// @param revisionHeight The revision height for the storage root.
+    /// @return The cached storage root, reverting if not found.
+    function _getCachedStorageRoot(address ibcRouter, uint64 revisionHeight) internal view returns (bytes32) {
+        bytes32 cacheKey = _cacheKey(ibcRouter, revisionHeight);
+        bytes32 storageRoot = TransientSlot.asBytes32(cacheKey).tload();
+        require(storageRoot != bytes32(0), StorageRootNotInCache(revisionHeight));
+        return storageRoot;
+    }
+
+    /// @notice Computes a transient slot cache key for a revision height.
+    /// @param ibcRouter The ICS26 router address whose storageRoot was proven.
+    /// @param revisionHeight The revision height for the cache key.
+    /// @return The cache key.
+    function _cacheKey(address ibcRouter, uint64 revisionHeight) internal pure returns (bytes32) {
+        return keccak256(abi.encode(ibcRouter, revisionHeight));
     }
 
     /// @notice Restricts access to proof submitters unless submission is open to anyone.
