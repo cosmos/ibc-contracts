@@ -332,15 +332,20 @@ fn packet_storage_key(call: &routerCalls) -> B256 {
     evm_ics26_commitment_path(&path, U256::from_be_slice(&ICS26_IBC_STORAGE_SLOT)).into()
 }
 
-/// Attaches an `IBesuLightClientMsgs::MembershipProof` to every packet call, pairing the router
-/// account proof and the storage proof nodes for the packet's commitment slot with the consensus
-/// state they are verified against.
+/// Attaches an `IBesuLightClientMsgs::MembershipProof` to every packet call, pairing the storage
+/// proof nodes for the packet's commitment slot with the consensus state they are verified against.
+///
+/// The router account proof is only attached to the first call. All calls share the same proof
+/// height and execute in a single atomic multicall, so the light client verifies the account proof
+/// once, caches the storage root in transient storage, and serves the remaining calls from that
+/// cache when their `accountProofNodes` are empty.
 fn attach_packet_proofs(
     packet_calls: &mut [routerCalls],
     account_proof: &[Bytes],
     storage_proofs: &HashMap<B256, Vec<Bytes>>,
     proven_state: &IBesuLightClientMsgs::ConsensusState,
 ) -> Result<()> {
+    let mut account_proof = Some(account_proof);
     packet_calls.iter_mut().try_for_each(|call| {
         let storage_key = packet_storage_key(call);
         let proof_nodes = storage_proofs
@@ -348,7 +353,10 @@ fn attach_packet_proofs(
             .ok_or_else(|| anyhow!("missing storage proof for key {storage_key}"))?;
         let proof: Bytes = IBesuLightClientMsgs::MembershipProof {
             consensusStatePreimage: proven_state.clone(),
-            accountProofNodes: account_proof.to_vec(),
+            accountProofNodes: account_proof
+                .take()
+                .map(<[Bytes]>::to_vec)
+                .unwrap_or_default(),
             proofNodes: proof_nodes.clone(),
         }
         .abi_encode()
@@ -505,25 +513,36 @@ mod tests {
         assert!(map_storage_proofs(&[key], &[proof(U256::from(2))]).is_err());
     }
 
-    #[test]
-    fn attaches_membership_proofs_with_consensus_state_preimage() {
-        let packet = Packet {
-            sequence: 1,
-            sourceClient: "client-0".to_string(),
-            destClient: "client-1".to_string(),
-            timeoutTimestamp: 0,
-            payloads: vec![],
-        };
-        let mut calls = vec![routerCalls::recvPacket(recvPacketCall {
+    fn recv_packet_call(sequence: u64) -> routerCalls {
+        routerCalls::recvPacket(recvPacketCall {
             msg_: MsgRecvPacket {
-                packet,
+                packet: Packet {
+                    sequence,
+                    sourceClient: "client-0".to_string(),
+                    destClient: "client-1".to_string(),
+                    timeoutTimestamp: 0,
+                    payloads: vec![],
+                },
                 proofHeight: Height {
                     revisionNumber: 0,
                     revisionHeight: 1,
                 },
                 proofCommitment: Bytes::default(),
             },
-        })];
+        })
+    }
+
+    fn decode_recv_proof(call: &routerCalls) -> IBesuLightClientMsgs::MembershipProof {
+        let routerCalls::recvPacket(call) = call else {
+            unreachable!("call kind is preserved");
+        };
+        IBesuLightClientMsgs::MembershipProof::abi_decode(&call.msg_.proofCommitment)
+            .expect("proof decodes as MembershipProof")
+    }
+
+    #[test]
+    fn attaches_membership_proofs_with_consensus_state_preimage() {
+        let mut calls = vec![recv_packet_call(1)];
         let storage_key = packet_storage_key(&calls[0]);
         let nodes = vec![Bytes::from(vec![0xc2, 0x01, 0x02])];
         let account_nodes = vec![Bytes::from(vec![0xc3, 0x01, 0x02, 0x03])];
@@ -547,16 +566,55 @@ mod tests {
         let storage_proofs = HashMap::from([(storage_key, nodes.clone())]);
         attach_packet_proofs(&mut calls, &account_nodes, &storage_proofs, &proven_state).unwrap();
 
-        let routerCalls::recvPacket(call) = &calls[0] else {
-            unreachable!("call kind is preserved");
-        };
-        let proof = IBesuLightClientMsgs::MembershipProof::abi_decode(&call.msg_.proofCommitment)
-            .expect("proof decodes as MembershipProof");
+        let proof = decode_recv_proof(&calls[0]);
         assert_eq!(
             proof.consensusStatePreimage.abi_encode(),
             proven_state.abi_encode()
         );
         assert_eq!(proof.accountProofNodes, account_nodes);
         assert_eq!(proof.proofNodes, nodes);
+    }
+
+    #[test]
+    fn attaches_account_proof_only_to_first_call_in_batch() {
+        let mut calls = vec![
+            recv_packet_call(1),
+            recv_packet_call(2),
+            recv_packet_call(3),
+        ];
+        let account_nodes = vec![Bytes::from(vec![0xc3, 0x01, 0x02, 0x03])];
+        let proven_state = IBesuLightClientMsgs::ConsensusState {
+            timestamp: 7,
+            stateRoot: B256::repeat_byte(0xaa),
+            validators: vec![Address::repeat_byte(0x11)],
+        };
+        let storage_proofs = calls
+            .iter()
+            .enumerate()
+            .map(|(i, call)| {
+                let node = Bytes::from(vec![0xc1, u8::try_from(i).unwrap()]);
+                (packet_storage_key(call), vec![node])
+            })
+            .collect::<HashMap<_, _>>();
+
+        attach_packet_proofs(&mut calls, &account_nodes, &storage_proofs, &proven_state).unwrap();
+
+        for (i, call) in calls.iter().enumerate() {
+            let proof = decode_recv_proof(call);
+            let expected_account_nodes = if i == 0 { &account_nodes[..] } else { &[][..] };
+            assert_eq!(
+                proof.accountProofNodes, expected_account_nodes,
+                "only the first call should carry the account proof"
+            );
+            assert_eq!(
+                proof.proofNodes,
+                storage_proofs[&packet_storage_key(call)],
+                "every call carries its own storage proof"
+            );
+            assert_eq!(
+                proof.consensusStatePreimage.abi_encode(),
+                proven_state.abi_encode()
+            );
+        }
     }
 }
