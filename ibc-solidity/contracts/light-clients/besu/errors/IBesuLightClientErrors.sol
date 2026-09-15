@@ -90,4 +90,7 @@ interface IBesuLightClientErrors {
     error UnsupportedMisbehaviour();
     /// @notice The submitted exclusion proof is invalid.
     error InvalidExclusionProof();
+    /// @notice Storage root is not cached for the requested height.
+    /// @param revisionHeight The requested revision height.
+    error StorageRootNotInCache(uint64 revisionHeight);
 }
