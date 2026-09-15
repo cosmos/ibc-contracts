@@ -59,8 +59,13 @@ _install-proof-api:
 lint-contracts:
 	@echo "Linting the Solidity code..."
 	forge fmt --check
-	bun solhint -w 0 '{scripts,contracts,test}/**/*.sol'
+	just solidity::lint-solhint
 	natlint run --root "$PWD" --include 'contracts/**/*.sol' --exclude 'contracts/utils/TrieProof.sol'
+
+# Run Solhint, including the existing cyclomatic code-complexity limit of 8
+[group('lint')]
+lint-solhint:
+	bun solhint -w 0 '{scripts,contracts,test}/**/*.sol'
 
 # Lint the SP1 programs using `cargo fmt` and `cargo clippy`
 [group('lint')]

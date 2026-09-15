@@ -284,6 +284,30 @@ Before committing, you should lint your code to ensure it follows the style guid
 just lint
 ```
 
+Cyclomatic complexity is enforced in CI and by the language lint recipes. To run
+just these source checks without building contracts or downloading Go/Cargo dependencies:
+
+```sh
+nix develop .#complexity --command just lint-complexity
+```
+
+Solidity uses the existing Solhint `code-complexity` limit of **8** in
+`ibc-solidity/.solhint.json` (alongside the other Solhint rules). Go uses `gocyclo`
+and Rust uses Mozilla's `rust-code-analysis-cli`, each with an initial maximum of
+**30** in `scripts/complexity-limits.json`. Rust uses cyclomatic complexity, not
+Clippy's former cognitive-complexity lint. Analyzer versions come from `flake.lock`.
+
+Go and Rust checks include handwritten tests, tools, and all independent workspaces.
+Git-ignored files, generated source headers/directories, vendor directories, and
+symlinks are skipped; handwritten `go-anchor/ics07_tendermint_patches` stays covered.
+Solidity retains its existing Solhint scope and suppressions. The two existing Go
+test helpers above 30 have explicit caps at their current scores. Increases fail;
+when refactoring lowers a score or removes a function, lower or remove its exception.
+New exceptions should include a reason and be reviewed with the code change.
+
+Run `just lint-complexity-go` or `just lint-complexity-rust` for a single language,
+and `just test-complexity` to validate the enforcement scripts.
+
 ## Benchmarks
 
 The generated [Solidity benchmark tables](./ibc-solidity/benchmarks/README.md) include SP1 Tendermint end-to-end packet costs and direct Besu QBFT light-client operation costs. Their machine-readable gas snapshots are committed alongside the tables so benchmark changes are visible in GitHub diffs.

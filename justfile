@@ -58,6 +58,7 @@ lint-license-fix:
 [group('lint')]
 lint-go:
 	@echo "Linting the Go code..."
+	just lint-complexity-go
 	cd e2e/interchaintestv8 && golangci-lint run
 	cd packages/go-abigen && golangci-lint run
 	cd packages/go-anchor && golangci-lint run
@@ -72,11 +73,31 @@ lint-buf:
 [group('lint')]
 lint-rust:
 	@echo "Linting the Rust code..."
+	just lint-complexity-rust
 	cargo fmt --all -- --check
 	cargo clippy --all-targets -- -D warnings
 	just solidity::lint-sp1
 	just solidity::lint-cw
 	just solana::lint-solana
+
+# Check cyclomatic complexity across Solidity, Go modules, and Rust workspaces
+[group('lint')]
+lint-complexity: solidity::lint-solhint lint-complexity-go lint-complexity-rust
+
+# Check every handwritten Go source file without compiling dependencies
+[group('lint')]
+lint-complexity-go:
+	python3 scripts/check-complexity.py go
+
+# Check every handwritten Rust source file, including SP1, CosmWasm, and Solana
+[group('lint')]
+lint-complexity-rust:
+	python3 scripts/check-complexity.py rust
+
+# Exercise complexity limits, exemptions, source discovery, and analyzer behavior
+[group('test')]
+test-complexity:
+	python3 -B -m unittest discover -s scripts/tests -p 'test_complexity.py'
 
 # Generate the code from protobuf using `buf generate`
 [group('generate')]
