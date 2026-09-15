@@ -142,13 +142,26 @@ impl TxBuilder {
     }
 
     pub async fn relay_events(&self, params: RelayEventsParams) -> Result<Vec<u8>> {
-        let proof_height = params
+        // Prove against the latest source block rather than the event heights. A Bonsai-backed
+        // Besu node only serves `eth_getProof` for recent state, so historical event heights may
+        // already be pruned, whereas the latest block is always available. The proven commitments
+        // are still present at the latest block, and timeouts benefit from its later timestamp.
+        let min_proof_height = params
             .src_events
             .iter()
             .map(|event| event.height)
             .chain(params.timeout_relay_height)
             .max()
             .ok_or_else(|| anyhow!("no packets collected"))?;
+        let proof_height = self
+            .src_provider
+            .get_block_number()
+            .await
+            .context("failed to fetch latest source block number")?;
+        ensure!(
+            proof_height >= min_proof_height,
+            "latest source block {proof_height} is behind the required proof height {min_proof_height}"
+        );
         let header = self
             .fetch_source_header(proof_height)
             .await
