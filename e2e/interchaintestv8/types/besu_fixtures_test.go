@@ -43,11 +43,36 @@ func TestBesuProofNodesEncoding(t *testing.T) {
 	nodes, ok := values[0].([][]byte)
 	require.True(t, ok, "proof nodes decoded as %T, want [][]byte", values[0])
 	require.NotEmpty(t, nodes)
+	// Generated packers include the function selector; wire payloads do not.
+	require.Equal(t, want, besumsgs.NewBindings().PackProofNodes(nodes)[4:])
 	hexNodes := make([]string, len(nodes))
 	for i, node := range nodes {
 		hexNodes[i] = encodeHex(node)
 	}
 	got := encodeProofNodes(hexNodes)
+	require.Equal(t, want, got)
+}
+
+func TestBesuConsensusStateEncoding(t *testing.T) {
+	t.Chdir("../../..")
+	fixtureJSON, err := os.ReadFile(filepath.Join(testvalues.BesuBFTFixturesDir, "qbft.json"))
+	require.NoError(t, err)
+	var fixture besuFixture
+	require.NoError(t, json.Unmarshal(fixtureJSON, &fixture))
+
+	validators := make([]ethcommon.Address, len(fixture.InitialTrustedValidators))
+	for i, validator := range fixture.InitialTrustedValidators {
+		validators[i] = ethcommon.HexToAddress(validator)
+	}
+	state := besumsgs.IBesuLightClientMsgsConsensusState{
+		Timestamp:   fixture.InitialTrustedTimestamp,
+		StorageRoot: ethcommon.HexToHash(fixture.InitialTrustedStorageRoot),
+		Validators:  validators,
+	}
+	// Captured from BesuQBFTLightClient.getConsensusStateHash after deploying
+	// with qbft.json's initial trusted state in Foundry.
+	want := ethcommon.HexToHash("0xe90678de9bc0821f64b0634c05ba8dc7726ff865d40fbf283d3bdb32ac38d4b9")
+	got := crypto.Keccak256Hash(besumsgs.NewBindings().PackConsensusState(state)[4:])
 	require.Equal(t, want, got)
 }
 
