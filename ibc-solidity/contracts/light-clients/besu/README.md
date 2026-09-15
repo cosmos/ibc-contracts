@@ -110,10 +110,10 @@ struct MembershipProof {
 ```
 
 - `consensusStatePreimage`: the consensus state trusted at `msg_.proofHeight`. Its hash must match the stored hash.
-- `accountProofNodes`: the ordered, RLP-encoded Ethereum state-trie nodes proving the tracked `ICS26Router` account, as returned by `eth_getProof` at `msg_.proofHeight`.
+- `accountProofNodes`: the ordered, RLP-encoded Ethereum state-trie nodes proving the tracked `ICS26Router` account, as returned by `eth_getProof` at `msg_.proofHeight`. May be empty to reuse a storage root that an earlier call in the same transaction already proved for `msg_.proofHeight`; if none was cached, the call reverts with `StorageRootNotInCache(height)`.
 - `proofNodes`: the ordered, RLP-encoded Ethereum storage-trie nodes for `storageSlot` as returned by `eth_getProof` at `msg_.proofHeight`.
 
-Both calls first verify `accountProofNodes` against the preimage `stateRoot` to recover the router account's storage root, then verify `proofNodes` against that storage root. An account proof that does not resolve under the preimage `stateRoot` reverts with a `TrieProof.TrieProofTraversalError`.
+Both calls first verify `accountProofNodes` against the preimage `stateRoot` to recover the router account's storage root, then verify `proofNodes` against that storage root. An account proof that does not resolve under the preimage `stateRoot` reverts with a `TrieProof.TrieProofTraversalError`. A successfully proven storage root is cached in transient storage, keyed by router address and height, so a batch of packet proofs against the same height only pays for one account proof: the first call carries `accountProofNodes` and the rest leave it empty. Supplying a non-empty account proof always verifies it, regardless of the cache.
 
 `msg_.proofHeight` must use revision number `0` and identify a stored consensus state hash.
 

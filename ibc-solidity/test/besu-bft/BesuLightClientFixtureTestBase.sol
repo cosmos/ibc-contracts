@@ -141,20 +141,74 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         client.verifyNonMembership(message);
     }
 
-    function test_verifyNonMembership_revertEmptyAccountProof() public {
+    function test_verifyNonMembership_revertStorageRootNotCached() public {
         vm.warp(fixture.initialTrustedTimestamp + 1);
         client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
 
-        ILightClientMsgs.MsgVerifyNonMembership memory message =
-            _nonMembershipMessage(fixture.nonMembership.proofHeight);
+        uint64 proofHeight = fixture.nonMembership.proofHeight;
+        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.StorageRootNotInCache.selector, proofHeight));
+        client.verifyNonMembership(_cachedNonMembershipMessage(proofHeight));
+    }
+
+    /// @dev A verified account proof caches the storage root for the rest of the transaction, so later membership
+    /// and non-membership calls at the same height can omit the account proof.
+    function test_verifyMembership_cachesStorageRoot() public {
+        vm.warp(fixture.initialTrustedTimestamp + 1);
+        client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
+        client.verifyMembership(_membershipMessage(0, _singlePath(fixture.membership.path), fixture.membership.value));
+
+        uint256 membershipTimestamp = client.verifyMembership(_cachedMembershipMessage());
+        uint256 nonMembershipTimestamp =
+            client.verifyNonMembership(_cachedNonMembershipMessage(fixture.nonMembership.proofHeight));
+
+        assertEq(membershipTimestamp, fixture.membership.expectedTimestamp);
+        assertEq(nonMembershipTimestamp, fixture.nonMembership.expectedTimestamp);
+    }
+
+    function test_verifyNonMembership_cachesStorageRoot() public {
+        vm.warp(fixture.initialTrustedTimestamp + 1);
+        client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
+        client.verifyNonMembership(_nonMembershipMessage(fixture.nonMembership.proofHeight));
+
+        uint256 timestamp = client.verifyMembership(_cachedMembershipMessage());
+
+        assertEq(timestamp, fixture.membership.expectedTimestamp);
+    }
+
+    /// @dev The cache is keyed by height, so a root cached at one height must not serve another trusted height.
+    function test_verifyNonMembership_revertCachedStorageRootOtherHeight() public {
+        vm.warp(fixture.initialTrustedTimestamp + 1);
+        client.updateClient(_encodeUpdate(fixture.adjacentUpdate));
+        client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
+        client.verifyNonMembership(_nonMembershipMessage(fixture.nonMembership.proofHeight));
+
+        uint64 otherHeight = fixture.adjacentUpdate.height;
+        ILightClientMsgs.MsgVerifyNonMembership memory message = ILightClientMsgs.MsgVerifyNonMembership({
+            proof: _encodeProof(fixture.nonMembership, _expectedConsensusState(fixture.adjacentUpdate), new bytes[](0)),
+            proofHeight: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: otherHeight }),
+            path: _singlePath(fixture.nonMembership.path)
+        });
+
+        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.StorageRootNotInCache.selector, otherHeight));
+        client.verifyNonMembership(message);
+    }
+
+    /// @dev A cached root never bypasses verification of an account proof that is actually supplied.
+    function test_verifyMembership_revertTamperedAccountProofAfterCaching() public {
+        vm.warp(fixture.initialTrustedTimestamp + 1);
+        client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
+        client.verifyMembership(_membershipMessage(0, _singlePath(fixture.membership.path), fixture.membership.value));
+
+        ILightClientMsgs.MsgVerifyMembership memory message =
+            _membershipMessage(0, _singlePath(fixture.membership.path), fixture.membership.value);
         message.proof = _encodeProof(
-            fixture.nonMembership, _provenConsensusState(fixture.nonMembership.proofHeight), new bytes[](0)
+            fixture.membership, _provenConsensusState(fixture.membership.proofHeight), _tamperedAccountProof()
         );
 
         vm.expectRevert(
-            abi.encodeWithSelector(TrieProof.TrieProofTraversalError.selector, TrieProof.ProofError.INVALID_PROOF)
+            abi.encodeWithSelector(TrieProof.TrieProofTraversalError.selector, TrieProof.ProofError.INVALID_ROOT)
         );
-        client.verifyNonMembership(message);
+        client.verifyMembership(message);
     }
 
     function test_verifyNonMembership_revertUnknownHeight() public {
@@ -304,24 +358,18 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             expectedTimestamp: 0
         });
 
-        ILightClientMsgs.MsgVerifyMembership memory emptyAccountProofMessage =
-            _membershipMessage(0, _singlePath(fixture.membership.path), fixture.membership.value);
-        emptyAccountProofMessage.proof = _encodeProof(fixture.membership, expectedPreimage, new bytes[](0));
-
         testCases[6] = BesuMembershipTestCase({
-            name: "failure: empty account proof",
-            message: emptyAccountProofMessage,
+            name: "failure: storage root not cached",
+            message: _cachedMembershipMessage(),
             expectedRevert: abi.encodeWithSelector(
-                TrieProof.TrieProofTraversalError.selector, TrieProof.ProofError.INVALID_PROOF
+                IBesuLightClientErrors.StorageRootNotInCache.selector, fixture.membership.proofHeight
             ),
             expectedTimestamp: 0
         });
 
-        bytes[] memory tamperedAccountProof = abi.decode(fixture.membership.accountProof, (bytes[]));
-        tamperedAccountProof[0][0] ^= 0x01;
         ILightClientMsgs.MsgVerifyMembership memory tamperedAccountProofMessage =
             _membershipMessage(0, _singlePath(fixture.membership.path), fixture.membership.value);
-        tamperedAccountProofMessage.proof = _encodeProof(fixture.membership, expectedPreimage, tamperedAccountProof);
+        tamperedAccountProofMessage.proof = _encodeProof(fixture.membership, expectedPreimage, _tamperedAccountProof());
 
         testCases[7] = BesuMembershipTestCase({
             name: "failure: tampered account proof",
@@ -632,6 +680,32 @@ abstract contract BesuLightClientFixtureTestBase is Test {
                 proofNodes: abi.decode(proofFixture.proof, (bytes[]))
             })
         );
+    }
+
+    /// @dev Membership message that omits the account proof and relies on the transiently cached storage root.
+    function _cachedMembershipMessage() internal view returns (ILightClientMsgs.MsgVerifyMembership memory) {
+        ILightClientMsgs.MsgVerifyMembership memory message =
+            _membershipMessage(0, _singlePath(fixture.membership.path), fixture.membership.value);
+        message.proof =
+            _encodeProof(fixture.membership, _provenConsensusState(fixture.membership.proofHeight), new bytes[](0));
+        return message;
+    }
+
+    /// @dev Non-membership message that omits the account proof and relies on the transiently cached storage root.
+    function _cachedNonMembershipMessage(uint64 proofHeight)
+        internal
+        view
+        returns (ILightClientMsgs.MsgVerifyNonMembership memory)
+    {
+        ILightClientMsgs.MsgVerifyNonMembership memory message = _nonMembershipMessage(proofHeight);
+        message.proof = _encodeProof(fixture.nonMembership, _provenConsensusState(proofHeight), new bytes[](0));
+        return message;
+    }
+
+    /// @dev Fixture account proof whose root node no longer hashes to the trusted state root.
+    function _tamperedAccountProof() internal view returns (bytes[] memory nodes) {
+        nodes = abi.decode(fixture.membership.accountProof, (bytes[]));
+        nodes[0][0] ^= 0x01;
     }
 
     function _singlePath(bytes memory path) internal pure returns (bytes[] memory out) {
