@@ -48,9 +48,6 @@ interface IBesuLightClientErrors {
     error InvalidOmmersHash(bytes32 actualOmmersHash);
     /// @notice The validator set is empty.
     error EmptyValidatorSet();
-    /// @notice A validator address has an invalid byte length.
-    /// @param length The decoded validator address length.
-    error InvalidValidatorAddressLength(uint256 length);
     /// @notice A validator address is invalid.
     /// @param validator The invalid validator address.
     error InvalidValidatorAddress(address validator);

@@ -729,17 +729,6 @@
   },
   {
     "type": "error",
-    "name": "InvalidValidatorAddressLength",
-    "inputs": [
-      {
-        "name": "length",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ]
-  },
-  {
-    "type": "error",
     "name": "InvalidValueLength",
     "inputs": [
       {
