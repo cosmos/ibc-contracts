@@ -433,8 +433,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @param revisionHeight The revision height for the storage root.
     /// @param storageRoot The storage root to cache.
     function _cacheStorageRoot(address ibcRouter, uint64 revisionHeight, bytes32 storageRoot) internal {
-        bytes32 cacheKey = _cacheKey(ibcRouter, revisionHeight);
-        TransientSlot.asBytes32(cacheKey).tstore(storageRoot);
+        _cacheKey(ibcRouter, revisionHeight).tstore(storageRoot);
     }
 
     /// @notice Retrieves a cached storage root for a revision height from a transient slot.
@@ -442,8 +441,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @param revisionHeight The revision height for the storage root.
     /// @return The cached storage root, reverting if not found.
     function _getCachedStorageRoot(address ibcRouter, uint64 revisionHeight) internal view returns (bytes32) {
-        bytes32 cacheKey = _cacheKey(ibcRouter, revisionHeight);
-        bytes32 storageRoot = TransientSlot.asBytes32(cacheKey).tload();
+        bytes32 storageRoot = _cacheKey(ibcRouter, revisionHeight).tload();
         require(storageRoot != bytes32(0), StorageRootNotInCache(revisionHeight));
         return storageRoot;
     }
@@ -452,8 +450,8 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @param ibcRouter The ICS26 router address whose storageRoot was proven.
     /// @param revisionHeight The revision height for the cache key.
     /// @return The cache key.
-    function _cacheKey(address ibcRouter, uint64 revisionHeight) internal pure returns (bytes32) {
-        return keccak256(abi.encode(ibcRouter, revisionHeight));
+    function _cacheKey(address ibcRouter, uint64 revisionHeight) internal pure returns (TransientSlot.Bytes32Slot) {
+        return TransientSlot.asBytes32(keccak256(abi.encode(ibcRouter, revisionHeight)));
     }
 
     /// @notice Restricts access to proof submitters unless submission is open to anyone.
