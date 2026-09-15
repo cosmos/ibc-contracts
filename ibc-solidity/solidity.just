@@ -226,7 +226,7 @@ generate-abi: build-contracts
 	mkdir -p ../packages/go-abigen/besuqbft
 	abigen --abi abi/BesuQBFTLightClient.json --bin tmp/abigen/BesuQBFTLightClient.bin --pkg besuqbft --type Contract --out ../packages/go-abigen/besuqbft/contract.go
 	mkdir -p ../packages/go-abigen/besumsgs
-	abigen --abi abi/IBesuLightClientEncoding.json --pkg besumsgs --type Encoding --out ../packages/go-abigen/besumsgs/encoding.go
+	abigen --v2 --abi abi/IBesuLightClientEncoding.json --pkg besumsgs --type Bindings --out ../packages/go-abigen/besumsgs/bindings.go
 	abigen --abi abi/ERC1967Proxy.json --bin tmp/abigen/ERC1967Proxy.bin --pkg erc1967proxy --type Contract --out ../packages/go-abigen/erc1967proxy/contract.go
 	abigen --abi abi/EVMIFTSendCallConstructor.json --bin tmp/abigen/EVMIFTSendCallConstructor.bin --pkg evmiftsendcall --type Contract --out ../packages/go-abigen/evmiftsendcall/contract.go
 	rm -rf abi/bytecode

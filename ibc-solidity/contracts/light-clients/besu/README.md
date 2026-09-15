@@ -165,18 +165,29 @@ the production light client's `bytes` inputs and outputs; it is never deployed.
 
 Run `just solidity::generate-abi` from the repository root to regenerate
 `ibc-solidity/abi/IBesuLightClientEncoding.json` and
-`packages/go-abigen/besumsgs/encoding.go`.
+`packages/go-abigen/besumsgs/bindings.go` using `abigen --v2 --type Bindings`.
 Use the same `abigen` version pinned in `.github/workflows/abigen.yaml` (currently
-v1.17.2); newer versions can produce different generated output.
+v1.17.5); newer versions can produce different generated output.
 
-Use the generated Go structs with the hand-maintained `besumsgs.Encode*` and
-`Decode*` helpers in `packages/go-abigen/besumsgs/codec.go`.
-`ConsensusStateHash` computes the on-chain consensus state commitment;
-`EncodeProofNodes` handles the nested `abi.encode(bytes[])` account proof.
-These helpers encode wire values only; callers retain light-client policy checks.
+Create `besumsgs.NewBindings()` and use its generated Go structs and `Pack*` or
+`TryPack*` methods. These methods encode function calls, including a four-byte
+selector. **Remove the first four bytes** to obtain the `abi.encode(value)` payload
+expected by the light client:
 
-Do not use `ABI.Pack` or the generated contract call methods: the payload must be
-`abi.encode(value)`, without a function selector.
+```go
+bindings := besumsgs.NewBindings()
+encoded, err := bindings.TryPackProofNodes(nodes)
+if err != nil {
+    return nil, err
+}
+return encoded[4:], nil
+```
+
+The consensus state commitment is
+`crypto.Keccak256Hash(bindings.PackConsensusState(state)[4:])`.
+`Pack*` panics on invalid inputs; `TryPack*` returns an error. Callers retain
+light-client policy checks. The schema has no function return values, so it does
+not generate unpack helpers.
 
 ## Test fixtures
 

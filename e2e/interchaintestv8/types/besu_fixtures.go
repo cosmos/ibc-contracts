@@ -462,11 +462,7 @@ func fetchAccountProof(
 	if err != nil {
 		return nil, nil, fmt.Errorf("fetch account proof at height %d: %w", height, err)
 	}
-	proofRLP, err := encodeProofNodes(proof.AccountProof)
-	if err != nil {
-		return nil, nil, fmt.Errorf("encode account proof at height %d: %w", height, err)
-	}
-	return proof, proofRLP, nil
+	return proof, encodeProofNodes(proof.AccountProof), nil
 }
 
 func fetchStorageProof(
@@ -484,19 +480,16 @@ func fetchStorageProof(
 	if len(proof.StorageProof) != 1 {
 		return nil, fmt.Errorf("expected one storage proof at height %d, got %d", height, len(proof.StorageProof))
 	}
-	proofRLP, err := encodeProofNodes(proof.StorageProof[0].Proof)
-	if err != nil {
-		return nil, fmt.Errorf("encode storage proof at height %d: %w", height, err)
-	}
-	return proofRLP, nil
+	return encodeProofNodes(proof.StorageProof[0].Proof), nil
 }
 
-func encodeProofNodes(nodes []string) ([]byte, error) {
+func encodeProofNodes(nodes []string) []byte {
 	proofNodes := make([][]byte, len(nodes))
 	for i, node := range nodes {
 		proofNodes[i] = ethcommon.FromHex(node)
 	}
-	return besumsgs.EncodeProofNodes(proofNodes)
+	// The light client expects abi.encode(bytes[]), without the function selector.
+	return besumsgs.NewBindings().PackProofNodes(proofNodes)[4:]
 }
 
 func packetCommitment(packet ics26router.IICS26RouterMsgsPacket) []byte {

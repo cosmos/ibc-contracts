@@ -18,10 +18,38 @@ import (
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 
+	"github.com/cosmos/solidity-ibc-eureka/packages/go-abigen/besumsgs"
+
 	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/testvalues"
 )
 
 var updateBesuSynthetic = flag.Bool("update-besu-synthetic", false, "regenerate the synthetic Besu fixtures")
+
+func TestBesuProofNodesEncoding(t *testing.T) {
+	t.Chdir("../../..")
+	fixtureJSON, err := os.ReadFile(filepath.Join(testvalues.BesuBFTFixturesDir, "qbft.json"))
+	require.NoError(t, err)
+	var fixture besuFixture
+	require.NoError(t, json.Unmarshal(fixtureJSON, &fixture))
+	want := ethcommon.FromHex(fixture.NonAdjacentUpdate.AccountProof)
+
+	// Recover the input nodes from the independent Solidity fixture, then
+	// exercise the production helper, including its removal of the selector.
+	schema, err := besumsgs.BindingsMetaData.ParseABI()
+	require.NoError(t, err)
+	values, err := schema.Methods["proofNodes"].Inputs.Unpack(want)
+	require.NoError(t, err)
+	require.Len(t, values, 1)
+	nodes, ok := values[0].([][]byte)
+	require.True(t, ok, "proof nodes decoded as %T, want [][]byte", values[0])
+	require.NotEmpty(t, nodes)
+	hexNodes := make([]string, len(nodes))
+	for i, node := range nodes {
+		hexNodes[i] = encodeHex(node)
+	}
+	got := encodeProofNodes(hexNodes)
+	require.Equal(t, want, got)
+}
 
 func TestBesuIBFT2Fixture(t *testing.T) {
 	t.Chdir("../../..")
