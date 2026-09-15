@@ -157,6 +157,38 @@ where `IBCSTORE_STORAGE_SLOT` is the ERC-7201 namespace constant used by `IBCSto
 
 This verification supports packet timeout flows that prove the absence of a packet receipt on a Besu counterparty.
 
+## Generated Go payload types
+
+`scripts/IBesuLightClientEncoding.sol` is a generation-only interface referencing the
+`IBesuLightClientMsgs` structs. It exposes the tuple schemas that are hidden inside
+the production light client's `bytes` inputs and outputs; it is never deployed.
+
+Run `just solidity::generate-abi` from the repository root to regenerate
+`ibc-solidity/abi/IBesuLightClientEncoding.json` and
+`packages/go-abigen/besumsgs/bindings.go` using `abigen --v2 --type Bindings`.
+Use the same `abigen` version pinned in `.github/workflows/abigen.yaml` (currently
+v1.17.5); newer versions can produce different generated output.
+
+Create `besumsgs.NewBindings()` and use its generated Go structs and `Pack*` or
+`TryPack*` methods. These methods encode function calls, including a four-byte
+selector. **Remove the first four bytes** to obtain the `abi.encode(value)` payload
+expected by the light client:
+
+```go
+bindings := besumsgs.NewBindings()
+encoded, err := bindings.TryPackProofNodes(nodes)
+if err != nil {
+    return nil, err
+}
+return encoded[4:], nil
+```
+
+The consensus state commitment is
+`crypto.Keccak256Hash(bindings.PackConsensusState(state)[4:])`.
+`Pack*` panics on invalid inputs; `TryPack*` returns an error. Callers retain
+light-client policy checks. The schema has no function return values, so it does
+not generate unpack helpers.
+
 ## Test fixtures
 
 The Foundry fixtures under `test/besu-bft/fixtures/` can be regenerated from the focused Besu↔Besu e2e flow:
