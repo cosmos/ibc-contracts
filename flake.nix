@@ -48,6 +48,27 @@
           inherit anchor;
         };
         anchor-go = pkgs.callPackage ./nix/anchor-go.nix {};
+
+        # Always replace `ibc-solidity/node_modules` with the Nix-managed one so that the shell never
+        # picks up a stale local install, whether it is a symlink or a real directory.
+        #
+        # The hook only knows the caller's working directory, not where the flake was loaded from, so
+        # before deleting anything it checks that the directory is a checkout of this repository whose
+        # lockfile matches the one `node-modules` was built from. Running `nix develop <this repo>`
+        # from an unrelated checkout therefore leaves that checkout's `node_modules` untouched.
+        linkNodeModules = ''
+          if [ -d "${node-modules}/node_modules" ]; then
+            repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+            solidity_dir="$repo_root/ibc-solidity"
+            if cmp -s "${node-modules.src}/package.json" "$solidity_dir/package.json" \
+              && cmp -s "${node-modules.src}/bun.lock" "$solidity_dir/bun.lock"; then
+              rm -rf "$solidity_dir/node_modules"
+              ln -sfn "${node-modules}/node_modules" "$solidity_dir/node_modules"
+            else
+              echo "warning: $solidity_dir does not match this flake's ibc-solidity; leaving node_modules alone" >&2
+            fi
+          fi
+        '';
       in {
         devShells = {
           default = pkgs.mkShell {
@@ -68,11 +89,7 @@
             shellHook =
               rust.shellHook
               + ''
-                if [ -d "${node-modules}/node_modules" ]; then
-                  if [ ! -e ibc-solidity/node_modules ] || [ -L ibc-solidity/node_modules ]; then
-                    ln -sfn "${node-modules}/node_modules" ibc-solidity/node_modules
-                  fi
-                fi
+                ${linkNodeModules}
               '';
           };
 
@@ -87,11 +104,7 @@
             shellHook =
               rust.shellHook
               + ''
-                if [ -d "${node-modules}/node_modules" ]; then
-                  if [ ! -e ibc-solidity/node_modules ] || [ -L ibc-solidity/node_modules ]; then
-                    ln -sfn "${node-modules}/node_modules" ibc-solidity/node_modules
-                  fi
-                fi
+                ${linkNodeModules}
 
                 export PATH="${solana-agave}/bin:$PATH"
                 echo "Solana shell: solana, anchor-nix (build|test|unit-test|keys|deploy)"

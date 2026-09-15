@@ -86,7 +86,7 @@
   },
   {
     "type": "function",
-    "name": "getConsensusState",
+    "name": "getConsensusStateHash",
     "inputs": [
       {
         "name": "revisionHeight",
@@ -97,8 +97,8 @@
     "outputs": [
       {
         "name": "",
-        "type": "bytes",
-        "internalType": "bytes"
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "stateMutability": "view"
@@ -493,21 +493,26 @@
   },
   {
     "type": "error",
-    "name": "DuplicateCommitSealSigner",
+    "name": "ConsensusStatePreimageMismatch",
     "inputs": [
       {
-        "name": "signer",
-        "type": "address",
-        "internalType": "address"
+        "name": "expectedHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "actualHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ]
   },
   {
     "type": "error",
-    "name": "DuplicateValidator",
+    "name": "DuplicateCommitSealSigner",
     "inputs": [
       {
-        "name": "validator",
+        "name": "signer",
         "type": "address",
         "internalType": "address"
       }
@@ -724,17 +729,6 @@
   },
   {
     "type": "error",
-    "name": "InvalidValidatorAddressLength",
-    "inputs": [
-      {
-        "name": "length",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ]
-  },
-  {
-    "type": "error",
     "name": "InvalidValueLength",
     "inputs": [
       {
@@ -762,6 +756,17 @@
         "name": "err",
         "type": "uint8",
         "internalType": "enum TrieProof.ProofError"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "UnsortedValidatorSet",
+    "inputs": [
+      {
+        "name": "index",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ]
   },
