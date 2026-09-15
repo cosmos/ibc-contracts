@@ -60,7 +60,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @param ibcRouter Counterparty ICS26 router address whose storage is proven.
     /// @param initialTrustedHeight Initial trusted Besu height.
     /// @param initialTrustedTimestamp Initial trusted header timestamp in seconds.
-    /// @param initialTrustedStorageRoot Initial trusted storage root of `ibcRouter`.
+    /// @param initialTrustedStateRoot Initial trusted root of the state trie at `initialTrustedHeight`.
     /// @param initialTrustedValidators Initial trusted validator set.
     /// @param trustingPeriod Maximum age in seconds for trusted consensus states.
     /// @param maxClockDrift Maximum allowed future drift in seconds for submitted headers.
@@ -69,7 +69,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         address ibcRouter,
         uint64 initialTrustedHeight,
         uint64 initialTrustedTimestamp,
-        bytes32 initialTrustedStorageRoot,
+        bytes32 initialTrustedStateRoot,
         address[] memory initialTrustedValidators,
         uint64 trustingPeriod,
         uint64 maxClockDrift,
@@ -88,9 +88,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         });
 
         ConsensusState memory initialConsensusState = ConsensusState({
-            timestamp: initialTrustedTimestamp,
-            storageRoot: initialTrustedStorageRoot,
-            validators: initialTrustedValidators
+            timestamp: initialTrustedTimestamp, stateRoot: initialTrustedStateRoot, validators: initialTrustedValidators
         });
         consensusStateHashes[initialTrustedHeight] = keccak256(abi.encode(initialConsensusState));
 
@@ -143,10 +141,8 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         _checkTrustedValidatorOverlap(signers, msg_.consensusStatePreimage.validators);
         _checkValidatorQuorum(signers, header.validators);
 
-        bytes32 storageRoot = _verifyAccountProof(clientState.ibcRouter, header.stateRoot, msg_.accountProof);
-
         ConsensusState memory newConsensusState =
-            ConsensusState({ timestamp: header.timestamp, storageRoot: storageRoot, validators: header.validators });
+            ConsensusState({ timestamp: header.timestamp, stateRoot: header.stateRoot, validators: header.validators });
 
         bytes32 newHash = keccak256(abi.encode(newConsensusState));
         bytes32 existingHash = consensusStateHashes[header.height];
@@ -181,11 +177,13 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         MembershipProof memory proof = abi.decode(msg_.proof, (MembershipProof));
         _requireTrustedConsensusState(msg_.proofHeight.revisionHeight, proof.consensusStatePreimage);
 
+        bytes32 storageRoot =
+            _verifyAccountProof(clientState.ibcRouter, proof.consensusStatePreimage.stateRoot, proof.accountProofNodes);
+
         bytes32 storageSlot = _commitmentStorageSlot(msg_.path[0]);
         bytes memory storageKey = abi.encodePacked(keccak256(abi.encodePacked(storageSlot)));
 
-        bytes memory traversedValue =
-            TrieProof.traverse(proof.consensusStatePreimage.storageRoot, storageKey, proof.proofNodes);
+        bytes memory traversedValue = TrieProof.traverse(storageRoot, storageKey, proof.proofNodes);
 
         bytes32 actualValue = traversedValue.decodeBytes32();
         bytes32 expectedValue = bytes32(msg_.value);
@@ -207,13 +205,13 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         MembershipProof memory proof = abi.decode(msg_.proof, (MembershipProof));
         _requireTrustedConsensusState(msg_.proofHeight.revisionHeight, proof.consensusStatePreimage);
 
+        bytes32 storageRoot =
+            _verifyAccountProof(clientState.ibcRouter, proof.consensusStatePreimage.stateRoot, proof.accountProofNodes);
+
         bytes32 storageSlot = _commitmentStorageSlot(msg_.path[0]);
         bytes memory storageKey = abi.encodePacked(keccak256(abi.encodePacked(storageSlot)));
 
-        require(
-            TrieProof.verifyExclusion(proof.consensusStatePreimage.storageRoot, storageKey, proof.proofNodes),
-            InvalidExclusionProof()
-        );
+        require(TrieProof.verifyExclusion(storageRoot, storageKey, proof.proofNodes), InvalidExclusionProof());
 
         return proof.consensusStatePreimage.timestamp;
     }
@@ -274,19 +272,18 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @notice Verifies the tracked account proof against a header state root.
     /// @param account The account address being proven.
     /// @param stateRoot The header state root.
-    /// @param accountProof ABI-encoded account proof nodes (`abi.encode(bytes[])`).
+    /// @param proofNodes The ordered, RLP-encoded MPT nodes from the state trie proving the account.
     /// @return The proven account storage root.
     function _verifyAccountProof(
         address account,
         bytes32 stateRoot,
-        bytes memory accountProof
+        bytes[] memory proofNodes
     )
         internal
         pure
         returns (bytes32)
     {
         bytes memory accountKey = abi.encodePacked(keccak256(abi.encodePacked(account)));
-        bytes[] memory proofNodes = abi.decode(accountProof, (bytes[]));
         bytes memory accountRlp = TrieProof.traverse(stateRoot, accountKey, proofNodes);
         Memory.Slice[] memory accountItems = accountRlp.decodeList();
         return accountItems[2].readBytes32();
