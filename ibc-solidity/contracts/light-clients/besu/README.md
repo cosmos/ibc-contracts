@@ -166,8 +166,11 @@ the production light client's `bytes` inputs and outputs; it is never deployed.
 Run `just solidity::generate-abi` from the repository root to regenerate
 `ibc-solidity/abi/IBesuLightClientEncoding.json` and
 `packages/go-abigen/besumsgs/bindings.go` using `abigen --v2 --type Bindings`.
-Use the same `abigen` version pinned in `.github/workflows/abigen.yaml` (currently
-v1.17.5); newer versions can produce different generated output.
+The Nix development shell provides the `abigen` version CI uses (currently v1.17.5,
+built from `nix/abigen.nix`); other versions produce different generated output and
+the recipe refuses to run with them. When bumping abigen, update `nix/abigen.nix`,
+the pin in `.github/workflows/abigen.yaml`, and the version check in
+`ibc-solidity/solidity.just` together.
 
 Create `besumsgs.NewBindings()` and use its generated Go structs and `Pack*` or
 `TryPack*` methods. These methods encode function calls, including a four-byte
