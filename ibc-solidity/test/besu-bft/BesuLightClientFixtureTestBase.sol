@@ -57,8 +57,10 @@ struct BesuUpdateTestCase {
 }
 
 /// @dev Successful or rejected membership verification.
+/// @dev `timestamp` is the block timestamp at which the membership proof is verified.
 struct BesuMembershipTestCase {
     string name;
+    uint64 timestamp;
     ILightClientMsgs.MsgVerifyMembership message;
     bytes expectedRevert;
     uint64 expectedTimestamp;
@@ -153,6 +155,25 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         client.verifyNonMembership(message);
     }
 
+    function test_verifyNonMembership_revertExpired() public {
+        vm.warp(fixture.initialTrustedTimestamp + 1);
+        client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
+
+        uint64 provenTimestamp = _provenConsensusState(fixture.nonMembership.proofHeight).timestamp;
+        uint64 expiredAt = provenTimestamp + fixture.trustingPeriod;
+        vm.warp(expiredAt);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IBesuLightClientErrors.ConsensusStateExpired.selector,
+                provenTimestamp,
+                expiredAt,
+                fixture.trustingPeriod
+            )
+        );
+        client.verifyNonMembership(_nonMembershipMessage(fixture.nonMembership.proofHeight));
+    }
+
     function test_updateClient_noOpOnSameState() public {
         vm.warp(fixture.initialTrustedTimestamp + 1);
         client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
@@ -192,6 +213,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     function tableVerifyMembershipTest(BesuMembershipTestCase memory membership) public {
         vm.warp(fixture.initialTrustedTimestamp + 1);
         client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
+        vm.warp(membership.timestamp);
 
         if (membership.expectedRevert.length != 0) {
             vm.expectRevert(membership.expectedRevert);
@@ -223,27 +245,32 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         path[1] = fixture.nonMembership.path;
 
         bytes memory wrongValue = abi.encodePacked(bytes32(uint256(1)));
-        testCases = new BesuMembershipTestCase[](6);
+        uint64 timestamp = fixture.initialTrustedTimestamp + 1;
+        testCases = new BesuMembershipTestCase[](7);
         testCases[0] = BesuMembershipTestCase({
             name: "success",
+            timestamp: timestamp,
             message: _membershipMessage(0, _singlePath(fixture.membership.path), fixture.membership.value),
             expectedRevert: "",
             expectedTimestamp: fixture.membership.expectedTimestamp
         });
         testCases[1] = BesuMembershipTestCase({
             name: "failure: wrong revision number",
+            timestamp: timestamp,
             message: _membershipMessage(1, _singlePath(fixture.membership.path), fixture.membership.value),
             expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidRevisionNumber.selector, 1),
             expectedTimestamp: 0
         });
         testCases[2] = BesuMembershipTestCase({
             name: "failure: wrong path shape",
+            timestamp: timestamp,
             message: _membershipMessage(0, path, fixture.membership.value),
             expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidPathLength.selector, 1, 2),
             expectedTimestamp: 0
         });
         testCases[3] = BesuMembershipTestCase({
             name: "failure: wrong commitment value",
+            timestamp: timestamp,
             message: _membershipMessage(0, _singlePath(fixture.membership.path), wrongValue),
             expectedRevert: abi.encodeWithSelector(
                 IBesuLightClientErrors.InvalidCommitmentValue.selector,
@@ -264,6 +291,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
 
         testCases[4] = BesuMembershipTestCase({
             name: "failure: wrong consensus state preimage",
+            timestamp: timestamp,
             message: wrongPreimageMessage,
             expectedRevert: abi.encodeWithSelector(
                 IBesuLightClientErrors.ConsensusStatePreimageMismatch.selector,
@@ -280,9 +308,24 @@ abstract contract BesuLightClientFixtureTestBase is Test {
 
         testCases[5] = BesuMembershipTestCase({
             name: "failure: unknown proof height",
+            timestamp: timestamp,
             message: unknownHeightMessage,
             expectedRevert: abi.encodeWithSelector(
                 IBesuLightClientErrors.ConsensusStateNotFound.selector, unknownHeight
+            ),
+            expectedTimestamp: 0
+        });
+
+        uint64 expiredAt = expectedPreimage.timestamp + fixture.trustingPeriod;
+        testCases[6] = BesuMembershipTestCase({
+            name: "failure: expired consensus state",
+            timestamp: expiredAt,
+            message: _membershipMessage(0, _singlePath(fixture.membership.path), fixture.membership.value),
+            expectedRevert: abi.encodeWithSelector(
+                IBesuLightClientErrors.ConsensusStateExpired.selector,
+                expectedPreimage.timestamp,
+                expiredAt,
+                fixture.trustingPeriod
             ),
             expectedTimestamp: 0
         });
@@ -291,7 +334,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     function fixtureUpdate() public view returns (BesuUpdateTestCase[] memory testCases) {
         BesuUpdateFixture memory emptyExpectedState;
 
-        testCases = new BesuUpdateTestCase[](14);
+        testCases = new BesuUpdateTestCase[](15);
         testCases[0] = BesuUpdateTestCase({
             name: "success: valid adjacent update",
             timestamp: fixture.initialTrustedTimestamp + 1,
@@ -330,6 +373,19 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             expectedState: emptyExpectedState
         });
         testCases[4] = BesuUpdateTestCase({
+            name: "failure: trusted state expired at boundary",
+            timestamp: fixture.initialTrustedTimestamp + fixture.trustingPeriod,
+            update: _encodeUpdate(fixture.nonAdjacentUpdate),
+            preUpdate: "",
+            expectedRevert: abi.encodeWithSelector(
+                IBesuLightClientErrors.ConsensusStateExpired.selector,
+                fixture.initialTrustedTimestamp,
+                fixture.initialTrustedTimestamp + fixture.trustingPeriod,
+                fixture.trustingPeriod
+            ),
+            expectedState: emptyExpectedState
+        });
+        testCases[5] = BesuUpdateTestCase({
             name: "failure: insufficient trusted overlap",
             timestamp: fixture.initialTrustedTimestamp + 1,
             update: _encodeUpdate(fixture.lowOverlapUpdate),
@@ -339,7 +395,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             ),
             expectedState: emptyExpectedState
         });
-        testCases[5] = BesuUpdateTestCase({
+        testCases[6] = BesuUpdateTestCase({
             name: "failure: insufficient validator quorum",
             timestamp: fixture.initialTrustedTimestamp + 1,
             update: _encodeUpdate(fixture.lowQuorumUpdate),
@@ -352,7 +408,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             abi.decode(_encodeUpdate(fixture.nonAdjacentUpdate), (IBesuLightClientMsgs.MsgUpdateClient));
         wrongRevisionUpdate.trustedHeight.revisionNumber = 1;
 
-        testCases[6] = BesuUpdateTestCase({
+        testCases[7] = BesuUpdateTestCase({
             name: "failure: wrong revision number",
             timestamp: fixture.initialTrustedTimestamp + 1,
             update: abi.encode(wrongRevisionUpdate),
@@ -360,7 +416,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidRevisionNumber.selector, 1),
             expectedState: emptyExpectedState
         });
-        testCases[7] = BesuUpdateTestCase({
+        testCases[8] = BesuUpdateTestCase({
             name: "failure: conflicting same-height state",
             timestamp: fixture.initialTrustedTimestamp + 1,
             update: _encodeUpdate(fixture.conflictingUpdate),
@@ -375,7 +431,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             abi.decode(_encodeUpdate(fixture.nonAdjacentUpdate), (IBesuLightClientMsgs.MsgUpdateClient));
         unknownTrustedHeightUpdate.trustedHeight.revisionHeight = fixture.initialTrustedHeight + 1000;
 
-        testCases[8] = BesuUpdateTestCase({
+        testCases[9] = BesuUpdateTestCase({
             name: "failure: unknown trusted height",
             timestamp: fixture.initialTrustedTimestamp + 1,
             update: abi.encode(unknownTrustedHeightUpdate),
@@ -390,7 +446,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             abi.decode(_encodeUpdate(fixture.nonAdjacentUpdate), (IBesuLightClientMsgs.MsgUpdateClient));
         wrongPreimageUpdate.consensusStatePreimage.validators[0] = address(0xdead);
 
-        testCases[9] = BesuUpdateTestCase({
+        testCases[10] = BesuUpdateTestCase({
             name: "failure: wrong consensus state preimage",
             timestamp: fixture.initialTrustedTimestamp + 1,
             update: abi.encode(wrongPreimageUpdate),
@@ -403,7 +459,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             expectedState: emptyExpectedState
         });
 
-        testCases[10] = BesuUpdateTestCase({
+        testCases[11] = BesuUpdateTestCase({
             name: "failure: empty validators",
             timestamp: fixture.initialTrustedTimestamp + 1,
             update: _validatorsUpdate(new address[](0)),
@@ -414,7 +470,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
 
         address[] memory validators = fixture.nonAdjacentUpdate.expectedValidators;
         validators[0] = address(0);
-        testCases[11] = BesuUpdateTestCase({
+        testCases[12] = BesuUpdateTestCase({
             name: "failure: zero validator",
             timestamp: fixture.initialTrustedTimestamp + 1,
             update: _validatorsUpdate(validators),
@@ -425,7 +481,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
 
         validators = fixture.nonAdjacentUpdate.expectedValidators;
         (validators[1], validators[2]) = (validators[2], validators[1]);
-        testCases[12] = BesuUpdateTestCase({
+        testCases[13] = BesuUpdateTestCase({
             name: "failure: descending validators",
             timestamp: fixture.initialTrustedTimestamp + 1,
             update: _validatorsUpdate(validators),
@@ -436,7 +492,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
 
         validators = fixture.nonAdjacentUpdate.expectedValidators;
         validators[2] = validators[1];
-        testCases[13] = BesuUpdateTestCase({
+        testCases[14] = BesuUpdateTestCase({
             name: "failure: duplicate validators",
             timestamp: fixture.initialTrustedTimestamp + 1,
             update: _validatorsUpdate(validators),
