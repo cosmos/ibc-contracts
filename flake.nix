@@ -32,6 +32,20 @@
           overlays = [
             (import inputs.rust-overlay)
             inputs.foundry.overlay
+            # TODO: remove once shazow/foundry.nix adds libudev to foundry-bin's build inputs.
+            #
+            # Foundry >= 1.8.3 ships Linux `forge` and `cast` binaries that link against
+            # `libudev.so.1` (hardware-wallet HID support, see foundry-rs/foundry#16599).
+            # foundry.nix patches the prebuilt binaries with autoPatchelfHook but does not
+            # provide udev, so the derivation fails to build on Linux. Nothing changes on
+            # Darwin, where autoPatchelf is not used.
+            (final: prev: {
+              foundry-bin = prev.foundry-bin.overrideAttrs (old: {
+                buildInputs =
+                  (old.buildInputs or [])
+                  ++ prev.lib.optionals prev.stdenv.hostPlatform.isLinux [prev.udev];
+              });
+            })
             inputs.solc.overlay
             inputs.sp1.overlays.default
           ];
