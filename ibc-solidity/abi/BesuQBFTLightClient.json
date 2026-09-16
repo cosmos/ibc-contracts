@@ -718,6 +718,11 @@
   },
   {
     "type": "error",
+    "name": "InvalidTrustingPeriod",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "InvalidValidatorAddress",
     "inputs": [
       {
