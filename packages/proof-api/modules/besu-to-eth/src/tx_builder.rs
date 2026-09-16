@@ -144,8 +144,10 @@ impl TxBuilder {
     pub async fn relay_events(&self, params: RelayEventsParams) -> Result<Vec<u8>> {
         // Prove against the latest source block rather than the event heights. A Bonsai-backed
         // Besu node only serves `eth_getProof` for recent state, so historical event heights may
-        // already be pruned, whereas the latest block is always available. The proven commitments
-        // are still present at the latest block, and timeouts benefit from its later timestamp.
+        // already be pruned, whereas the latest block is always available. Packets that have
+        // already been completed on the source chain since their event was emitted are detected
+        // from the proven slot values and skipped instead of being sent as calls that would
+        // revert, and timeouts benefit from the later timestamp.
         let min_proof_height = params
             .src_events
             .iter()
@@ -217,6 +219,10 @@ impl TxBuilder {
                 format!("failed to fetch proofs for source router at height {proof_height}")
             })?;
         let storage_proofs = map_storage_proofs(&storage_keys, &proof.storage_proof)?;
+        retain_provable_packet_calls(&mut packet_calls, &storage_proofs)?;
+        if packet_calls.is_empty() {
+            bail!("all packets have already been completed on the source chain at height {proof_height}")
+        }
         attach_packet_proofs(
             &mut packet_calls,
             &proof.account_proof,
@@ -345,6 +351,66 @@ fn packet_storage_key(call: &routerCalls) -> B256 {
     evm_ics26_commitment_path(&path, U256::from_be_slice(&ICS26_IBC_STORAGE_SLOT)).into()
 }
 
+/// The `eth_getProof` result for a single storage slot of the source router.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StorageSlotProof {
+    /// The slot value at the proven height, zero when the slot is empty.
+    value: U256,
+    /// Ordered, RLP-encoded MPT nodes from the router account storage trie.
+    nodes: Vec<Bytes>,
+}
+
+/// Drops packet calls whose proof can no longer be verified against the proven source state.
+///
+/// Proofs are fetched at the latest source block, so a packet completed on the source chain after
+/// its event was emitted yields a proof of the opposite kind from what the router call needs.
+/// `ICS26Router` verifies the proof before its no-op checks, so such a call would revert the whole
+/// multicall instead of no-op'ing. Each dropped call is logged.
+fn retain_provable_packet_calls(
+    packet_calls: &mut Vec<routerCalls>,
+    storage_proofs: &HashMap<B256, StorageSlotProof>,
+) -> Result<()> {
+    let mut error = None;
+    packet_calls.retain(|call| {
+        let storage_key = packet_storage_key(call);
+        let Some(slot) = storage_proofs.get(&storage_key) else {
+            error.get_or_insert_with(|| anyhow!("missing storage proof for key {storage_key}"));
+            return false;
+        };
+        let slot_is_set = !slot.value.is_zero();
+        let (kind, packet, reason) = match call {
+            routerCalls::recvPacket(call) if !slot_is_set => (
+                "recvPacket",
+                &call.msg_.packet,
+                "packet commitment is absent from the source router; the packet was already acknowledged or timed out",
+            ),
+            routerCalls::ackPacket(call) if !slot_is_set => (
+                "ackPacket",
+                &call.msg_.packet,
+                "acknowledgement commitment is absent from the source router",
+            ),
+            routerCalls::timeoutPacket(call) if slot_is_set => (
+                "timeoutPacket",
+                &call.msg_.packet,
+                "packet receipt exists on the source router; the packet was received before it could time out",
+            ),
+            routerCalls::recvPacket(_) | routerCalls::ackPacket(_) | routerCalls::timeoutPacket(_) => {
+                return true;
+            }
+            _ => unreachable!("only recv, ack, and timeout calls are constructed"),
+        };
+        tracing::warn!(
+            kind,
+            source_client = %packet.sourceClient,
+            dest_client = %packet.destClient,
+            sequence = packet.sequence,
+            "skipping packet call: {reason}"
+        );
+        false
+    });
+    error.map_or(Ok(()), Err)
+}
+
 /// Attaches an `IBesuLightClientMsgs::MembershipProof` to every packet call, pairing the storage
 /// proof nodes for the packet's commitment slot with the consensus state they are verified against.
 ///
@@ -355,15 +421,16 @@ fn packet_storage_key(call: &routerCalls) -> B256 {
 fn attach_packet_proofs(
     packet_calls: &mut [routerCalls],
     account_proof: &[Bytes],
-    storage_proofs: &HashMap<B256, Vec<Bytes>>,
+    storage_proofs: &HashMap<B256, StorageSlotProof>,
     proven_state: &IBesuLightClientMsgs::ConsensusState,
 ) -> Result<()> {
     let mut account_proof = Some(account_proof);
     packet_calls.iter_mut().try_for_each(|call| {
         let storage_key = packet_storage_key(call);
-        let proof_nodes = storage_proofs
+        let proof_nodes = &storage_proofs
             .get(&storage_key)
-            .ok_or_else(|| anyhow!("missing storage proof for key {storage_key}"))?;
+            .ok_or_else(|| anyhow!("missing storage proof for key {storage_key}"))?
+            .nodes;
         let proof: Bytes = IBesuLightClientMsgs::MembershipProof {
             consensusStatePreimage: proven_state.clone(),
             accountProofNodes: account_proof
@@ -385,11 +452,11 @@ fn attach_packet_proofs(
     })
 }
 
-/// Indexes storage proof nodes by slot key, requiring exactly one proof per expected key.
+/// Indexes storage slot proofs by slot key, requiring exactly one proof per expected key.
 fn map_storage_proofs(
     expected_keys: &[B256],
     storage_proofs: &[EIP1186StorageProof],
-) -> Result<HashMap<B256, Vec<Bytes>>> {
+) -> Result<HashMap<B256, StorageSlotProof>> {
     let expected_keys = expected_keys.iter().copied().collect::<HashSet<_>>();
     let proofs = storage_proofs.iter().try_fold(
         HashMap::with_capacity(expected_keys.len()),
@@ -399,8 +466,12 @@ fn map_storage_proofs(
                 expected_keys.contains(&key),
                 "unexpected storage proof key {key}"
             );
+            let slot = StorageSlotProof {
+                value: storage_proof.value,
+                nodes: storage_proof.proof.clone(),
+            };
             ensure!(
-                proofs.insert(key, storage_proof.proof.clone()).is_none(),
+                proofs.insert(key, slot).is_none(),
                 "duplicate storage proof key {key}"
             );
             Ok(proofs)
@@ -480,7 +551,10 @@ fn extract_validators_from_extra_data(extra_data: &[u8]) -> Result<Vec<Address>>
 mod tests {
     use std::collections::HashMap;
 
-    use super::{attach_packet_proofs, map_storage_proofs, packet_storage_key};
+    use super::{
+        attach_packet_proofs, map_storage_proofs, packet_storage_key, retain_provable_packet_calls,
+        StorageSlotProof,
+    };
     use alloy::{
         primitives::{Address, Bytes, B256, U256},
         rpc::types::EIP1186StorageProof,
@@ -488,28 +562,128 @@ mod tests {
     };
     use ibc_eureka_solidity_types::{
         ics26::{
-            router::{recvPacketCall, routerCalls},
+            router::{ackPacketCall, recvPacketCall, routerCalls, timeoutPacketCall},
             IICS02ClientMsgs::Height,
-            IICS26RouterMsgs::{MsgRecvPacket, Packet},
+            IICS26RouterMsgs::{MsgAckPacket, MsgRecvPacket, MsgTimeoutPacket, Packet},
         },
         msgs::IBesuLightClientMsgs,
     };
 
+    fn packet(sequence: u64) -> Packet {
+        Packet {
+            sequence,
+            sourceClient: "client-0".to_string(),
+            destClient: "client-1".to_string(),
+            timeoutTimestamp: 0,
+            payloads: vec![],
+        }
+    }
+
+    fn proof_height() -> Height {
+        Height {
+            revisionNumber: 0,
+            revisionHeight: 1,
+        }
+    }
+
+    fn recv_packet_call(sequence: u64) -> routerCalls {
+        routerCalls::recvPacket(recvPacketCall {
+            msg_: MsgRecvPacket {
+                packet: packet(sequence),
+                proofHeight: proof_height(),
+                proofCommitment: Bytes::default(),
+            },
+        })
+    }
+
+    fn ack_packet_call(sequence: u64) -> routerCalls {
+        routerCalls::ackPacket(ackPacketCall {
+            msg_: MsgAckPacket {
+                packet: packet(sequence),
+                acknowledgement: Bytes::from(vec![0x01]),
+                proofAcked: Bytes::default(),
+                proofHeight: proof_height(),
+            },
+        })
+    }
+
+    fn timeout_packet_call(sequence: u64) -> routerCalls {
+        routerCalls::timeoutPacket(timeoutPacketCall {
+            msg_: MsgTimeoutPacket {
+                packet: packet(sequence),
+                proofTimeout: Bytes::default(),
+                proofHeight: proof_height(),
+            },
+        })
+    }
+
+    fn sequence_of(call: &routerCalls) -> u64 {
+        match call {
+            routerCalls::recvPacket(call) => call.msg_.packet.sequence,
+            routerCalls::ackPacket(call) => call.msg_.packet.sequence,
+            routerCalls::timeoutPacket(call) => call.msg_.packet.sequence,
+            _ => unreachable!("only recv, ack, and timeout calls are constructed"),
+        }
+    }
+
+    fn decode_recv_proof(call: &routerCalls) -> IBesuLightClientMsgs::MembershipProof {
+        let routerCalls::recvPacket(call) = call else {
+            unreachable!("call kind is preserved");
+        };
+        IBesuLightClientMsgs::MembershipProof::abi_decode(&call.msg_.proofCommitment)
+            .expect("proof decodes as MembershipProof")
+    }
+
+    fn proven_state() -> IBesuLightClientMsgs::ConsensusState {
+        IBesuLightClientMsgs::ConsensusState {
+            timestamp: 7,
+            stateRoot: B256::repeat_byte(0xaa),
+            validators: vec![Address::repeat_byte(0x11)],
+        }
+    }
+
+    /// Builds one slot proof per call with a distinct single node, using `value` to pick the
+    /// proven slot value from the call's index.
+    fn slot_proofs(
+        calls: &[routerCalls],
+        value: impl Fn(usize) -> U256,
+    ) -> HashMap<B256, StorageSlotProof> {
+        calls
+            .iter()
+            .enumerate()
+            .map(|(i, call)| {
+                let slot = StorageSlotProof {
+                    value: value(i),
+                    nodes: vec![Bytes::from(vec![0xc1, u8::try_from(i).unwrap()])],
+                };
+                (packet_storage_key(call), slot)
+            })
+            .collect()
+    }
+
+    const SET: U256 = U256::from_limbs([1, 0, 0, 0]);
+
     #[test]
-    fn maps_storage_proof_nodes_by_key() {
+    fn maps_storage_proof_values_and_nodes_by_key() {
         let key = B256::from(U256::from(1));
         let nodes = vec![Bytes::from(vec![0xc2, 0x01, 0x02])];
         let mapped = map_storage_proofs(
             &[key],
             &[EIP1186StorageProof {
                 key: U256::from(1).into(),
-                value: U256::ZERO,
+                value: U256::from(42),
                 proof: nodes.clone(),
             }],
         )
         .unwrap();
 
-        assert_eq!(mapped[&key], nodes);
+        assert_eq!(
+            mapped[&key],
+            StorageSlotProof {
+                value: U256::from(42),
+                nodes,
+            }
+        );
     }
 
     #[test]
@@ -526,31 +700,42 @@ mod tests {
         assert!(map_storage_proofs(&[key], &[proof(U256::from(2))]).is_err());
     }
 
-    fn recv_packet_call(sequence: u64) -> routerCalls {
-        routerCalls::recvPacket(recvPacketCall {
-            msg_: MsgRecvPacket {
-                packet: Packet {
-                    sequence,
-                    sourceClient: "client-0".to_string(),
-                    destClient: "client-1".to_string(),
-                    timeoutTimestamp: 0,
-                    payloads: vec![],
-                },
-                proofHeight: Height {
-                    revisionNumber: 0,
-                    revisionHeight: 1,
-                },
-                proofCommitment: Bytes::default(),
-            },
-        })
+    #[test]
+    fn retains_recv_and_ack_calls_only_while_their_commitment_exists() {
+        let mut calls = vec![
+            recv_packet_call(1),
+            recv_packet_call(2),
+            ack_packet_call(3),
+            ack_packet_call(4),
+        ];
+        // Sequences 2 and 4 have been cleared on the source chain.
+        let storage_proofs = slot_proofs(&calls, |i| if i % 2 == 0 { SET } else { U256::ZERO });
+
+        retain_provable_packet_calls(&mut calls, &storage_proofs).unwrap();
+
+        assert_eq!(
+            calls.iter().map(sequence_of).collect::<Vec<_>>(),
+            vec![1, 3]
+        );
+        assert!(matches!(calls[0], routerCalls::recvPacket(_)));
+        assert!(matches!(calls[1], routerCalls::ackPacket(_)));
     }
 
-    fn decode_recv_proof(call: &routerCalls) -> IBesuLightClientMsgs::MembershipProof {
-        let routerCalls::recvPacket(call) = call else {
-            unreachable!("call kind is preserved");
-        };
-        IBesuLightClientMsgs::MembershipProof::abi_decode(&call.msg_.proofCommitment)
-            .expect("proof decodes as MembershipProof")
+    #[test]
+    fn retains_timeout_calls_only_while_no_receipt_exists() {
+        let mut calls = vec![timeout_packet_call(1), timeout_packet_call(2)];
+        // Sequence 1 was received on the source chain, so it can no longer time out.
+        let storage_proofs = slot_proofs(&calls, |i| if i == 0 { SET } else { U256::ZERO });
+
+        retain_provable_packet_calls(&mut calls, &storage_proofs).unwrap();
+
+        assert_eq!(calls.iter().map(sequence_of).collect::<Vec<_>>(), vec![2]);
+    }
+
+    #[test]
+    fn retain_rejects_missing_storage_proof() {
+        let mut calls = vec![recv_packet_call(1)];
+        assert!(retain_provable_packet_calls(&mut calls, &HashMap::default()).is_err());
     }
 
     #[test]
@@ -559,11 +744,7 @@ mod tests {
         let storage_key = packet_storage_key(&calls[0]);
         let nodes = vec![Bytes::from(vec![0xc2, 0x01, 0x02])];
         let account_nodes = vec![Bytes::from(vec![0xc3, 0x01, 0x02, 0x03])];
-        let proven_state = IBesuLightClientMsgs::ConsensusState {
-            timestamp: 7,
-            stateRoot: B256::repeat_byte(0xaa),
-            validators: vec![Address::repeat_byte(0x11)],
-        };
+        let proven_state = proven_state();
 
         assert!(
             attach_packet_proofs(
@@ -576,7 +757,13 @@ mod tests {
             "missing storage proof must be rejected"
         );
 
-        let storage_proofs = HashMap::from([(storage_key, nodes.clone())]);
+        let storage_proofs = HashMap::from([(
+            storage_key,
+            StorageSlotProof {
+                value: SET,
+                nodes: nodes.clone(),
+            },
+        )]);
         attach_packet_proofs(&mut calls, &account_nodes, &storage_proofs, &proven_state).unwrap();
 
         let proof = decode_recv_proof(&calls[0]);
@@ -596,19 +783,8 @@ mod tests {
             recv_packet_call(3),
         ];
         let account_nodes = vec![Bytes::from(vec![0xc3, 0x01, 0x02, 0x03])];
-        let proven_state = IBesuLightClientMsgs::ConsensusState {
-            timestamp: 7,
-            stateRoot: B256::repeat_byte(0xaa),
-            validators: vec![Address::repeat_byte(0x11)],
-        };
-        let storage_proofs = calls
-            .iter()
-            .enumerate()
-            .map(|(i, call)| {
-                let node = Bytes::from(vec![0xc1, u8::try_from(i).unwrap()]);
-                (packet_storage_key(call), vec![node])
-            })
-            .collect::<HashMap<_, _>>();
+        let proven_state = proven_state();
+        let storage_proofs = slot_proofs(&calls, |_| SET);
 
         attach_packet_proofs(&mut calls, &account_nodes, &storage_proofs, &proven_state).unwrap();
 
@@ -621,7 +797,7 @@ mod tests {
             );
             assert_eq!(
                 proof.proofNodes,
-                storage_proofs[&packet_storage_key(call)],
+                storage_proofs[&packet_storage_key(call)].nodes,
                 "every call carries its own storage proof"
             );
             assert_eq!(
@@ -629,5 +805,22 @@ mod tests {
                 proven_state.abi_encode()
             );
         }
+    }
+
+    #[test]
+    fn account_proof_moves_to_first_surviving_call_after_filtering() {
+        let mut calls = vec![recv_packet_call(1), recv_packet_call(2)];
+        let account_nodes = vec![Bytes::from(vec![0xc3, 0x01, 0x02, 0x03])];
+        // The first packet was already completed on the source chain.
+        let storage_proofs = slot_proofs(&calls, |i| if i == 0 { U256::ZERO } else { SET });
+
+        retain_provable_packet_calls(&mut calls, &storage_proofs).unwrap();
+        attach_packet_proofs(&mut calls, &account_nodes, &storage_proofs, &proven_state()).unwrap();
+
+        assert_eq!(calls.iter().map(sequence_of).collect::<Vec<_>>(), vec![2]);
+        assert_eq!(
+            decode_recv_proof(&calls[0]).accountProofNodes,
+            account_nodes
+        );
     }
 }
