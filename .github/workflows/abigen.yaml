@@ -42,7 +42,7 @@ jobs:
       - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
 
       - name: Install abigen
-        run: go install github.com/ethereum/go-ethereum/cmd/abigen@9621c6ad10934a01b5514886fb6fbd87640b6c05 # v1.17.5, keep in sync with nix/abigen.nix
+        run: go install github.com/ethereum/go-ethereum/cmd/abigen@9621c6ad10934a01b5514886fb6fbd87640b6c05 # v1.17.5
 
       - name: Generate contract artifacts
         run: just solidity::generate-abi
