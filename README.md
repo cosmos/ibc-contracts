@@ -110,7 +110,7 @@ This project is structured with the following directories:
 ### Ethereum Requirements
 
 - [Rust](https://rustup.rs/)
-- [Foundry v1.8.3](https://getfoundry.sh/introduction/installation) (`foundryup --install v1.8.3`)
+- [Foundry](https://getfoundry.sh/introduction/installation)
 - [Bun](https://bun.sh/)
 - [Just](https://just.systems/man/en/)
 - [SP1](https://docs.succinct.xyz/docs/sp1/getting-started/install) (_Note: Homebrew installations of rust may fail here_)

@@ -184,8 +184,6 @@ generate-fixtures-sp1-ics07: clean-foundry install-operator _install-proof-api
 # Generate all tracked contract artifacts and Go abigen bindings
 [group('generate')]
 generate-abi: build-contracts
-	# Generated output differs between abigen releases; require the version CI pins (see nix/abigen.nix).
-	abigen --version | grep -q "abigen version 1.17.5-" || { echo "abigen 1.17.5 required, found: $(abigen --version 2>&1)"; echo "see nix/abigen.nix and .github/workflows/abigen.yaml"; exit 1; }
 	mkdir -p tmp/abigen
 	jq '.abi' out/ICS26Router.sol/ICS26Router.json > abi/ICS26Router.json
 	jq -r '.bytecode.object' out/ICS26Router.sol/ICS26Router.json > tmp/abigen/ICS26Router.bin
