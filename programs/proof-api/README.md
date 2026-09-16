@@ -164,7 +164,9 @@ Optional parameters:
 Operational notes:
 - `consensus_type` is fixed by module config and only affects `CreateClient` wrapper selection.
 - `UpdateClient` is a single direct Besu update. No catch-up or intermediate-header search is performed.
-- `RelayByTx` uses real Besu proofs: full header RLP, one account proof in the client update, and storage proofs for recv/ack/timeout packet verification.
+- `RelayByTx` uses real Besu proofs: the full header RLP in the client update, and a `MembershipProof` per packet call carrying the consensus state preimage and the storage proof for recv/ack/timeout verification. The client update carries no account proof.
+- `RelayByTx` fetches `eth_getProof` at the latest source block rather than at the event heights, so it keeps working after a Bonsai-backed Besu node has pruned the state at those heights. Packets that were already completed on the source chain by then (a recv whose commitment is gone, a timeout whose receipt exists) are skipped with a warning instead of being included as calls that would revert; if nothing is left, the request fails.
+- Within a batch only the first packet call carries the router account proof. The destination light client caches the proven storage root in transient storage for the remaining calls, so the destination chain must have Cancun (EIP-1153) enabled. See `ibc-solidity/contracts/light-clients/besu/README.md`.
 
 ## Using the gRPC API
 

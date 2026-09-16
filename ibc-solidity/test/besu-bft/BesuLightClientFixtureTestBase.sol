@@ -15,15 +15,15 @@ import { BesuQBFTLightClient } from "../../contracts/light-clients/besu/BesuQBFT
 import { IBesuLightClient } from "../../contracts/light-clients/besu/interfaces/IBesuLightClient.sol";
 import { IBesuLightClientMsgs } from "../../contracts/light-clients/besu/msgs/IBesuLightClientMsgs.sol";
 import { IBesuLightClientErrors } from "../../contracts/light-clients/besu/errors/IBesuLightClientErrors.sol";
+import { TrieProof } from "../../contracts/utils/TrieProof.sol";
 
 /// @dev Successful update input and expected consensus state.
 struct BesuUpdateFixture {
     uint64 height;
     bytes headerRlp;
     uint64 trustedHeight;
-    bytes accountProof;
     uint64 expectedTimestamp;
-    bytes32 expectedStorageRoot;
+    bytes32 expectedStateRoot;
     address[] expectedValidators;
 }
 
@@ -32,14 +32,15 @@ struct BesuRejectionUpdateFixture {
     uint64 height;
     bytes headerRlp;
     uint64 trustedHeight;
-    bytes accountProof;
 }
 
 /// @dev Membership or non-membership storage proof and expected timestamp.
-/// @dev `proof` holds the raw storage proof nodes as `abi.encode(bytes[])`; the tests wrap them into
-/// `IBesuLightClientMsgs.MembershipProof` together with the consensus state preimage for `proofHeight`.
+/// @dev `proof` holds the raw storage proof nodes and `accountProof` the raw account proof nodes, both as
+/// `abi.encode(bytes[])`; the tests wrap them into `IBesuLightClientMsgs.MembershipProof` together with the
+/// consensus state preimage for `proofHeight`.
 struct BesuProofFixture {
     bytes proof;
+    bytes accountProof;
     uint64 proofHeight;
     bytes path;
     bytes value;
@@ -66,12 +67,33 @@ struct BesuMembershipTestCase {
     uint64 expectedTimestamp;
 }
 
+/// @dev Successful or rejected non-membership verification.
+struct BesuNonMembershipTestCase {
+    string name;
+    ILightClientMsgs.MsgVerifyNonMembership message;
+    bytes expectedRevert;
+    uint64 expectedTimestamp;
+}
+
+/// @dev Proof verification that relies on a storage root cached by an earlier verification in the same transaction.
+/// @dev The cache is primed by a membership or non-membership verification at `fixture.nonAdjacentUpdate.height`;
+/// `proof` is the `abi.encode(IBesuLightClientMsgs.MembershipProof)` carried by the second call.
+struct BesuCachedStorageRootTestCase {
+    string name;
+    bool primeWithMembership;
+    bool verifyMembership;
+    bytes proof;
+    uint64 proofHeight;
+    bytes expectedRevert;
+    uint64 expectedTimestamp;
+}
+
 /// @dev Complete fixture shared by the Besu BFT light-client tests.
 struct BesuFixture {
     address routerAddress;
     uint64 initialTrustedHeight;
     uint64 initialTrustedTimestamp;
-    bytes32 initialTrustedStorageRoot;
+    bytes32 initialTrustedStateRoot;
     address[] initialTrustedValidators;
     uint64 trustingPeriod;
     uint64 maxClockDrift;
@@ -113,46 +135,48 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         client.getConsensusStateHash(unknownHeight);
     }
 
-    function test_verifyNonMembership() public {
+    function tableVerifyNonMembershipTest(BesuNonMembershipTestCase memory nonMembership) public {
         vm.warp(fixture.initialTrustedTimestamp + 1);
         client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
 
-        uint256 timestamp = client.verifyNonMembership(_nonMembershipMessage(fixture.nonMembership.proofHeight));
+        if (nonMembership.expectedRevert.length != 0) {
+            vm.expectRevert(nonMembership.expectedRevert);
+        }
+        uint256 timestamp = client.verifyNonMembership(nonMembership.message);
 
-        assertEq(timestamp, fixture.nonMembership.expectedTimestamp);
+        if (nonMembership.expectedRevert.length == 0) {
+            assertEq(timestamp, nonMembership.expectedTimestamp);
+        }
     }
 
-    function test_verifyNonMembership_revertWrongPreimage() public {
+    /// @dev Primes the transient storage root cache with one verified proof, then verifies a second proof that
+    /// relies on the cache within the same transaction.
+    function tableCachedStorageRootTest(BesuCachedStorageRootTestCase memory cachedStorageRoot) public {
         vm.warp(fixture.initialTrustedTimestamp + 1);
+        client.updateClient(_encodeUpdate(fixture.adjacentUpdate));
         client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
+        if (cachedStorageRoot.primeWithMembership) {
+            client.verifyMembership(
+                _membershipMessage(0, _singlePath(fixture.membership.path), fixture.membership.value)
+            );
+        } else {
+            client.verifyNonMembership(_nonMembershipMessage(fixture.nonMembership.proofHeight));
+        }
 
-        IBesuLightClientMsgs.ConsensusState memory tampered = _provenConsensusState(fixture.nonMembership.proofHeight);
-        tampered.storageRoot = bytes32(uint256(tampered.storageRoot) ^ 1);
-        ILightClientMsgs.MsgVerifyNonMembership memory message =
-            _nonMembershipMessage(fixture.nonMembership.proofHeight);
-        message.proof = _encodeProof(fixture.nonMembership, tampered);
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IBesuLightClientErrors.ConsensusStatePreimageMismatch.selector,
-                _consensusStateHash(_provenConsensusState(fixture.nonMembership.proofHeight)),
-                _consensusStateHash(tampered)
+        if (cachedStorageRoot.expectedRevert.length != 0) {
+            vm.expectRevert(cachedStorageRoot.expectedRevert);
+        }
+        uint256 timestamp = cachedStorageRoot.verifyMembership
+            ? client.verifyMembership(
+                _membershipMessageWithProof(cachedStorageRoot.proof, cachedStorageRoot.proofHeight)
             )
-        );
-        client.verifyNonMembership(message);
-    }
+            : client.verifyNonMembership(
+                _nonMembershipMessageWithProof(cachedStorageRoot.proof, cachedStorageRoot.proofHeight)
+            );
 
-    function test_verifyNonMembership_revertUnknownHeight() public {
-        vm.warp(fixture.initialTrustedTimestamp + 1);
-        client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
-
-        uint64 unknownHeight = fixture.nonMembership.proofHeight + 1000;
-        ILightClientMsgs.MsgVerifyNonMembership memory message =
-            _nonMembershipMessage(fixture.nonMembership.proofHeight);
-        message.proofHeight.revisionHeight = unknownHeight;
-
-        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.ConsensusStateNotFound.selector, unknownHeight));
-        client.verifyNonMembership(message);
+        if (cachedStorageRoot.expectedRevert.length == 0) {
+            assertEq(timestamp, cachedStorageRoot.expectedTimestamp);
+        }
     }
 
     function test_verifyNonMembership_revertExpired() public {
@@ -246,7 +270,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
 
         bytes memory wrongValue = abi.encodePacked(bytes32(uint256(1)));
         uint64 timestamp = fixture.initialTrustedTimestamp + 1;
-        testCases = new BesuMembershipTestCase[](7);
+        testCases = new BesuMembershipTestCase[](9);
         testCases[0] = BesuMembershipTestCase({
             name: "success",
             timestamp: timestamp,
@@ -326,6 +350,167 @@ abstract contract BesuLightClientFixtureTestBase is Test {
                 expectedPreimage.timestamp,
                 expiredAt,
                 fixture.trustingPeriod
+            ),
+            expectedTimestamp: 0
+        });
+
+        testCases[7] = BesuMembershipTestCase({
+            name: "failure: storage root not cached",
+            timestamp: timestamp,
+            message: _membershipMessageWithProof(
+                _cachedProof(fixture.membership, expectedPreimage), fixture.membership.proofHeight
+            ),
+            expectedRevert: abi.encodeWithSelector(
+                IBesuLightClientErrors.StorageRootNotInCache.selector, fixture.membership.proofHeight
+            ),
+            expectedTimestamp: 0
+        });
+
+        ILightClientMsgs.MsgVerifyMembership memory tamperedAccountProofMessage =
+            _membershipMessage(0, _singlePath(fixture.membership.path), fixture.membership.value);
+        tamperedAccountProofMessage.proof = _encodeProof(fixture.membership, expectedPreimage, _tamperedAccountProof());
+
+        testCases[8] = BesuMembershipTestCase({
+            name: "failure: tampered account proof",
+            timestamp: timestamp,
+            message: tamperedAccountProofMessage,
+            expectedRevert: abi.encodeWithSelector(
+                TrieProof.TrieProofTraversalError.selector, TrieProof.ProofError.INVALID_ROOT
+            ),
+            expectedTimestamp: 0
+        });
+    }
+
+    function fixtureNonMembership() public view returns (BesuNonMembershipTestCase[] memory testCases) {
+        uint64 proofHeight = fixture.nonMembership.proofHeight;
+        IBesuLightClientMsgs.ConsensusState memory expectedPreimage = _provenConsensusState(proofHeight);
+
+        testCases = new BesuNonMembershipTestCase[](6);
+        testCases[0] = BesuNonMembershipTestCase({
+            name: "success",
+            message: _nonMembershipMessage(proofHeight),
+            expectedRevert: "",
+            expectedTimestamp: fixture.nonMembership.expectedTimestamp
+        });
+
+        ILightClientMsgs.MsgVerifyNonMembership memory wrongRevisionMessage = _nonMembershipMessage(proofHeight);
+        wrongRevisionMessage.proofHeight.revisionNumber = 1;
+        testCases[1] = BesuNonMembershipTestCase({
+            name: "failure: wrong revision number",
+            message: wrongRevisionMessage,
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidRevisionNumber.selector, 1),
+            expectedTimestamp: 0
+        });
+
+        ILightClientMsgs.MsgVerifyNonMembership memory wrongPathMessage = _nonMembershipMessage(proofHeight);
+        wrongPathMessage.path = new bytes[](2);
+        wrongPathMessage.path[0] = fixture.nonMembership.path;
+        wrongPathMessage.path[1] = fixture.membership.path;
+        testCases[2] = BesuNonMembershipTestCase({
+            name: "failure: wrong path shape",
+            message: wrongPathMessage,
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidPathLength.selector, 1, 2),
+            expectedTimestamp: 0
+        });
+
+        IBesuLightClientMsgs.ConsensusState memory tamperedPreimage = _provenConsensusState(proofHeight);
+        tamperedPreimage.stateRoot = bytes32(uint256(tamperedPreimage.stateRoot) ^ 1);
+        testCases[3] = BesuNonMembershipTestCase({
+            name: "failure: wrong consensus state preimage",
+            message: _nonMembershipMessageWithProof(_encodeProof(fixture.nonMembership, tamperedPreimage), proofHeight),
+            expectedRevert: abi.encodeWithSelector(
+                IBesuLightClientErrors.ConsensusStatePreimageMismatch.selector,
+                _consensusStateHash(expectedPreimage),
+                _consensusStateHash(tamperedPreimage)
+            ),
+            expectedTimestamp: 0
+        });
+
+        uint64 unknownHeight = proofHeight + 1000;
+        ILightClientMsgs.MsgVerifyNonMembership memory unknownHeightMessage = _nonMembershipMessage(proofHeight);
+        unknownHeightMessage.proofHeight.revisionHeight = unknownHeight;
+        testCases[4] = BesuNonMembershipTestCase({
+            name: "failure: unknown proof height",
+            message: unknownHeightMessage,
+            expectedRevert: abi.encodeWithSelector(
+                IBesuLightClientErrors.ConsensusStateNotFound.selector, unknownHeight
+            ),
+            expectedTimestamp: 0
+        });
+
+        testCases[5] = BesuNonMembershipTestCase({
+            name: "failure: storage root not cached",
+            message: _nonMembershipMessageWithProof(_cachedProof(fixture.nonMembership, expectedPreimage), proofHeight),
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.StorageRootNotInCache.selector, proofHeight),
+            expectedTimestamp: 0
+        });
+    }
+
+    function fixtureCachedStorageRoot() public view returns (BesuCachedStorageRootTestCase[] memory testCases) {
+        uint64 proofHeight = fixture.nonMembership.proofHeight;
+        IBesuLightClientMsgs.ConsensusState memory preimage = _provenConsensusState(proofHeight);
+        bytes memory cachedMembershipProof = _cachedProof(fixture.membership, preimage);
+        bytes memory cachedNonMembershipProof = _cachedProof(fixture.nonMembership, preimage);
+
+        testCases = new BesuCachedStorageRootTestCase[](6);
+        testCases[0] = BesuCachedStorageRootTestCase({
+            name: "success: membership primes membership",
+            primeWithMembership: true,
+            verifyMembership: true,
+            proof: cachedMembershipProof,
+            proofHeight: proofHeight,
+            expectedRevert: "",
+            expectedTimestamp: fixture.membership.expectedTimestamp
+        });
+        testCases[1] = BesuCachedStorageRootTestCase({
+            name: "success: membership primes non-membership",
+            primeWithMembership: true,
+            verifyMembership: false,
+            proof: cachedNonMembershipProof,
+            proofHeight: proofHeight,
+            expectedRevert: "",
+            expectedTimestamp: fixture.nonMembership.expectedTimestamp
+        });
+        testCases[2] = BesuCachedStorageRootTestCase({
+            name: "success: non-membership primes membership",
+            primeWithMembership: false,
+            verifyMembership: true,
+            proof: cachedMembershipProof,
+            proofHeight: proofHeight,
+            expectedRevert: "",
+            expectedTimestamp: fixture.membership.expectedTimestamp
+        });
+        testCases[3] = BesuCachedStorageRootTestCase({
+            name: "success: non-membership primes non-membership",
+            primeWithMembership: false,
+            verifyMembership: false,
+            proof: cachedNonMembershipProof,
+            proofHeight: proofHeight,
+            expectedRevert: "",
+            expectedTimestamp: fixture.nonMembership.expectedTimestamp
+        });
+
+        // The cache is keyed by height, so a root cached at one height must not serve another trusted height.
+        uint64 otherHeight = fixture.adjacentUpdate.height;
+        testCases[4] = BesuCachedStorageRootTestCase({
+            name: "failure: other height not cached",
+            primeWithMembership: false,
+            verifyMembership: false,
+            proof: _cachedProof(fixture.nonMembership, _expectedConsensusState(fixture.adjacentUpdate)),
+            proofHeight: otherHeight,
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.StorageRootNotInCache.selector, otherHeight),
+            expectedTimestamp: 0
+        });
+
+        // A cached root never bypasses verification of an account proof that is actually supplied.
+        testCases[5] = BesuCachedStorageRootTestCase({
+            name: "failure: tampered account proof after caching",
+            primeWithMembership: true,
+            verifyMembership: true,
+            proof: _encodeProof(fixture.membership, preimage, _tamperedAccountProof()),
+            proofHeight: proofHeight,
+            expectedRevert: abi.encodeWithSelector(
+                TrieProof.TrieProofTraversalError.selector, TrieProof.ProofError.INVALID_ROOT
             ),
             expectedTimestamp: 0
         });
@@ -549,7 +734,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     function _initialConsensusState() internal view returns (IBesuLightClientMsgs.ConsensusState memory) {
         return IBesuLightClientMsgs.ConsensusState({
             timestamp: fixture.initialTrustedTimestamp,
-            storageRoot: fixture.initialTrustedStorageRoot,
+            stateRoot: fixture.initialTrustedStateRoot,
             validators: fixture.initialTrustedValidators
         });
     }
@@ -562,7 +747,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     {
         return IBesuLightClientMsgs.ConsensusState({
             timestamp: update.expectedTimestamp,
-            storageRoot: update.expectedStorageRoot,
+            stateRoot: update.expectedStateRoot,
             validators: update.expectedValidators
         });
     }
@@ -596,33 +781,24 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     }
 
     function _encodeUpdate(BesuUpdateFixture memory update) internal view returns (bytes memory) {
-        return _encodeUpdate(update.headerRlp, update.trustedHeight, update.accountProof);
+        return _encodeUpdate(update.headerRlp, update.trustedHeight);
     }
 
     function _encodeUpdate(BesuRejectionUpdateFixture memory update) internal view returns (bytes memory) {
-        return _encodeUpdate(update.headerRlp, update.trustedHeight, update.accountProof);
+        return _encodeUpdate(update.headerRlp, update.trustedHeight);
     }
 
-    function _encodeUpdate(
-        bytes memory headerRlp,
-        uint64 trustedHeight,
-        bytes memory accountProof
-    )
-        internal
-        view
-        returns (bytes memory)
-    {
+    function _encodeUpdate(bytes memory headerRlp, uint64 trustedHeight) internal view returns (bytes memory) {
         return abi.encode(
             IBesuLightClientMsgs.MsgUpdateClient({
                 headerRlp: headerRlp,
                 trustedHeight: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: trustedHeight }),
-                consensusStatePreimage: _trustedConsensusState(trustedHeight),
-                accountProof: accountProof
+                consensusStatePreimage: _trustedConsensusState(trustedHeight)
             })
         );
     }
 
-    /// @dev Wraps fixture storage proof nodes and a consensus state preimage into the client proof format.
+    /// @dev Wraps fixture account and storage proof nodes and a consensus state preimage into the client proof format.
     function _encodeProof(
         BesuProofFixture memory proofFixture,
         IBesuLightClientMsgs.ConsensusState memory preimage
@@ -631,11 +807,45 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         pure
         returns (bytes memory)
     {
+        return _encodeProof(proofFixture, preimage, abi.decode(proofFixture.accountProof, (bytes[])));
+    }
+
+    /// @dev Wraps fixture storage proof nodes, explicit account proof nodes, and a consensus state preimage into the
+    /// client proof format.
+    function _encodeProof(
+        BesuProofFixture memory proofFixture,
+        IBesuLightClientMsgs.ConsensusState memory preimage,
+        bytes[] memory accountProofNodes
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
         return abi.encode(
             IBesuLightClientMsgs.MembershipProof({
-                consensusStatePreimage: preimage, proofNodes: abi.decode(proofFixture.proof, (bytes[]))
+                consensusStatePreimage: preimage,
+                accountProofNodes: accountProofNodes,
+                proofNodes: abi.decode(proofFixture.proof, (bytes[]))
             })
         );
+    }
+
+    /// @dev Proof that omits the account proof and relies on the transiently cached storage root.
+    function _cachedProof(
+        BesuProofFixture memory proofFixture,
+        IBesuLightClientMsgs.ConsensusState memory preimage
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
+        return _encodeProof(proofFixture, preimage, new bytes[](0));
+    }
+
+    /// @dev Fixture account proof whose root node no longer hashes to the trusted state root.
+    function _tamperedAccountProof() internal view returns (bytes[] memory nodes) {
+        nodes = abi.decode(fixture.membership.accountProof, (bytes[]));
+        nodes[0][0] ^= 0x01;
     }
 
     function _singlePath(bytes memory path) internal pure returns (bytes[] memory out) {
@@ -662,13 +872,44 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         });
     }
 
+    /// @dev Membership message for the fixture path and value that carries an explicit proof and proof height.
+    function _membershipMessageWithProof(
+        bytes memory proof,
+        uint64 proofHeight
+    )
+        internal
+        view
+        returns (ILightClientMsgs.MsgVerifyMembership memory)
+    {
+        return ILightClientMsgs.MsgVerifyMembership({
+            proof: proof,
+            proofHeight: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: proofHeight }),
+            path: _singlePath(fixture.membership.path),
+            value: fixture.membership.value
+        });
+    }
+
     function _nonMembershipMessage(uint64 proofHeight)
         internal
         view
         returns (ILightClientMsgs.MsgVerifyNonMembership memory)
     {
+        return _nonMembershipMessageWithProof(
+            _encodeProof(fixture.nonMembership, _provenConsensusState(proofHeight)), proofHeight
+        );
+    }
+
+    /// @dev Non-membership message for the fixture path that carries an explicit proof and proof height.
+    function _nonMembershipMessageWithProof(
+        bytes memory proof,
+        uint64 proofHeight
+    )
+        internal
+        view
+        returns (ILightClientMsgs.MsgVerifyNonMembership memory)
+    {
         return ILightClientMsgs.MsgVerifyNonMembership({
-            proof: _encodeProof(fixture.nonMembership, _provenConsensusState(proofHeight)),
+            proof: proof,
             proofHeight: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: proofHeight }),
             path: _singlePath(fixture.nonMembership.path)
         });
@@ -683,7 +924,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             routerAddress: json.readAddress(".routerAddress"),
             initialTrustedHeight: uint64(json.readUint(".initialTrustedHeight")),
             initialTrustedTimestamp: uint64(json.readUint(".initialTrustedTimestamp")),
-            initialTrustedStorageRoot: json.readBytes32(".initialTrustedStorageRoot"),
+            initialTrustedStateRoot: json.readBytes32(".initialTrustedStateRoot"),
             initialTrustedValidators: abi.decode(json.parseRaw(".initialTrustedValidators"), (address[])),
             trustingPeriod: uint64(json.readUint(".trustingPeriod")),
             maxClockDrift: uint64(json.readUint(".maxClockDrift")),
@@ -702,9 +943,8 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             height: uint64(json.readUint(string.concat(path, ".height"))),
             headerRlp: json.readBytes(string.concat(path, ".headerRlp")),
             trustedHeight: uint64(json.readUint(string.concat(path, ".trustedHeight"))),
-            accountProof: json.readBytes(string.concat(path, ".accountProof")),
             expectedTimestamp: uint64(json.readUint(string.concat(path, ".expectedTimestamp"))),
-            expectedStorageRoot: json.readBytes32(string.concat(path, ".expectedStorageRoot")),
+            expectedStateRoot: json.readBytes32(string.concat(path, ".expectedStateRoot")),
             expectedValidators: abi.decode(json.parseRaw(string.concat(path, ".expectedValidators")), (address[]))
         });
     }
@@ -720,14 +960,14 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         return BesuRejectionUpdateFixture({
             height: uint64(json.readUint(string.concat(path, ".height"))),
             headerRlp: json.readBytes(string.concat(path, ".headerRlp")),
-            trustedHeight: uint64(json.readUint(string.concat(path, ".trustedHeight"))),
-            accountProof: json.readBytes(string.concat(path, ".accountProof"))
+            trustedHeight: uint64(json.readUint(string.concat(path, ".trustedHeight")))
         });
     }
 
     function _readProof(string memory json, string memory path) internal view returns (BesuProofFixture memory) {
         return BesuProofFixture({
             proof: json.readBytes(string.concat(path, ".proof")),
+            accountProof: json.readBytes(string.concat(path, ".accountProof")),
             proofHeight: uint64(json.readUint(string.concat(path, ".proofHeight"))),
             path: json.readBytes(string.concat(path, ".path")),
             value: json.keyExists(string.concat(path, ".value"))
@@ -742,7 +982,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             fixture.routerAddress,
             fixture.initialTrustedHeight,
             fixture.initialTrustedTimestamp,
-            fixture.initialTrustedStorageRoot,
+            fixture.initialTrustedStateRoot,
             fixture.initialTrustedValidators,
             fixture.trustingPeriod,
             fixture.maxClockDrift,
@@ -755,7 +995,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             fixture.routerAddress,
             fixture.initialTrustedHeight,
             fixture.initialTrustedTimestamp,
-            fixture.initialTrustedStorageRoot,
+            fixture.initialTrustedStateRoot,
             fixture.initialTrustedValidators,
             fixture.trustingPeriod,
             fixture.maxClockDrift,

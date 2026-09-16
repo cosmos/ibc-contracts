@@ -8,6 +8,7 @@ import { ECDSA } from "@openzeppelin-contracts/utils/cryptography/ECDSA.sol";
 import { RLP } from "@openzeppelin-contracts/utils/RLP.sol";
 import { TrieProof } from "../../utils/TrieProof.sol";
 import { Memory } from "@openzeppelin-contracts/utils/Memory.sol";
+import { TransientSlot } from "@openzeppelin-contracts/utils/TransientSlot.sol";
 
 import { ILightClient } from "../../interfaces/ILightClient.sol";
 import { ILightClientMsgs } from "../../msgs/ILightClientMsgs.sol";
@@ -20,6 +21,7 @@ import { IBesuLightClient } from "./interfaces/IBesuLightClient.sol";
 /// @notice Shared implementation for Besu BFT light clients that verify headers and EVM storage proofs.
 abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientErrors, IBesuLightClientMsgs, AccessControl {
     using RLP for *;
+    using TransientSlot for TransientSlot.Bytes32Slot;
 
     /// @notice Decoded fields from a submitted Besu header.
     /// @param headerItems Top-level RLP header fields.
@@ -60,7 +62,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @param ibcRouter Counterparty ICS26 router address whose storage is proven.
     /// @param initialTrustedHeight Initial trusted Besu height.
     /// @param initialTrustedTimestamp Initial trusted header timestamp in seconds.
-    /// @param initialTrustedStorageRoot Initial trusted storage root of `ibcRouter`.
+    /// @param initialTrustedStateRoot Initial trusted root of the state trie at `initialTrustedHeight`.
     /// @param initialTrustedValidators Initial trusted validator set.
     /// @param trustingPeriod Maximum age in seconds for trusted consensus states.
     /// @param maxClockDrift Maximum allowed future drift in seconds for submitted headers.
@@ -69,7 +71,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         address ibcRouter,
         uint64 initialTrustedHeight,
         uint64 initialTrustedTimestamp,
-        bytes32 initialTrustedStorageRoot,
+        bytes32 initialTrustedStateRoot,
         address[] memory initialTrustedValidators,
         uint64 trustingPeriod,
         uint64 maxClockDrift,
@@ -89,9 +91,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         });
 
         ConsensusState memory initialConsensusState = ConsensusState({
-            timestamp: initialTrustedTimestamp,
-            storageRoot: initialTrustedStorageRoot,
-            validators: initialTrustedValidators
+            timestamp: initialTrustedTimestamp, stateRoot: initialTrustedStateRoot, validators: initialTrustedValidators
         });
         consensusStateHashes[initialTrustedHeight] = keccak256(abi.encode(initialConsensusState));
 
@@ -139,10 +139,8 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         _checkTrustedValidatorOverlap(signers, msg_.consensusStatePreimage.validators);
         _checkValidatorQuorum(signers, header.validators);
 
-        bytes32 storageRoot = _verifyAccountProof(clientState.ibcRouter, header.stateRoot, msg_.accountProof);
-
         ConsensusState memory newConsensusState =
-            ConsensusState({ timestamp: header.timestamp, storageRoot: storageRoot, validators: header.validators });
+            ConsensusState({ timestamp: header.timestamp, stateRoot: header.stateRoot, validators: header.validators });
 
         bytes32 newHash = keccak256(abi.encode(newConsensusState));
         bytes32 existingHash = consensusStateHashes[header.height];
@@ -166,7 +164,6 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @inheritdoc ILightClient
     function verifyMembership(ILightClientMsgs.MsgVerifyMembership calldata msg_)
         external
-        view
         onlyProofSubmitter
         returns (uint256)
     {
@@ -177,11 +174,14 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         MembershipProof memory proof = abi.decode(msg_.proof, (MembershipProof));
         _requireTrustedConsensusState(msg_.proofHeight.revisionHeight, proof.consensusStatePreimage);
 
+        bytes32 storageRoot = _verifiedStorageRoot(
+            msg_.proofHeight.revisionHeight, proof.consensusStatePreimage.stateRoot, proof.accountProofNodes
+        );
+
         bytes32 storageSlot = _commitmentStorageSlot(msg_.path[0]);
         bytes memory storageKey = abi.encodePacked(keccak256(abi.encodePacked(storageSlot)));
 
-        bytes memory traversedValue =
-            TrieProof.traverse(proof.consensusStatePreimage.storageRoot, storageKey, proof.proofNodes);
+        bytes memory traversedValue = TrieProof.traverse(storageRoot, storageKey, proof.proofNodes);
 
         bytes32 actualValue = traversedValue.decodeBytes32();
         bytes32 expectedValue = bytes32(msg_.value);
@@ -193,7 +193,6 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @inheritdoc ILightClient
     function verifyNonMembership(ILightClientMsgs.MsgVerifyNonMembership calldata msg_)
         external
-        view
         onlyProofSubmitter
         returns (uint256)
     {
@@ -203,13 +202,14 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         MembershipProof memory proof = abi.decode(msg_.proof, (MembershipProof));
         _requireTrustedConsensusState(msg_.proofHeight.revisionHeight, proof.consensusStatePreimage);
 
+        bytes32 storageRoot = _verifiedStorageRoot(
+            msg_.proofHeight.revisionHeight, proof.consensusStatePreimage.stateRoot, proof.accountProofNodes
+        );
+
         bytes32 storageSlot = _commitmentStorageSlot(msg_.path[0]);
         bytes memory storageKey = abi.encodePacked(keccak256(abi.encodePacked(storageSlot)));
 
-        require(
-            TrieProof.verifyExclusion(proof.consensusStatePreimage.storageRoot, storageKey, proof.proofNodes),
-            InvalidExclusionProof()
-        );
+        require(TrieProof.verifyExclusion(storageRoot, storageKey, proof.proofNodes), InvalidExclusionProof());
 
         return proof.consensusStatePreimage.timestamp;
     }
@@ -267,22 +267,46 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         }
     }
 
+    /// @notice Returns the storage root for a revision height, verifying the account proof if provided.
+    /// @dev If the account proof is empty, the storage root is retrieved from a transient cache
+    /// which can only be populated by a previous call to this function with a non-empty account proof.
+    /// @param revisionHeight The revision height for the storage root.
+    /// @param stateRoot The header state root.
+    /// @param accountProofNodes The ordered, RLP-encoded MPT nodes from the state trie proving the account.
+    /// @return The storage root for the revision height.
+    function _verifiedStorageRoot(
+        uint64 revisionHeight,
+        bytes32 stateRoot,
+        bytes[] memory accountProofNodes
+    )
+        internal
+        returns (bytes32)
+    {
+        address counterpartyRouter = clientState.ibcRouter;
+        if (accountProofNodes.length == 0) {
+            return _getCachedStorageRoot(counterpartyRouter, revisionHeight);
+        }
+
+        bytes32 storageRoot = _verifyAccountProof(counterpartyRouter, stateRoot, accountProofNodes);
+        _cacheStorageRoot(counterpartyRouter, revisionHeight, storageRoot);
+        return storageRoot;
+    }
+
     /// @notice Verifies the tracked account proof against a header state root.
     /// @param account The account address being proven.
     /// @param stateRoot The header state root.
-    /// @param accountProof ABI-encoded account proof nodes (`abi.encode(bytes[])`).
+    /// @param proofNodes The ordered, RLP-encoded MPT nodes from the state trie proving the account.
     /// @return The proven account storage root.
     function _verifyAccountProof(
         address account,
         bytes32 stateRoot,
-        bytes memory accountProof
+        bytes[] memory proofNodes
     )
         internal
         pure
         returns (bytes32)
     {
         bytes memory accountKey = abi.encodePacked(keccak256(abi.encodePacked(account)));
-        bytes[] memory proofNodes = abi.decode(accountProof, (bytes[]));
         bytes memory accountRlp = TrieProof.traverse(stateRoot, accountKey, proofNodes);
         Memory.Slice[] memory accountItems = accountRlp.decodeList();
         return accountItems[2].readBytes32();
@@ -403,6 +427,32 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             }
         }
         return false;
+    }
+
+    /// @notice Caches a storage root for a revision height in a transient slot.
+    /// @param ibcRouter The ICS26 router address whose storageRoot was proven.
+    /// @param revisionHeight The revision height for the storage root.
+    /// @param storageRoot The storage root to cache.
+    function _cacheStorageRoot(address ibcRouter, uint64 revisionHeight, bytes32 storageRoot) internal {
+        _cacheKey(ibcRouter, revisionHeight).tstore(storageRoot);
+    }
+
+    /// @notice Retrieves a cached storage root for a revision height from a transient slot.
+    /// @param ibcRouter The ICS26 router address whose storageRoot was proven.
+    /// @param revisionHeight The revision height for the storage root.
+    /// @return The cached storage root, reverting if not found.
+    function _getCachedStorageRoot(address ibcRouter, uint64 revisionHeight) internal view returns (bytes32) {
+        bytes32 storageRoot = _cacheKey(ibcRouter, revisionHeight).tload();
+        require(storageRoot != bytes32(0), StorageRootNotInCache(revisionHeight));
+        return storageRoot;
+    }
+
+    /// @notice Computes a transient slot cache key for a revision height.
+    /// @param ibcRouter The ICS26 router address whose storageRoot was proven.
+    /// @param revisionHeight The revision height for the cache key.
+    /// @return The cache key.
+    function _cacheKey(address ibcRouter, uint64 revisionHeight) internal pure returns (TransientSlot.Bytes32Slot) {
+        return TransientSlot.asBytes32(keccak256(abi.encode(ibcRouter, revisionHeight)));
     }
 
     /// @notice Restricts access to proof submitters unless submission is open to anyone.

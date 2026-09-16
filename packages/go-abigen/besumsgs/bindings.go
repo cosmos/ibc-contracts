@@ -34,14 +34,15 @@ type IBesuLightClientMsgsClientState struct {
 
 // IBesuLightClientMsgsConsensusState is an auto generated low-level Go binding around an user-defined struct.
 type IBesuLightClientMsgsConsensusState struct {
-	Timestamp   uint64
-	StorageRoot [32]byte
-	Validators  []common.Address
+	Timestamp  uint64
+	StateRoot  [32]byte
+	Validators []common.Address
 }
 
 // IBesuLightClientMsgsMembershipProof is an auto generated low-level Go binding around an user-defined struct.
 type IBesuLightClientMsgsMembershipProof struct {
 	ConsensusStatePreimage IBesuLightClientMsgsConsensusState
+	AccountProofNodes      [][]byte
 	ProofNodes             [][]byte
 }
 
@@ -50,7 +51,6 @@ type IBesuLightClientMsgsMsgUpdateClient struct {
 	HeaderRlp              []byte
 	TrustedHeight          IICS02ClientMsgsHeight
 	ConsensusStatePreimage IBesuLightClientMsgsConsensusState
-	AccountProof           []byte
 }
 
 // IICS02ClientMsgsHeight is an auto generated low-level Go binding around an user-defined struct.
@@ -61,7 +61,7 @@ type IICS02ClientMsgsHeight struct {
 
 // BindingsMetaData contains all meta data concerning the Bindings contract.
 var BindingsMetaData = bind.MetaData{
-	ABI: "[{\"type\":\"function\",\"name\":\"clientState\",\"inputs\":[{\"name\":\"state\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ClientState\",\"components\":[{\"name\":\"ibcRouter\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"latestHeight\",\"type\":\"tuple\",\"internalType\":\"structIICS02ClientMsgs.Height\",\"components\":[{\"name\":\"revisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"name\":\"trustingPeriod\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"maxClockDrift\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]}],\"outputs\":[],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"consensusState\",\"inputs\":[{\"name\":\"state\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"storageRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]}],\"outputs\":[],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"membershipProof\",\"inputs\":[{\"name\":\"proof\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MembershipProof\",\"components\":[{\"name\":\"consensusStatePreimage\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"storageRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]},{\"name\":\"proofNodes\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"}]}],\"outputs\":[],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"proofNodes\",\"inputs\":[{\"name\":\"nodes\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"}],\"outputs\":[],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"updateClient\",\"inputs\":[{\"name\":\"message\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MsgUpdateClient\",\"components\":[{\"name\":\"headerRlp\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"trustedHeight\",\"type\":\"tuple\",\"internalType\":\"structIICS02ClientMsgs.Height\",\"components\":[{\"name\":\"revisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"name\":\"consensusStatePreimage\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"storageRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]},{\"name\":\"accountProof\",\"type\":\"bytes\",\"internalType\":\"bytes\"}]}],\"outputs\":[],\"stateMutability\":\"pure\"}]",
+	ABI: "[{\"type\":\"function\",\"name\":\"clientState\",\"inputs\":[{\"name\":\"state\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ClientState\",\"components\":[{\"name\":\"ibcRouter\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"latestHeight\",\"type\":\"tuple\",\"internalType\":\"structIICS02ClientMsgs.Height\",\"components\":[{\"name\":\"revisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"name\":\"trustingPeriod\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"maxClockDrift\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]}],\"outputs\":[],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"consensusState\",\"inputs\":[{\"name\":\"state\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]}],\"outputs\":[],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"membershipProof\",\"inputs\":[{\"name\":\"proof\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MembershipProof\",\"components\":[{\"name\":\"consensusStatePreimage\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]},{\"name\":\"accountProofNodes\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"},{\"name\":\"proofNodes\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"}]}],\"outputs\":[],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"proofNodes\",\"inputs\":[{\"name\":\"nodes\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"}],\"outputs\":[],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"updateClient\",\"inputs\":[{\"name\":\"message\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MsgUpdateClient\",\"components\":[{\"name\":\"headerRlp\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"trustedHeight\",\"type\":\"tuple\",\"internalType\":\"structIICS02ClientMsgs.Height\",\"components\":[{\"name\":\"revisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"name\":\"consensusStatePreimage\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]}]}],\"outputs\":[],\"stateMutability\":\"pure\"}]",
 	ID:  "Bindings",
 }
 
@@ -135,10 +135,10 @@ func (bindings *Bindings) TryPackConsensusState(state IBesuLightClientMsgsConsen
 }
 
 // PackMembershipProof is the Go binding used to pack the parameters required for calling
-// the contract method with ID 0x7feb0512.  This method will panic if any
+// the contract method with ID 0x723e4e38.  This method will panic if any
 // invalid/nil inputs are passed.
 //
-// Solidity: function membershipProof(((uint64,bytes32,address[]),bytes[]) proof) pure returns()
+// Solidity: function membershipProof(((uint64,bytes32,address[]),bytes[],bytes[]) proof) pure returns()
 func (bindings *Bindings) PackMembershipProof(proof IBesuLightClientMsgsMembershipProof) []byte {
 	enc, err := bindings.abi.Pack("membershipProof", proof)
 	if err != nil {
@@ -148,10 +148,10 @@ func (bindings *Bindings) PackMembershipProof(proof IBesuLightClientMsgsMembersh
 }
 
 // TryPackMembershipProof is the Go binding used to pack the parameters required for calling
-// the contract method with ID 0x7feb0512.  This method will return an error
+// the contract method with ID 0x723e4e38.  This method will return an error
 // if any inputs are invalid/nil.
 //
-// Solidity: function membershipProof(((uint64,bytes32,address[]),bytes[]) proof) pure returns()
+// Solidity: function membershipProof(((uint64,bytes32,address[]),bytes[],bytes[]) proof) pure returns()
 func (bindings *Bindings) TryPackMembershipProof(proof IBesuLightClientMsgsMembershipProof) ([]byte, error) {
 	return bindings.abi.Pack("membershipProof", proof)
 }
@@ -179,10 +179,10 @@ func (bindings *Bindings) TryPackProofNodes(nodes [][]byte) ([]byte, error) {
 }
 
 // PackUpdateClient is the Go binding used to pack the parameters required for calling
-// the contract method with ID 0x13823715.  This method will panic if any
+// the contract method with ID 0xa9ca8472.  This method will panic if any
 // invalid/nil inputs are passed.
 //
-// Solidity: function updateClient((bytes,(uint64,uint64),(uint64,bytes32,address[]),bytes) message) pure returns()
+// Solidity: function updateClient((bytes,(uint64,uint64),(uint64,bytes32,address[])) message) pure returns()
 func (bindings *Bindings) PackUpdateClient(message IBesuLightClientMsgsMsgUpdateClient) []byte {
 	enc, err := bindings.abi.Pack("updateClient", message)
 	if err != nil {
@@ -192,10 +192,10 @@ func (bindings *Bindings) PackUpdateClient(message IBesuLightClientMsgsMsgUpdate
 }
 
 // TryPackUpdateClient is the Go binding used to pack the parameters required for calling
-// the contract method with ID 0x13823715.  This method will return an error
+// the contract method with ID 0xa9ca8472.  This method will return an error
 // if any inputs are invalid/nil.
 //
-// Solidity: function updateClient((bytes,(uint64,uint64),(uint64,bytes32,address[]),bytes) message) pure returns()
+// Solidity: function updateClient((bytes,(uint64,uint64),(uint64,bytes32,address[])) message) pure returns()
 func (bindings *Bindings) TryPackUpdateClient(message IBesuLightClientMsgsMsgUpdateClient) ([]byte, error) {
 	return bindings.abi.Pack("updateClient", message)
 }
