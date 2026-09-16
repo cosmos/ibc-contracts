@@ -14,14 +14,14 @@ The client stores the `ClientState` and, per trusted height, only the `keccak256
 ```solidity
 struct ConsensusState {
     uint64 timestamp;
-    bytes32 storageRoot;
+    bytes32 stateRoot;
     address[] validators;
 }
 ```
 
 The full consensus state is **not** retrievable from the contract; `getConsensusStateHash(uint64)` on `IBesuLightClient` returns only the stored hash and reverts with `ConsensusStateNotFound` for unknown heights. Every `updateClient`, `verifyMembership`, and `verifyNonMembership` call must carry the preimage of the consensus state it relies on, and the contract checks it against the stored hash before use. A mismatch reverts with `ConsensusStatePreimageMismatch(expectedHash, actualHash)`; an unknown height reverts with `ConsensusStateNotFound(height)`.
 
-Relayers therefore need to keep the preimages of the heights they intend to reference, or rebuild them from the Besu chain: `timestamp` and `validators` come from the header at that height, and `storageRoot` is the tracked router account's storage hash from `eth_getProof` at that height.
+Relayers therefore need to keep the preimages of the heights they intend to reference, or rebuild them from the Besu chain: `timestamp`, `stateRoot`, and `validators` all come from the header at that height. Rebuilding a preimage never requires `eth_getProof`, so it keeps working for heights whose state a Bonsai-backed Besu node has already pruned.
 
 ## Verification model notes
 
@@ -37,6 +37,18 @@ Relayers therefore need to keep the preimages of the heights they intend to refe
 - Weak-subjectivity / **trusting-period** verification
 - Ethereum **account proofs** and **storage proofs**
 - Eureka commitment verification against the counterparty `ICS26Router` proxy account
+
+## Destination EVM requirements
+
+The Besu light clients are deployed on the **destination** EVM chain, next to that chain's `ICS26Router`. That chain must have the **Cancun** hard fork enabled, in particular [EIP-1153](https://eips.ethereum.org/EIPS/eip-1153) transient storage (`TSTORE` / `TLOAD`):
+
+- `BesuLightClientBase` caches each proven router storage root in transient storage (see "Membership / non-membership proofs" below). On a chain without EIP-1153, every `verifyMembership` and `verifyNonMembership` call reverts with an invalid-opcode error when it tries to write that cache, so packet proof verification fails even when the proof itself is valid.
+- This is not a new requirement relative to the rest of the stack: `ICS26Router`, `ICS20Transfer`, and `ICS27GMP` already use OpenZeppelin's `ReentrancyGuardTransient`, and `SP1ICS07Tendermint` caches proofs in transient storage, so a chain that can run the router can run these clients.
+- All contracts in `ibc-solidity/` are compiled with `evm_version = "cancun"` (`ibc-solidity/foundry.toml`), so the compiled artifacts may also rely on other Shanghai and Cancun opcodes such as `PUSH0` and `MCOPY`. Do not lower `evm_version` to target an older chain; the transient cache has no fallback.
+
+Before deploying to a new destination network, confirm that it reports Cancun as active. A quick check is to `eth_call` a probe that executes `TSTORE`; a pre-Cancun chain returns an invalid-opcode failure. The end-to-end suites exercise this on a Cancun target: Foundry tests run under the `cancun` EVM, and the Besu QBFT e2e genesis enables it with `"cancunTime": 0` (`e2e/interchaintestv8/chainconfig/testdata/besu/qbft/genesis.json`).
+
+The **source** Besu chain, whose headers and proofs are being verified, has no hard-fork requirement beyond what `eth_getProof` needs; only the chain hosting the light client contract must support Cancun.
 
 ## Out of scope in v1
 
@@ -54,7 +66,7 @@ constructor(
     address ibcRouter,
     uint64 initialTrustedHeight,
     uint64 initialTrustedTimestamp,
-    bytes32 initialTrustedStorageRoot,
+    bytes32 initialTrustedStateRoot,
     address[] memory initialTrustedValidators,
     uint64 trustingPeriod,
     uint64 maxClockDrift,
@@ -65,7 +77,7 @@ constructor(
 - `ibcRouter`: counterparty `ICS26Router` proxy address whose account/storage proofs are tracked.
 - `initialTrustedHeight`: trusted Besu block number. Revision number is always `0`.
 - `initialTrustedTimestamp`: trusted header timestamp in seconds.
-- `initialTrustedStorageRoot`: storage root of the tracked `ICS26Router` account at `initialTrustedHeight`.
+- `initialTrustedStateRoot`: state root of the Besu header at `initialTrustedHeight`.
 - `initialTrustedValidators`: validator set trusted at `initialTrustedHeight`.
 - `trustingPeriod`: weak-subjectivity window in seconds. `0` means no expiry.
 - `maxClockDrift`: allowed future drift for submitted headers in seconds.
@@ -80,14 +92,12 @@ struct MsgUpdateClient {
     bytes headerRlp;
     IICS02ClientMsgs.Height trustedHeight;
     ConsensusState consensusStatePreimage;
-    bytes accountProof;
 }
 ```
 
 - `headerRlp`: full raw Besu block header RLP, including `extraData` and commit seals.
 - `trustedHeight`: must use `revisionNumber == 0` and identify a stored consensus state hash.
 - `consensusStatePreimage`: the consensus state trusted at `trustedHeight`. Its hash must match the stored hash.
-- `accountProof`: Ethereum account proof nodes for the tracked `ICS26Router` account, encoded as `abi.encode(bytes[])`.
 
 On update, the contract:
 
@@ -95,8 +105,7 @@ On update, the contract:
 2. checks the trusted consensus state preimage against the stored hash and the trusting period,
 3. reconstructs the protocol-specific commit-seal digest following the YUI + prover sealing-header model,
 4. checks trusted-validator overlap against the preimage validators and quorum against the new header validators,
-5. verifies the tracked router account proof,
-6. stores `keccak256(abi.encode(ConsensusState))` for the new height, built from the header timestamp, the proven router `storageRoot`, and the header validator set.
+5. stores `keccak256(abi.encode(ConsensusState))` for the new height, built from the header timestamp, the header `stateRoot`, and the header validator set.
 
 Submitting a header whose derived consensus state hash already matches the stored hash at that height returns `UpdateResult.NoOp`. A different consensus state at an already stored height reverts with `ConflictingConsensusState`.
 
@@ -107,12 +116,16 @@ Submitting a header whose derived consensus state hash already matches the store
 ```solidity
 struct MembershipProof {
     ConsensusState consensusStatePreimage;
+    bytes[] accountProofNodes;
     bytes[] proofNodes;
 }
 ```
 
 - `consensusStatePreimage`: the consensus state trusted at `msg_.proofHeight`. Its hash must match the stored hash.
+- `accountProofNodes`: the ordered, RLP-encoded Ethereum state-trie nodes proving the tracked `ICS26Router` account, as returned by `eth_getProof` at `msg_.proofHeight`. May be empty to reuse a storage root that an earlier call in the same transaction already proved for `msg_.proofHeight`; if none was cached, the call reverts with `StorageRootNotInCache(height)`.
 - `proofNodes`: the ordered, RLP-encoded Ethereum storage-trie nodes for `storageSlot` as returned by `eth_getProof` at `msg_.proofHeight`.
+
+Both calls first verify `accountProofNodes` against the preimage `stateRoot` to recover the router account's storage root, then verify `proofNodes` against that storage root. An account proof that does not resolve under the preimage `stateRoot` reverts with a `TrieProof.TrieProofTraversalError`. A successfully proven storage root is cached in transient storage, keyed by router address and height, so a batch of packet proofs against the same height only pays for one account proof: the first call carries `accountProofNodes` and the rest leave it empty. Supplying a non-empty account proof always verifies it, regardless of the cache.
 
 `msg_.proofHeight` must use revision number `0` and identify a stored consensus state hash.
 
@@ -144,14 +157,14 @@ where `IBCSTORE_STORAGE_SLOT` is the ERC-7201 namespace constant used by `IBCSto
 
 ### Membership
 
-- `proofNodes` must prove the commitment value under the preimage `storageRoot`.
+- `proofNodes` must prove the commitment value under the router storage root recovered from `accountProofNodes`.
 - `msg_.value` must be exactly `abi.encodePacked(bytes32Commitment)`.
 - The return value is the trusted consensus timestamp in seconds for `msg_.proofHeight`, taken from the verified preimage.
 
 ### Non-membership
 
 - `msg_.path` must contain exactly one element: the raw Eureka commitment path.
-- `proofNodes` must establish that `storageKey` is absent from the preimage `storageRoot`. Accepted exclusion witnesses include an empty trie (encoded as an empty `bytes[]`), an empty branch child or value, and a leaf or extension path that diverges from the derived key.
+- `proofNodes` must establish that `storageKey` is absent from the router storage root recovered from `accountProofNodes`. Accepted exclusion witnesses include an empty trie (encoded as an empty `bytes[]`), an empty branch child or value, and a leaf or extension path that diverges from the derived key.
 - The proof must end at the node that establishes exclusion; extra trailing proof nodes are rejected.
 - A valid exclusion proof returns the trusted consensus timestamp in seconds for `msg_.proofHeight`, taken from the verified preimage. If the decoded trie proof does not establish exclusion for the trusted root and derived key, including when it proves an existing value, the call reverts with `InvalidExclusionProof`. Malformed ABI or RLP data may revert while being decoded.
 
@@ -197,7 +210,7 @@ The Foundry fixtures under `test/besu-bft/fixtures/` can be regenerated from the
 just solidity::generate-fixtures-besu
 ```
 
-This writes `test/besu-bft/fixtures/qbft.json` using live Besu QBFT headers, account proofs, and storage proofs captured during the e2e transfer flow. The fixture `proof` fields hold the raw storage proof nodes as `abi.encode(bytes[])`; the Foundry tests wrap them into `MembershipProof` together with the consensus state preimage derived from the fixture's expected update state. The negative cases in that fixture are still derived by deterministic off-chain header mutation so the contract tests can keep explicit overlap / quorum / conflict coverage.
+This writes `test/besu-bft/fixtures/qbft.json` using live Besu QBFT headers, account proofs, and storage proofs captured during the e2e transfer flow. The fixture `proof` and `accountProof` fields hold the raw storage and account proof nodes as `abi.encode(bytes[])`; the Foundry tests wrap them into `MembershipProof` together with the consensus state preimage derived from the fixture's expected update state. The negative cases in that fixture are still derived by deterministic off-chain header mutation so the contract tests can keep explicit overlap / quorum / conflict coverage.
 
 The synthetic IBFT2 validator sets and commit seals, and QBFT's synthetic low-overlap
 case, can be regenerated offline with the existing Go header and signing helpers:

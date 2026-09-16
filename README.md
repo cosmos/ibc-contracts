@@ -136,6 +136,10 @@ just install-proof-api
 > nix develop
 > ```
 
+### EVM Deployment Requirements
+
+The Solidity contracts are compiled for the **Cancun** EVM and rely on EIP-1153 transient storage at runtime (`ReentrancyGuardTransient` in the router and apps, and transient proof caches in the SP1 Tendermint and Besu light clients). Deploy them only to chains with the Cancun hard fork enabled; on a pre-Cancun chain, packet handling and proof verification revert with an invalid opcode. See [`ibc-solidity/contracts/README.md`](./ibc-solidity/contracts/README.md) and the [Besu light client README](./ibc-solidity/contracts/light-clients/besu/README.md#destination-evm-requirements).
+
 ### Solana Requirements
 
 - [Rust 1.89.0](https://rustup.rs/) (selected automatically by `ibc-solana/rust-toolchain.toml`)
@@ -293,7 +297,7 @@ The generated [Solidity benchmark tables](./ibc-solidity/benchmarks/README.md) i
 IBC is a peer-to-peer, light-client-based interoperability protocol. This repository contains the following light clients:
 
 - **SP1 Tendermint Light Client** – Verifies the consensus state of a Cosmos SDK chain powered by SP1 and `tendermint-rs`. (Solidity)
-- **Besu IBFT 2.0 / QBFT Light Clients** – Verify Besu BFT headers in header-validator mode, track the counterparty `ICS26Router` account storage root, and verify EVM account/storage proofs for Eureka commitments. (Solidity)
+- **Besu IBFT 2.0 / QBFT Light Clients** – Verify Besu BFT headers in header-validator mode, track the counterparty chain state root, and verify EVM account/storage proofs for Eureka commitments. (Solidity)
 - [**Ethereum Light Client**](./ibc-solidity/programs/cw-ics08-wasm-eth/README.md) – Verifies the consensus state of the Ethereum chain. (CosmWasm)
 - **Attestation Light Client** – A multisig that can be used if the counterparty chain does not have a light client protocol. (Solidity and Solana)
 - **Solana Tendermint Light Client** - Verifies the consensus state of a Cosmos SDK chain powered by `tendermint-rs`. (Solana)

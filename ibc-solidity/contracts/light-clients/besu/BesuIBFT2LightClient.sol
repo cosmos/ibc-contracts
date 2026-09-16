@@ -15,7 +15,7 @@ contract BesuIBFT2LightClient is BesuLightClientBase {
     /// @param ibcRouter Counterparty ICS26 router address whose storage is proven.
     /// @param initialTrustedHeight Initial trusted Besu height.
     /// @param initialTrustedTimestamp Initial trusted header timestamp in seconds.
-    /// @param initialTrustedStorageRoot Initial trusted storage root of `ibcRouter`.
+    /// @param initialTrustedStateRoot Initial trusted root of the state trie at `initialTrustedHeight`.
     /// @param initialTrustedValidators Initial trusted validator set.
     /// @param trustingPeriod Maximum age in seconds for trusted consensus states.
     /// @param maxClockDrift Maximum allowed future drift in seconds for submitted headers.
@@ -24,7 +24,7 @@ contract BesuIBFT2LightClient is BesuLightClientBase {
         address ibcRouter,
         uint64 initialTrustedHeight,
         uint64 initialTrustedTimestamp,
-        bytes32 initialTrustedStorageRoot,
+        bytes32 initialTrustedStateRoot,
         address[] memory initialTrustedValidators,
         uint64 trustingPeriod,
         uint64 maxClockDrift,
@@ -34,7 +34,7 @@ contract BesuIBFT2LightClient is BesuLightClientBase {
             ibcRouter,
             initialTrustedHeight,
             initialTrustedTimestamp,
-            initialTrustedStorageRoot,
+            initialTrustedStateRoot,
             initialTrustedValidators,
             trustingPeriod,
             maxClockDrift,
