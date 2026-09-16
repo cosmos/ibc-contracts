@@ -79,7 +79,7 @@ constructor(
 - `initialTrustedTimestamp`: trusted header timestamp in seconds.
 - `initialTrustedStateRoot`: state root of the Besu header at `initialTrustedHeight`.
 - `initialTrustedValidators`: validator set trusted at `initialTrustedHeight`.
-- `trustingPeriod`: weak-subjectivity window in seconds. Must be non-zero; the constructor reverts with `InvalidTrustingPeriod` otherwise. Consensus states older than this window are rejected by `updateClient`, `verifyMembership`, and `verifyNonMembership`.
+- `trustingPeriod`: weak-subjectivity window in seconds. Must be non-zero.
 - `maxClockDrift`: allowed future drift for submitted headers in seconds.
 - `roleManager`: if non-zero, receives admin and `PROOF_SUBMITTER_ROLE`; if zero, proof submission is open to anyone through the zero-address sentinel.
 
@@ -127,7 +127,7 @@ struct MembershipProof {
 
 Both calls first verify `accountProofNodes` against the preimage `stateRoot` to recover the router account's storage root, then verify `proofNodes` against that storage root. An account proof that does not resolve under the preimage `stateRoot` reverts with a `TrieProof.TrieProofTraversalError`. A successfully proven storage root is cached in transient storage, keyed by router address and height, so a batch of packet proofs against the same height only pays for one account proof: the first call carries `accountProofNodes` and the rest leave it empty. Supplying a non-empty account proof always verifies it, regardless of the cache.
 
-`msg_.proofHeight` must use revision number `0` and identify a stored consensus state hash whose timestamp is still within the trusting period; otherwise the call reverts with `ConsensusStateExpired`.
+`msg_.proofHeight` must use revision number `0` and identify a stored consensus state hash.
 
 For Besu / EVM counterparties, the expected merkle prefix is:
 
