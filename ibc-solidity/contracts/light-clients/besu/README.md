@@ -79,7 +79,7 @@ constructor(
 - `initialTrustedTimestamp`: trusted header timestamp in seconds.
 - `initialTrustedStateRoot`: state root of the Besu header at `initialTrustedHeight`.
 - `initialTrustedValidators`: validator set trusted at `initialTrustedHeight`.
-- `trustingPeriod`: weak-subjectivity window in seconds. `0` means no expiry.
+- `trustingPeriod`: weak-subjectivity window in seconds. Must be non-zero.
 - `maxClockDrift`: allowed future drift for submitted headers in seconds.
 - `roleManager`: if non-zero, receives admin and `PROOF_SUBMITTER_ROLE`; if zero, proof submission is open to anyone through the zero-address sentinel.
 
