@@ -277,7 +277,7 @@ There are five test suites in the `e2e/interchaintestv8` directory:
 You may need these additional tools to develop on this project:
 
 - [Natlint](https://docs.rs/crate/natlint/latest)
-- [Abigen](https://geth.ethereum.org/docs/tools/abigen)
+- [Abigen](https://geth.ethereum.org/docs/tools/abigen) at the version pinned in `nix/abigen.nix` and `.github/workflows/abigen.yaml` (provided by `nix develop`)
 - [golangci-lint](https://golangci-lint.run/welcome/install/#local-installation)
 - [jq](https://jqlang.org/)
 - [GNU Parallel](https://www.gnu.org/software/parallel/)
