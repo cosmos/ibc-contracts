@@ -68,8 +68,10 @@ struct BesuMembershipTestCase {
 }
 
 /// @dev Successful or rejected non-membership verification.
+/// @dev `timestamp` is the block timestamp at which the non-membership proof is verified.
 struct BesuNonMembershipTestCase {
     string name;
+    uint64 timestamp;
     ILightClientMsgs.MsgVerifyNonMembership message;
     bytes expectedRevert;
     uint64 expectedTimestamp;
@@ -138,6 +140,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     function tableVerifyNonMembershipTest(BesuNonMembershipTestCase memory nonMembership) public {
         vm.warp(fixture.initialTrustedTimestamp + 1);
         client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
+        vm.warp(nonMembership.timestamp);
 
         if (nonMembership.expectedRevert.length != 0) {
             vm.expectRevert(nonMembership.expectedRevert);
@@ -177,25 +180,6 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         if (cachedStorageRoot.expectedRevert.length == 0) {
             assertEq(timestamp, cachedStorageRoot.expectedTimestamp);
         }
-    }
-
-    function test_verifyNonMembership_revertExpired() public {
-        vm.warp(fixture.initialTrustedTimestamp + 1);
-        client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
-
-        uint64 provenTimestamp = _provenConsensusState(fixture.nonMembership.proofHeight).timestamp;
-        uint64 expiredAt = provenTimestamp + fixture.trustingPeriod;
-        vm.warp(expiredAt);
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IBesuLightClientErrors.ConsensusStateExpired.selector,
-                provenTimestamp,
-                expiredAt,
-                fixture.trustingPeriod
-            )
-        );
-        client.verifyNonMembership(_nonMembershipMessage(fixture.nonMembership.proofHeight));
     }
 
     function test_updateClient_noOpOnSameState() public {
@@ -385,9 +369,11 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         uint64 proofHeight = fixture.nonMembership.proofHeight;
         IBesuLightClientMsgs.ConsensusState memory expectedPreimage = _provenConsensusState(proofHeight);
 
-        testCases = new BesuNonMembershipTestCase[](6);
+        uint64 timestamp = fixture.initialTrustedTimestamp + 1;
+        testCases = new BesuNonMembershipTestCase[](7);
         testCases[0] = BesuNonMembershipTestCase({
             name: "success",
+            timestamp: timestamp,
             message: _nonMembershipMessage(proofHeight),
             expectedRevert: "",
             expectedTimestamp: fixture.nonMembership.expectedTimestamp
@@ -397,6 +383,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         wrongRevisionMessage.proofHeight.revisionNumber = 1;
         testCases[1] = BesuNonMembershipTestCase({
             name: "failure: wrong revision number",
+            timestamp: timestamp,
             message: wrongRevisionMessage,
             expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidRevisionNumber.selector, 1),
             expectedTimestamp: 0
@@ -408,6 +395,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         wrongPathMessage.path[1] = fixture.membership.path;
         testCases[2] = BesuNonMembershipTestCase({
             name: "failure: wrong path shape",
+            timestamp: timestamp,
             message: wrongPathMessage,
             expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidPathLength.selector, 1, 2),
             expectedTimestamp: 0
@@ -417,6 +405,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         tamperedPreimage.stateRoot = bytes32(uint256(tamperedPreimage.stateRoot) ^ 1);
         testCases[3] = BesuNonMembershipTestCase({
             name: "failure: wrong consensus state preimage",
+            timestamp: timestamp,
             message: _nonMembershipMessageWithProof(_encodeProof(fixture.nonMembership, tamperedPreimage), proofHeight),
             expectedRevert: abi.encodeWithSelector(
                 IBesuLightClientErrors.ConsensusStatePreimageMismatch.selector,
@@ -431,6 +420,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         unknownHeightMessage.proofHeight.revisionHeight = unknownHeight;
         testCases[4] = BesuNonMembershipTestCase({
             name: "failure: unknown proof height",
+            timestamp: timestamp,
             message: unknownHeightMessage,
             expectedRevert: abi.encodeWithSelector(
                 IBesuLightClientErrors.ConsensusStateNotFound.selector, unknownHeight
@@ -440,8 +430,23 @@ abstract contract BesuLightClientFixtureTestBase is Test {
 
         testCases[5] = BesuNonMembershipTestCase({
             name: "failure: storage root not cached",
+            timestamp: timestamp,
             message: _nonMembershipMessageWithProof(_cachedProof(fixture.nonMembership, expectedPreimage), proofHeight),
             expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.StorageRootNotInCache.selector, proofHeight),
+            expectedTimestamp: 0
+        });
+
+        uint64 expiredAt = expectedPreimage.timestamp + fixture.trustingPeriod;
+        testCases[6] = BesuNonMembershipTestCase({
+            name: "failure: expired consensus state",
+            timestamp: expiredAt,
+            message: _nonMembershipMessage(proofHeight),
+            expectedRevert: abi.encodeWithSelector(
+                IBesuLightClientErrors.ConsensusStateExpired.selector,
+                expectedPreimage.timestamp,
+                expiredAt,
+                fixture.trustingPeriod
+            ),
             expectedTimestamp: 0
         });
     }
