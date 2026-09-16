@@ -31,7 +31,7 @@ func TestBesuProofNodesEncoding(t *testing.T) {
 	require.NoError(t, err)
 	var fixture besuFixture
 	require.NoError(t, json.Unmarshal(fixtureJSON, &fixture))
-	want := ethcommon.FromHex(fixture.NonAdjacentUpdate.AccountProof)
+	want := ethcommon.FromHex(fixture.Membership.AccountProof)
 
 	// Recover the input nodes from the independent Solidity fixture, then
 	// exercise the production helper, including its removal of the selector.
@@ -65,13 +65,13 @@ func TestBesuConsensusStateEncoding(t *testing.T) {
 		validators[i] = ethcommon.HexToAddress(validator)
 	}
 	state := besumsgs.IBesuLightClientMsgsConsensusState{
-		Timestamp:   fixture.InitialTrustedTimestamp,
-		StorageRoot: ethcommon.HexToHash(fixture.InitialTrustedStorageRoot),
-		Validators:  validators,
+		Timestamp:  fixture.InitialTrustedTimestamp,
+		StateRoot:  ethcommon.HexToHash(fixture.InitialTrustedStateRoot),
+		Validators: validators,
 	}
-	// Captured from BesuQBFTLightClient.getConsensusStateHash after deploying
-	// with qbft.json's initial trusted state in Foundry.
-	want := ethcommon.HexToHash("0xe90678de9bc0821f64b0634c05ba8dc7726ff865d40fbf283d3bdb32ac38d4b9")
+	// keccak256(abi.encode(ConsensusState)) for qbft.json's initial trusted state, computed
+	// independently of these bindings with `cast abi-encode "f((uint64,bytes32,address[]))" ... | cast keccak`.
+	want := ethcommon.HexToHash("0x6ad73b19daaa61fcfc6d16fb89695b52ab719cc0348d014fd7cac8c1fd102bda")
 	got := crypto.Keccak256Hash(besumsgs.NewBindings().PackConsensusState(state)[4:])
 	require.Equal(t, want, got)
 }

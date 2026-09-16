@@ -4,6 +4,8 @@
   auto_detect_solc = false
   block_timestamp = 1_680_220_800 # March 31, 2023 at 00:00 GMT
   bytecode_hash = "none"
+  # The contracts depend on EIP-1153 transient storage (ReentrancyGuardTransient, light client proof
+  # caches), so deployments require Cancun. Do not lower this to target an older chain.
   evm_version = "cancun"
   fuzz = { runs = 100_000 }
   gas_reports = ["*"]
