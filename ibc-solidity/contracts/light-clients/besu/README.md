@@ -176,13 +176,7 @@ This verification supports packet timeout flows that prove the absence of a pack
 `IBesuLightClientMsgs` structs. It exposes the tuple schemas that are hidden inside
 the production light client's `bytes` inputs and outputs; it is never deployed.
 
-Run `just solidity::generate-abi` from the repository root to regenerate
-`ibc-solidity/abi/IBesuLightClientEncoding.json` and
-`packages/go-abigen/besumsgs/bindings.go` using `abigen --v2 --type Bindings`.
-The Nix development shell provides the `abigen` version CI uses (currently v1.17.5,
-built from `nix/abigen.nix`). When bumping abigen, update `nix/abigen.nix`,
-the pin in `.github/workflows/abigen.yaml`, and the version check in
-`ibc-solidity/solidity.just` together.
+Run `just solidity::generate-abi` from the repository root to regenerate the Go bindings.
 
 Create `besumsgs.NewBindings()` and use its generated Go structs and `Pack*` or
 `TryPack*` methods. These methods encode function calls, including a four-byte
