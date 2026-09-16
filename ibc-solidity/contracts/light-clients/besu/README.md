@@ -180,8 +180,7 @@ Run `just solidity::generate-abi` from the repository root to regenerate
 `ibc-solidity/abi/IBesuLightClientEncoding.json` and
 `packages/go-abigen/besumsgs/bindings.go` using `abigen --v2 --type Bindings`.
 The Nix development shell provides the `abigen` version CI uses (currently v1.17.5,
-built from `nix/abigen.nix`); other versions produce different generated output and
-the recipe refuses to run with them. When bumping abigen, update `nix/abigen.nix`,
+built from `nix/abigen.nix`). When bumping abigen, update `nix/abigen.nix`,
 the pin in `.github/workflows/abigen.yaml`, and the version check in
 `ibc-solidity/solidity.just` together.
 
