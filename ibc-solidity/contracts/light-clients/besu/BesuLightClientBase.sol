@@ -77,6 +77,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     ) {
         require(initialTrustedHeight != 0, InvalidHeaderHeight());
         require(initialTrustedTimestamp != 0, InvalidHeaderTimestamp());
+        require(trustingPeriod != 0, InvalidTrustingPeriod());
 
         _validateValidators(initialTrustedValidators);
 
@@ -133,11 +134,6 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         );
 
         _requireTrustedConsensusState(msg_.trustedHeight.revisionHeight, msg_.consensusStatePreimage);
-        require(
-            clientState.trustingPeriod == 0
-                || uint256(msg_.consensusStatePreimage.timestamp) + clientState.trustingPeriod > block.timestamp,
-            ConsensusStateExpired(msg_.consensusStatePreimage.timestamp, block.timestamp, clientState.trustingPeriod)
-        );
 
         address[] memory signers = _recoverSigners(_commitSealDigest(header), header.commitSeals);
         _checkTrustedValidatorOverlap(signers, msg_.consensusStatePreimage.validators);
@@ -374,7 +370,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         }
     }
 
-    /// @notice Reverts unless the given consensus state matches the stored hash for a revision height.
+    /// @notice Reverts unless the given consensus state matches the stored hash and is within the trusting period.
     /// @param revisionHeight The consensus state revision height.
     /// @param preimage The consensus state preimage to check.
     function _requireTrustedConsensusState(uint64 revisionHeight, ConsensusState memory preimage) internal view {
@@ -383,6 +379,11 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
         bytes32 preimageHash = keccak256(abi.encode(preimage));
         require(consensusStateHash == preimageHash, ConsensusStatePreimageMismatch(consensusStateHash, preimageHash));
+
+        require(
+            uint256(preimage.timestamp) + clientState.trustingPeriod > block.timestamp,
+            ConsensusStateExpired(preimage.timestamp, block.timestamp, clientState.trustingPeriod)
+        );
     }
 
     /// @notice Reverts unless the revision number is zero.

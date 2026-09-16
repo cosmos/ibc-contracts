@@ -17,6 +17,8 @@ interface IBesuLightClientErrors {
     error InvalidHeaderHeight();
     /// @notice The submitted header timestamp is zero.
     error InvalidHeaderTimestamp();
+    /// @notice Trusting period must be greater than zero.
+    error InvalidTrustingPeriod();
     /// @notice The submitted header timestamp is too far in the future.
     /// @param currentTimestamp The current block timestamp.
     /// @param headerTimestamp The submitted header timestamp.
