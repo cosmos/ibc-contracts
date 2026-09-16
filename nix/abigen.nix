@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+
 # abigen pinned to the go-ethereum release CI uses for `just solidity::generate-abi`.
 #
 # nixpkgs' `go-ethereum` package lags upstream (1.17.3 while CI pins 1.17.5), and
