@@ -38,6 +38,18 @@ Relayers therefore need to keep the preimages of the heights they intend to refe
 - Ethereum **account proofs** and **storage proofs**
 - Eureka commitment verification against the counterparty `ICS26Router` proxy account
 
+## Destination EVM requirements
+
+The Besu light clients are deployed on the **destination** EVM chain, next to that chain's `ICS26Router`. That chain must have the **Cancun** hard fork enabled, in particular [EIP-1153](https://eips.ethereum.org/EIPS/eip-1153) transient storage (`TSTORE` / `TLOAD`):
+
+- `BesuLightClientBase` caches each proven router storage root in transient storage (see "Membership / non-membership proofs" below). On a chain without EIP-1153, every `verifyMembership` and `verifyNonMembership` call reverts with an invalid-opcode error when it tries to write that cache, so packet proof verification fails even when the proof itself is valid.
+- This is not a new requirement relative to the rest of the stack: `ICS26Router`, `ICS20Transfer`, and `ICS27GMP` already use OpenZeppelin's `ReentrancyGuardTransient`, and `SP1ICS07Tendermint` caches proofs in transient storage, so a chain that can run the router can run these clients.
+- All contracts in `ibc-solidity/` are compiled with `evm_version = "cancun"` (`ibc-solidity/foundry.toml`), so the compiled artifacts may also rely on other Shanghai and Cancun opcodes such as `PUSH0` and `MCOPY`. Do not lower `evm_version` to target an older chain; the transient cache has no fallback.
+
+Before deploying to a new destination network, confirm that it reports Cancun as active. A quick check is to `eth_call` a probe that executes `TSTORE`; a pre-Cancun chain returns an invalid-opcode failure. The end-to-end suites exercise this on a Cancun target: Foundry tests run under the `cancun` EVM, and the Besu QBFT e2e genesis enables it with `"cancunTime": 0` (`e2e/interchaintestv8/chainconfig/testdata/besu/qbft/genesis.json`).
+
+The **source** Besu chain, whose headers and proofs are being verified, has no hard-fork requirement beyond what `eth_getProof` needs; only the chain hosting the light client contract must support Cancun.
+
 ## Out of scope in v1
 
 - QBFT validator-contract mode

@@ -2,6 +2,8 @@
 
 This directory implements the IBC v2 protocol stack in Solidity. Most entrypoints are upgradeable and deploy per-client/per-user components through beacons so packet handling, tokenization, and message execution can be upgraded independently.
 
+All contracts are compiled for the **Cancun** EVM (`evm_version = "cancun"` in `foundry.toml`) and several of them depend on EIP-1153 transient storage at runtime: `ICS26Router`, `ICS20Transfer`, and `ICS27GMP` use `ReentrancyGuardTransient`, and the SP1 Tendermint and Besu light clients cache verified proof data in transient slots. Deploy only to chains with Cancun enabled; on older chains these calls revert with an invalid opcode.
+
 ## Core applications
 - `ICS26Router.sol` – Core IBC router that registers apps by port id, stores commitments via `IBCStoreUpgradeable`, tracks light clients through `ICS02ClientUpgradeable`, and drives the packet lifecycle (send/recv/ack/timeout) with relayer and admin role gates.
 - `ICS20Transfer.sol` – ICS20 fungible token app. It mints/burns `IBCERC20` wrappers for non-native denoms, escrows native tokens per client via `Escrow` beacons, enforces pausing/rate limits, and routes packets through the ICS26 router (supports Permit2 flow).
@@ -33,6 +35,7 @@ This directory implements the IBC v2 protocol stack in Solidity. Most entrypoint
 - Commit-seal verification: follows the existing **YUI Solidity client + besu-ibc-relay-prover** sealing-header reconstruction model.
 - Trusted overlap threshold: requires **strictly greater than one-third** overlap with the trusted validator set, implemented as `floor(n / 3) + 1`, which is intentionally stricter than the current upstream YUI check.
 - Proof surface: Besu block headers, commit seals, Ethereum account proofs, and Ethereum storage proofs.
+- Destination chain requirement: the chain hosting the client must have Cancun (EIP-1153 transient storage) enabled; the proven router storage root is cached in transient storage so a batch of packet proofs at one height pays for a single account proof. See `light-clients/besu/README.md`.
 - Counterparty storage model: Eureka `ICS26Router` / `IBCStoreUpgradeable` commitments mapping.
 - Not supported in v1: QBFT validator-contract mode, mode transitions, and misbehaviour handling.
 - Current fixture status: `test/besu-bft/fixtures/` are synthetic regression fixtures; real Besu-derived golden fixtures remain a follow-up interoperability-confidence improvement.

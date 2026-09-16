@@ -136,6 +136,10 @@ just install-proof-api
 > nix develop
 > ```
 
+### EVM Deployment Requirements
+
+The Solidity contracts are compiled for the **Cancun** EVM and rely on EIP-1153 transient storage at runtime (`ReentrancyGuardTransient` in the router and apps, and transient proof caches in the SP1 Tendermint and Besu light clients). Deploy them only to chains with the Cancun hard fork enabled; on a pre-Cancun chain, packet handling and proof verification revert with an invalid opcode. See [`ibc-solidity/contracts/README.md`](./ibc-solidity/contracts/README.md) and the [Besu light client README](./ibc-solidity/contracts/light-clients/besu/README.md#destination-evm-requirements).
+
 ### Solana Requirements
 
 - [Rust 1.89.0](https://rustup.rs/) (selected automatically by `ibc-solana/rust-toolchain.toml`)
