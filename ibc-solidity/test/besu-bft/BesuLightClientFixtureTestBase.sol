@@ -17,6 +17,27 @@ import { IBesuLightClientMsgs } from "../../contracts/light-clients/besu/msgs/IB
 import { IBesuLightClientErrors } from "../../contracts/light-clients/besu/errors/IBesuLightClientErrors.sol";
 import { TrieProof } from "../../contracts/utils/TrieProof.sol";
 
+/// @dev Exposes the commit seal digest of a Besu light client so tests can sign synthetic seals.
+interface IBesuCommitSealDigest {
+    function commitSealDigest(bytes calldata headerRlp) external pure returns (bytes32);
+}
+
+contract BesuQBFTCommitSealDigest is BesuQBFTLightClient, IBesuCommitSealDigest {
+    constructor(address[] memory validators) BesuQBFTLightClient(address(1), 1, 1, 0, validators, 1, 0, address(0)) { }
+
+    function commitSealDigest(bytes calldata headerRlp) external pure returns (bytes32) {
+        return _commitSealDigest(_parseHeader(headerRlp));
+    }
+}
+
+contract BesuIBFT2CommitSealDigest is BesuIBFT2LightClient, IBesuCommitSealDigest {
+    constructor(address[] memory validators) BesuIBFT2LightClient(address(1), 1, 1, 0, validators, 1, 0, address(0)) { }
+
+    function commitSealDigest(bytes calldata headerRlp) external pure returns (bytes32) {
+        return _commitSealDigest(_parseHeader(headerRlp));
+    }
+}
+
 /// @dev Successful update input and expected consensus state.
 struct BesuUpdateFixture {
     uint64 height;
@@ -114,15 +135,19 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     using Memory for Memory.Slice;
 
     string internal constant FIXTURE_DIR = "/test/besu-bft/fixtures/";
+    /// @dev Private key of a signer that is not in any fixture validator set.
+    uint256 internal constant UNKNOWN_SIGNER_KEY = 0xdead;
 
     BesuFixture internal fixture;
     IBesuLightClient internal client;
     IBesuLightClient internal wrongWrapper;
+    IBesuCommitSealDigest internal commitSealDigest;
 
     function setUp() public virtual {
         fixture = _loadFixture(_fixtureFile());
         client = _deployPrimaryClient();
         wrongWrapper = _deployWrongWrapper();
+        commitSealDigest = _deployCommitSealDigest();
     }
 
     function test_constructor_storesInitialConsensusStateHash() public view {
@@ -211,11 +236,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         bytes memory clientStateBefore = client.getClientState();
         bytes32 consensusStateHashBefore = client.getConsensusStateHash(fixture.initialTrustedHeight);
 
-        if (update.expectedRevert.length == 4) {
-            vm.expectPartialRevert(bytes4(update.expectedRevert));
-        } else {
-            vm.expectRevert(update.expectedRevert);
-        }
+        vm.expectRevert(update.expectedRevert);
         client.updateClient(update.update);
 
         assertEq(client.getClientState(), clientStateBefore);
@@ -699,17 +720,19 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             timestamp: fixture.initialTrustedTimestamp + 1,
             update: _unknownSignerUpdate(),
             preUpdate: "",
-            expectedRevert: abi.encodePacked(IBesuLightClientErrors.UnknownCommitSealSigner.selector),
+            expectedRevert: abi.encodeWithSelector(
+                IBesuLightClientErrors.UnknownCommitSealSigner.selector, vm.addr(UNKNOWN_SIGNER_KEY)
+            ),
             expectedState: emptyExpectedState
         });
     }
 
-    /// @dev Appends a well-formed commit seal that recovers to a non-validator address to `nonAdjacentUpdate`.
-    /// The seal is signed over an unrelated digest, so it recovers to an arbitrary address under the real digest,
-    /// while the fixture's seals stay valid because the commit seal digest excludes the seal list.
+    /// @dev Appends a commit seal from a non-validator key to `nonAdjacentUpdate`.
+    /// The fixture's seals stay valid because the commit seal digest excludes the seal list.
     function _unknownSignerUpdate() internal view returns (bytes memory) {
         BesuUpdateFixture memory update = fixture.nonAdjacentUpdate;
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(0xdead, keccak256("unknown signer"));
+        (uint8 v, bytes32 r, bytes32 s) =
+            vm.sign(UNKNOWN_SIGNER_KEY, commitSealDigest.commitSealDigest(update.headerRlp));
 
         Memory.Slice[] memory headerItems = update.headerRlp.decodeList();
         Memory.Slice[] memory extraItems = RLP.readBytes(headerItems[12]).decodeList();
@@ -1050,4 +1073,5 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     function _fixtureFile() internal pure virtual returns (string memory);
     function _deployPrimaryClient() internal virtual returns (IBesuLightClient);
     function _deployWrongWrapper() internal virtual returns (IBesuLightClient);
+    function _deployCommitSealDigest() internal virtual returns (IBesuCommitSealDigest);
 }
