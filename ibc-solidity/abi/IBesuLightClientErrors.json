@@ -312,6 +312,17 @@
   },
   {
     "type": "error",
+    "name": "UnknownCommitSealSigner",
+    "inputs": [
+      {
+        "name": "signer",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "UnsortedValidatorSet",
     "inputs": [
       {
