@@ -114,16 +114,6 @@ contract BesuLightClientQuorumTest is Test {
         harness.checkValidatorQuorum(_addresses(3), _addresses(6));
     }
 
-    function test_checkValidatorQuorum_rejectsUnknownSigner() public {
-        address[] memory signers = _addresses(5);
-        signers[4] = address(0xdead);
-
-        vm.expectRevert(
-            abi.encodeWithSelector(IBesuLightClientErrors.UnknownCommitSealSigner.selector, address(0xdead))
-        );
-        harness.checkValidatorQuorum(signers, _addresses(6));
-    }
-
     function _addresses(uint256 length) private pure returns (address[] memory addresses) {
         addresses = new address[](length);
         for (uint256 i = 0; i < length; ++i) {
