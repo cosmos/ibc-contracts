@@ -7,6 +7,7 @@ import { Test } from "forge-std/Test.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { RLP } from "@openzeppelin-contracts/utils/RLP.sol";
 import { Memory } from "@openzeppelin-contracts/utils/Memory.sol";
+import { SafeCast } from "@openzeppelin-contracts/utils/math/SafeCast.sol";
 
 import { ILightClientMsgs } from "../../contracts/msgs/ILightClientMsgs.sol";
 import { IICS02ClientMsgs } from "../../contracts/msgs/IICS02ClientMsgs.sol";
@@ -242,7 +243,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         vm.warp(fixture.initialTrustedTimestamp + 1);
 
         vm.expectRevert(
-            abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 0, 2)
+            abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 0, 3)
         );
         wrongWrapper.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
     }
@@ -524,7 +525,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     function fixtureUpdate() public view returns (BesuUpdateTestCase[] memory testCases) {
         BesuUpdateFixture memory emptyExpectedState;
 
-        testCases = new BesuUpdateTestCase[](15);
+        testCases = new BesuUpdateTestCase[](17);
         testCases[0] = BesuUpdateTestCase({
             name: "success: valid adjacent update",
             timestamp: fixture.initialTrustedTimestamp + 1,
@@ -544,7 +545,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         testCases[2] = BesuUpdateTestCase({
             name: "failure: zero timestamp",
             timestamp: fixture.initialTrustedTimestamp + 1,
-            update: _zeroTimestampUpdate(),
+            update: _headerItemUpdate(11, 0),
             preUpdate: "",
             expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidHeaderTimestamp.selector),
             expectedState: emptyExpectedState
@@ -581,16 +582,21 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             update: _encodeUpdate(fixture.lowOverlapUpdate),
             preUpdate: "",
             expectedRevert: abi.encodeWithSelector(
-                IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 1, 2
+                IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 1, 3
             ),
             expectedState: emptyExpectedState
         });
         testCases[6] = BesuUpdateTestCase({
-            name: "failure: insufficient validator quorum",
+            // The low quorum fixture keeps 2 of 4 seals with an unchanged validator set, so the trusted overlap
+            // check (which runs first and uses the same ceil(2n / 3) threshold) rejects it before the quorum check.
+            // Quorum in isolation is covered by BesuLightClientQuorum.t.sol.
+            name: "failure: insufficient overlap with partial seals",
             timestamp: fixture.initialTrustedTimestamp + 1,
             update: _encodeUpdate(fixture.lowQuorumUpdate),
             preUpdate: "",
-            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InsufficientValidatorQuorum.selector, 2, 3),
+            expectedRevert: abi.encodeWithSelector(
+                IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 2, 3
+            ),
             expectedState: emptyExpectedState
         });
 
@@ -690,6 +696,24 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.UnsortedValidatorSet.selector, 1),
             expectedState: emptyExpectedState
         });
+
+        uint256 overflow = uint256(type(uint64).max) + 1;
+        testCases[15] = BesuUpdateTestCase({
+            name: "failure: height overflows uint64",
+            timestamp: fixture.initialTrustedTimestamp + 1,
+            update: _headerItemUpdate(8, overflow),
+            preUpdate: "",
+            expectedRevert: abi.encodeWithSelector(SafeCast.SafeCastOverflowedUintDowncast.selector, 64, overflow),
+            expectedState: emptyExpectedState
+        });
+        testCases[16] = BesuUpdateTestCase({
+            name: "failure: timestamp overflows uint64",
+            timestamp: fixture.initialTrustedTimestamp + 1,
+            update: _headerItemUpdate(11, overflow),
+            preUpdate: "",
+            expectedRevert: abi.encodeWithSelector(SafeCast.SafeCastOverflowedUintDowncast.selector, 64, overflow),
+            expectedState: emptyExpectedState
+        });
     }
 
     function _validatorsUpdate(address[] memory validators) internal view returns (bytes memory) {
@@ -712,12 +736,13 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         return _encodeUpdate(update);
     }
 
-    function _zeroTimestampUpdate() internal view returns (bytes memory) {
+    /// @dev Re-encodes the non-adjacent update header with `headerItems[index]` replaced by `value`.
+    function _headerItemUpdate(uint256 index, uint256 value) internal view returns (bytes memory) {
         BesuUpdateFixture memory update = fixture.nonAdjacentUpdate;
         Memory.Slice[] memory headerItems = update.headerRlp.decodeList();
         bytes[] memory encodedHeaderItems = new bytes[](headerItems.length);
         for (uint256 i = 0; i < headerItems.length; ++i) {
-            encodedHeaderItems[i] = i == 11 ? RLP.encode(uint256(0)) : headerItems[i].toBytes();
+            encodedHeaderItems[i] = i == index ? RLP.encode(value) : headerItems[i].toBytes();
         }
         update.headerRlp = RLP.encode(encodedHeaderItems);
         return _encodeUpdate(update);

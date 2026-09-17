@@ -364,8 +364,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             }
         }
 
-        // We pick ceil(2n / 3) as the threshold for trusted validator overlap
-        uint256 required = Math.mulDiv(trustedValidators.length, 2, 3, Math.Rounding.Ceil);
+        uint256 required = _bftThreshold(trustedValidators.length);
         require(actual >= required, InsufficientTrustedValidatorOverlap(actual, required));
     }
 
@@ -380,9 +379,16 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             }
         }
 
-        // Besu requires ceil(2n / 3), equivalently n - floor(n / 3).
-        uint256 required = Math.mulDiv(validators.length, 2, 3, Math.Rounding.Ceil);
+        uint256 required = _bftThreshold(validators.length);
         require(actual >= required, InsufficientValidatorQuorum(actual, required));
+    }
+
+    /// @notice Computes the BFT threshold `ceil(2n / 3)` used for trusted overlap and quorum checks.
+    /// @dev Besu requires `ceil(2n / 3)` commit seals; the trusted overlap intentionally uses the same threshold.
+    /// @param n The validator set size.
+    /// @return The minimum number of matching signers.
+    function _bftThreshold(uint256 n) internal pure returns (uint256) {
+        return Math.ceilDiv(2 * n, 3);
     }
 
     /// @notice Validates that a validator set is non-empty, unique, and sorted.
@@ -390,10 +396,8 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     function _validateValidators(address[] memory validators) internal pure {
         require(validators.length != 0, EmptyValidatorSet());
         require(validators[0] != address(0), InvalidValidatorAddress(address(0)));
-        for (uint256 i = 0; i < validators.length; ++i) {
-            if (i < validators.length - 1) {
-                require(validators[i] < validators[i + 1], UnsortedValidatorSet(i));
-            }
+        for (uint256 i = 1; i < validators.length; ++i) {
+            require(validators[i - 1] < validators[i], UnsortedValidatorSet(i - 1));
         }
     }
 

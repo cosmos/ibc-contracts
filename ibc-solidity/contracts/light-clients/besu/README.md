@@ -27,7 +27,7 @@ Relayers therefore need to keep the preimages of the heights they intend to refe
 
 - Commit-seal verification follows the existing **YUI Solidity client + besu-ibc-relay-prover** model: reconstruct the sealing header by rewriting `extraData` into the protocol-specific signing form, then recover commit-seal signers from the `keccak256(RLP(header))` digest.
 - This module does **not** claim to independently rederive a distinct Besu network-level consensus-message payload beyond that established YUI/prover model.
-- Trusted overlap is intentionally **strictly greater than one-third** of the trusted validator set, implemented as `floor(n / 3) + 1`. This is intentionally stricter than the current upstream YUI overlap check.
+- Trusted overlap intentionally requires **`ceil(2n / 3)`** of the trusted validator set to have signed the new header, the same threshold Besu uses for commit-seal quorum. This is intentionally stricter than the current upstream YUI overlap check.
 
 ## Supported scope
 

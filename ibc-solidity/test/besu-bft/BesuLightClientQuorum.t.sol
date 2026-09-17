@@ -29,6 +29,16 @@ contract BesuLightClientQuorumHarness is BesuLightClientBase {
         _checkValidatorQuorum(signers, validators);
     }
 
+    function checkTrustedValidatorOverlap(
+        address[] calldata signers,
+        address[] calldata trustedValidators
+    )
+        external
+        pure
+    {
+        _checkTrustedValidatorOverlap(signers, trustedValidators);
+    }
+
     function _commitSealDigest(ParsedHeader memory) internal pure override returns (bytes32) {
         return bytes32(0);
     }
@@ -112,6 +122,36 @@ contract BesuLightClientQuorumTest is Test {
     function test_checkValidatorQuorum_rejectsThreeOfSixValidators() public {
         vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.InsufficientValidatorQuorum.selector, 3, 4));
         harness.checkValidatorQuorum(_addresses(3), _addresses(6));
+    }
+
+    function test_checkValidatorQuorum_acceptsSingleValidator() public view {
+        harness.checkValidatorQuorum(_addresses(1), _addresses(1));
+    }
+
+    function test_checkTrustedValidatorOverlap_acceptsThreeOfFour() public view {
+        harness.checkTrustedValidatorOverlap(_addresses(3), _addresses(4));
+    }
+
+    function test_checkTrustedValidatorOverlap_rejectsTwoOfFour() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 2, 3)
+        );
+        harness.checkTrustedValidatorOverlap(_addresses(2), _addresses(4));
+    }
+
+    function test_checkTrustedValidatorOverlap_acceptsFourOfSix() public view {
+        harness.checkTrustedValidatorOverlap(_addresses(4), _addresses(6));
+    }
+
+    function test_checkTrustedValidatorOverlap_rejectsThreeOfSix() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 3, 4)
+        );
+        harness.checkTrustedValidatorOverlap(_addresses(3), _addresses(6));
+    }
+
+    function test_checkTrustedValidatorOverlap_acceptsSingleValidator() public view {
+        harness.checkTrustedValidatorOverlap(_addresses(1), _addresses(1));
     }
 
     function _addresses(uint256 length) private pure returns (address[] memory addresses) {
