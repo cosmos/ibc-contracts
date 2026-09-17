@@ -3,12 +3,7 @@ pragma solidity ^0.8.28;
 
 import { ILightClientMsgs } from "../../contracts/msgs/ILightClientMsgs.sol";
 import { ILightClient } from "../../contracts/interfaces/ILightClient.sol";
-import {
-    BesuLightClientFixtureTestBase,
-    BesuQBFTCommitSealDigest,
-    IBesuCommitSealDigest,
-    IBesuLightClient
-} from "../besu-bft/BesuLightClientFixtureTestBase.sol";
+import { BesuLightClientFixtureTestBase, IBesuLightClient } from "../besu-bft/BesuLightClientFixtureTestBase.sol";
 
 contract BesuQBFTBenchmark is BesuLightClientFixtureTestBase {
     string internal constant SNAPSHOT_GROUP = "BesuQBFT";
@@ -79,9 +74,5 @@ contract BesuQBFTBenchmark is BesuLightClientFixtureTestBase {
 
     function _deployWrongWrapper() internal override returns (IBesuLightClient) {
         return _deployIBFT2();
-    }
-
-    function _deployCommitSealDigest() internal override returns (IBesuCommitSealDigest) {
-        return new BesuQBFTCommitSealDigest(fixture.initialTrustedValidators);
     }
 }

@@ -2,11 +2,7 @@
 pragma solidity ^0.8.28;
 
 import { IBesuLightClient } from "../../contracts/light-clients/besu/interfaces/IBesuLightClient.sol";
-import {
-    BesuLightClientFixtureTestBase,
-    BesuQBFTCommitSealDigest,
-    IBesuCommitSealDigest
-} from "./BesuLightClientFixtureTestBase.sol";
+import { BesuLightClientFixtureTestBase } from "./BesuLightClientFixtureTestBase.sol";
 
 contract BesuQBFTLightClientTest is BesuLightClientFixtureTestBase {
     function _fixtureFile() internal pure override returns (string memory) {
@@ -19,9 +15,5 @@ contract BesuQBFTLightClientTest is BesuLightClientFixtureTestBase {
 
     function _deployWrongWrapper() internal override returns (IBesuLightClient) {
         return _deployIBFT2();
-    }
-
-    function _deployCommitSealDigest() internal override returns (IBesuCommitSealDigest) {
-        return new BesuQBFTCommitSealDigest(fixture.initialTrustedValidators);
     }
 }
