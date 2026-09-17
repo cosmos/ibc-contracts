@@ -45,7 +45,7 @@ These isolated transactions use the live Besu QBFT header and proof fixture in `
 
 | Operation | Gas | ABI calldata bytes |
 | --- | ---: | ---: |
-| Adjacent client update | 370,700 | 2,052 |
-| Non-adjacent client update | 370,988 | 2,052 |
-| Membership verification | 71,892 | 996 |
-| Non-membership verification | 84,347 | 900 |
+| Adjacent client update | 180,277 | 1,444 |
+| Non-adjacent client update | 181,507 | 1,444 |
+| Membership verification | 129,077 | 2,116 |
+| Non-membership verification | 141,497 | 2,020 |

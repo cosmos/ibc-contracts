@@ -32,6 +32,20 @@
           overlays = [
             (import inputs.rust-overlay)
             inputs.foundry.overlay
+            # TODO: remove once shazow/foundry.nix adds libudev to foundry-bin's build inputs.
+            #
+            # Foundry >= 1.8.3 ships Linux `forge` and `cast` binaries that link against
+            # `libudev.so.1` (hardware-wallet HID support, see foundry-rs/foundry#16599).
+            # foundry.nix patches the prebuilt binaries with autoPatchelfHook but does not
+            # provide udev, so the derivation fails to build on Linux. Nothing changes on
+            # Darwin, where autoPatchelf is not used.
+            (final: prev: {
+              foundry-bin = prev.foundry-bin.overrideAttrs (old: {
+                buildInputs =
+                  (old.buildInputs or [])
+                  ++ prev.lib.optionals prev.stdenv.hostPlatform.isLinux [prev.udev];
+              });
+            })
             inputs.solc.overlay
             inputs.sp1.overlays.default
           ];
@@ -48,6 +62,27 @@
           inherit anchor;
         };
         anchor-go = pkgs.callPackage ./nix/anchor-go.nix {};
+
+        # Always replace `ibc-solidity/node_modules` with the Nix-managed one so that the shell never
+        # picks up a stale local install, whether it is a symlink or a real directory.
+        #
+        # The hook only knows the caller's working directory, not where the flake was loaded from, so
+        # before deleting anything it checks that the directory is a checkout of this repository whose
+        # lockfile matches the one `node-modules` was built from. Running `nix develop <this repo>`
+        # from an unrelated checkout therefore leaves that checkout's `node_modules` untouched.
+        linkNodeModules = ''
+          if [ -d "${node-modules}/node_modules" ]; then
+            repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+            solidity_dir="$repo_root/ibc-solidity"
+            if cmp -s "${node-modules.src}/package.json" "$solidity_dir/package.json" \
+              && cmp -s "${node-modules.src}/bun.lock" "$solidity_dir/bun.lock"; then
+              rm -rf "$solidity_dir/node_modules"
+              ln -sfn "${node-modules}/node_modules" "$solidity_dir/node_modules"
+            else
+              echo "warning: $solidity_dir does not match this flake's ibc-solidity; leaving node_modules alone" >&2
+            fi
+          fi
+        '';
       in {
         devShells = {
           default = pkgs.mkShell {
@@ -68,11 +103,7 @@
             shellHook =
               rust.shellHook
               + ''
-                if [ -d "${node-modules}/node_modules" ]; then
-                  if [ ! -e ibc-solidity/node_modules ] || [ -L ibc-solidity/node_modules ]; then
-                    ln -sfn "${node-modules}/node_modules" ibc-solidity/node_modules
-                  fi
-                fi
+                ${linkNodeModules}
               '';
           };
 
@@ -87,11 +118,7 @@
             shellHook =
               rust.shellHook
               + ''
-                if [ -d "${node-modules}/node_modules" ]; then
-                  if [ ! -e ibc-solidity/node_modules ] || [ -L ibc-solidity/node_modules ]; then
-                    ln -sfn "${node-modules}/node_modules" ibc-solidity/node_modules
-                  fi
-                fi
+                ${linkNodeModules}
 
                 export PATH="${solana-agave}/bin:$PATH"
                 echo "Solana shell: solana, anchor-nix (build|test|unit-test|keys|deploy)"

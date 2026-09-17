@@ -17,6 +17,8 @@ interface IBesuLightClientErrors {
     error InvalidHeaderHeight();
     /// @notice The submitted header timestamp is zero.
     error InvalidHeaderTimestamp();
+    /// @notice Trusting period must be greater than zero.
+    error InvalidTrustingPeriod();
     /// @notice The submitted header timestamp is too far in the future.
     /// @param currentTimestamp The current block timestamp.
     /// @param headerTimestamp The submitted header timestamp.
@@ -30,6 +32,10 @@ interface IBesuLightClientErrors {
     /// @param currentTimestamp The current block timestamp.
     /// @param trustingPeriod The configured trusting period.
     error ConsensusStateExpired(uint64 trustedTimestamp, uint256 currentTimestamp, uint64 trustingPeriod);
+    /// @notice The submitted consensus state preimage does not match the expected hash.
+    /// @param expectedHash The expected consensus state hash.
+    /// @param actualHash The hash of the submitted consensus state preimage.
+    error ConsensusStatePreimageMismatch(bytes32 expectedHash, bytes32 actualHash);
     /// @notice The Besu BFT mix hash is invalid.
     /// @param actualMixHash The mix hash found in the header.
     error InvalidMixHash(bytes32 actualMixHash);
@@ -44,15 +50,12 @@ interface IBesuLightClientErrors {
     error InvalidOmmersHash(bytes32 actualOmmersHash);
     /// @notice The validator set is empty.
     error EmptyValidatorSet();
-    /// @notice A validator address has an invalid byte length.
-    /// @param length The decoded validator address length.
-    error InvalidValidatorAddressLength(uint256 length);
     /// @notice A validator address is invalid.
     /// @param validator The invalid validator address.
     error InvalidValidatorAddress(address validator);
-    /// @notice A validator appears more than once.
-    /// @param validator The duplicate validator address.
-    error DuplicateValidator(address validator);
+    /// @notice The validator set is not sorted in ascending order.
+    /// @param index The index of the first unsorted validator.
+    error UnsortedValidatorSet(uint256 index);
     /// @notice A commit seal signer appears more than once.
     /// @param signer The duplicate signer address.
     error DuplicateCommitSealSigner(address signer);
@@ -83,9 +86,16 @@ interface IBesuLightClientErrors {
     error InvalidCommitmentValue(bytes32 expectedValue, bytes32 actualValue);
     /// @notice A different consensus state already exists at the submitted height.
     /// @param revisionHeight The conflicting revision height.
+    // TODO:This is a misbehaviour condition and should be handled by the client. (FOU-1374)
     error ConflictingConsensusState(uint64 revisionHeight);
     /// @notice Misbehaviour handling is not supported by this client.
     error UnsupportedMisbehaviour();
     /// @notice The submitted exclusion proof is invalid.
     error InvalidExclusionProof();
+    /// @notice Storage root is not cached for the requested height.
+    /// @param revisionHeight The requested revision height.
+    error StorageRootNotInCache(uint64 revisionHeight);
+    /// @notice The commit seal signer is not in the validator set.
+    /// @param signer The commit seal signer address.
+    error UnknownCommitSealSigner(address signer);
 }

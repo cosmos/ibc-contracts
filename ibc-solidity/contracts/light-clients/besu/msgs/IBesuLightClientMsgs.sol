@@ -20,21 +20,31 @@ interface IBesuLightClientMsgs {
 
     /// @notice Trusted consensus state for a Besu height.
     /// @param timestamp Header timestamp in seconds.
-    /// @param storageRoot Storage root of the tracked ICS26 router account.
+    /// @param stateRoot Root of the state trie at the given height.
     /// @param validators Validator set committed in the header.
     struct ConsensusState {
         uint64 timestamp;
-        bytes32 storageRoot;
+        bytes32 stateRoot;
         address[] validators;
     }
 
-    /// @notice Update message containing a Besu header and account proof.
+    /// @notice Update message containing a Besu header and the trusted consensus state preimage.
     /// @param headerRlp RLP-encoded Besu block header.
     /// @param trustedHeight Previously trusted height used for weak-subjectivity checks.
-    /// @param accountProof ABI-encoded Ethereum account proof nodes (`abi.encode(bytes[])`) for the tracked router.
+    /// @param consensusStatePreimage Preimage of the trusted consensus state at `trustedHeight`.
     struct MsgUpdateClient {
         bytes headerRlp;
         IICS02ClientMsgs.Height trustedHeight;
-        bytes accountProof;
+        ConsensusState consensusStatePreimage;
+    }
+
+    /// @notice Storage proof against the tracked router account, used for membership and non-membership.
+    /// @param consensusStatePreimage Preimage of the trusted consensus state at `msg_.proofHeight`.
+    /// @param accountProofNodes Ordered, RLP-encoded MPT nodes from the state trie proving the tracked router account.
+    /// @param proofNodes Ordered, RLP-encoded MPT nodes from the router account storage trie.
+    struct MembershipProof {
+        ConsensusState consensusStatePreimage;
+        bytes[] accountProofNodes;
+        bytes[] proofNodes;
     }
 }

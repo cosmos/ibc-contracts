@@ -3,6 +3,7 @@
 package types
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"encoding/hex"
@@ -11,9 +12,9 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -23,6 +24,7 @@ import (
 	channeltypesv2 "github.com/cosmos/ibc-go/v11/modules/core/04-channel/v2/types"
 	ibchostv2 "github.com/cosmos/ibc-go/v11/modules/core/24-host/v2"
 
+	"github.com/cosmos/solidity-ibc-eureka/packages/go-abigen/besumsgs"
 	"github.com/cosmos/solidity-ibc-eureka/packages/go-abigen/ics26router"
 
 	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/ethereum"
@@ -46,41 +48,40 @@ type GenerateQBFTFixtureParams struct {
 }
 
 type besuFixture struct {
-	RouterAddress             string                     `json:"routerAddress"`
-	InitialTrustedHeight      uint64                     `json:"initialTrustedHeight"`
-	InitialTrustedTimestamp   uint64                     `json:"initialTrustedTimestamp"`
-	InitialTrustedStorageRoot string                     `json:"initialTrustedStorageRoot"`
-	InitialTrustedValidators  []string                   `json:"initialTrustedValidators"`
-	TrustingPeriod            uint64                     `json:"trustingPeriod"`
-	MaxClockDrift             uint64                     `json:"maxClockDrift"`
-	AdjacentUpdate            besuUpdateFixture          `json:"adjacentUpdate"`
-	NonAdjacentUpdate         besuUpdateFixture          `json:"nonAdjacentUpdate"`
-	LowQuorumUpdate           besuRejectionUpdateFixture `json:"lowQuorumUpdate"`
-	ConflictingUpdate         besuRejectionUpdateFixture `json:"conflictingUpdate"`
-	LowOverlapUpdate          besuRejectionUpdateFixture `json:"lowOverlapUpdate"`
-	Membership                besuProofFixture           `json:"membership"`
-	NonMembership             besuProofFixture           `json:"nonMembership"`
+	RouterAddress            string                     `json:"routerAddress"`
+	InitialTrustedHeight     uint64                     `json:"initialTrustedHeight"`
+	InitialTrustedTimestamp  uint64                     `json:"initialTrustedTimestamp"`
+	InitialTrustedStateRoot  string                     `json:"initialTrustedStateRoot"`
+	InitialTrustedValidators []string                   `json:"initialTrustedValidators"`
+	TrustingPeriod           uint64                     `json:"trustingPeriod"`
+	MaxClockDrift            uint64                     `json:"maxClockDrift"`
+	AdjacentUpdate           besuUpdateFixture          `json:"adjacentUpdate"`
+	NonAdjacentUpdate        besuUpdateFixture          `json:"nonAdjacentUpdate"`
+	LowQuorumUpdate          besuRejectionUpdateFixture `json:"lowQuorumUpdate"`
+	ConflictingUpdate        besuRejectionUpdateFixture `json:"conflictingUpdate"`
+	LowOverlapUpdate         besuRejectionUpdateFixture `json:"lowOverlapUpdate"`
+	Membership               besuProofFixture           `json:"membership"`
+	NonMembership            besuProofFixture           `json:"nonMembership"`
 }
 
 type besuUpdateFixture struct {
-	Height              uint64   `json:"height"`
-	HeaderRlp           string   `json:"headerRlp"`
-	TrustedHeight       uint64   `json:"trustedHeight"`
-	AccountProof        string   `json:"accountProof"`
-	ExpectedTimestamp   uint64   `json:"expectedTimestamp"`
-	ExpectedStorageRoot string   `json:"expectedStorageRoot"`
-	ExpectedValidators  []string `json:"expectedValidators"`
+	Height             uint64   `json:"height"`
+	HeaderRlp          string   `json:"headerRlp"`
+	TrustedHeight      uint64   `json:"trustedHeight"`
+	ExpectedTimestamp  uint64   `json:"expectedTimestamp"`
+	ExpectedStateRoot  string   `json:"expectedStateRoot"`
+	ExpectedValidators []string `json:"expectedValidators"`
 }
 
 type besuRejectionUpdateFixture struct {
 	Height        uint64 `json:"height"`
 	HeaderRlp     string `json:"headerRlp"`
 	TrustedHeight uint64 `json:"trustedHeight"`
-	AccountProof  string `json:"accountProof"`
 }
 
 type besuProofFixture struct {
 	Proof             string `json:"proof"`
+	AccountProof      string `json:"accountProof"`
 	ProofHeight       uint64 `json:"proofHeight"`
 	Path              string `json:"path"`
 	Value             string `json:"value,omitempty"`
@@ -165,15 +166,11 @@ func generateQBFTFixture(ctx context.Context, params GenerateQBFTFixtureParams) 
 		return besuFixture{}, err
 	}
 
-	trustedProof, _, err := fetchAccountProof(ctx, params.SourceChain, params.RouterAddress, params.InitialTrustedHeight)
+	adjacentUpdate, err := buildLiveUpdateFixture(ctx, params.SourceChain, params.InitialTrustedHeight, params.AdjacentUpdateHeight)
 	if err != nil {
 		return besuFixture{}, err
 	}
-	adjacentUpdate, err := buildLiveUpdateFixture(ctx, params.SourceChain, params.RouterAddress, params.InitialTrustedHeight, params.AdjacentUpdateHeight)
-	if err != nil {
-		return besuFixture{}, err
-	}
-	nonAdjacentUpdate, err := buildLiveUpdateFixture(ctx, params.SourceChain, params.RouterAddress, params.InitialTrustedHeight, params.NonAdjacentUpdateHeight)
+	nonAdjacentUpdate, err := buildLiveUpdateFixture(ctx, params.SourceChain, params.InitialTrustedHeight, params.NonAdjacentUpdateHeight)
 	if err != nil {
 		return besuFixture{}, err
 	}
@@ -182,13 +179,10 @@ func generateQBFTFixture(ctx context.Context, params GenerateQBFTFixtureParams) 
 		return besuFixture{}, err
 	}
 	conflictingUpdate, err := buildConflictingFixture(
-		ctx,
 		params.InitialTrustedHeight,
 		nonAdjacentUpdate.Height,
 		syntheticSourceHeader,
 		validatorKeys,
-		params.SourceChain,
-		params.RouterAddress,
 	)
 	if err != nil {
 		return besuFixture{}, err
@@ -212,27 +206,26 @@ func generateQBFTFixture(ctx context.Context, params GenerateQBFTFixtureParams) 
 	}
 
 	return besuFixture{
-		RouterAddress:             params.RouterAddress.Hex(),
-		InitialTrustedHeight:      params.InitialTrustedHeight,
-		InitialTrustedTimestamp:   trustedHeader.Header.Time,
-		InitialTrustedStorageRoot: trustedProof.StorageHash.Hex(),
-		InitialTrustedValidators:  addressesToHex(trustedHeader.Validators),
-		TrustingPeriod:            params.TrustingPeriod,
-		MaxClockDrift:             params.MaxClockDrift,
-		AdjacentUpdate:            adjacentUpdate,
-		NonAdjacentUpdate:         nonAdjacentUpdate,
-		LowQuorumUpdate:           lowQuorumUpdate,
-		ConflictingUpdate:         conflictingUpdate,
-		LowOverlapUpdate:          lowOverlapUpdate,
-		Membership:                membership,
-		NonMembership:             nonMembership,
+		RouterAddress:            params.RouterAddress.Hex(),
+		InitialTrustedHeight:     params.InitialTrustedHeight,
+		InitialTrustedTimestamp:  trustedHeader.Header.Time,
+		InitialTrustedStateRoot:  trustedHeader.Header.Root.Hex(),
+		InitialTrustedValidators: addressesToHex(trustedHeader.Validators),
+		TrustingPeriod:           params.TrustingPeriod,
+		MaxClockDrift:            params.MaxClockDrift,
+		AdjacentUpdate:           adjacentUpdate,
+		NonAdjacentUpdate:        nonAdjacentUpdate,
+		LowQuorumUpdate:          lowQuorumUpdate,
+		ConflictingUpdate:        conflictingUpdate,
+		LowOverlapUpdate:         lowOverlapUpdate,
+		Membership:               membership,
+		NonMembership:            nonMembership,
 	}, nil
 }
 
 func buildLiveUpdateFixture(
 	ctx context.Context,
 	chain *ethereum.Ethereum,
-	routerAddress ethcommon.Address,
 	trustedHeight uint64,
 	targetHeight uint64,
 ) (besuUpdateFixture, error) {
@@ -240,19 +233,14 @@ func buildLiveUpdateFixture(
 	if err != nil {
 		return besuUpdateFixture{}, err
 	}
-	proof, accountProofRLP, err := fetchAccountProof(ctx, chain, routerAddress, targetHeight)
-	if err != nil {
-		return besuUpdateFixture{}, err
-	}
 
 	return besuUpdateFixture{
-		Height:              targetHeight,
-		HeaderRlp:           encodeHex(header.HeaderRLP),
-		TrustedHeight:       trustedHeight,
-		AccountProof:        encodeHex(accountProofRLP),
-		ExpectedTimestamp:   header.Header.Time,
-		ExpectedStorageRoot: proof.StorageHash.Hex(),
-		ExpectedValidators:  addressesToHex(header.Validators),
+		Height:             targetHeight,
+		HeaderRlp:          encodeHex(header.HeaderRLP),
+		TrustedHeight:      trustedHeight,
+		ExpectedTimestamp:  header.Header.Time,
+		ExpectedStateRoot:  header.Header.Root.Hex(),
+		ExpectedValidators: addressesToHex(header.Validators),
 	}, nil
 }
 
@@ -278,18 +266,14 @@ func buildLowQuorumFixture(update besuUpdateFixture, header liveHeader) (besuRej
 		Height:        update.Height,
 		HeaderRlp:     encodeHex(mutatedHeader),
 		TrustedHeight: update.TrustedHeight,
-		AccountProof:  "0x",
 	}, nil
 }
 
 func buildConflictingFixture(
-	ctx context.Context,
 	trustedHeight uint64,
 	targetHeight uint64,
 	baseHeader liveHeader,
 	validatorKeys map[ethcommon.Address]*ecdsa.PrivateKey,
-	chain *ethereum.Ethereum,
-	routerAddress ethcommon.Address,
 ) (besuRejectionUpdateFixture, error) {
 	mutable, err := decodeMutableQBFTHeader(baseHeader.HeaderRLP)
 	if err != nil {
@@ -310,16 +294,10 @@ func buildConflictingFixture(
 		return besuRejectionUpdateFixture{}, err
 	}
 
-	_, accountProofRLP, err := fetchAccountProof(ctx, chain, routerAddress, baseHeader.Header.Number.Uint64())
-	if err != nil {
-		return besuRejectionUpdateFixture{}, err
-	}
-
 	return besuRejectionUpdateFixture{
 		Height:        targetHeight,
 		HeaderRlp:     encodeHex(mutatedHeader),
 		TrustedHeight: trustedHeight,
-		AccountProof:  encodeHex(accountProofRLP),
 	}, nil
 }
 
@@ -353,8 +331,6 @@ func buildLowOverlapFixture(
 		crypto.PubkeyToAddress(syntheticKeys[1].PublicKey),
 		crypto.PubkeyToAddress(syntheticKeys[2].PublicKey),
 	}
-	mutable.setValidators(lowOverlapValidators)
-
 	signerKeys, err := signerKeysFor([]ethcommon.Address{
 		lowOverlapValidators[0],
 		lowOverlapValidators[1],
@@ -363,6 +339,11 @@ func buildLowOverlapFixture(
 	if err != nil {
 		return besuRejectionUpdateFixture{}, err
 	}
+	// Preserve the selected signers (one trusted, two synthetic) independently of validator order.
+	slices.SortFunc(lowOverlapValidators, func(a, b ethcommon.Address) int {
+		return bytes.Compare(a[:], b[:])
+	})
+	mutable.setValidators(lowOverlapValidators)
 	mutable.setCommitSeals(signQBFTCommitSeals(mutable, signerKeys))
 	mutatedHeader, err := mutable.encode()
 	if err != nil {
@@ -373,7 +354,6 @@ func buildLowOverlapFixture(
 		Height:        targetHeight,
 		HeaderRlp:     encodeHex(mutatedHeader),
 		TrustedHeight: trustedHeight,
-		AccountProof:  "0x",
 	}, nil
 }
 
@@ -386,13 +366,14 @@ func buildMembershipFixture(
 	expectedTimestamp uint64,
 ) (besuProofFixture, error) {
 	path := ibchostv2.PacketCommitmentKey(packet.SourceClient, packet.Sequence)
-	proofRLP, err := fetchStorageProof(ctx, chain, routerAddress, path, proofHeight)
+	storageProofRLP, accountProofRLP, err := fetchStorageProof(ctx, chain, routerAddress, path, proofHeight)
 	if err != nil {
 		return besuProofFixture{}, err
 	}
 
 	return besuProofFixture{
-		Proof:             encodeHex(proofRLP),
+		Proof:             encodeHex(storageProofRLP),
+		AccountProof:      encodeHex(accountProofRLP),
 		ProofHeight:       proofHeight,
 		Path:              encodeHex(path),
 		Value:             encodeHex(packetCommitment(packet)),
@@ -409,13 +390,14 @@ func buildNonMembershipFixture(
 	expectedTimestamp uint64,
 ) (besuProofFixture, error) {
 	path := ibchostv2.PacketReceiptKey(packet.DestClient, packet.Sequence)
-	proofRLP, err := fetchStorageProof(ctx, chain, routerAddress, path, proofHeight)
+	storageProofRLP, accountProofRLP, err := fetchStorageProof(ctx, chain, routerAddress, path, proofHeight)
 	if err != nil {
 		return besuProofFixture{}, err
 	}
 
 	return besuProofFixture{
-		Proof:             encodeHex(proofRLP),
+		Proof:             encodeHex(storageProofRLP),
+		AccountProof:      encodeHex(accountProofRLP),
 		ProofHeight:       proofHeight,
 		Path:              encodeHex(path),
 		ExpectedTimestamp: expectedTimestamp,
@@ -447,55 +429,33 @@ func fetchLiveHeader(ctx context.Context, chain *ethereum.Ethereum, height uint6
 	}, nil
 }
 
-func fetchAccountProof(
-	ctx context.Context,
-	chain *ethereum.Ethereum,
-	routerAddress ethcommon.Address,
-	height uint64,
-) (*gethclient.AccountResult, []byte, error) {
-	proof, err := gethclient.New(chain.RPCClient.Client()).GetProof(ctx, routerAddress, nil, newUint64(height))
-	if err != nil {
-		return nil, nil, fmt.Errorf("fetch account proof at height %d: %w", height, err)
-	}
-	proofRLP, err := encodeProofNodes(proof.AccountProof)
-	if err != nil {
-		return nil, nil, fmt.Errorf("encode account proof at height %d: %w", height, err)
-	}
-	return proof, proofRLP, nil
-}
-
+// fetchStorageProof returns the ABI-encoded storage proof nodes for the commitment at path and the
+// ABI-encoded account proof nodes for the router, both taken from one eth_getProof call at height.
 func fetchStorageProof(
 	ctx context.Context,
 	chain *ethereum.Ethereum,
 	routerAddress ethcommon.Address,
 	path []byte,
 	height uint64,
-) ([]byte, error) {
+) ([]byte, []byte, error) {
 	storageKey := ethereum.GetCommitmentsStorageKey(path)
 	proof, err := gethclient.New(chain.RPCClient.Client()).GetProof(ctx, routerAddress, []string{storageKey.Hex()}, newUint64(height))
 	if err != nil {
-		return nil, fmt.Errorf("fetch storage proof at height %d: %w", height, err)
+		return nil, nil, fmt.Errorf("fetch storage proof at height %d: %w", height, err)
 	}
 	if len(proof.StorageProof) != 1 {
-		return nil, fmt.Errorf("expected one storage proof at height %d, got %d", height, len(proof.StorageProof))
+		return nil, nil, fmt.Errorf("expected one storage proof at height %d, got %d", height, len(proof.StorageProof))
 	}
-	proofRLP, err := encodeProofNodes(proof.StorageProof[0].Proof)
-	if err != nil {
-		return nil, fmt.Errorf("encode storage proof at height %d: %w", height, err)
-	}
-	return proofRLP, nil
+	return encodeProofNodes(proof.StorageProof[0].Proof), encodeProofNodes(proof.AccountProof), nil
 }
 
-func encodeProofNodes(nodes []string) ([]byte, error) {
+func encodeProofNodes(nodes []string) []byte {
 	proofNodes := make([][]byte, len(nodes))
 	for i, node := range nodes {
 		proofNodes[i] = ethcommon.FromHex(node)
 	}
-	bytesArrayType, err := abi.NewType("bytes[]", "", nil)
-	if err != nil {
-		return nil, fmt.Errorf("create bytes[] ABI type: %w", err)
-	}
-	return (abi.Arguments{{Type: bytesArrayType}}).Pack(proofNodes)
+	// The light client expects abi.encode(bytes[]), without the function selector.
+	return besumsgs.NewBindings().PackProofNodes(proofNodes)[4:]
 }
 
 func packetCommitment(packet ics26router.IICS26RouterMsgsPacket) []byte {
@@ -582,7 +542,10 @@ func (h *mutableQBFTHeader) setCommitSeals(seals [][]byte) {
 }
 
 func signQBFTCommitSeals(header *mutableQBFTHeader, keys []*ecdsa.PrivateKey) [][]byte {
-	digest := header.commitSealDigest()
+	return signCommitSeals(header.commitSealDigest(), keys)
+}
+
+func signCommitSeals(digest ethcommon.Hash, keys []*ecdsa.PrivateKey) [][]byte {
 	seals := make([][]byte, len(keys))
 	for i, key := range keys {
 		seal, err := crypto.Sign(digest.Bytes(), key)
