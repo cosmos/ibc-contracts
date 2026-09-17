@@ -9,6 +9,8 @@ import { RLP } from "@openzeppelin-contracts/utils/RLP.sol";
 import { TrieProof } from "../../utils/TrieProof.sol";
 import { Memory } from "@openzeppelin-contracts/utils/Memory.sol";
 import { TransientSlot } from "@openzeppelin-contracts/utils/TransientSlot.sol";
+import { Math } from "@openzeppelin-contracts/utils/math/Math.sol";
+import { SafeCast } from "@openzeppelin-contracts/utils/math/SafeCast.sol";
 
 import { ILightClient } from "../../interfaces/ILightClient.sol";
 import { ILightClientMsgs } from "../../msgs/ILightClientMsgs.sol";
@@ -244,9 +246,9 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         bytes memory nonce = header.headerItems[14].readBytes();
         require(nonce.length == 8 && keccak256(nonce) == keccak256(hex"0000000000000000"), InvalidNonce(nonce));
 
-        header.height = uint64(header.headerItems[8].readUint256());
+        header.height = SafeCast.toUint64(header.headerItems[8].readUint256());
         header.stateRoot = header.headerItems[3].readBytes32();
-        header.timestamp = uint64(header.headerItems[11].readUint256());
+        header.timestamp = SafeCast.toUint64(header.headerItems[11].readUint256());
 
         bytes memory extraData = header.headerItems[12].readBytes();
         header.extraDataItems = extraData.decodeList();
@@ -362,7 +364,8 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             }
         }
 
-        uint256 required = trustedValidators.length / 3 + 1;
+        // We pick ceil(2n / 3) as the threshold for trusted validator overlap
+        uint256 required = Math.mulDiv(trustedValidators.length, 2, 3, Math.Rounding.Ceil);
         require(actual >= required, InsufficientTrustedValidatorOverlap(actual, required));
     }
 
@@ -378,7 +381,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         }
 
         // Besu requires ceil(2n / 3), equivalently n - floor(n / 3).
-        uint256 required = validators.length - validators.length / 3;
+        uint256 required = Math.mulDiv(validators.length, 2, 3, Math.Rounding.Ceil);
         require(actual >= required, InsufficientValidatorQuorum(actual, required));
     }
 
