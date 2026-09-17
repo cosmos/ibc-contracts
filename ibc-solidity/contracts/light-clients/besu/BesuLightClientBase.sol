@@ -9,6 +9,8 @@ import { RLP } from "@openzeppelin-contracts/utils/RLP.sol";
 import { TrieProof } from "../../utils/TrieProof.sol";
 import { Memory } from "@openzeppelin-contracts/utils/Memory.sol";
 import { TransientSlot } from "@openzeppelin-contracts/utils/TransientSlot.sol";
+import { Math } from "@openzeppelin-contracts/utils/math/Math.sol";
+import { SafeCast } from "@openzeppelin-contracts/utils/math/SafeCast.sol";
 
 import { ILightClient } from "../../interfaces/ILightClient.sol";
 import { ILightClientMsgs } from "../../msgs/ILightClientMsgs.sol";
@@ -245,9 +247,9 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         bytes memory nonce = header.headerItems[14].readBytes();
         require(nonce.length == 8 && keccak256(nonce) == keccak256(hex"0000000000000000"), InvalidNonce(nonce));
 
-        header.height = uint64(header.headerItems[8].readUint256());
+        header.height = SafeCast.toUint64(header.headerItems[8].readUint256());
         header.stateRoot = header.headerItems[3].readBytes32();
-        header.timestamp = uint64(header.headerItems[11].readUint256());
+        header.timestamp = SafeCast.toUint64(header.headerItems[11].readUint256());
 
         bytes memory extraData = header.headerItems[12].readBytes();
         header.extraDataItems = extraData.decodeList();
@@ -363,7 +365,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             }
         }
 
-        uint256 required = trustedValidators.length / 3 + 1;
+        uint256 required = _bftThreshold(trustedValidators.length);
         require(actual >= required, InsufficientTrustedValidatorOverlap(actual, required));
     }
 
@@ -376,9 +378,16 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             require(_containsMemory(validators, signers[i]), UnknownCommitSealSigner(signers[i]));
         }
 
-        // Besu requires ceil(2n / 3), equivalently n - floor(n / 3).
-        uint256 required = validators.length - validators.length / 3;
+        uint256 required = _bftThreshold(validators.length);
         require(signers.length >= required, InsufficientValidatorQuorum(signers.length, required));
+    }
+
+    /// @notice Computes the BFT threshold `ceil(2n / 3)` used for trusted overlap and quorum checks.
+    /// @dev Besu requires `ceil(2n / 3)` commit seals; the trusted overlap intentionally uses the same threshold.
+    /// @param n The validator set size.
+    /// @return The minimum number of matching signers.
+    function _bftThreshold(uint256 n) internal pure returns (uint256) {
+        return Math.ceilDiv(2 * n, 3);
     }
 
     /// @notice Validates that a validator set is non-empty, unique, and sorted.
@@ -386,10 +395,8 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     function _validateValidators(address[] memory validators) internal pure {
         require(validators.length != 0, EmptyValidatorSet());
         require(validators[0] != address(0), InvalidValidatorAddress(address(0)));
-        for (uint256 i = 0; i < validators.length; ++i) {
-            if (i < validators.length - 1) {
-                require(validators[i] < validators[i + 1], UnsortedValidatorSet(i));
-            }
+        for (uint256 i = 1; i < validators.length; ++i) {
+            require(validators[i - 1] < validators[i], UnsortedValidatorSet(i - 1));
         }
     }
 

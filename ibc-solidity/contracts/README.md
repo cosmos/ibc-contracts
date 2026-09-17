@@ -33,7 +33,7 @@ All contracts are compiled for the **Cancun** EVM (`evm_version = "cancun"` in `
 - Supported: Besu **IBFT 2.0** and **QBFT** in **header-validator mode**.
 - Verification model: weak subjectivity via **trusting period** and validator-set overlap checks.
 - Commit-seal verification: follows the existing **YUI Solidity client + besu-ibc-relay-prover** sealing-header reconstruction model.
-- Trusted overlap threshold: requires **strictly greater than one-third** overlap with the trusted validator set, implemented as `floor(n / 3) + 1`, which is intentionally stricter than the current upstream YUI check.
+- Trusted overlap threshold: requires **`ceil(2n / 3)`** of the trusted validator set to have signed the new header (the same threshold as Besu commit-seal quorum), which is intentionally stricter than the current upstream YUI check.
 - Proof surface: Besu block headers, commit seals, Ethereum account proofs, and Ethereum storage proofs.
 - Destination chain requirement: the chain hosting the client must have Cancun (EIP-1153 transient storage) enabled; the proven router storage root is cached in transient storage so a batch of packet proofs at one height pays for a single account proof. See `light-clients/besu/README.md`.
 - Counterparty storage model: Eureka `ICS26Router` / `IBCStoreUpgradeable` commitments mapping.
