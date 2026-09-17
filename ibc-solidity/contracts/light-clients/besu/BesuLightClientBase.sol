@@ -222,6 +222,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     }
 
     /// @notice Computes the protocol-specific commit seal digest for a parsed header.
+    /// @dev See `hashBlockForCommitSeal` in QBFT specification: https://entethalliance.org/specs/qbft/v1
     /// @param header The parsed Besu header.
     /// @return The digest signed by commit seals.
     function _commitSealDigest(ParsedHeader memory header) internal pure virtual returns (bytes32);
@@ -369,18 +370,16 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     }
 
     /// @notice Checks that signers meet quorum for the submitted header validator set.
+    /// @dev Assumes that the signer set has no duplicates. Checked in `_recoverSigners`.
     /// @param signers The recovered commit seal signers.
     /// @param validators The validator set from the submitted header.
     function _checkValidatorQuorum(address[] memory signers, address[] memory validators) internal pure {
-        uint256 actual = 0;
         for (uint256 i = 0; i < signers.length; ++i) {
-            if (_containsMemory(validators, signers[i])) {
-                ++actual;
-            }
+            require(_containsMemory(validators, signers[i]), UnknownCommitSealSigner(signers[i]));
         }
 
         uint256 required = _bftThreshold(validators.length);
-        require(actual >= required, InsufficientValidatorQuorum(actual, required));
+        require(signers.length >= required, InsufficientValidatorQuorum(signers.length, required));
     }
 
     /// @notice Computes the BFT threshold `ceil(2n / 3)` used for trusted overlap and quorum checks.
