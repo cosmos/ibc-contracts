@@ -524,7 +524,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     function fixtureUpdate() public view returns (BesuUpdateTestCase[] memory testCases) {
         BesuUpdateFixture memory emptyExpectedState;
 
-        testCases = new BesuUpdateTestCase[](15);
+        testCases = new BesuUpdateTestCase[](16);
         testCases[0] = BesuUpdateTestCase({
             name: "success: valid adjacent update",
             timestamp: fixture.initialTrustedTimestamp + 1,
@@ -690,6 +690,64 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.UnsortedValidatorSet.selector, 1),
             expectedState: emptyExpectedState
         });
+        (bytes memory unknownSignerUpdate, address unknownSigner) = _unknownSignerUpdate();
+        testCases[15] = BesuUpdateTestCase({
+            name: "failure: unknown commit seal signer",
+            timestamp: fixture.initialTrustedTimestamp + 1,
+            update: unknownSignerUpdate,
+            preUpdate: "",
+            expectedRevert: abi.encodeWithSelector(
+                IBesuLightClientErrors.UnknownCommitSealSigner.selector, unknownSigner
+            ),
+            expectedState: emptyExpectedState
+        });
+    }
+
+    /// @dev Appends a commit seal from a non-validator key to `nonAdjacentUpdate` and returns that signer.
+    /// The fixture's seals stay valid because the commit seal digest excludes the seal list.
+    function _unknownSignerUpdate() internal view returns (bytes memory, address) {
+        BesuUpdateFixture memory update = fixture.nonAdjacentUpdate;
+        Memory.Slice[] memory headerItems = update.headerRlp.decodeList();
+        Memory.Slice[] memory extraItems = RLP.readBytes(headerItems[12]).decodeList();
+        Memory.Slice[] memory sealItems = RLP.readList(extraItems[4]);
+
+        // QBFT signs the header with an empty seal list, IBFT2 with the seal list dropped.
+        bool isQBFT = keccak256(bytes(_fixtureFile())) == keccak256("qbft.json");
+        bytes32 digest = keccak256(_encodeHeader(headerItems, extraItems, isQBFT ? bytes(hex"c0") : bytes("")));
+        uint256 unknownSignerKey = 0xdead;
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(unknownSignerKey, digest);
+
+        bytes[] memory encodedSeals = new bytes[](sealItems.length + 1);
+        for (uint256 i = 0; i < sealItems.length; ++i) {
+            encodedSeals[i] = sealItems[i].toBytes();
+        }
+        encodedSeals[sealItems.length] = RLP.encode(abi.encodePacked(r, s, v));
+        update.headerRlp = _encodeHeader(headerItems, extraItems, RLP.encode(encodedSeals));
+        return (_encodeUpdate(update), vm.addr(unknownSignerKey));
+    }
+
+    /// @dev Re-encodes a header with its commit seal list replaced by `encodedSeals`, or dropped if empty.
+    function _encodeHeader(
+        Memory.Slice[] memory headerItems,
+        Memory.Slice[] memory extraItems,
+        bytes memory encodedSeals
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
+        bytes[] memory encodedExtraItems = new bytes[](encodedSeals.length == 0 ? 4 : 5);
+        for (uint256 i = 0; i < 4; ++i) {
+            encodedExtraItems[i] = extraItems[i].toBytes();
+        }
+        if (encodedSeals.length != 0) {
+            encodedExtraItems[4] = encodedSeals;
+        }
+        bytes[] memory encodedHeaderItems = new bytes[](headerItems.length);
+        for (uint256 i = 0; i < headerItems.length; ++i) {
+            encodedHeaderItems[i] = i == 12 ? RLP.encode(RLP.encode(encodedExtraItems)) : headerItems[i].toBytes();
+        }
+        return RLP.encode(encodedHeaderItems);
     }
 
     function _validatorsUpdate(address[] memory validators) internal view returns (bytes memory) {
