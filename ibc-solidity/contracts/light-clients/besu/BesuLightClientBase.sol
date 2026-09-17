@@ -368,7 +368,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     }
 
     /// @notice Checks that signers meet quorum for the submitted header validator set.
-    /// @dev Assumes that the signers set is has no duplicates. Checked in `_recoverSigners`.
+    /// @dev Assumes that the signer set has no duplicates. Checked in `_recoverSigners`.
     /// @param signers The recovered commit seal signers.
     /// @param validators The validator set from the submitted header.
     function _checkValidatorQuorum(address[] memory signers, address[] memory validators) internal pure {
