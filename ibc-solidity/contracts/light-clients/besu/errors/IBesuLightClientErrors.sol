@@ -95,4 +95,7 @@ interface IBesuLightClientErrors {
     /// @notice Storage root is not cached for the requested height.
     /// @param revisionHeight The requested revision height.
     error StorageRootNotInCache(uint64 revisionHeight);
+    /// @notice The commit seal signer is not in the validator set.
+    /// @param signer The commit seal signer address.
+    error UnknownCommitSealSigner(address signer);
 }
