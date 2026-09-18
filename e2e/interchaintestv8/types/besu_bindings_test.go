@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
-package tests
+package types
 
 import (
 	"math/big"
 	"reflect"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
+
 	"github.com/cosmos/solidity-ibc-eureka/packages/go-abigen/besuerrors"
 	"github.com/cosmos/solidity-ibc-eureka/packages/go-abigen/besumsgs"
-	"github.com/ethereum/go-ethereum/common"
 )
 
 func checkPayloadRoundTrip[T any](t *testing.T, value T, pack func(T) []byte, unpack func([]byte) (T, error)) {
@@ -70,8 +71,11 @@ func TestBesuErrorDecoders(t *testing.T) {
 		want any
 	}{
 		{"InvalidTrustingPeriod", nil, &besuerrors.BindingsInvalidTrustingPeriod{}},
-		{"ConsensusStateExpired", []any{uint64(100), big.NewInt(200), uint64(50)},
-			&besuerrors.BindingsConsensusStateExpired{TrustedTimestamp: 100, CurrentTimestamp: big.NewInt(200), TrustingPeriod: 50}},
+		{
+			"ConsensusStateExpired",
+			[]any{uint64(100), big.NewInt(200), uint64(50)},
+			&besuerrors.BindingsConsensusStateExpired{TrustedTimestamp: 100, CurrentTimestamp: big.NewInt(200), TrustingPeriod: 50},
+		},
 		{"UnknownCommitSealSigner", []any{signer}, &besuerrors.BindingsUnknownCommitSealSigner{Signer: signer}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
