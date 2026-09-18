@@ -14,6 +14,14 @@ struct BesuConstructorTestCase {
     bytes expectedRevert;
 }
 
+struct BesuThresholdTestCase {
+    string name;
+    bool trustedOverlap;
+    uint256 signerCount;
+    uint256 validatorCount;
+    bytes expectedRevert;
+}
+
 contract BesuLightClientQuorumHarness is BesuLightClientBase {
     constructor(
         uint64 initialTrustedTimestamp,
@@ -27,6 +35,16 @@ contract BesuLightClientQuorumHarness is BesuLightClientBase {
 
     function checkValidatorQuorum(address[] calldata signers, address[] calldata validators) external pure {
         _checkValidatorQuorum(signers, validators);
+    }
+
+    function checkTrustedValidatorOverlap(
+        address[] calldata signers,
+        address[] calldata trustedValidators
+    )
+        external
+        pure
+    {
+        _checkTrustedValidatorOverlap(signers, trustedValidators);
     }
 
     function _commitSealDigest(ParsedHeader memory) internal pure override returns (bytes32) {
@@ -105,13 +123,51 @@ contract BesuLightClientQuorumTest is Test {
         );
     }
 
-    function test_checkValidatorQuorum_acceptsBesuFourOfSixQuorum() public view {
-        harness.checkValidatorQuorum(_addresses(4), _addresses(6));
+    function tableThresholdTest(BesuThresholdTestCase memory threshold) public {
+        address[] memory signers = _addresses(threshold.signerCount);
+        address[] memory validators = _addresses(threshold.validatorCount);
+        if (threshold.expectedRevert.length != 0) {
+            vm.expectRevert(threshold.expectedRevert);
+        }
+        if (threshold.trustedOverlap) {
+            harness.checkTrustedValidatorOverlap(signers, validators);
+        } else {
+            harness.checkValidatorQuorum(signers, validators);
+        }
     }
 
-    function test_checkValidatorQuorum_rejectsThreeOfSixValidators() public {
-        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.InsufficientValidatorQuorum.selector, 3, 4));
-        harness.checkValidatorQuorum(_addresses(3), _addresses(6));
+    /// @dev Both checks use the same ceil(2n / 3) threshold, so each case is exercised against both.
+    function fixtureThreshold() public pure returns (BesuThresholdTestCase[] memory testCases) {
+        testCases = new BesuThresholdTestCase[](10);
+        for (uint256 i = 0; i < 2; ++i) {
+            bool trustedOverlap = i == 0;
+            string memory prefix = trustedOverlap ? "trusted overlap" : "validator quorum";
+            bytes4 selector = trustedOverlap
+                ? IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector
+                : IBesuLightClientErrors.InsufficientValidatorQuorum.selector;
+
+            testCases[i * 5] = BesuThresholdTestCase(
+                string.concat("success: ", prefix, " single validator"), trustedOverlap, 1, 1, ""
+            );
+            testCases[i * 5 + 1] =
+                BesuThresholdTestCase(string.concat("success: ", prefix, " three of four"), trustedOverlap, 3, 4, "");
+            testCases[i * 5 + 2] = BesuThresholdTestCase(
+                string.concat("failure: ", prefix, " two of four"),
+                trustedOverlap,
+                2,
+                4,
+                abi.encodeWithSelector(selector, 2, 3)
+            );
+            testCases[i * 5 + 3] =
+                BesuThresholdTestCase(string.concat("success: ", prefix, " four of six"), trustedOverlap, 4, 6, "");
+            testCases[i * 5 + 4] = BesuThresholdTestCase(
+                string.concat("failure: ", prefix, " three of six"),
+                trustedOverlap,
+                3,
+                6,
+                abi.encodeWithSelector(selector, 3, 4)
+            );
+        }
     }
 
     function _addresses(uint256 length) private pure returns (address[] memory addresses) {

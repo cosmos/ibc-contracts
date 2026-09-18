@@ -1,10 +1,10 @@
 {
   "update.adjacent.calldata": "1444",
-  "update.adjacent.gas": "180277",
+  "update.adjacent.gas": "179083",
   "update.non_adjacent.calldata": "1444",
-  "update.non_adjacent.gas": "181507",
+  "update.non_adjacent.gas": "180313",
   "verify_membership.calldata": "2116",
-  "verify_membership.gas": "129077",
+  "verify_membership.gas": "127421",
   "verify_non_membership.calldata": "2020",
-  "verify_non_membership.gas": "141497"
+  "verify_non_membership.gas": "139373"
 }
