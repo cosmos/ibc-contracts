@@ -19,38 +19,17 @@ import { IBesuLightClientMsgs } from "./msgs/IBesuLightClientMsgs.sol";
 import { IBesuLightClientErrors } from "./errors/IBesuLightClientErrors.sol";
 import { IBesuLightClient } from "./interfaces/IBesuLightClient.sol";
 
+import { Header } from "./utils/Header.sol";
+
 /// @title Besu Light Client Base
 /// @notice Shared implementation for Besu BFT light clients that verify headers and EVM storage proofs.
 abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientErrors, AccessControl {
-    using RLP for *;
     using TransientSlot for TransientSlot.Bytes32Slot;
-
-    /// @notice Decoded fields from a submitted Besu header.
-    /// @param headerItems Top-level RLP header fields.
-    /// @param extraDataItems Decoded Besu BFT `extraData` fields.
-    /// @param height Header block number.
-    /// @param stateRoot Header state root.
-    /// @param timestamp Header timestamp in seconds.
-    /// @param validators Validator set from `extraData`.
-    /// @param commitSeals Commit seals from `extraData`.
-    struct ParsedHeader {
-        Memory.Slice[] headerItems;
-        Memory.Slice[] extraDataItems;
-        uint64 height;
-        bytes32 stateRoot;
-        uint64 timestamp;
-        address[] validators;
-        bytes[] commitSeals;
-    }
 
     /// @notice Role allowed to submit client updates and proof verifications.
     // natlint-disable-next-line MissingInheritdoc
     bytes32 public constant PROOF_SUBMITTER_ROLE = keccak256("PROOF_SUBMITTER_ROLE");
 
-    /// @notice Besu BFT sentinel mix hash.
-    bytes32 private constant BESU_BFT_MIX_HASH = 0x63746963616c2062797a616e74696e65206661756c7420746f6c6572616e6365;
-    /// @notice Empty ommers hash required by Besu BFT headers.
-    bytes32 private constant EMPTY_OMMERS_HASH = 0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347;
     /// @notice ERC-7201 storage slot used by `IBCStoreUpgradeable` commitments.
     /// @dev keccak256(abi.encode(uint256(keccak256("ibc.storage.IBCStore")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant IBCSTORE_STORAGE_SLOT = 0x1260944489272988d9df285149b5aa1b0f48f2136d6f416159f840a3e0747600;
@@ -126,7 +105,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         IBesuLightClientMsgs.MsgUpdateClient memory msg_ = abi.decode(updateMsg, (IBesuLightClientMsgs.MsgUpdateClient));
         require(msg_.trustedHeight.revisionNumber == 0, InvalidRevisionNumber(msg_.trustedHeight.revisionNumber));
 
-        ParsedHeader memory header = _parseHeader(msg_.headerRlp);
+        Header.Data memory header = Header.decodeRlp(msg_.headerRlp);
         require(header.height != 0, InvalidHeaderHeight());
         require(header.timestamp != 0, InvalidHeaderTimestamp());
         _validateValidators(header.validators);
@@ -187,7 +166,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
         bytes memory traversedValue = TrieProof.traverse(storageRoot, storageKey, proof.proofNodes);
 
-        bytes32 actualValue = traversedValue.decodeBytes32();
+        bytes32 actualValue = RLP.decodeBytes32(traversedValue);
         bytes32 expectedValue = bytes32(msg_.value);
         require(actualValue == expectedValue, InvalidCommitmentValue(expectedValue, actualValue));
 
@@ -228,50 +207,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @dev See `hashBlockForCommitSeal` in QBFT specification: https://entethalliance.org/specs/qbft/v1
     /// @param header The parsed Besu header.
     /// @return The digest signed by commit seals.
-    function _commitSealDigest(ParsedHeader memory header) internal pure virtual returns (bytes32);
-
-    /// @notice Parses and validates common Besu BFT header fields.
-    /// @param headerRlp RLP-encoded Besu block header.
-    /// @return header The parsed header fields used by update and proof verification.
-    function _parseHeader(bytes memory headerRlp) private pure returns (ParsedHeader memory header) {
-        header.headerItems = headerRlp.decodeList();
-        require(header.headerItems.length >= 15, InvalidHeaderFormat(header.headerItems.length));
-
-        require(
-            header.headerItems[1].readBytes32() == EMPTY_OMMERS_HASH,
-            InvalidOmmersHash(header.headerItems[1].readBytes32())
-        );
-        require(header.headerItems[7].readUint256() == 1, InvalidDifficulty(header.headerItems[7].readUint256()));
-        require(
-            header.headerItems[13].readBytes32() == BESU_BFT_MIX_HASH,
-            InvalidMixHash(header.headerItems[13].readBytes32())
-        );
-
-        bytes memory nonce = header.headerItems[14].readBytes();
-        require(nonce.length == 8 && keccak256(nonce) == keccak256(hex"0000000000000000"), InvalidNonce(nonce));
-
-        header.height = SafeCast.toUint64(header.headerItems[8].readUint256());
-        header.stateRoot = header.headerItems[3].readBytes32();
-        header.timestamp = SafeCast.toUint64(header.headerItems[11].readUint256());
-
-        bytes memory extraData = header.headerItems[12].readBytes();
-        header.extraDataItems = extraData.decodeList();
-        require(header.extraDataItems.length == 5, InvalidExtraDataFormat(header.extraDataItems.length));
-
-        Memory.Slice[] memory validatorItems = header.extraDataItems[1].readList();
-        require(validatorItems.length != 0, EmptyValidatorSet());
-
-        header.validators = new address[](validatorItems.length);
-        for (uint256 i = 0; i < validatorItems.length; ++i) {
-            header.validators[i] = validatorItems[i].readAddress();
-        }
-
-        Memory.Slice[] memory sealItems = header.extraDataItems[4].readList();
-        header.commitSeals = new bytes[](sealItems.length);
-        for (uint256 i = 0; i < sealItems.length; ++i) {
-            header.commitSeals[i] = sealItems[i].readBytes();
-        }
-    }
+    function _commitSealDigest(Header.Data memory header) internal pure virtual returns (bytes32);
 
     /// @notice Returns the storage root for a revision height, verifying the account proof if provided.
     /// @dev If the account proof is empty, the storage root is retrieved from a transient cache
@@ -314,8 +250,8 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     {
         bytes memory accountKey = abi.encodePacked(keccak256(abi.encodePacked(account)));
         bytes memory accountRlp = TrieProof.traverse(stateRoot, accountKey, proofNodes);
-        Memory.Slice[] memory accountItems = accountRlp.decodeList();
-        return accountItems[2].readBytes32();
+        Memory.Slice[] memory accountItems = RLP.decodeList(accountRlp);
+        return RLP.readBytes32(accountItems[2]);
     }
 
     /// @notice Computes the storage slot used for an IBC commitment path.
