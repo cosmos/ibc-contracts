@@ -21,7 +21,7 @@ import { IBesuLightClient } from "./interfaces/IBesuLightClient.sol";
 
 /// @title Besu Light Client Base
 /// @notice Shared implementation for Besu BFT light clients that verify headers and EVM storage proofs.
-abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientErrors, IBesuLightClientMsgs, AccessControl {
+abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientErrors, AccessControl {
     using RLP for *;
     using TransientSlot for TransientSlot.Bytes32Slot;
 
@@ -56,7 +56,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         0x1260944489272988d9df285149b5aa1b0f48f2136d6f416159f840a3e0747600;
 
     /// @notice Current client state.
-    ClientState internal clientState;
+    IBesuLightClientMsgs.ClientState internal clientState;
     /// @notice Keccak256 hash of trusted consensus states by revision height.
     mapping(uint64 revisionHeight => bytes32 consensusStateHash) internal consensusStateHashes;
 
@@ -85,14 +85,14 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
         _validateValidators(initialTrustedValidators);
 
-        clientState = ClientState({
+        clientState = IBesuLightClientMsgs.ClientState({
             ibcRouter: ibcRouter,
             latestHeight: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: initialTrustedHeight }),
             trustingPeriod: trustingPeriod,
             maxClockDrift: maxClockDrift
         });
 
-        ConsensusState memory initialConsensusState = ConsensusState({
+        IBesuLightClientMsgs.ConsensusState memory initialConsensusState = IBesuLightClientMsgs.ConsensusState({
             timestamp: initialTrustedTimestamp, stateRoot: initialTrustedStateRoot, validators: initialTrustedValidators
         });
         consensusStateHashes[initialTrustedHeight] = keccak256(abi.encode(initialConsensusState));
@@ -123,7 +123,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         onlyProofSubmitter
         returns (ILightClientMsgs.UpdateResult)
     {
-        MsgUpdateClient memory msg_ = abi.decode(updateMsg, (MsgUpdateClient));
+        IBesuLightClientMsgs.MsgUpdateClient memory msg_ = abi.decode(updateMsg, (IBesuLightClientMsgs.MsgUpdateClient));
         _requireZeroRevision(msg_.trustedHeight.revisionNumber);
 
         ParsedHeader memory header = _parseHeader(msg_.headerRlp);
@@ -141,8 +141,9 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         _checkTrustedValidatorOverlap(signers, msg_.consensusStatePreimage.validators);
         _checkValidatorQuorum(signers, header.validators);
 
-        ConsensusState memory newConsensusState =
-            ConsensusState({ timestamp: header.timestamp, stateRoot: header.stateRoot, validators: header.validators });
+        IBesuLightClientMsgs.ConsensusState memory newConsensusState = IBesuLightClientMsgs.ConsensusState({
+            timestamp: header.timestamp, stateRoot: header.stateRoot, validators: header.validators
+        });
 
         bytes32 newHash = keccak256(abi.encode(newConsensusState));
         bytes32 existingHash = consensusStateHashes[header.height];
@@ -173,7 +174,8 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         require(msg_.path.length == 1, InvalidPathLength(1, msg_.path.length));
         require(msg_.value.length == 32, InvalidValueLength(32, msg_.value.length));
 
-        MembershipProof memory proof = abi.decode(msg_.proof, (MembershipProof));
+        IBesuLightClientMsgs.MembershipProof memory proof =
+            abi.decode(msg_.proof, (IBesuLightClientMsgs.MembershipProof));
         _requireTrustedConsensusState(msg_.proofHeight.revisionHeight, proof.consensusStatePreimage);
 
         bytes32 storageRoot = _verifiedStorageRoot(
@@ -201,7 +203,8 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         _requireZeroRevision(msg_.proofHeight.revisionNumber);
         require(msg_.path.length == 1, InvalidPathLength(1, msg_.path.length));
 
-        MembershipProof memory proof = abi.decode(msg_.proof, (MembershipProof));
+        IBesuLightClientMsgs.MembershipProof memory proof =
+            abi.decode(msg_.proof, (IBesuLightClientMsgs.MembershipProof));
         _requireTrustedConsensusState(msg_.proofHeight.revisionHeight, proof.consensusStatePreimage);
 
         bytes32 storageRoot = _verifiedStorageRoot(
@@ -403,7 +406,13 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @notice Reverts unless the given consensus state matches the stored hash and is within the trusting period.
     /// @param revisionHeight The consensus state revision height.
     /// @param preimage The consensus state preimage to check.
-    function _requireTrustedConsensusState(uint64 revisionHeight, ConsensusState memory preimage) internal view {
+    function _requireTrustedConsensusState(
+        uint64 revisionHeight,
+        IBesuLightClientMsgs.ConsensusState memory preimage
+    )
+        internal
+        view
+    {
         bytes32 consensusStateHash = consensusStateHashes[revisionHeight];
         require(consensusStateHash != bytes32(0), ConsensusStateNotFound(revisionHeight));
 
