@@ -256,7 +256,6 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         require(header.extraDataItems.length == 5, InvalidExtraDataFormat(header.extraDataItems.length));
 
         Memory.Slice[] memory validatorItems = header.extraDataItems[1].readList();
-        require(validatorItems.length != 0, EmptyValidatorSet());
 
         header.validators = new address[](validatorItems.length);
         for (uint256 i = 0; i < validatorItems.length; ++i) {
