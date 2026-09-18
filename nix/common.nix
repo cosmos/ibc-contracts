@@ -8,5 +8,6 @@
     parallel
     quicktype
     foundry-bin
+    python3
   ];
 }
