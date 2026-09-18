@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.28;
 
-// solhint-disable gas-struct-packing, named-parameters-mapping, gas-strict-inequalities, code-complexity
-
 import { AccessControl } from "@openzeppelin-contracts/access/AccessControl.sol";
 import { ECDSA } from "@openzeppelin-contracts/utils/cryptography/ECDSA.sol";
 import { RLP } from "@openzeppelin-contracts/utils/RLP.sol";
@@ -10,7 +8,6 @@ import { TrieProof } from "../../utils/TrieProof.sol";
 import { Memory } from "@openzeppelin-contracts/utils/Memory.sol";
 import { TransientSlot } from "@openzeppelin-contracts/utils/TransientSlot.sol";
 import { Math } from "@openzeppelin-contracts/utils/math/Math.sol";
-import { SafeCast } from "@openzeppelin-contracts/utils/math/SafeCast.sol";
 
 import { ILightClient } from "../../interfaces/ILightClient.sol";
 import { ILightClientMsgs } from "../../msgs/ILightClientMsgs.sol";
@@ -19,46 +16,25 @@ import { IBesuLightClientMsgs } from "./msgs/IBesuLightClientMsgs.sol";
 import { IBesuLightClientErrors } from "./errors/IBesuLightClientErrors.sol";
 import { IBesuLightClient } from "./interfaces/IBesuLightClient.sol";
 
+import { Header } from "./utils/Header.sol";
+
 /// @title Besu Light Client Base
 /// @notice Shared implementation for Besu BFT light clients that verify headers and EVM storage proofs.
-abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientErrors, IBesuLightClientMsgs, AccessControl {
-    using RLP for *;
+abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientErrors, AccessControl {
     using TransientSlot for TransientSlot.Bytes32Slot;
-
-    /// @notice Decoded fields from a submitted Besu header.
-    /// @param headerItems Top-level RLP header fields.
-    /// @param extraDataItems Decoded Besu BFT `extraData` fields.
-    /// @param height Header block number.
-    /// @param stateRoot Header state root.
-    /// @param timestamp Header timestamp in seconds.
-    /// @param validators Validator set from `extraData`.
-    /// @param commitSeals Commit seals from `extraData`.
-    struct ParsedHeader {
-        Memory.Slice[] headerItems;
-        Memory.Slice[] extraDataItems;
-        uint64 height;
-        bytes32 stateRoot;
-        uint64 timestamp;
-        address[] validators;
-        bytes[] commitSeals;
-    }
 
     /// @notice Role allowed to submit client updates and proof verifications.
     // natlint-disable-next-line MissingInheritdoc
     bytes32 public constant PROOF_SUBMITTER_ROLE = keccak256("PROOF_SUBMITTER_ROLE");
 
-    /// @notice Besu BFT sentinel mix hash.
-    bytes32 internal constant BESU_BFT_MIX_HASH = 0x63746963616c2062797a616e74696e65206661756c7420746f6c6572616e6365;
-    /// @notice Empty ommers hash required by Besu BFT headers.
-    bytes32 internal constant EMPTY_OMMERS_HASH = 0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347;
     /// @notice ERC-7201 storage slot used by `IBCStoreUpgradeable` commitments.
-    bytes32 internal constant IBCSTORE_STORAGE_SLOT =
-        0x1260944489272988d9df285149b5aa1b0f48f2136d6f416159f840a3e0747600;
+    /// @dev keccak256(abi.encode(uint256(keccak256("ibc.storage.IBCStore")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant IBCSTORE_STORAGE_SLOT = 0x1260944489272988d9df285149b5aa1b0f48f2136d6f416159f840a3e0747600;
 
     /// @notice Current client state.
-    ClientState internal clientState;
+    IBesuLightClientMsgs.ClientState private clientState;
     /// @notice Keccak256 hash of trusted consensus states by revision height.
-    mapping(uint64 revisionHeight => bytes32 consensusStateHash) internal consensusStateHashes;
+    mapping(uint64 revisionHeight => bytes32 consensusStateHash) private consensusStateHashes;
 
     /// @notice Initializes shared Besu light client state.
     /// @param ibcRouter Counterparty ICS26 router address whose storage is proven.
@@ -85,14 +61,14 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
         _validateValidators(initialTrustedValidators);
 
-        clientState = ClientState({
+        clientState = IBesuLightClientMsgs.ClientState({
             ibcRouter: ibcRouter,
             latestHeight: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: initialTrustedHeight }),
             trustingPeriod: trustingPeriod,
             maxClockDrift: maxClockDrift
         });
 
-        ConsensusState memory initialConsensusState = ConsensusState({
+        IBesuLightClientMsgs.ConsensusState memory initialConsensusState = IBesuLightClientMsgs.ConsensusState({
             timestamp: initialTrustedTimestamp, stateRoot: initialTrustedStateRoot, validators: initialTrustedValidators
         });
         consensusStateHashes[initialTrustedHeight] = keccak256(abi.encode(initialConsensusState));
@@ -123,14 +99,15 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         onlyProofSubmitter
         returns (ILightClientMsgs.UpdateResult)
     {
-        MsgUpdateClient memory msg_ = abi.decode(updateMsg, (MsgUpdateClient));
-        _requireZeroRevision(msg_.trustedHeight.revisionNumber);
+        IBesuLightClientMsgs.MsgUpdateClient memory msg_ = abi.decode(updateMsg, (IBesuLightClientMsgs.MsgUpdateClient));
+        require(msg_.trustedHeight.revisionNumber == 0, InvalidRevisionNumber(msg_.trustedHeight.revisionNumber));
 
-        ParsedHeader memory header = _parseHeader(msg_.headerRlp);
+        Header.Data memory header = Header.decodeRlp(msg_.headerRlp);
         require(header.height != 0, InvalidHeaderHeight());
         require(header.timestamp != 0, InvalidHeaderTimestamp());
         _validateValidators(header.validators);
         require(
+            // solhint-disable-next-line gas-strict-inequalities
             block.timestamp + clientState.maxClockDrift >= header.timestamp,
             HeaderFromFuture(block.timestamp, header.timestamp, clientState.maxClockDrift)
         );
@@ -141,8 +118,9 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         _checkTrustedValidatorOverlap(signers, msg_.consensusStatePreimage.validators);
         _checkValidatorQuorum(signers, header.validators);
 
-        ConsensusState memory newConsensusState =
-            ConsensusState({ timestamp: header.timestamp, stateRoot: header.stateRoot, validators: header.validators });
+        IBesuLightClientMsgs.ConsensusState memory newConsensusState = IBesuLightClientMsgs.ConsensusState({
+            timestamp: header.timestamp, stateRoot: header.stateRoot, validators: header.validators
+        });
 
         bytes32 newHash = keccak256(abi.encode(newConsensusState));
         bytes32 existingHash = consensusStateHashes[header.height];
@@ -169,11 +147,12 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         onlyProofSubmitter
         returns (uint256)
     {
-        _requireZeroRevision(msg_.proofHeight.revisionNumber);
+        require(msg_.proofHeight.revisionNumber == 0, InvalidRevisionNumber(msg_.proofHeight.revisionNumber));
         require(msg_.path.length == 1, InvalidPathLength(1, msg_.path.length));
         require(msg_.value.length == 32, InvalidValueLength(32, msg_.value.length));
 
-        MembershipProof memory proof = abi.decode(msg_.proof, (MembershipProof));
+        IBesuLightClientMsgs.MembershipProof memory proof =
+            abi.decode(msg_.proof, (IBesuLightClientMsgs.MembershipProof));
         _requireTrustedConsensusState(msg_.proofHeight.revisionHeight, proof.consensusStatePreimage);
 
         bytes32 storageRoot = _verifiedStorageRoot(
@@ -185,7 +164,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
         bytes memory traversedValue = TrieProof.traverse(storageRoot, storageKey, proof.proofNodes);
 
-        bytes32 actualValue = traversedValue.decodeBytes32();
+        bytes32 actualValue = RLP.decodeBytes32(traversedValue);
         bytes32 expectedValue = bytes32(msg_.value);
         require(actualValue == expectedValue, InvalidCommitmentValue(expectedValue, actualValue));
 
@@ -198,10 +177,11 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         onlyProofSubmitter
         returns (uint256)
     {
-        _requireZeroRevision(msg_.proofHeight.revisionNumber);
+        require(msg_.proofHeight.revisionNumber == 0, InvalidRevisionNumber(msg_.proofHeight.revisionNumber));
         require(msg_.path.length == 1, InvalidPathLength(1, msg_.path.length));
 
-        MembershipProof memory proof = abi.decode(msg_.proof, (MembershipProof));
+        IBesuLightClientMsgs.MembershipProof memory proof =
+            abi.decode(msg_.proof, (IBesuLightClientMsgs.MembershipProof));
         _requireTrustedConsensusState(msg_.proofHeight.revisionHeight, proof.consensusStatePreimage);
 
         bytes32 storageRoot = _verifiedStorageRoot(
@@ -225,50 +205,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @dev See `hashBlockForCommitSeal` in QBFT specification: https://entethalliance.org/specs/qbft/v1
     /// @param header The parsed Besu header.
     /// @return The digest signed by commit seals.
-    function _commitSealDigest(ParsedHeader memory header) internal pure virtual returns (bytes32);
-
-    /// @notice Parses and validates common Besu BFT header fields.
-    /// @param headerRlp RLP-encoded Besu block header.
-    /// @return header The parsed header fields used by update and proof verification.
-    function _parseHeader(bytes memory headerRlp) internal pure returns (ParsedHeader memory header) {
-        header.headerItems = headerRlp.decodeList();
-        require(header.headerItems.length >= 15, InvalidHeaderFormat(header.headerItems.length));
-
-        require(
-            header.headerItems[1].readBytes32() == EMPTY_OMMERS_HASH,
-            InvalidOmmersHash(header.headerItems[1].readBytes32())
-        );
-        require(header.headerItems[7].readUint256() == 1, InvalidDifficulty(header.headerItems[7].readUint256()));
-        require(
-            header.headerItems[13].readBytes32() == BESU_BFT_MIX_HASH,
-            InvalidMixHash(header.headerItems[13].readBytes32())
-        );
-
-        bytes memory nonce = header.headerItems[14].readBytes();
-        require(nonce.length == 8 && keccak256(nonce) == keccak256(hex"0000000000000000"), InvalidNonce(nonce));
-
-        header.height = SafeCast.toUint64(header.headerItems[8].readUint256());
-        header.stateRoot = header.headerItems[3].readBytes32();
-        header.timestamp = SafeCast.toUint64(header.headerItems[11].readUint256());
-
-        bytes memory extraData = header.headerItems[12].readBytes();
-        header.extraDataItems = extraData.decodeList();
-        require(header.extraDataItems.length == 5, InvalidExtraDataFormat(header.extraDataItems.length));
-
-        Memory.Slice[] memory validatorItems = header.extraDataItems[1].readList();
-        require(validatorItems.length != 0, EmptyValidatorSet());
-
-        header.validators = new address[](validatorItems.length);
-        for (uint256 i = 0; i < validatorItems.length; ++i) {
-            header.validators[i] = validatorItems[i].readAddress();
-        }
-
-        Memory.Slice[] memory sealItems = header.extraDataItems[4].readList();
-        header.commitSeals = new bytes[](sealItems.length);
-        for (uint256 i = 0; i < sealItems.length; ++i) {
-            header.commitSeals[i] = sealItems[i].readBytes();
-        }
-    }
+    function _commitSealDigest(Header.Data memory header) internal pure virtual returns (bytes32);
 
     /// @notice Returns the storage root for a revision height, verifying the account proof if provided.
     /// @dev If the account proof is empty, the storage root is retrieved from a transient cache
@@ -282,7 +219,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         bytes32 stateRoot,
         bytes[] memory accountProofNodes
     )
-        internal
+        private
         returns (bytes32)
     {
         address counterpartyRouter = clientState.ibcRouter;
@@ -305,20 +242,20 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         bytes32 stateRoot,
         bytes[] memory proofNodes
     )
-        internal
+        private
         pure
         returns (bytes32)
     {
         bytes memory accountKey = abi.encodePacked(keccak256(abi.encodePacked(account)));
         bytes memory accountRlp = TrieProof.traverse(stateRoot, accountKey, proofNodes);
-        Memory.Slice[] memory accountItems = accountRlp.decodeList();
-        return accountItems[2].readBytes32();
+        Memory.Slice[] memory accountItems = RLP.decodeList(accountRlp);
+        return RLP.readBytes32(accountItems[2]);
     }
 
     /// @notice Computes the storage slot used for an IBC commitment path.
     /// @param rawPath Raw commitment path bytes.
     /// @return The storage slot for the commitment.
-    function _commitmentStorageSlot(bytes memory rawPath) internal pure returns (bytes32) {
+    function _commitmentStorageSlot(bytes memory rawPath) private pure returns (bytes32) {
         return keccak256(abi.encode(keccak256(rawPath), IBCSTORE_STORAGE_SLOT));
     }
 
@@ -326,7 +263,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @param digest The commit seal digest.
     /// @param seals The commit seals to recover.
     /// @return signers The recovered signer addresses.
-    function _recoverSigners(bytes32 digest, bytes[] memory seals) internal pure returns (address[] memory signers) {
+    function _recoverSigners(bytes32 digest, bytes[] memory seals) private pure returns (address[] memory signers) {
         signers = new address[](seals.length);
         for (uint256 i = 0; i < seals.length; ++i) {
             address signer = _recoverSigner(digest, seals[i]);
@@ -341,7 +278,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @param digest The commit seal digest.
     /// @param seal The 65-byte ECDSA commit seal.
     /// @return The recovered signer address.
-    function _recoverSigner(bytes32 digest, bytes memory seal) internal pure returns (address) {
+    function _recoverSigner(bytes32 digest, bytes memory seal) private pure returns (address) {
         require(seal.length == 65, InvalidECDSASignatureLength(seal.length));
         if (uint8(seal[64]) < 27) {
             seal[64] = bytes1(uint8(seal[64]) + 27);
@@ -357,7 +294,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @notice Checks that signers overlap enough with the trusted validator set.
     /// @param signers The recovered commit seal signers.
     /// @param trustedValidators The trusted validator set.
-    function _checkTrustedValidatorOverlap(address[] memory signers, address[] memory trustedValidators) internal pure {
+    function _checkTrustedValidatorOverlap(address[] memory signers, address[] memory trustedValidators) private pure {
         uint256 actual = 0;
         for (uint256 i = 0; i < signers.length; ++i) {
             if (_containsMemory(trustedValidators, signers[i])) {
@@ -367,32 +304,34 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
         uint256 required = _bftThreshold(trustedValidators.length);
         require(actual >= required, InsufficientTrustedValidatorOverlap(actual, required));
+        // solhint-disable-previous-line gas-strict-inequalities
     }
 
     /// @notice Checks that signers meet quorum for the submitted header validator set.
     /// @dev Assumes that the signer set has no duplicates. Checked in `_recoverSigners`.
     /// @param signers The recovered commit seal signers.
     /// @param validators The validator set from the submitted header.
-    function _checkValidatorQuorum(address[] memory signers, address[] memory validators) internal pure {
+    function _checkValidatorQuorum(address[] memory signers, address[] memory validators) private pure {
         for (uint256 i = 0; i < signers.length; ++i) {
             require(_containsMemory(validators, signers[i]), UnknownCommitSealSigner(signers[i]));
         }
 
         uint256 required = _bftThreshold(validators.length);
         require(signers.length >= required, InsufficientValidatorQuorum(signers.length, required));
+        // solhint-disable-previous-line gas-strict-inequalities
     }
 
     /// @notice Computes the BFT threshold `ceil(2n / 3)` used for trusted overlap and quorum checks.
     /// @dev Besu requires `ceil(2n / 3)` commit seals; the trusted overlap intentionally uses the same threshold.
     /// @param n The validator set size.
     /// @return The minimum number of matching signers.
-    function _bftThreshold(uint256 n) internal pure returns (uint256) {
+    function _bftThreshold(uint256 n) private pure returns (uint256) {
         return Math.ceilDiv(2 * n, 3);
     }
 
     /// @notice Validates that a validator set is non-empty, unique, and sorted.
     /// @param validators The validator set to validate.
-    function _validateValidators(address[] memory validators) internal pure {
+    function _validateValidators(address[] memory validators) private pure {
         require(validators.length != 0, EmptyValidatorSet());
         require(validators[0] != address(0), InvalidValidatorAddress(address(0)));
         for (uint256 i = 1; i < validators.length; ++i) {
@@ -403,7 +342,13 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @notice Reverts unless the given consensus state matches the stored hash and is within the trusting period.
     /// @param revisionHeight The consensus state revision height.
     /// @param preimage The consensus state preimage to check.
-    function _requireTrustedConsensusState(uint64 revisionHeight, ConsensusState memory preimage) internal view {
+    function _requireTrustedConsensusState(
+        uint64 revisionHeight,
+        IBesuLightClientMsgs.ConsensusState memory preimage
+    )
+        private
+        view
+    {
         bytes32 consensusStateHash = consensusStateHashes[revisionHeight];
         require(consensusStateHash != bytes32(0), ConsensusStateNotFound(revisionHeight));
 
@@ -416,17 +361,11 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         );
     }
 
-    /// @notice Reverts unless the revision number is zero.
-    /// @param revisionNumber The revision number to validate.
-    function _requireZeroRevision(uint64 revisionNumber) internal pure {
-        require(revisionNumber == 0, InvalidRevisionNumber(revisionNumber));
-    }
-
     /// @notice Checks whether a memory validator set contains a signer.
     /// @param validators The memory validator set.
     /// @param signer The signer to find.
     /// @return True if `signer` is present.
-    function _containsMemory(address[] memory validators, address signer) internal pure returns (bool) {
+    function _containsMemory(address[] memory validators, address signer) private pure returns (bool) {
         for (uint256 i = 0; i < validators.length; ++i) {
             if (validators[i] == signer) {
                 return true;
@@ -439,7 +378,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @param ibcRouter The ICS26 router address whose storageRoot was proven.
     /// @param revisionHeight The revision height for the storage root.
     /// @param storageRoot The storage root to cache.
-    function _cacheStorageRoot(address ibcRouter, uint64 revisionHeight, bytes32 storageRoot) internal {
+    function _cacheStorageRoot(address ibcRouter, uint64 revisionHeight, bytes32 storageRoot) private {
         _cacheKey(ibcRouter, revisionHeight).tstore(storageRoot);
     }
 
@@ -447,7 +386,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @param ibcRouter The ICS26 router address whose storageRoot was proven.
     /// @param revisionHeight The revision height for the storage root.
     /// @return The cached storage root, reverting if not found.
-    function _getCachedStorageRoot(address ibcRouter, uint64 revisionHeight) internal view returns (bytes32) {
+    function _getCachedStorageRoot(address ibcRouter, uint64 revisionHeight) private view returns (bytes32) {
         bytes32 storageRoot = _cacheKey(ibcRouter, revisionHeight).tload();
         require(storageRoot != bytes32(0), StorageRootNotInCache(revisionHeight));
         return storageRoot;
@@ -457,7 +396,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @param ibcRouter The ICS26 router address whose storageRoot was proven.
     /// @param revisionHeight The revision height for the cache key.
     /// @return The cache key.
-    function _cacheKey(address ibcRouter, uint64 revisionHeight) internal pure returns (TransientSlot.Bytes32Slot) {
+    function _cacheKey(address ibcRouter, uint64 revisionHeight) private pure returns (TransientSlot.Bytes32Slot) {
         return TransientSlot.asBytes32(keccak256(abi.encode(ibcRouter, revisionHeight)));
     }
 
