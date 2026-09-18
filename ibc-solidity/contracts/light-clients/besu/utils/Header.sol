@@ -25,6 +25,7 @@ library Header {
     /// @param timestamp Header timestamp in seconds.
     /// @param validators Validator set from `extraData`.
     /// @param commitSeals Commit seals from `extraData`.
+    // solhint-disable-next-line gas-struct-packing
     struct Data {
         Memory.Slice[] headerItems;
         Memory.Slice[] extraDataItems;
@@ -35,9 +36,12 @@ library Header {
         bytes[] commitSeals;
     }
 
+    /// @notice Decodes a Besu header RLP into its fields.
+    /// @param headerRlp RLP-encoded Besu header.
+    /// @return header Decoded Besu header fields.
     function decodeRlp(bytes memory headerRlp) internal pure returns (Data memory header) {
         header.headerItems = headerRlp.decodeList();
-        require(header.headerItems.length >= 15, IBesuLightClientErrors.InvalidHeaderFormat(header.headerItems.length));
+        require(header.headerItems.length > 14, IBesuLightClientErrors.InvalidHeaderFormat(header.headerItems.length));
 
         require(
             header.headerItems[1].readBytes32() == EMPTY_OMMERS_HASH,

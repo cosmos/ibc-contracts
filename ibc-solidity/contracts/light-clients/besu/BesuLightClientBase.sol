@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.28;
 
-// solhint-disable gas-struct-packing, named-parameters-mapping, gas-strict-inequalities, code-complexity
-
 import { AccessControl } from "@openzeppelin-contracts/access/AccessControl.sol";
 import { ECDSA } from "@openzeppelin-contracts/utils/cryptography/ECDSA.sol";
 import { RLP } from "@openzeppelin-contracts/utils/RLP.sol";
@@ -10,7 +8,6 @@ import { TrieProof } from "../../utils/TrieProof.sol";
 import { Memory } from "@openzeppelin-contracts/utils/Memory.sol";
 import { TransientSlot } from "@openzeppelin-contracts/utils/TransientSlot.sol";
 import { Math } from "@openzeppelin-contracts/utils/math/Math.sol";
-import { SafeCast } from "@openzeppelin-contracts/utils/math/SafeCast.sol";
 
 import { ILightClient } from "../../interfaces/ILightClient.sol";
 import { ILightClientMsgs } from "../../msgs/ILightClientMsgs.sol";
@@ -110,6 +107,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         require(header.timestamp != 0, InvalidHeaderTimestamp());
         _validateValidators(header.validators);
         require(
+            // solhint-disable-next-line gas-strict-inequalities
             block.timestamp + clientState.maxClockDrift >= header.timestamp,
             HeaderFromFuture(block.timestamp, header.timestamp, clientState.maxClockDrift)
         );
@@ -306,6 +304,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
         uint256 required = _bftThreshold(trustedValidators.length);
         require(actual >= required, InsufficientTrustedValidatorOverlap(actual, required));
+        // solhint-disable-previous-line gas-strict-inequalities
     }
 
     /// @notice Checks that signers meet quorum for the submitted header validator set.
@@ -319,6 +318,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
         uint256 required = _bftThreshold(validators.length);
         require(signers.length >= required, InsufficientValidatorQuorum(signers.length, required));
+        // solhint-disable-previous-line gas-strict-inequalities
     }
 
     /// @notice Computes the BFT threshold `ceil(2n / 3)` used for trusted overlap and quorum checks.
