@@ -124,7 +124,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         returns (ILightClientMsgs.UpdateResult)
     {
         IBesuLightClientMsgs.MsgUpdateClient memory msg_ = abi.decode(updateMsg, (IBesuLightClientMsgs.MsgUpdateClient));
-        _requireZeroRevision(msg_.trustedHeight.revisionNumber);
+        require(msg_.trustedHeight.revisionNumber == 0, InvalidRevisionNumber(msg_.trustedHeight.revisionNumber));
 
         ParsedHeader memory header = _parseHeader(msg_.headerRlp);
         require(header.height != 0, InvalidHeaderHeight());
@@ -170,7 +170,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         onlyProofSubmitter
         returns (uint256)
     {
-        _requireZeroRevision(msg_.proofHeight.revisionNumber);
+        require(msg_.proofHeight.revisionNumber == 0, InvalidRevisionNumber(msg_.proofHeight.revisionNumber));
         require(msg_.path.length == 1, InvalidPathLength(1, msg_.path.length));
         require(msg_.value.length == 32, InvalidValueLength(32, msg_.value.length));
 
@@ -200,7 +200,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         onlyProofSubmitter
         returns (uint256)
     {
-        _requireZeroRevision(msg_.proofHeight.revisionNumber);
+        require(msg_.proofHeight.revisionNumber == 0, InvalidRevisionNumber(msg_.proofHeight.revisionNumber));
         require(msg_.path.length == 1, InvalidPathLength(1, msg_.path.length));
 
         IBesuLightClientMsgs.MembershipProof memory proof =
@@ -423,12 +423,6 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             uint256(preimage.timestamp) + clientState.trustingPeriod > block.timestamp,
             ConsensusStateExpired(preimage.timestamp, block.timestamp, clientState.trustingPeriod)
         );
-    }
-
-    /// @notice Reverts unless the revision number is zero.
-    /// @param revisionNumber The revision number to validate.
-    function _requireZeroRevision(uint64 revisionNumber) private pure {
-        require(revisionNumber == 0, InvalidRevisionNumber(revisionNumber));
     }
 
     /// @notice Checks whether a memory validator set contains a signer.
