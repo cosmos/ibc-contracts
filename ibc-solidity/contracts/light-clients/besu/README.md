@@ -195,8 +195,8 @@ return encoded[4:], nil
 The consensus state commitment is
 `crypto.Keccak256Hash(bindings.PackConsensusState(state)[4:])`.
 `Pack*` panics on invalid inputs; `TryPack*` returns an error. Callers retain
-light-client policy checks. The schema has no function return values, so it does
-not generate unpack helpers.
+light-client policy checks. Matching schema return types generate typed `Unpack*`
+helpers for decoding the same `abi.encode(value)` payloads, without a selector.
 
 ## Test fixtures
 
