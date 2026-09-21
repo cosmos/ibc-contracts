@@ -11,7 +11,10 @@ on:
       - 'ibc-solidity/abi/**'
       - 'ibc-solidity/solidity.just'
       - 'packages/go-abigen/**'
-      - 'e2e/interchaintestv8/types/erc20/**'
+      - 'e2e/interchaintestv8/types/**'
+      - 'e2e/interchaintestv8/go.mod'
+      - 'e2e/interchaintestv8/go.sum'
+      - '.github/workflows/abigen.yaml'
       - '**.sol'
       - 'ibc-solidity/bun.lock'
   push:
@@ -21,7 +24,10 @@ on:
       - 'ibc-solidity/abi/**'
       - 'ibc-solidity/solidity.just'
       - 'packages/go-abigen/**'
-      - 'e2e/interchaintestv8/types/erc20/**'
+      - 'e2e/interchaintestv8/types/**'
+      - 'e2e/interchaintestv8/go.mod'
+      - 'e2e/interchaintestv8/go.sum'
+      - '.github/workflows/abigen.yaml'
       - '**.sol'
       - 'ibc-solidity/bun.lock'
 
