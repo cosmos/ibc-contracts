@@ -67,16 +67,18 @@ Membership verification against a world state trie with the given number of acco
 
 Gas:
 
-| Accounts | 1 commitments | 16 commitments | 128 commitments |
-| ---: | ---: | ---: | ---: |
-| 1 | 70,586 | 98,495 | 128,659 |
-| 16 | 98,972 | 126,895 | 157,047 |
-| 128 | 129,159 | 157,083 | 187,237 |
+| Accounts | 1 commitments | 16 commitments | 128 commitments | 1024 commitments |
+| ---: | ---: | ---: | ---: | ---: |
+| 1 | 70,586 | 98,495 | 128,659 | 158,812 |
+| 16 | 98,972 | 126,895 | 157,047 | 187,201 |
+| 128 | 129,159 | 157,083 | 187,237 | 217,416 |
+| 1024 | 159,860 | 187,810 | 217,953 | 248,109 |
 
 ABI calldata bytes:
 
-| Accounts | 1 commitments | 16 commitments | 128 commitments |
-| ---: | ---: | ---: | ---: |
-| 1 | 1,220 | 1,636 | 2,180 |
-| 16 | 1,668 | 2,084 | 2,628 |
-| 128 | 2,212 | 2,628 | 3,172 |
+| Accounts | 1 commitments | 16 commitments | 128 commitments | 1024 commitments |
+| ---: | ---: | ---: | ---: | ---: |
+| 1 | 1,220 | 1,636 | 2,180 | 2,724 |
+| 16 | 1,668 | 2,084 | 2,628 | 3,172 |
+| 128 | 2,212 | 2,628 | 3,172 | 3,716 |
+| 1024 | 2,788 | 3,204 | 3,748 | 4,292 |

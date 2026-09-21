@@ -68,7 +68,7 @@ export const BESU_QBFT_KEYS = [
 ] as const;
 
 export const BESU_QBFT_SIM_VALIDATOR_COUNTS = [4, 7, 16, 32, 64, 100] as const;
-export const BESU_QBFT_SIM_TRIE_SIZES = [1, 16, 128] as const;
+export const BESU_QBFT_SIM_TRIE_SIZES = [1, 16, 128, 1024] as const;
 export const BESU_QBFT_SIM_KEYS = [
   ...BESU_QBFT_SIM_VALIDATOR_COUNTS.flatMap((count) => [
     `update.validators_${count}.calldata`,

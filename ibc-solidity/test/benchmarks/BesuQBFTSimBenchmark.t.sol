@@ -38,7 +38,7 @@ contract BesuQBFTSimBenchmark is Test {
 
     /// @dev Scales the world state trie (accounts, router included) and the router's storage trie (commitments).
     function testBenchmark_VerifyMembership_TrieSizes() public {
-        uint256[3] memory sizes = [uint256(1), 16, 128];
+        uint256[4] memory sizes = [uint256(1), 16, 128, 1024];
         for (uint256 a = 0; a < sizes.length; ++a) {
             for (uint256 c = 0; c < sizes.length; ++c) {
                 QBFTSimSuite sim = new QBFTSimSuite(SimHeader.Mode.QBFT);
