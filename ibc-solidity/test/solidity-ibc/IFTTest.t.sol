@@ -12,6 +12,8 @@ import { IICS26RouterMsgs } from "../../contracts/msgs/IICS26RouterMsgs.sol";
 import { IICS27GMPMsgs } from "../../contracts/msgs/IICS27GMPMsgs.sol";
 
 import { IIFT } from "../../contracts/interfaces/IIFT.sol";
+import { IIFTRateLimit } from "../../contracts/interfaces/IIFTRateLimit.sol";
+import { RateLimiter } from "@openzeppelin-contracts/utils/RateLimiter.sol";
 import { IAccessManaged } from "@openzeppelin-contracts/access/manager/IAccessManaged.sol";
 import { IIFTErrors } from "../../contracts/errors/IIFTErrors.sol";
 import { IICS27GMP } from "../../contracts/interfaces/IICS27GMP.sol";
@@ -47,9 +49,19 @@ contract IFTTest is Test {
 
     string public constant COUNTERPARTY_IFT_ADDRESS = "0x123";
 
+    // Generous defaults so that the existing flows are not rate limited
+    uint208 public constant RATE_LIMIT_CAPACITY = type(uint128).max;
+    uint48 public constant RATE_LIMIT_WINDOW = 1 days;
+
     address public mockICS27 = makeAddr("mockICS27");
     // admin is the owner of the IFTOwnable and authority of the access manager
     address public admin = makeAddr("admin");
+
+    // Actors and bridge used by the rate limit `flow` helper
+    address public flowSender = makeAddr("flowSender");
+    address public flowMinter = makeAddr("flowMinter");
+    string public flowReceiver = Strings.toHexString(makeAddr("flowReceiver"));
+    string public bridgedClientId;
 
     function setUpOwnable() public {
         address impl = address(new IFTOwnable());
@@ -65,6 +77,13 @@ contract IFTTest is Test {
             impl, abi.encodeCall(IFTAccessManaged.initialize, (address(manager), TOKEN_NAME, TOKEN_SYMBOL, mockICS27))
         );
         ift = IIFT(address(proxy));
+    }
+
+    function setRateLimits(uint208 capacity, uint48 window) public {
+        vm.startPrank(admin);
+        IIFTRateLimit(address(ift)).setIFTRateLimit(IIFTMsgs.IFTRateLimitDirection.Inbound, capacity, window);
+        IIFTRateLimit(address(ift)).setIFTRateLimit(IIFTMsgs.IFTRateLimitDirection.Outbound, capacity, window);
+        vm.stopPrank();
     }
 
     function test_Ownable_deployment() public {
@@ -514,6 +533,7 @@ contract IFTTest is Test {
         vm.startPrank(admin);
         ift.registerIFTBridge(th.FIRST_CLIENT_ID(), COUNTERPARTY_IFT_ADDRESS, address(evmCallConstructor));
         vm.stopPrank();
+        setRateLimits(RATE_LIMIT_CAPACITY, RATE_LIMIT_WINDOW);
 
         // random sequence number
         uint64 seq = uint64(vm.randomUint(1, type(uint64).max));
@@ -642,6 +662,7 @@ contract IFTTest is Test {
         vm.startPrank(admin);
         ift.registerIFTBridge(th.FIRST_CLIENT_ID(), COUNTERPARTY_IFT_ADDRESS, address(evmCallConstructor));
         vm.stopPrank();
+        setRateLimits(RATE_LIMIT_CAPACITY, RATE_LIMIT_WINDOW);
 
         uint64 seq = 42;
         uint256 transferAmount = 1000;
@@ -755,6 +776,7 @@ contract IFTTest is Test {
         vm.startPrank(admin);
         ift.registerIFTBridge(th.FIRST_CLIENT_ID(), COUNTERPARTY_IFT_ADDRESS, address(evmCallConstructor));
         vm.stopPrank();
+        setRateLimits(RATE_LIMIT_CAPACITY, RATE_LIMIT_WINDOW);
 
         uint64 seq = 42;
         uint256 transferAmount = 1000;
@@ -880,6 +902,7 @@ contract IFTTest is Test {
         vm.startPrank(admin);
         ift.registerIFTBridge(th.FIRST_CLIENT_ID(), COUNTERPARTY_IFT_ADDRESS, address(evmCallConstructor));
         vm.stopPrank();
+        setRateLimits(RATE_LIMIT_CAPACITY, RATE_LIMIT_WINDOW);
 
         address authorizedCaller = makeAddr("authorizedCaller");
         address unauthorizedCaller = makeAddr("unauthorizedCaller");
@@ -909,6 +932,223 @@ contract IFTTest is Test {
 
         uint256 receiverBalance = IERC20(address(ift)).balanceOf(mintTC.receiver);
         assertEq(receiverBalance, mintTC.amount);
+    }
+
+    // Rate Limit Tests
+
+    function fixtureSetRateLimitTC() public returns (SetIFTRateLimitTestCase[] memory) {
+        address unauthorized = makeAddr("unauthorized");
+
+        SetIFTRateLimitTestCase[] memory testCases = new SetIFTRateLimitTestCase[](4);
+
+        testCases[0] = SetIFTRateLimitTestCase({
+            name: "success: ownable admin sets inbound",
+            caller: admin,
+            ownable: true,
+            direction: IIFTMsgs.IFTRateLimitDirection.Inbound,
+            expectedRevert: ""
+        });
+        testCases[1] = SetIFTRateLimitTestCase({
+            name: "success: access managed admin sets outbound",
+            caller: admin,
+            ownable: false,
+            direction: IIFTMsgs.IFTRateLimitDirection.Outbound,
+            expectedRevert: ""
+        });
+        testCases[2] = SetIFTRateLimitTestCase({
+            name: "revert: ownable unauthorized caller",
+            caller: unauthorized,
+            ownable: true,
+            direction: IIFTMsgs.IFTRateLimitDirection.Inbound,
+            expectedRevert: abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, unauthorized)
+        });
+        testCases[3] = SetIFTRateLimitTestCase({
+            name: "revert: access managed unauthorized caller",
+            caller: unauthorized,
+            ownable: false,
+            direction: IIFTMsgs.IFTRateLimitDirection.Outbound,
+            expectedRevert: abi.encodeWithSelector(IAccessManaged.AccessManagedUnauthorized.selector, unauthorized)
+        });
+
+        return testCases;
+    }
+
+    function tableSetIFTRateLimitTest(SetIFTRateLimitTestCase memory setRateLimitTC) public {
+        if (setRateLimitTC.ownable) {
+            setUpOwnable();
+        } else {
+            setUpAccessManaged();
+        }
+        IIFTRateLimit rateLimit = IIFTRateLimit(address(ift));
+
+        // Unset limits report an empty bucket
+        (uint208 capacity, uint48 window) = rateLimit.getIFTRateLimit(setRateLimitTC.direction);
+        assertEq(capacity, 0);
+        assertEq(window, 0);
+        assertEq(rateLimit.getIFTRateLimitAvailable(setRateLimitTC.direction), 0);
+
+        if (setRateLimitTC.expectedRevert.length != 0) {
+            vm.expectRevert(setRateLimitTC.expectedRevert);
+        } else {
+            vm.expectEmit(true, true, true, true);
+            emit IIFTRateLimit.IFTRateLimitSet(setRateLimitTC.direction, 1000, 1 hours);
+        }
+
+        vm.prank(setRateLimitTC.caller);
+        rateLimit.setIFTRateLimit(setRateLimitTC.direction, 1000, 1 hours);
+
+        if (setRateLimitTC.expectedRevert.length != 0) {
+            return;
+        }
+
+        (capacity, window) = rateLimit.getIFTRateLimit(setRateLimitTC.direction);
+        assertEq(capacity, 1000);
+        assertEq(window, 1 hours);
+        // A freshly configured bucket starts full
+        assertEq(rateLimit.getIFTRateLimitAvailable(setRateLimitTC.direction), 1000);
+    }
+
+    /// @dev Deploys an ownable IFT with a registered bridge and mocked ICS27 so that `flow` can move tokens
+    function setUpBridged() public {
+        setUpOwnable();
+
+        vm.startPrank(admin);
+        ift.registerIFTBridge(th.FIRST_CLIENT_ID(), COUNTERPARTY_IFT_ADDRESS, address(evmCallConstructor));
+        vm.stopPrank();
+
+        bridgedClientId = th.FIRST_CLIENT_ID();
+        deal(address(ift), flowSender, 1_000_000 ether, true);
+
+        vm.mockCall(address(mockICS27), IICS27GMP.sendCall.selector, abi.encode(uint64(1)));
+        vm.mockCall(
+            address(mockICS27),
+            abi.encodeCall(IICS27GMP.getAccountIdentifier, (flowMinter)),
+            abi.encode(
+                IICS27GMPMsgs.AccountIdentifier({
+                    clientId: th.FIRST_CLIENT_ID(), sender: COUNTERPARTY_IFT_ADDRESS, salt: ""
+                })
+            )
+        );
+    }
+
+    /// @dev Moves `amount` in `direction`: an outbound transfer by `flowSender` or an inbound mint by `flowMinter`
+    /// @dev Makes no external calls before the rate limited one, so `vm.expectRevert` binds to it
+    function flow(IIFTMsgs.IFTRateLimitDirection direction, uint256 amount) public {
+        if (direction == IIFTMsgs.IFTRateLimitDirection.Outbound) {
+            vm.prank(flowSender);
+            ift.iftTransfer(bridgedClientId, flowReceiver, amount);
+        } else {
+            vm.prank(flowMinter);
+            ift.iftMint(flowSender, amount);
+        }
+    }
+
+    function available(IIFTMsgs.IFTRateLimitDirection direction) public view returns (uint256) {
+        return IIFTRateLimit(address(ift)).getIFTRateLimitAvailable(direction);
+    }
+
+    function test_rateLimit_unsetLimitsRejectAllFlows() public {
+        setUpBridged();
+
+        vm.expectRevert(RateLimiter.RateLimitExceeded.selector);
+        flow(IIFTMsgs.IFTRateLimitDirection.Outbound, 1);
+
+        vm.expectRevert(RateLimiter.RateLimitExceeded.selector);
+        flow(IIFTMsgs.IFTRateLimitDirection.Inbound, 1);
+    }
+
+    function fixturedirection() public pure returns (IIFTMsgs.IFTRateLimitDirection[] memory) {
+        IIFTMsgs.IFTRateLimitDirection[] memory directions = new IIFTMsgs.IFTRateLimitDirection[](2);
+        directions[0] = IIFTMsgs.IFTRateLimitDirection.Inbound;
+        directions[1] = IIFTMsgs.IFTRateLimitDirection.Outbound;
+        return directions;
+    }
+
+    function tableRateLimitRefillTest(IIFTMsgs.IFTRateLimitDirection direction) public {
+        setUpBridged();
+        setRateLimits(1000, 1000 seconds);
+        IIFTMsgs.IFTRateLimitDirection other = direction == IIFTMsgs.IFTRateLimitDirection.Inbound
+            ? IIFTMsgs.IFTRateLimitDirection.Outbound
+            : IIFTMsgs.IFTRateLimitDirection.Inbound;
+
+        // A full bucket allows a burst up to the capacity, and nothing more
+        flow(direction, 1000);
+        assertEq(available(direction), 0);
+        vm.expectRevert(RateLimiter.RateLimitExceeded.selector);
+        flow(direction, 1);
+
+        // The other direction is independent
+        assertEq(available(other), 1000);
+
+        // Half the window refills half the capacity
+        vm.warp(vm.getBlockTimestamp() + 500 seconds);
+        assertEq(available(direction), 500);
+        vm.expectRevert(RateLimiter.RateLimitExceeded.selector);
+        flow(direction, 501);
+        flow(direction, 500);
+        assertEq(available(direction), 0);
+
+        // A full window refills the bucket completely, never beyond the capacity
+        vm.warp(vm.getBlockTimestamp() + 2000 seconds);
+        assertEq(available(direction), 1000);
+    }
+
+    function test_rateLimit_refundDoesNotConsumeOrRestore() public {
+        setUpBridged();
+        vm.prank(admin);
+        IIFTRateLimit(address(ift)).setIFTRateLimit(IIFTMsgs.IFTRateLimitDirection.Outbound, 1000, 1000 seconds);
+        // Inbound is deliberately left unset: refunds must still mint
+
+        uint256 balanceBefore = IERC20(address(ift)).balanceOf(flowSender);
+        flow(IIFTMsgs.IFTRateLimitDirection.Outbound, 1000);
+        assertEq(available(IIFTMsgs.IFTRateLimitDirection.Outbound), 0);
+
+        IIBCAppCallbacks.OnTimeoutPacketCallback memory callback = IIBCAppCallbacks.OnTimeoutPacketCallback({
+            sourceClient: bridgedClientId,
+            destinationClient: th.SECOND_CLIENT_ID(),
+            sequence: 1,
+            payload: IICS26RouterMsgs.Payload({
+                sourcePort: ICS27Lib.DEFAULT_PORT_ID,
+                destPort: ICS27Lib.DEFAULT_PORT_ID,
+                version: ICS27Lib.ICS27_VERSION,
+                encoding: ICS27Lib.ICS27_ENCODING,
+                value: ""
+            }),
+            relayer: makeAddr("relayer")
+        });
+        vm.prank(mockICS27);
+        IIBCSenderCallbacks(address(ift)).onTimeoutPacket(callback);
+
+        assertEq(IERC20(address(ift)).balanceOf(flowSender), balanceBefore, "refund should be minted");
+        assertEq(available(IIFTMsgs.IFTRateLimitDirection.Inbound), 0, "refund should not touch inbound");
+        assertEq(available(IIFTMsgs.IFTRateLimitDirection.Outbound), 0, "refund should not restore outbound");
+    }
+
+    function test_rateLimit_updateKeepsAccruedRefill() public {
+        setUpBridged();
+        IIFTMsgs.IFTRateLimitDirection direction = IIFTMsgs.IFTRateLimitDirection.Outbound;
+        setRateLimits(1000, 1000 seconds);
+
+        flow(direction, 1000);
+        vm.warp(vm.getBlockTimestamp() + 500 seconds);
+        assertEq(available(direction), 500);
+
+        // Halving the refill rate keeps what already refilled and only slows down future refill
+        vm.prank(admin);
+        IIFTRateLimit(address(ift)).setIFTRateLimit(direction, 1000, 2000 seconds);
+        assertEq(available(direction), 500);
+        vm.warp(vm.getBlockTimestamp() + 500 seconds);
+        assertEq(available(direction), 750);
+
+        // Lowering the capacity below the current usage (250) empties the bucket, and the usage keeps draining at
+        // the new rate of 100 per 2000 seconds
+        vm.prank(admin);
+        IIFTRateLimit(address(ift)).setIFTRateLimit(direction, 100, 2000 seconds);
+        assertEq(available(direction), 0);
+        vm.warp(vm.getBlockTimestamp() + 4000 seconds);
+        assertEq(available(direction), 50);
+        vm.warp(vm.getBlockTimestamp() + 1000 seconds);
+        assertEq(available(direction), 100);
     }
 
     // Upgrade Tests
@@ -1185,6 +1425,14 @@ contract IFTTest is Test {
         bytes4 randomId = 0xdeadbeef;
         assertFalse(constructor_.supportsInterface(randomId));
     }
+}
+
+struct SetIFTRateLimitTestCase {
+    string name;
+    address caller;
+    bool ownable;
+    IIFTMsgs.IFTRateLimitDirection direction;
+    bytes expectedRevert;
 }
 
 struct IFTMintTestCase {

@@ -1,8 +1,8 @@
 # ADR: Rate Limiting in IFT in Solidity
 
-**Status**: Proposed
+**Status**: Accepted
 **Date**: 2026-09-10
-**Last Updated**: 2026-09-17
+**Last Updated**: 2026-09-21
 
 ## Context
 
@@ -81,8 +81,8 @@ On the other hand, per client limits would allow implementers to configure diffe
 
 Choosing per token limits now does not prevent us from adding per client limits in the future. Per client buckets can be layered on top of the per token bucket, so that a transfer must fit within both. Note that because rate limits are mandatory, a per client limit would make a newly registered client unusable until the authority configures its limit. This is a further reason to start with per token limits.
 
-## Open Implementation Questions
+## Implementation Notes
 
-The choices above establish the policy, but the implementation must still address some details:
+The policy is implemented in [`IFTRateLimitUpgradeable`](../../../ibc-solidity/contracts/utils/IFTRateLimitUpgradeable.sol) on top of OpenZeppelin's `RateLimiter.RefillingBucket`, with one bucket per direction. An unset direction has zero capacity, which is what makes the limits mandatory.
 
-- **Capacity updates:** How are remaining allowance and elapsed refill handled when the authority changes capacity or the refill window? Updates must not accidentally reset consumed usage or apply a new refill rate retroactively.
+- **Capacity updates:** Before the authority changes a direction's capacity or window, the bucket is synced: the refill accrued under the old rate is applied and the usage timestamp is moved to now. Consumed usage is therefore preserved and the new rate only applies going forward. Lowering the capacity below the current usage leaves the bucket empty until that usage drains at the new rate.

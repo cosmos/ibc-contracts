@@ -6,6 +6,7 @@ import { IIBCAppCallbacks } from "../msgs/IIBCAppCallbacks.sol";
 import { IICS27GMPMsgs } from "../msgs/IICS27GMPMsgs.sol";
 
 import { IIFT } from "../interfaces/IIFT.sol";
+import { IIFTRateLimit } from "../interfaces/IIFTRateLimit.sol";
 import { IICS27GMP } from "../interfaces/IICS27GMP.sol";
 import { IIFTSendCallConstructor } from "../interfaces/IIFTSendCallConstructor.sol";
 import { IIBCSenderCallbacks } from "../interfaces/IIBCSenderCallbacks.sol";
@@ -14,6 +15,7 @@ import { IIFTErrors } from "../errors/IIFTErrors.sol";
 import { ReentrancyGuardTransient } from "@openzeppelin-contracts/utils/ReentrancyGuardTransient.sol";
 import { ERC20Upgradeable } from "@openzeppelin-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import { IBCCallbackReceiver } from "../utils/IBCCallbackReceiver.sol";
+import { IFTRateLimitUpgradeable } from "../utils/IFTRateLimitUpgradeable.sol";
 import { ERC165Checker } from "@openzeppelin-contracts/utils/introspection/ERC165Checker.sol";
 
 /**
@@ -21,12 +23,14 @@ import { ERC165Checker } from "@openzeppelin-contracts/utils/introspection/ERC16
  * @notice Abstract base contract for Interchain Fungible Tokens
  *
  * @dev Extend this contract and implement the ERC20 constructor to create an IFT token
- * @dev _update in ERC20Upgradeable can be overriden to add custom logic on minting and burning such as rate limiting,
- * and whitelisting.
+ * @dev Inbound mints and outbound burns are rate limited per direction, see IFTRateLimitUpgradeable. Rate limits
+ * must be set by the authority before the token can be bridged.
+ * @dev _update in ERC20Upgradeable can be overriden to add custom logic on minting and burning such as whitelisting.
  */
 abstract contract IFTBaseUpgradeable is
     IIFTErrors,
     IIFT,
+    IFTRateLimitUpgradeable,
     ERC20Upgradeable,
     IBCCallbackReceiver,
     ReentrancyGuardTransient
@@ -111,6 +115,12 @@ abstract contract IFTBaseUpgradeable is
         emit IFTBridgeRemoved(clientId);
     }
 
+    /// @inheritdoc IIFTRateLimit
+    function setIFTRateLimit(IIFTMsgs.IFTRateLimitDirection direction, uint208 capacity, uint48 window) external {
+        _onlyAuthority();
+        _setIFTRateLimit(direction, capacity, window);
+    }
+
     /// @inheritdoc IIFT
     function iftTransfer(
         string calldata clientId,
@@ -150,6 +160,7 @@ abstract contract IFTBaseUpgradeable is
         require(amount > 0, IFTZeroAmount());
         require(timeoutTimestamp > block.timestamp, IFTTimeoutInPast(timeoutTimestamp, uint64(block.timestamp)));
 
+        _consumeIFTRateLimit(IIFTMsgs.IFTRateLimitDirection.Outbound, amount);
         _burn(sender, amount); // Implemented in the ERC20 base contract
 
         IFTBaseStorage storage $ = _getIFTBaseStorage();
@@ -192,6 +203,7 @@ abstract contract IFTBaseUpgradeable is
         );
         require(accountId.salt.length == 0, IFTUnexpectedSalt(accountId.salt));
 
+        _consumeIFTRateLimit(IIFTMsgs.IFTRateLimitDirection.Inbound, amount);
         _mint(receiver, amount); // Implemented in the ERC20 base contract
 
         emit IFTMintReceived(accountId.clientId, receiver, amount);
@@ -269,6 +281,7 @@ abstract contract IFTBaseUpgradeable is
 
         require(pending.amount > 0, IFTPendingTransferNotFound(clientId, sequence));
 
+        // Refunds are not rate limited: the amount was already charged to the outbound limit when it was burned
         _mint(pending.sender, pending.amount); // Implemented in the ERC20 base contract
         delete $._pendingTransfers[clientId][sequence];
 
