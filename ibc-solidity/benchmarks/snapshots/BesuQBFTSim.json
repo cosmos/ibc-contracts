@@ -1,0 +1,20 @@
+{
+  "update.validators_100.calldata": "13028",
+  "update.validators_100.gas": "3790461",
+  "update.validators_16.calldata": "2948",
+  "update.validators_16.gas": "394232",
+  "update.validators_32.calldata": "4868",
+  "update.validators_32.gas": "777060",
+  "update.validators_4.calldata": "1508",
+  "update.validators_4.gas": "188819",
+  "update.validators_64.calldata": "8708",
+  "update.validators_64.gas": "1915422",
+  "update.validators_7.calldata": "1860",
+  "update.validators_7.gas": "233563",
+  "verify_membership.commitments_1.calldata": "1220",
+  "verify_membership.commitments_1.gas": "70586",
+  "verify_membership.commitments_128.calldata": "2180",
+  "verify_membership.commitments_128.gas": "128659",
+  "verify_membership.commitments_16.calldata": "1636",
+  "verify_membership.commitments_16.gas": "98495"
+}
