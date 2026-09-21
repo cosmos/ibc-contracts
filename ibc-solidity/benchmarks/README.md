@@ -63,8 +63,20 @@ These isolated transactions use headers and proofs produced in-process by the `Q
 | 64 | 1,915,422 | 8,708 |
 | 100 | 3,790,461 | 13,028 |
 
-| Commitments in store | Membership verification gas | ABI calldata bytes |
-| ---: | ---: | ---: |
-| 1 | 70,586 | 1,220 |
-| 16 | 98,495 | 1,636 |
-| 128 | 128,659 | 2,180 |
+Membership verification against a world state trie with the given number of accounts (router included) and a router storage trie with the given number of commitments.
+
+Gas:
+
+| Accounts | 1 commitments | 16 commitments | 128 commitments |
+| ---: | ---: | ---: | ---: |
+| 1 | 70,586 | 98,495 | 128,659 |
+| 16 | 98,972 | 126,895 | 157,047 |
+| 128 | 129,159 | 157,083 | 187,237 |
+
+ABI calldata bytes:
+
+| Accounts | 1 commitments | 16 commitments | 128 commitments |
+| ---: | ---: | ---: | ---: |
+| 1 | 1,220 | 1,636 | 2,180 |
+| 16 | 1,668 | 2,084 | 2,628 |
+| 128 | 2,212 | 2,628 | 3,172 |

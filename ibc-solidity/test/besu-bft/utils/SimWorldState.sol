@@ -19,6 +19,7 @@ abstract contract SimWorldState {
 
     struct SimAccount {
         bool exists;
+        uint64 createdAt;
         uint64 nonce;
         uint256 balance;
         bytes32 codeHash;
@@ -44,10 +45,12 @@ abstract contract SimWorldState {
         return keccak256(abi.encode(keccak256(path), IBCSTORE_STORAGE_SLOT));
     }
 
-    function _createAccount(address account, uint64 nonce, bytes32 codeHash) internal {
+    /// @dev Creates an account that is part of the world state from `height` on.
+    function _createAccount(address account, uint64 nonce, bytes32 codeHash, uint64 height) internal {
         SimAccount storage acc = _accounts[account];
         require(!acc.exists, "account exists");
         acc.exists = true;
+        acc.createdAt = height;
         acc.nonce = nonce;
         acc.codeHash = codeHash;
         _accountList.push(account);

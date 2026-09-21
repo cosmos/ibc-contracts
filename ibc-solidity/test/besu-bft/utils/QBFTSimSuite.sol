@@ -42,11 +42,12 @@ contract QBFTSimSuite is Test, SimWorldState {
     address[] private _validators;
     mapping(address validator => uint256 key) private _keys;
     uint256 private _validatorCount;
+    uint256 private _accountCount;
 
     constructor(SimHeader.Mode mode) {
         MODE = mode;
         IBC_ROUTER = makeAddr("sim-ibc-router");
-        _createAccount(IBC_ROUTER, 1, keccak256("sim-ibc-router-code"));
+        _createAccount(IBC_ROUTER, 1, keccak256("sim-ibc-router-code"), 0);
         _chain.push();
         _chain[0].timestamp = uint64(vm.getBlockTimestamp());
         _chain[0].stateRoot = stateRootAt(0);
@@ -96,6 +97,14 @@ contract QBFTSimSuite is Test, SimWorldState {
     }
 
     // ---------------------------------------------------------------- world state
+
+    /// @notice Adds `count` empty accounts to the world state from the next block on, to deepen the account trie.
+    function addAccounts(uint256 count) external {
+        for (uint256 i = 0; i < count; ++i) {
+            address account = address(uint160(uint256(keccak256(abi.encode("sim-account", ++_accountCount)))));
+            _createAccount(account, 1, keccak256(""), tipHeight() + 1);
+        }
+    }
 
     function setStorage(address account, bytes32 slot, bytes32 value) external {
         _setStorage(account, slot, value, tipHeight() + 1);

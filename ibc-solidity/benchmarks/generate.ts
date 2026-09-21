@@ -68,16 +68,18 @@ export const BESU_QBFT_KEYS = [
 ] as const;
 
 export const BESU_QBFT_SIM_VALIDATOR_COUNTS = [4, 7, 16, 32, 64, 100] as const;
-export const BESU_QBFT_SIM_COMMITMENT_COUNTS = [1, 16, 128] as const;
+export const BESU_QBFT_SIM_TRIE_SIZES = [1, 16, 128] as const;
 export const BESU_QBFT_SIM_KEYS = [
   ...BESU_QBFT_SIM_VALIDATOR_COUNTS.flatMap((count) => [
     `update.validators_${count}.calldata`,
     `update.validators_${count}.gas`,
   ]),
-  ...BESU_QBFT_SIM_COMMITMENT_COUNTS.flatMap((count) => [
-    `verify_membership.commitments_${count}.calldata`,
-    `verify_membership.commitments_${count}.gas`,
-  ]),
+  ...BESU_QBFT_SIM_TRIE_SIZES.flatMap((accounts) =>
+    BESU_QBFT_SIM_TRIE_SIZES.flatMap((commitments) => [
+      `verify_membership.accounts_${accounts}.commitments_${commitments}.calldata`,
+      `verify_membership.accounts_${accounts}.commitments_${commitments}.gas`,
+    ]),
+  ),
 ] as const;
 
 export function validateSnapshot(
@@ -172,6 +174,20 @@ function aggregatedRow(
     throw new Error(`missing validated benchmark value: ${gasKey}`);
   }
   return `| ${proof} | ${packets} | ${operation} | ${formatInteger(totalGas)} | ${formatInteger(averagePerPacket(totalGas, packets))} | ${value(sp1, calldataKey)} |`;
+}
+
+function trieMatrix(besuSim: Snapshot, metric: "gas" | "calldata"): string[] {
+  const header = BESU_QBFT_SIM_TRIE_SIZES.map(
+    (commitments) => `${commitments} commitments`,
+  );
+  return [
+    `| Accounts | ${header.join(" | ")} |`,
+    `| ---: | ${header.map(() => "---:").join(" | ")} |`,
+    ...BESU_QBFT_SIM_TRIE_SIZES.map(
+      (accounts) =>
+        `| ${accounts} | ${BESU_QBFT_SIM_TRIE_SIZES.map((commitments) => value(besuSim, `verify_membership.accounts_${accounts}.commitments_${commitments}.${metric}`)).join(" | ")} |`,
+    ),
+  ];
 }
 
 export function renderReadme(
@@ -320,12 +336,15 @@ export function renderReadme(
         `| ${count} | ${value(besuSim, `update.validators_${count}.gas`)} | ${value(besuSim, `update.validators_${count}.calldata`)} |`,
     ),
     "",
-    "| Commitments in store | Membership verification gas | ABI calldata bytes |",
-    "| ---: | ---: | ---: |",
-    ...BESU_QBFT_SIM_COMMITMENT_COUNTS.map(
-      (count) =>
-        `| ${count} | ${value(besuSim, `verify_membership.commitments_${count}.gas`)} | ${value(besuSim, `verify_membership.commitments_${count}.calldata`)} |`,
-    ),
+    "Membership verification against a world state trie with the given number of accounts (router included) and a router storage trie with the given number of commitments.",
+    "",
+    "Gas:",
+    "",
+    ...trieMatrix(besuSim, "gas"),
+    "",
+    "ABI calldata bytes:",
+    "",
+    ...trieMatrix(besuSim, "calldata"),
     "",
   ];
 

@@ -36,29 +36,37 @@ contract BesuQBFTSimBenchmark is Test {
         }
     }
 
-    function testBenchmark_VerifyMembership_StoreSize() public {
+    /// @dev Scales the world state trie (accounts, router included) and the router's storage trie (commitments).
+    function testBenchmark_VerifyMembership_TrieSizes() public {
         uint256[3] memory sizes = [uint256(1), 16, 128];
-        for (uint256 i = 0; i < sizes.length; ++i) {
-            QBFTSimSuite sim = new QBFTSimSuite(SimHeader.Mode.QBFT);
-            sim.addValidators(4);
-            sim.produceBlocks(2);
-            IBesuLightClient client = sim.deployLightClient(1 days, 10);
-            for (uint64 seq = 1; seq <= sizes[i]; ++seq) {
-                sim.setCommitment(ICS24Host.packetCommitmentPathCalldata("client-0", seq), keccak256(abi.encode(seq)));
-            }
-            sim.produceBlock();
-            client.updateClient(sim.updateMsg(2, 3));
-            ILightClientMsgs.MsgVerifyMembership memory message =
-                sim.membershipMsg(3, ICS24Host.packetCommitmentPathCalldata("client-0", 1));
-            string memory name = string.concat("verify_membership.commitments_", vm.toString(sizes[i]));
+        for (uint256 a = 0; a < sizes.length; ++a) {
+            for (uint256 c = 0; c < sizes.length; ++c) {
+                QBFTSimSuite sim = new QBFTSimSuite(SimHeader.Mode.QBFT);
+                sim.addValidators(4);
+                sim.produceBlocks(2);
+                IBesuLightClient client = sim.deployLightClient(1 days, 10);
+                sim.addAccounts(sizes[a] - 1);
+                for (uint64 seq = 1; seq <= sizes[c]; ++seq) {
+                    sim.setCommitment(
+                        ICS24Host.packetCommitmentPathCalldata("client-0", seq), keccak256(abi.encode(seq))
+                    );
+                }
+                sim.produceBlock();
+                client.updateClient(sim.updateMsg(2, 3));
+                ILightClientMsgs.MsgVerifyMembership memory message =
+                    sim.membershipMsg(3, ICS24Host.packetCommitmentPathCalldata("client-0", 1));
+                string memory name = string.concat(
+                    "verify_membership.accounts_", vm.toString(sizes[a]), ".commitments_", vm.toString(sizes[c])
+                );
 
-            client.verifyMembership(message);
-            vm.snapshotGasLastFrame(SNAPSHOT_GROUP, string.concat(name, ".gas"));
-            vm.snapshotValue(
-                SNAPSHOT_GROUP,
-                string.concat(name, ".calldata"),
-                abi.encodeCall(ILightClient.verifyMembership, (message)).length
-            );
+                client.verifyMembership(message);
+                vm.snapshotGasLastFrame(SNAPSHOT_GROUP, string.concat(name, ".gas"));
+                vm.snapshotValue(
+                    SNAPSHOT_GROUP,
+                    string.concat(name, ".calldata"),
+                    abi.encodeCall(ILightClient.verifyMembership, (message)).length
+                );
+            }
         }
     }
 }
