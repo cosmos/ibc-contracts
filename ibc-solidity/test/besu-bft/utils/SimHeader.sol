@@ -120,27 +120,27 @@ library SimHeader {
             extra.push(RLP.encoder());
         }
 
-        RLP.Encoder memory header = RLP.encoder()
-            .push(h.parentHash)
-            .push(h.ommersHash)
-            .push(h.beneficiary)
-            .push(h.stateRoot)
-            .push(h.transactionsRoot)
-            .push(h.receiptsRoot)
-            .push(h.logsBloom)
-            .push(h.difficulty)
-            .push(uint256(h.number))
-            .push(uint256(h.gasLimit))
-            .push(uint256(h.gasUsed))
-            .push(uint256(h.timestamp))
-            .push(RLP.encode(extra))
-            .push(h.mixHash)
-            .push(abi.encodePacked(h.nonce))
-            .push(h.baseFeePerGas)
-            .push(h.withdrawalsRoot)
-            .push(uint256(h.blobGasUsed))
-            .push(uint256(h.excessBlobGas))
-            .push(h.parentBeaconBlockRoot);
+        RLP.Encoder memory header = RLP.encoder();
+        header.push(h.parentHash);
+        header.push(h.ommersHash);
+        header.push(h.beneficiary);
+        header.push(h.stateRoot);
+        header.push(h.transactionsRoot);
+        header.push(h.receiptsRoot);
+        header.push(h.logsBloom);
+        header.push(h.difficulty);
+        header.push(uint256(h.number));
+        header.push(uint256(h.gasLimit));
+        header.push(uint256(h.gasUsed));
+        header.push(uint256(h.timestamp));
+        header.push(RLP.encode(extra));
+        header.push(h.mixHash);
+        header.push(abi.encodePacked(h.nonce));
+        header.push(h.baseFeePerGas);
+        header.push(h.withdrawalsRoot);
+        header.push(uint256(h.blobGasUsed));
+        header.push(uint256(h.excessBlobGas));
+        header.push(h.parentBeaconBlockRoot);
         return RLP.encode(header);
     }
 }
