@@ -139,6 +139,20 @@ contract QBFTSimSuiteTest is Test {
         client.verifyMembership(sim.membershipMsg(3, commitmentPath));
     }
 
+    /// @dev Accounts added later must not leak into the state trie rebuilt for earlier heights.
+    function test_historicalProofsExcludeLaterAccounts() public {
+        bytes memory path = ICS24Host.packetCommitmentPathCalldata("client-0", 1);
+        sim.setCommitment(path, keccak256("commitment"));
+        sim.produceBlock();
+        client.updateClient(sim.updateMsg(2, 3));
+
+        sim.addAccounts(3);
+        sim.produceBlock();
+
+        assertEq(sim.stateRootAt(3), sim.blockAt(3).stateRoot);
+        assertEq(client.verifyMembership(sim.membershipMsg(3, path)), sim.blockAt(3).timestamp);
+    }
+
     /// @dev Mirrors a commitment written by a real ICS26 router and proves it through the light client.
     function test_syncCommitmentFromRouter() public {
         TestHelper th = new TestHelper();

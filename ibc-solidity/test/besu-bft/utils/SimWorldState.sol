@@ -118,20 +118,29 @@ abstract contract SimWorldState {
         }
     }
 
+    /// @dev Accounts created after `height` are not part of the state trie at that height.
     function _stateEntries(uint64 height) private view returns (bytes[] memory keys, bytes[] memory values) {
         keys = new bytes[](_accountList.length);
         values = new bytes[](_accountList.length);
+        uint256 n;
         for (uint256 i = 0; i < _accountList.length; ++i) {
             SimAccount storage acc = _accounts[_accountList[i]];
+            if (acc.createdAt > height) {
+                continue;
+            }
             (bytes[] memory storageKeys, bytes[] memory storageValues) = _storageEntries(_accountList[i], height);
-            keys[i] = abi.encodePacked(keccak256(abi.encodePacked(_accountList[i])));
-            values[i] = RLP.encode(
+            keys[n] = abi.encodePacked(keccak256(abi.encodePacked(_accountList[i])));
+            values[n++] = RLP.encode(
                 RLP.encoder()
                     .push(uint256(acc.nonce))
                     .push(acc.balance)
                     .push(MerklePatriciaTrie.build(storageKeys, storageValues))
                     .push(acc.codeHash)
             );
+        }
+        assembly ("memory-safe") {
+            mstore(keys, n)
+            mstore(values, n)
         }
     }
 }
