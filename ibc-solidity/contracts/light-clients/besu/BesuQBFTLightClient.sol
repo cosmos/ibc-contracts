@@ -5,6 +5,7 @@ import { RLP } from "@openzeppelin-contracts/utils/RLP.sol";
 import { Memory } from "@openzeppelin-contracts/utils/Memory.sol";
 
 import { BesuLightClientBase } from "./BesuLightClientBase.sol";
+import { Header } from "./utils/Header.sol";
 
 /// @title Besu QBFT Light Client
 /// @notice Verifies Besu QBFT headers and ICS26 router storage proofs.
@@ -43,7 +44,7 @@ contract BesuQBFTLightClient is BesuLightClientBase {
     { }
 
     /// @inheritdoc BesuLightClientBase
-    function _commitSealDigest(ParsedHeader memory header) internal pure override returns (bytes32) {
+    function _commitSealDigest(Header.Data memory header) internal pure override returns (bytes32) {
         bytes[] memory extraItems = new bytes[](5);
         extraItems[0] = header.extraDataItems[0].toBytes();
         extraItems[1] = header.extraDataItems[1].toBytes();
