@@ -49,3 +49,36 @@ These isolated transactions use the live Besu QBFT header and proof fixture in `
 | Non-adjacent client update | 180,316 | 1,444 |
 | Membership verification | 127,491 | 2,116 |
 | Non-membership verification | 139,443 | 2,020 |
+
+## Besu QBFT light-client scaling benchmarks
+
+These isolated transactions use headers and proofs produced in-process by the `QBFTSimSuite` chain simulator in `test/besu-bft/utils`, so they scale the validator set and the router's IBC store without a live network. Every validator signs each update.
+
+| Validators | Client update gas | ABI calldata bytes |
+| ---: | ---: | ---: |
+| 4 | 188,819 | 1,508 |
+| 7 | 233,563 | 1,860 |
+| 16 | 394,232 | 2,948 |
+| 32 | 777,060 | 4,868 |
+| 64 | 1,915,422 | 8,708 |
+| 100 | 3,790,461 | 13,028 |
+
+Membership verification against a world state trie with the given number of accounts (router included) and a router storage trie with the given number of commitments.
+
+Gas:
+
+| Accounts | 1 commitments | 16 commitments | 128 commitments | 1024 commitments |
+| ---: | ---: | ---: | ---: | ---: |
+| 1 | 70,586 | 98,495 | 128,659 | 158,812 |
+| 16 | 98,972 | 126,895 | 157,047 | 187,201 |
+| 128 | 129,159 | 157,083 | 187,237 | 217,416 |
+| 1024 | 159,860 | 187,810 | 217,953 | 248,109 |
+
+ABI calldata bytes:
+
+| Accounts | 1 commitments | 16 commitments | 128 commitments | 1024 commitments |
+| ---: | ---: | ---: | ---: | ---: |
+| 1 | 1,220 | 1,636 | 2,180 | 2,724 |
+| 16 | 1,668 | 2,084 | 2,628 | 3,172 |
+| 128 | 2,212 | 2,628 | 3,172 | 3,716 |
+| 1024 | 2,788 | 3,204 | 3,748 | 4,292 |
