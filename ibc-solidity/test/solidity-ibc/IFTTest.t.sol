@@ -53,8 +53,6 @@ contract IFTTest is Test {
     // Generous defaults so that the existing flows are not rate limited
     uint208 public constant RATE_LIMIT_CAPACITY = type(uint128).max;
     uint48 public constant RATE_LIMIT_WINDOW = 1 days;
-    // Amount sent out before exercising the ack and timeout callbacks
-    uint256 public constant TRANSFER_AMOUNT = 1000;
 
     address public mockICS27 = makeAddr("mockICS27");
     // admin is the owner of the IFTOwnable and authority of the access manager
@@ -686,7 +684,7 @@ contract IFTTest is Test {
                 acknowledgement: ICS24Host.UNIVERSAL_ERROR_ACK,
                 relayer: relayer
             }),
-            inboundCapacity: uint208(TRANSFER_AMOUNT - 1),
+            inboundCapacity: 999, // one short of the amount sent in the table test
             expectedRevert: abi.encodeWithSelector(RateLimiter.RateLimitExceeded.selector)
         });
 
@@ -705,26 +703,25 @@ contract IFTTest is Test {
         vm.stopPrank();
 
         uint64 seq = 42;
+        uint256 transferAmount = 1000;
         address sender = makeAddr("sender");
         vm.mockCall(address(mockICS27), IICS27GMP.sendCall.selector, abi.encode(seq));
 
         // Mint some tokens to the caller
-        deal(address(ift), sender, TRANSFER_AMOUNT, true);
+        deal(address(ift), sender, transferAmount, true);
 
         vm.startPrank(sender);
-        ift.iftTransfer(th.FIRST_CLIENT_ID(), Strings.toHexString(makeAddr("receiver")), TRANSFER_AMOUNT);
+        ift.iftTransfer(th.FIRST_CLIENT_ID(), Strings.toHexString(makeAddr("receiver")), transferAmount);
         vm.stopPrank();
 
         if (ackTC.expectedRevert.length != 0) {
             vm.expectRevert(ackTC.expectedRevert);
         } else if (ackTC.success) {
             vm.expectEmit(true, true, true, true);
-            emit IIFT.IFTTransferCompleted(
-                ackTC.callback.sourceClient, ackTC.callback.sequence, sender, TRANSFER_AMOUNT
-            );
+            emit IIFT.IFTTransferCompleted(ackTC.callback.sourceClient, ackTC.callback.sequence, sender, transferAmount);
         } else {
             vm.expectEmit(true, true, true, true);
-            emit IIFT.IFTTransferRefunded(ackTC.callback.sourceClient, ackTC.callback.sequence, sender, TRANSFER_AMOUNT);
+            emit IIFT.IFTTransferRefunded(ackTC.callback.sourceClient, ackTC.callback.sequence, sender, transferAmount);
         }
 
         vm.prank(ackTC.caller);
@@ -733,12 +730,12 @@ contract IFTTest is Test {
         // The outbound bucket was charged by the transfer and is never restored
         assertEq(
             rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Outbound),
-            RATE_LIMIT_CAPACITY - TRANSFER_AMOUNT,
+            RATE_LIMIT_CAPACITY - transferAmount,
             "outbound should stay consumed"
         );
 
         if (ackTC.expectedRevert.length != 0) {
-            assertEq(ift.getPendingTransfer(th.FIRST_CLIENT_ID(), seq).amount, TRANSFER_AMOUNT, "should stay pending");
+            assertEq(ift.getPendingTransfer(th.FIRST_CLIENT_ID(), seq).amount, transferAmount, "should stay pending");
             assertEq(
                 rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Inbound),
                 ackTC.inboundCapacity,
@@ -748,7 +745,7 @@ contract IFTTest is Test {
         }
 
         // Only a refund consumes the inbound bucket
-        uint256 refunded = ackTC.success ? 0 : TRANSFER_AMOUNT;
+        uint256 refunded = ackTC.success ? 0 : transferAmount;
         assertEq(
             rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Inbound),
             ackTC.inboundCapacity - refunded,
@@ -841,7 +838,7 @@ contract IFTTest is Test {
                 payload: payload,
                 relayer: relayer
             }),
-            inboundCapacity: uint208(TRANSFER_AMOUNT - 1),
+            inboundCapacity: 999, // one short of the amount sent in the table test
             expectedRevert: abi.encodeWithSelector(RateLimiter.RateLimitExceeded.selector)
         });
 
@@ -860,14 +857,15 @@ contract IFTTest is Test {
         vm.stopPrank();
 
         uint64 seq = 42;
+        uint256 transferAmount = 1000;
         address sender = makeAddr("sender");
         vm.mockCall(address(mockICS27), IICS27GMP.sendCall.selector, abi.encode(seq));
 
         // Mint some tokens to the caller
-        deal(address(ift), sender, TRANSFER_AMOUNT, true);
+        deal(address(ift), sender, transferAmount, true);
 
         vm.startPrank(sender);
-        ift.iftTransfer(th.FIRST_CLIENT_ID(), Strings.toHexString(makeAddr("receiver")), TRANSFER_AMOUNT);
+        ift.iftTransfer(th.FIRST_CLIENT_ID(), Strings.toHexString(makeAddr("receiver")), transferAmount);
         vm.stopPrank();
 
         if (timeoutTC.expectedRevert.length != 0) {
@@ -875,7 +873,7 @@ contract IFTTest is Test {
         } else {
             vm.expectEmit(true, true, true, true);
             emit IIFT.IFTTransferRefunded(
-                timeoutTC.callback.sourceClient, timeoutTC.callback.sequence, sender, TRANSFER_AMOUNT
+                timeoutTC.callback.sourceClient, timeoutTC.callback.sequence, sender, transferAmount
             );
         }
 
@@ -885,12 +883,12 @@ contract IFTTest is Test {
         // The outbound bucket was charged by the transfer and is never restored
         assertEq(
             rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Outbound),
-            RATE_LIMIT_CAPACITY - TRANSFER_AMOUNT,
+            RATE_LIMIT_CAPACITY - transferAmount,
             "outbound should stay consumed"
         );
 
         if (timeoutTC.expectedRevert.length != 0) {
-            assertEq(ift.getPendingTransfer(th.FIRST_CLIENT_ID(), seq).amount, TRANSFER_AMOUNT, "should stay pending");
+            assertEq(ift.getPendingTransfer(th.FIRST_CLIENT_ID(), seq).amount, transferAmount, "should stay pending");
             assertEq(
                 rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Inbound),
                 timeoutTC.inboundCapacity,
@@ -902,7 +900,7 @@ contract IFTTest is Test {
         // The refund consumes the inbound bucket
         assertEq(
             rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Inbound),
-            timeoutTC.inboundCapacity - TRANSFER_AMOUNT,
+            timeoutTC.inboundCapacity - transferAmount,
             "inbound should be consumed by the refund"
         );
 
