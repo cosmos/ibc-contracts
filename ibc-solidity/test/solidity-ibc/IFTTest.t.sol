@@ -1093,11 +1093,12 @@ contract IFTTest is Test {
         assertEq(available(direction), 1000);
     }
 
-    function test_rateLimit_refundDoesNotConsumeOrRestore() public {
+    function test_rateLimit_refundConsumesInbound() public {
         setUpBridged();
-        vm.prank(admin);
+        vm.startPrank(admin);
         IIFTRateLimit(address(ift)).setIFTRateLimit(IIFTMsgs.IFTRateLimitDirection.Outbound, 1000, 1000 seconds);
-        // Inbound is deliberately left unset: refunds must still mint
+        IIFTRateLimit(address(ift)).setIFTRateLimit(IIFTMsgs.IFTRateLimitDirection.Inbound, 500, 1000 seconds);
+        vm.stopPrank();
 
         uint256 balanceBefore = IERC20(address(ift)).balanceOf(flowSender);
         flow(IIFTMsgs.IFTRateLimitDirection.Outbound, 1000);
@@ -1116,11 +1117,20 @@ contract IFTTest is Test {
             }),
             relayer: makeAddr("relayer")
         });
+
+        // The refund does not fit in the inbound bucket, so it stays pending until the bucket refills
+        vm.expectRevert(RateLimiter.RateLimitExceeded.selector);
+        vm.prank(mockICS27);
+        IIBCSenderCallbacks(address(ift)).onTimeoutPacket(callback);
+        assertEq(ift.getPendingTransfer(bridgedClientId, 1).amount, 1000, "refund should stay pending");
+
+        vm.prank(admin);
+        IIFTRateLimit(address(ift)).setIFTRateLimit(IIFTMsgs.IFTRateLimitDirection.Inbound, 1000, 1000 seconds);
         vm.prank(mockICS27);
         IIBCSenderCallbacks(address(ift)).onTimeoutPacket(callback);
 
         assertEq(IERC20(address(ift)).balanceOf(flowSender), balanceBefore, "refund should be minted");
-        assertEq(available(IIFTMsgs.IFTRateLimitDirection.Inbound), 0, "refund should not touch inbound");
+        assertEq(available(IIFTMsgs.IFTRateLimitDirection.Inbound), 0, "refund should consume inbound");
         assertEq(available(IIFTMsgs.IFTRateLimitDirection.Outbound), 0, "refund should not restore outbound");
     }
 

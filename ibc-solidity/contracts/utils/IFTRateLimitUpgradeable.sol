@@ -11,7 +11,7 @@ import { RateLimiter } from "@openzeppelin-contracts/utils/RateLimiter.sol";
 /// @notice Abstract contract that rate limits inbound mints and outbound burns of an IFT contract
 /// @dev Each direction is an independent refilling bucket shared across all bridges of the token. Usage is gross
 /// per direction: flow in one direction never restores allowance in the other, and refunds of pending transfers
-/// are not rate limited. See the IFT rate limiting ADR for the rationale.
+/// consume inbound allowance like any other mint. See the IFT rate limiting ADR for the rationale.
 abstract contract IFTRateLimitUpgradeable is IIFTErrors, IIFTRateLimit {
     using RateLimiter for RateLimiter.RefillingBucket;
 

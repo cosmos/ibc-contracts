@@ -47,7 +47,7 @@ All contracts are compiled for the **Cancun** EVM (`evm_version = "cancun"` in `
 - Bridges: `registerIFTBridge` configures a counterparty IFT contract per IBC client along with an `IIFTSendCallConstructor` helper to encode the mint call for that chain.
 - Sending: `iftTransfer` burns locally, builds ICS27 `SendCall` to the remote IFT, records `PendingTransfer`, and emits initiation events; default timeout is 15 minutes if not provided.
 - Receiving: `iftMint` is callable only by the ICS27-controlled account; it mints locally after verifying the counterparty sender matches the registered bridge and clears pending transfers on ack/timeout callbacks to refund/mint as appropriate.
-- Rate limits: `setIFTRateLimit` configures a capacity and refill window per direction. Limits are mandatory (an unset direction rejects every transfer), shared across all bridges of the token, and never restored by flow in the opposite direction; refunds of pending transfers are not rate limited. See the [ADR](../../docs/adr/solidity/ift-ratelimit.md).
+- Rate limits: `setIFTRateLimit` configures a capacity and refill window per direction. Limits are mandatory (an unset direction rejects every transfer), shared across all bridges of the token, and never restored by flow in the opposite direction; refunds of pending transfers consume inbound allowance like any other mint. See the [ADR](../../docs/adr/solidity/ift-ratelimit.md).
 - Extensibility: implement concrete ERC20 constructors and different `IIFTSendCallConstructor` variants for EVM vs Cosmos SDK token factory flows; access is governed by `AccessManaged` authority roles.
 
 ## Interfaces, errors, and message shapes

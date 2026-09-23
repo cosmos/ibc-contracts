@@ -2,7 +2,7 @@
 
 **Status**: Accepted
 **Date**: 2026-09-10
-**Last Updated**: 2026-09-21
+**Last Updated**: 2026-09-23
 
 ## Context
 
@@ -25,7 +25,7 @@ This ADR describes the proposed IFT policy. The existing [IFT base contract](../
 |   **Feature**   |     Inbound      |                                                                                        Mints on receive are limited.                                                                                         |      ✅       |                                         We want to be as restrictive as possible.                                          |
 |   **Feature**   |     Outbound     |                                                                                          Burns on send are limited.                                                                                          |      ✅       |                                         We want to be as restrictive as possible.                                          |
 |   **Feature**   | Rewinding Usage  |                                                       Flow in the opposite direction gives capacity back, so round trips cannot exhaust the allowance.                                                       |      ❌       | Rewinding usage means that an attacker who can mint tokens can send outbound transfers to gain some capacity back to mint. |
-|   **Feature**   | Refund Handling  |                                                                    A timeout or error acknowledgement does not consume inbound allowance.                                                                    |      ✅       |                IFT already records pending transfers, unlike ICS-20, which defends against timeout replays.                |
+|   **Feature**   | Refund Handling  |                                                                    A timeout or error acknowledgement does not consume inbound allowance.                                                                    |      ❌       |      An attacker who can forge timeout proofs could send tokens out and time them out to mint unlimited refunds.      |
 |    **Scope**    |     Optional     |                                                                                   Whether or not rate limits are optional                                                                                    |      ❌       |    Rate limits MUST be set before the token can be used. OZ default. Historically, when optional, users don't set this.    |
 |    **Scope**    | Per Token/Client |                                                              Whether or not rate limits are per token or per IBC light client (IBC connection)                                                               |      ✅       |         Rate limits will be per token to be as restrictive as possible. Does not preclude per-client limits later.         |
 
@@ -69,7 +69,9 @@ However, rewinding usage creates a security risk. An attacker who can cause frau
 
 ### Refund Handling
 
-**Decision: refunds do not consume inbound allowance.** A timeout or error acknowledgement mints the sender's tokens back locally. The contract only refunds amounts it recorded as pending when they were burned, so a refund can never mint more than previously left this chain, and that amount was already charged to the outbound limit. Counting it against the inbound limit would let a full bucket strand a user's refund. Consistent with the no-rewinding decision, a refund does not restore outbound allowance either.
+**Decision: refunds consume inbound allowance like any other mint.** A timeout or error acknowledgement mints the sender's tokens back locally. The contract only refunds amounts it recorded as pending when they were burned, so a refund can never mint more than previously left this chain, and that amount was already charged to the outbound limit. This made exempting refunds look safe: counting them against the inbound limit can let a full bucket delay a user's refund.
+
+However, the exemption assumes that timeouts and error acknowledgements are honest. An attacker who can forge timeout or acknowledgement proofs against the light client can send tokens out, have the counterparty mint them, and then time the same packets out locally to mint the refund as well. Each round trip doubles their balance, and with exempt refunds the inbound limit never slows the local half of that double spend down. Charging refunds to the inbound bucket bounds the damage in the same way as any other fraudulent mint. A refund that does not fit in the bucket reverts and the pending transfer stays recorded, so the relayer can retry it once the bucket has refilled. Consistent with the no-rewinding decision, a refund does not restore outbound allowance.
 
 ### Per Token vs Per Client
 

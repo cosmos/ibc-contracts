@@ -281,7 +281,8 @@ abstract contract IFTBaseUpgradeable is
 
         require(pending.amount > 0, IFTPendingTransferNotFound(clientId, sequence));
 
-        // Refunds are not rate limited: the amount was already charged to the outbound limit when it was burned
+        // Refunds consume inbound allowance like any other mint, so that forged timeouts cannot bypass the limit
+        _consumeIFTRateLimit(IIFTMsgs.IFTRateLimitDirection.Inbound, pending.amount);
         _mint(pending.sender, pending.amount); // Implemented in the ERC20 base contract
         delete $._pendingTransfers[clientId][sequence];
 
