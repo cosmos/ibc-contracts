@@ -37,7 +37,7 @@ contract IFTIntegrationTest is Test {
     string public constant TOKEN_SYMBOL = "TIFT";
 
     // Generous limits so that the fuzzed amounts below are never rate limited
-    uint208 public constant RATE_LIMIT_CAPACITY = type(uint208).max;
+    uint208 public constant MAX_RATE_LIMIT_CAPACITY = type(uint208).max;
     uint48 public constant RATE_LIMIT_WINDOW = 1 days;
 
     function setUp() public {
@@ -77,7 +77,7 @@ contract IFTIntegrationTest is Test {
 
         _setupBridgePermissions();
         _registerBridges();
-        _setRateLimits();
+        _setRateLimits(MAX_RATE_LIMIT_CAPACITY, RATE_LIMIT_WINDOW);
     }
 
     function _setupBridgePermissions() internal {
@@ -101,11 +101,11 @@ contract IFTIntegrationTest is Test {
         );
     }
 
-    function _setRateLimits() internal {
-        iftOnA.setIFTRateLimit(IIFTMsgs.IFTRateLimitDirection.Inbound, RATE_LIMIT_CAPACITY, RATE_LIMIT_WINDOW);
-        iftOnA.setIFTRateLimit(IIFTMsgs.IFTRateLimitDirection.Outbound, RATE_LIMIT_CAPACITY, RATE_LIMIT_WINDOW);
-        iftOnB.setIFTRateLimit(IIFTMsgs.IFTRateLimitDirection.Inbound, RATE_LIMIT_CAPACITY, RATE_LIMIT_WINDOW);
-        iftOnB.setIFTRateLimit(IIFTMsgs.IFTRateLimitDirection.Outbound, RATE_LIMIT_CAPACITY, RATE_LIMIT_WINDOW);
+    function _setRateLimits(uint208 capacity, uint48 window) internal {
+        iftOnA.setIFTRateLimit(IIFTMsgs.IFTRateLimitDirection.Inbound, capacity, window);
+        iftOnA.setIFTRateLimit(IIFTMsgs.IFTRateLimitDirection.Outbound, capacity, window);
+        iftOnB.setIFTRateLimit(IIFTMsgs.IFTRateLimitDirection.Inbound, capacity, window);
+        iftOnB.setIFTRateLimit(IIFTMsgs.IFTRateLimitDirection.Outbound, capacity, window);
     }
 
     function test_deployment() public view {
@@ -121,7 +121,7 @@ contract IFTIntegrationTest is Test {
     }
 
     function testFuzz_success_iftTransferAcrossChains(uint256 amount) public {
-        amount = bound(amount, 1, RATE_LIMIT_CAPACITY);
+        amount = bound(amount, 1, MAX_RATE_LIMIT_CAPACITY);
 
         address sender = integrationEnv.createUser();
         address receiver = integrationEnv.createUser();
@@ -157,7 +157,7 @@ contract IFTIntegrationTest is Test {
     }
 
     function testFuzz_success_roundTripTransfer(uint256 amount) public {
-        amount = bound(amount, 1, RATE_LIMIT_CAPACITY);
+        amount = bound(amount, 1, MAX_RATE_LIMIT_CAPACITY);
 
         address userA = integrationEnv.createUser();
         address userB = integrationEnv.createUser();
@@ -190,7 +190,7 @@ contract IFTIntegrationTest is Test {
     }
 
     function testFuzz_timeout_refundsTokens(uint256 amount) public {
-        amount = bound(amount, 1, RATE_LIMIT_CAPACITY);
+        amount = bound(amount, 1, MAX_RATE_LIMIT_CAPACITY);
 
         address sender = integrationEnv.createUser();
         address receiver = integrationEnv.createUser();
@@ -224,8 +224,8 @@ contract IFTIntegrationTest is Test {
 
     function testFuzz_multipleTransfersInFlight(uint256 amount1, uint256 amount2) public {
         // Both transfers share the outbound bucket, so together they must fit in the capacity
-        amount1 = bound(amount1, 1, RATE_LIMIT_CAPACITY / 2);
-        amount2 = bound(amount2, 1, RATE_LIMIT_CAPACITY / 2);
+        amount1 = bound(amount1, 1, MAX_RATE_LIMIT_CAPACITY / 2);
+        amount2 = bound(amount2, 1, MAX_RATE_LIMIT_CAPACITY / 2);
 
         address sender = integrationEnv.createUser();
         address receiver1 = integrationEnv.createUser();
