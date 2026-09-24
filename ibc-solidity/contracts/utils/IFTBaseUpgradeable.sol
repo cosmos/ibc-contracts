@@ -23,7 +23,7 @@ import { ERC165Checker } from "@openzeppelin-contracts/utils/introspection/ERC16
  * @notice Abstract base contract for Interchain Fungible Tokens
  *
  * @dev Extend this contract and implement the ERC20 constructor to create an IFT token
- * @dev Inbound mints and outbound burns are rate limited per direction, see IFTRateLimitUpgradeable. Rate limits
+ * @dev Inbound mints and outbound burns are rate limited, see IFTRateLimitUpgradeable. The rate limit
  * must be set by the authority before the token can be bridged.
  * @dev _update in ERC20Upgradeable can be overriden to add custom logic on minting and burning such as whitelisting.
  */
@@ -116,9 +116,9 @@ abstract contract IFTBaseUpgradeable is
     }
 
     /// @inheritdoc IIFTRateLimit
-    function setIFTRateLimit(IIFTMsgs.IFTRateLimitDirection direction, uint208 capacity, uint48 window) external {
+    function setIFTRateLimit(uint208 capacity, uint48 window) external {
         _onlyAuthority();
-        _setIFTRateLimit(direction, capacity, window);
+        _setIFTRateLimit(capacity, window);
     }
 
     /// @inheritdoc IIFT

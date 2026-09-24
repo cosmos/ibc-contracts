@@ -167,13 +167,7 @@
   {
     "type": "function",
     "name": "getIFTRateLimit",
-    "inputs": [
-      {
-        "name": "direction",
-        "type": "uint8",
-        "internalType": "enum IIFTMsgs.IFTRateLimitDirection"
-      }
-    ],
+    "inputs": [],
     "outputs": [
       {
         "name": "capacity",
@@ -602,11 +596,6 @@
     "name": "setIFTRateLimit",
     "inputs": [
       {
-        "name": "direction",
-        "type": "uint8",
-        "internalType": "enum IIFTMsgs.IFTRateLimitDirection"
-      },
-      {
         "name": "capacity",
         "type": "uint208",
         "internalType": "uint208"
@@ -841,12 +830,6 @@
     "type": "event",
     "name": "IFTRateLimitSet",
     "inputs": [
-      {
-        "name": "direction",
-        "type": "uint8",
-        "indexed": false,
-        "internalType": "enum IIFTMsgs.IFTRateLimitDirection"
-      },
       {
         "name": "capacity",
         "type": "uint208",
@@ -1264,17 +1247,6 @@
         "name": "salt",
         "type": "bytes",
         "internalType": "bytes"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "IFTUnknownRateLimitDirection",
-    "inputs": [
-      {
-        "name": "direction",
-        "type": "uint8",
-        "internalType": "enum IIFTMsgs.IFTRateLimitDirection"
       }
     ]
   },

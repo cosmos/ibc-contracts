@@ -4,33 +4,28 @@ pragma solidity ^0.8.28;
 import { IIFTMsgs } from "../msgs/IIFTMsgs.sol";
 
 /// @title IIFTRateLimit
-/// @notice Interface for the per token, per direction rate limits of an IFT contract
-/// @dev Each direction is a refilling bucket with a fixed capacity that refills linearly over `window` seconds.
-/// Rate limits are mandatory: until a direction is configured, its bucket is empty and every transfer in that
-/// direction reverts.
+/// @notice Interface for the per token rate limits of an IFT contract
+/// @dev Each direction is a refilling bucket that refills linearly over `window` seconds. Both directions share the
+/// same capacity and window but track their usage independently. Rate limits are mandatory: until they are
+/// configured, both buckets are empty and every transfer reverts.
 interface IIFTRateLimit {
-    /// @notice Emitted when the rate limit of a direction is set
-    /// @param direction The direction the rate limit applies to
-    /// @param capacity The maximum amount that can pass while the bucket is full
+    /// @notice Emitted when the rate limit is set
+    /// @param capacity The maximum amount that can pass in each direction while its bucket is full
     /// @param window The number of seconds it takes for an empty bucket to refill completely
-    event IFTRateLimitSet(IIFTMsgs.IFTRateLimitDirection direction, uint208 capacity, uint48 window);
+    // solhint-disable-next-line gas-indexed-events
+    event IFTRateLimitSet(uint208 capacity, uint48 window);
 
-    /// @notice Sets the rate limit of a direction
+    /// @notice Sets the rate limit shared by both directions
     /// @dev Only callable by the authority. The refill accrued under the previous settings is applied before the
     /// new settings take effect, so the new rate is not applied retroactively and consumed usage is preserved.
-    /// @param direction The direction the rate limit applies to
-    /// @param capacity The maximum amount that can pass while the bucket is full
+    /// @param capacity The maximum amount that can pass in each direction while its bucket is full
     /// @param window The number of seconds it takes for an empty bucket to refill completely
-    function setIFTRateLimit(IIFTMsgs.IFTRateLimitDirection direction, uint208 capacity, uint48 window) external;
+    function setIFTRateLimit(uint208 capacity, uint48 window) external;
 
-    /// @notice Returns the configured rate limit of a direction
-    /// @param direction The direction the rate limit applies to
-    /// @return capacity The maximum amount that can pass while the bucket is full
+    /// @notice Returns the configured rate limit shared by both directions
+    /// @return capacity The maximum amount that can pass in each direction while its bucket is full
     /// @return window The number of seconds it takes for an empty bucket to refill completely
-    function getIFTRateLimit(IIFTMsgs.IFTRateLimitDirection direction)
-        external
-        view
-        returns (uint208 capacity, uint48 window);
+    function getIFTRateLimit() external view returns (uint208 capacity, uint48 window);
 
     /// @notice Returns the amount that can currently pass in a direction
     /// @param direction The direction the rate limit applies to

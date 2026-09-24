@@ -102,10 +102,8 @@ contract IFTIntegrationTest is Test {
     }
 
     function _setRateLimits(uint208 capacity, uint48 window) internal {
-        iftOnA.setIFTRateLimit(IIFTMsgs.IFTRateLimitDirection.Inbound, capacity, window);
-        iftOnA.setIFTRateLimit(IIFTMsgs.IFTRateLimitDirection.Outbound, capacity, window);
-        iftOnB.setIFTRateLimit(IIFTMsgs.IFTRateLimitDirection.Inbound, capacity, window);
-        iftOnB.setIFTRateLimit(IIFTMsgs.IFTRateLimitDirection.Outbound, capacity, window);
+        iftOnA.setIFTRateLimit(capacity, window);
+        iftOnB.setIFTRateLimit(capacity, window);
     }
 
     function test_deployment() public view {

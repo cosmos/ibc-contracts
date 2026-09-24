@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.28;
 
-import { IIFTMsgs } from "../msgs/IIFTMsgs.sol";
-
 /// @title IIFTErrors
 /// @notice Interface for IFT errors
 interface IIFTErrors {
@@ -55,8 +53,4 @@ interface IIFTErrors {
     /// @notice IFT send call constructor does not support required interface
     /// @param callConstructor The address that failed the interface check
     error IFTInvalidConstructorInterface(address callConstructor);
-
-    /// @notice Rate limit direction is invalid
-    /// @param direction The invalid direction
-    error IFTUnknownRateLimitDirection(IIFTMsgs.IFTRateLimitDirection direction);
 }

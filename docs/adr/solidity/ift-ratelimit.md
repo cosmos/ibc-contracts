@@ -2,7 +2,7 @@
 
 **Status**: Accepted
 **Date**: 2026-09-10
-**Last Updated**: 2026-09-23
+**Last Updated**: 2026-09-24
 
 ## Context
 
@@ -49,7 +49,7 @@ An exact sliding window provides a stricter guarantee: no more than the limit ca
 
 ### Capacity
 
-**Decision: use a static capacity.** The authority sets each directional limit as a fixed token amount together with its refill window. Operators typically know what their token is worth, so they can express a limit directly as the maximum amount that may cross the bridge over a window. A limit expressed as a percentage of local supply is harder to reason about, since local supply differs per chain and changes over time.
+**Decision: use a static capacity.** The authority sets the limit as a fixed token amount together with its refill window. The same capacity and window apply to both directions (see [Inbound and Outbound](#inbound-and-outbound)). Operators typically know what their token is worth, so they can express a limit directly as the maximum amount that may cross the bridge over a window. A limit expressed as a percentage of local supply is harder to reason about, since local supply differs per chain and changes over time.
 
 We considered deriving capacity from a percentage of local token supply so that the limit scales with the token without operator intervention. That design needs a snapshot of local supply, because reading live `totalSupply()` would let fraudulent mints raise their own capacity. It also needs an absolute floor, because a newly deployed token with zero local supply would otherwise have zero inbound capacity and could never receive its first transfer. Both mechanisms add implementation complexity and still require operators to pick static amounts for the floor. A static capacity avoids these problems and keeps the bound in the algorithm section simple to apply.
 
@@ -57,7 +57,9 @@ The trade-off is that a static limit does not track growth of the token and may 
 
 ### Inbound and Outbound
 
-**Decision: limit both inbound mints and outbound burns.** The proposed accounting uses an independent bucket for each direction, shared across all clients for that token. An inbound transfer consumes inbound allowance; an outbound transfer consumes outbound allowance. Receiving tokens does not spend the allowance needed to send tokens, and vice versa.
+**Decision: limit both inbound mints and outbound burns, with a common capacity and window.** The authority configures a single capacity and refill window that applies to both directions. Each direction still tracks its own usage, shared across all clients for that token. An inbound transfer consumes inbound allowance; an outbound transfer consumes outbound allowance. Receiving tokens does not spend the allowance needed to send tokens, and vice versa.
+
+Sharing the settings keeps configuration to a single call and a single value to reason about. The trade-off is that operators cannot tighten one direction without tightening the other.
 
 ### Rewinding Usage
 
@@ -79,7 +81,7 @@ We charge refunds to be as restrictive as possible. If this proves too inconveni
 
 ### Per Token vs Per Client
 
-**Decision: share each token's directional limits across all of its registered IBC clients on a given chain.** Here, “per token” means per local IFT contract. Separate tokens have separate budgets, and deployments on other chains enforce their own limits; this does not create a synchronized global bucket.
+**Decision: share each token's rate limits across all of its registered IBC clients on a given chain.** Here, “per token” means per local IFT contract. Separate tokens have separate budgets, and deployments on other chains enforce their own limits; this does not create a synchronized global bucket.
 
 Given that the IFT contract is the authority for its own supply, it is reasonable to treat all clients as a single source of demand. This avoids multiplying the token's aggregate allowance by the number of clients.
 
@@ -89,6 +91,6 @@ Choosing per token limits now does not prevent us from adding per client limits 
 
 ## Implementation Notes
 
-The policy is implemented in [`IFTRateLimitUpgradeable`](../../../ibc-solidity/contracts/utils/IFTRateLimitUpgradeable.sol) on top of OpenZeppelin's `RateLimiter.RefillingBucket`, with one bucket per direction. An unset direction has zero capacity, which is what makes the limits mandatory.
+The policy is implemented in [`IFTRateLimitUpgradeable`](../../../ibc-solidity/contracts/utils/IFTRateLimitUpgradeable.sol) on top of OpenZeppelin's `RateLimiter.RefillingBucket`. A single limiter holds the shared capacity and window, and each direction is a separate entry in it, keyed by the direction. An unset limiter has zero capacity, which is what makes the limits mandatory.
 
-- **Capacity updates:** Before the authority changes a direction's capacity or window, the bucket is synced: the refill accrued under the old rate is applied and the usage timestamp is moved to now. Consumed usage is therefore preserved and the new rate only applies going forward. Lowering the capacity below the current usage leaves the bucket empty until that usage drains at the new rate.
+- **Capacity updates:** Before the authority changes the capacity or window, both directions are synced: the refill accrued under the old rate is applied and the usage timestamp is moved to now. Consumed usage is therefore preserved and the new rate only applies going forward. Lowering the capacity below a direction's current usage leaves that direction empty until its usage drains at the new rate.
