@@ -269,6 +269,47 @@ func buildLowQuorumFixture(update besuUpdateFixture, header liveHeader) (besuRej
 	}, nil
 }
 
+// BuildQBFTDoubleSignUpdate returns an abi-encoded MsgUpdateClient carrying a copy of the live header at height
+// with its stateRoot replaced and re-sealed by a quorum of the local QBFT validator keys. It trusts the honest
+// consensus state at the same height, so a client that already stores height detects a double sign.
+// Validator keys are read relative to the repository root.
+func BuildQBFTDoubleSignUpdate(ctx context.Context, chain *ethereum.Ethereum, height uint64) ([]byte, error) {
+	honest, err := fetchLiveHeader(ctx, chain, height)
+	if err != nil {
+		return nil, err
+	}
+	validatorKeys, err := loadQBFTValidatorKeys()
+	if err != nil {
+		return nil, err
+	}
+	signerKeys, err := signerKeysFor(honest.Validators[:3], validatorKeys)
+	if err != nil {
+		return nil, err
+	}
+
+	mutable, err := decodeMutableQBFTHeader(honest.HeaderRLP)
+	if err != nil {
+		return nil, err
+	}
+	mutable.setStateRoot(crypto.Keccak256Hash([]byte("double sign")))
+	mutable.setCommitSeals(signQBFTCommitSeals(mutable, signerKeys))
+	conflictingHeader, err := mutable.encode()
+	if err != nil {
+		return nil, err
+	}
+
+	// The light client expects abi.encode(MsgUpdateClient), without the function selector.
+	return besumsgs.NewBindings().PackUpdateClient(besumsgs.IBesuLightClientMsgsMsgUpdateClient{
+		HeaderRlp:     conflictingHeader,
+		TrustedHeight: besumsgs.IICS02ClientMsgsHeight{RevisionHeight: height},
+		ConsensusStatePreimage: besumsgs.IBesuLightClientMsgsConsensusState{
+			Timestamp:  honest.Header.Time,
+			StateRoot:  honest.Header.Root,
+			Validators: honest.Validators,
+		},
+	})[4:], nil
+}
+
 func buildConflictingFixture(
 	trustedHeight uint64,
 	targetHeight uint64,
@@ -531,6 +572,10 @@ func (h *mutableQBFTHeader) commitSeals() ([][]byte, error) {
 
 func (h *mutableQBFTHeader) setHeight(height uint64) {
 	h.items[8] = mustRLP(height)
+}
+
+func (h *mutableQBFTHeader) setStateRoot(stateRoot ethcommon.Hash) {
+	h.items[3] = mustRLP(stateRoot)
 }
 
 func (h *mutableQBFTHeader) setValidators(validators []ethcommon.Address) {
