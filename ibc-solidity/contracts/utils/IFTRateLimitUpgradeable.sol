@@ -28,6 +28,9 @@ abstract contract IFTRateLimitUpgradeable is IIFTRateLimit {
     bytes32 private constant IFT_RATELIMIT_STORAGE_SLOT =
         0x74921a43196ad1dc887934f7da2d890232ee1cc23065a139ea8687a00466cb00;
 
+    /// @notice Prefix hashed with a direction to derive its limiter key
+    string private constant DIRECTION_KEY_PREFIX = "ibc.ift.ratelimit.direction";
+
     /// @inheritdoc IIFTRateLimit
     function getIFTRateLimit() external view returns (uint208 capacity, uint48 window) {
         RateLimiter.RefillingBucket storage bucket = _getIFTRateLimitStorage()._bucket;
@@ -62,10 +65,12 @@ abstract contract IFTRateLimitUpgradeable is IIFTRateLimit {
     }
 
     /// @notice Returns the limiter key of a direction
+    /// @dev The key is derived from the enum value, so `IFTRateLimitDirection` values must only be appended, never
+    /// reordered, or stored usage would be remapped across an upgrade.
     /// @param direction The direction
     /// @return The limiter key
     function _directionKey(IIFTMsgs.IFTRateLimitDirection direction) private pure returns (bytes32) {
-        return bytes32(uint256(direction));
+        return keccak256(abi.encodePacked(DIRECTION_KEY_PREFIX, direction));
     }
 
     /// @notice Returns the storage of the IFTRateLimit contract
