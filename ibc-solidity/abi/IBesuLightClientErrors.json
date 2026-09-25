@@ -1,17 +1,6 @@
 [
   {
     "type": "error",
-    "name": "ConflictingConsensusState",
-    "inputs": [
-      {
-        "name": "revisionHeight",
-        "type": "uint64",
-        "internalType": "uint64"
-      }
-    ]
-  },
-  {
-    "type": "error",
     "name": "ConsensusStateExpired",
     "inputs": [
       {
@@ -72,6 +61,11 @@
   {
     "type": "error",
     "name": "EmptyValidatorSet",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "FrozenClientState",
     "inputs": []
   },
   {
