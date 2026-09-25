@@ -136,6 +136,17 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             return ILightClientMsgs.UpdateResult.Misbehaviour;
         }
 
+        if (msg_.trustedHeight.revisionHeight >= header.height) {
+            clientState.frozen = true;
+            emit TimeNonMonotonicity(
+                header.height,
+                msg_.trustedHeight.revisionHeight,
+                header.timestamp,
+                msg_.consensusStatePreimage.timestamp
+            );
+            return ILightClientMsgs.UpdateResult.Misbehaviour;
+        }
+
         consensusStateHashes[header.height] = newHash;
 
         if (header.height > clientState.latestHeight.revisionHeight) {
