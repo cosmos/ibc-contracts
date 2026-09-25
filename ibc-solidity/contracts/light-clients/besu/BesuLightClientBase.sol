@@ -218,7 +218,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     }
 
     /// @inheritdoc ILightClient
-    function misbehaviour(bytes calldata misbehaviourMsg) external view notFrozen onlyProofSubmitter {
+    function misbehaviour(bytes calldata misbehaviourMsg) external notFrozen onlyProofSubmitter {
         IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour memory msg_ =
             abi.decode(misbehaviourMsg, (IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour));
         require(msg_.height1.revisionNumber == 0, InvalidRevisionNumber(msg_.height1.revisionNumber));
@@ -236,6 +236,14 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             InvalidTimeNonMonotonicityMisbehaviour(
                 msg_.consensusStatePreimage1.timestamp, msg_.consensusStatePreimage2.timestamp
             )
+        );
+
+        clientState.frozen = true;
+        emit TimeNonMonotonicity(
+            msg_.height2.revisionHeight,
+            msg_.height1.revisionHeight,
+            msg_.consensusStatePreimage2.timestamp,
+            msg_.consensusStatePreimage1.timestamp
         );
     }
 
