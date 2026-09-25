@@ -140,6 +140,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             return ILightClientMsgs.UpdateResult.Misbehaviour;
         }
 
+        // solhint-disable-next-line gas-strict-inequalities
         if (msg_.consensusStatePreimage.timestamp >= header.timestamp) {
             clientState.frozen = true;
             emit TimeNonMonotonicity(
@@ -232,6 +233,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         _requireTrustedConsensusState(msg_.height2.revisionHeight, msg_.consensusStatePreimage2);
 
         require(
+            // solhint-disable-next-line gas-strict-inequalities
             msg_.consensusStatePreimage1.timestamp >= msg_.consensusStatePreimage2.timestamp,
             InvalidTimeNonMonotonicityMisbehaviour(
                 msg_.consensusStatePreimage1.timestamp, msg_.consensusStatePreimage2.timestamp
