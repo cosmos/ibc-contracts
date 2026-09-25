@@ -49,4 +49,19 @@ interface IBesuLightClientMsgs {
         bytes[] accountProofNodes;
         bytes[] proofNodes;
     }
+
+    /// @notice Misbehaviour message containing two conflicting trusted consensus states at different heights.
+    /// @dev Time monotonicity check is done during updateClient, however, it is possible that the check is bypassed if
+    /// a suitable trusted consensus state is provided. This misbehavior message is used to freeze the client by simply
+    /// providing two consensus states that are trusted but have timestamps that are not monotonic.
+    /// @param height1 Height of the first trusted consensus state.
+    /// @param height2 Height of the second trusted consensus state. Must be greater than `height1`.
+    /// @param consensusStatePreimage1 Preimage of the first trusted consensus state.
+    /// @param consensusStatePreimage2 Preimage of the second trusted consensus state.
+    struct MsgTimeNonMonotonicityMisbehaviour {
+        IICS02ClientMsgs.Height height1;
+        IICS02ClientMsgs.Height height2;
+        ConsensusState consensusStatePreimage1;
+        ConsensusState consensusStatePreimage2;
+    }
 }
