@@ -11,13 +11,13 @@ interface IBesuLightClientMsgs {
     /// @param latestHeight Latest trusted Besu height.
     /// @param trustingPeriod Maximum age in seconds for a trusted consensus state.
     /// @param maxClockDrift Maximum allowed future drift in seconds for submitted headers.
-    /// @param frozen Whether the client has been permanently frozen due to misbehaviour.
+    /// @param isFrozen Whether the client has been permanently frozen due to misbehaviour.
     struct ClientState {
         address ibcRouter;
         IICS02ClientMsgs.Height latestHeight;
         uint64 trustingPeriod;
         uint64 maxClockDrift;
-        bool frozen;
+        bool isFrozen;
     }
 
     /// @notice Trusted consensus state for a Besu height.

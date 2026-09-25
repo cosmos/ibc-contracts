@@ -106,7 +106,7 @@ On update, the contract:
 4. checks trusted-validator overlap against the preimage validators and quorum against the new header validators,
 5. stores `keccak256(abi.encode(ConsensusState))` for the new height, built from the header timestamp, the header `stateRoot`, and the header validator set.
 
-Submitting a header whose derived consensus state hash already matches the stored hash at that height returns `UpdateResult.NoOp`. A validly signed header that derives a different consensus state at an already stored height is a double sign: the client sets `ClientState.frozen`, emits `DoubleSign`, and returns `UpdateResult.Misbehaviour` without storing the conflicting consensus state.
+Submitting a header whose derived consensus state hash already matches the stored hash at that height returns `UpdateResult.NoOp`. A validly signed header that derives a different consensus state at an already stored height is a double sign: the client sets `ClientState.isFrozen`, emits `DoubleSign`, and returns `UpdateResult.Misbehaviour` without storing the conflicting consensus state.
 
 A frozen client is permanent. `updateClient`, `verifyMembership`, `verifyNonMembership`, and `misbehaviour` all revert with `FrozenClientState`, and there is no way to unfreeze it; a new client must be created instead.
 

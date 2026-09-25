@@ -41,7 +41,7 @@
             "internalType": "uint64"
           },
           {
-            "name": "frozen",
+            "name": "isFrozen",
             "type": "bool",
             "internalType": "bool"
           }
@@ -87,7 +87,7 @@
             "internalType": "uint64"
           },
           {
-            "name": "frozen",
+            "name": "isFrozen",
             "type": "bool",
             "internalType": "bool"
           }

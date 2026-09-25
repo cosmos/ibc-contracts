@@ -314,9 +314,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
 
         assertEq(uint8(result), uint8(ILightClientMsgs.UpdateResult.Misbehaviour));
         assertEq(client.getConsensusStateHash(height), trustedHash);
-        (,,,, bool frozen) =
-            abi.decode(client.getClientState(), (address, IICS02ClientMsgs.Height, uint64, uint64, bool));
-        assertTrue(frozen);
+        assertTrue(_clientState().isFrozen);
 
         bytes memory frozenErr = abi.encodeWithSelector(IBesuLightClientErrors.FrozenClientState.selector);
         vm.expectRevert(frozenErr);
@@ -1016,20 +1014,18 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         return _encodeUpdate(update);
     }
 
+    function _clientState() internal view returns (IBesuLightClientMsgs.ClientState memory) {
+        return abi.decode(client.getClientState(), (IBesuLightClientMsgs.ClientState));
+    }
+
     function _assertClientState(BesuUpdateFixture memory update) internal view {
-        (
-            address ibcRouter,
-            IICS02ClientMsgs.Height memory latestHeight,
-            uint64 trustingPeriod,
-            uint64 maxClockDrift,
-            bool frozen
-        ) = abi.decode(client.getClientState(), (address, IICS02ClientMsgs.Height, uint64, uint64, bool));
-        assertEq(ibcRouter, fixture.routerAddress);
-        assertEq(latestHeight.revisionNumber, 0);
-        assertEq(latestHeight.revisionHeight, update.height);
-        assertEq(trustingPeriod, fixture.trustingPeriod);
-        assertEq(maxClockDrift, fixture.maxClockDrift);
-        assertFalse(frozen);
+        IBesuLightClientMsgs.ClientState memory clientState = _clientState();
+        assertEq(clientState.ibcRouter, fixture.routerAddress);
+        assertEq(clientState.latestHeight.revisionNumber, 0);
+        assertEq(clientState.latestHeight.revisionHeight, update.height);
+        assertEq(clientState.trustingPeriod, fixture.trustingPeriod);
+        assertEq(clientState.maxClockDrift, fixture.maxClockDrift);
+        assertFalse(clientState.isFrozen);
 
         assertEq(client.getConsensusStateHash(update.height), _consensusStateHash(_expectedConsensusState(update)));
     }

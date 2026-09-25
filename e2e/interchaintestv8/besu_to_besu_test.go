@@ -501,7 +501,7 @@ func (s *BesuToBesuTestSuite) Test_DoubleSignFreezesClient() {
 		s.Require().NoError(err)
 
 		clientState := s.besuClientState(client)
-		s.Require().False(clientState.Frozen)
+		s.Require().False(clientState.IsFrozen)
 		height = clientState.LatestHeight.RevisionHeight
 
 		trustedHash, err = client.GetConsensusStateHash(nil, height)
@@ -534,7 +534,7 @@ func (s *BesuToBesuTestSuite) Test_DoubleSignFreezesClient() {
 		s.Require().Equal(trustedHash, doubleSignEvent.TrustedConsensusStateHash)
 		s.Require().NotEqual(trustedHash, doubleSignEvent.ConflictingConsensusStateHash)
 
-		s.Require().True(s.besuClientState(client).Frozen)
+		s.Require().True(s.besuClientState(client).IsFrozen)
 		storedHash, err := client.GetConsensusStateHash(nil, height)
 		s.Require().NoError(err)
 		s.Require().Equal(trustedHash, storedHash)

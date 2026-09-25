@@ -66,7 +66,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             latestHeight: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: initialTrustedHeight }),
             trustingPeriod: trustingPeriod,
             maxClockDrift: maxClockDrift,
-            frozen: false
+            isFrozen: false
         });
 
         IBesuLightClientMsgs.ConsensusState memory initialConsensusState = IBesuLightClientMsgs.ConsensusState({
@@ -131,7 +131,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
                 return ILightClientMsgs.UpdateResult.NoOp;
             }
 
-            clientState.frozen = true;
+            clientState.isFrozen = true;
             emit DoubleSign(header.height, existingHash, newHash);
             return ILightClientMsgs.UpdateResult.Misbehaviour;
         }
@@ -408,7 +408,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
     /// @notice Reverts if the client is frozen. A frozen client can never be unfrozen.
     modifier notFrozen() {
-        require(!clientState.frozen, FrozenClientState());
+        require(!clientState.isFrozen, FrozenClientState());
         _;
     }
 

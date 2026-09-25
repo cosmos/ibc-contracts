@@ -282,18 +282,9 @@ func BuildQBFTDoubleSignUpdate(ctx context.Context, chain *ethereum.Ethereum, he
 	if err != nil {
 		return nil, err
 	}
-	signerKeys, err := signerKeysFor(honest.Validators[:3], validatorKeys)
-	if err != nil {
-		return nil, err
-	}
-
-	mutable, err := decodeMutableQBFTHeader(honest.HeaderRLP)
-	if err != nil {
-		return nil, err
-	}
-	mutable.setStateRoot(crypto.Keccak256Hash([]byte("double sign")))
-	mutable.setCommitSeals(signQBFTCommitSeals(mutable, signerKeys))
-	conflictingHeader, err := mutable.encode()
+	conflictingHeader, err := resealWithQuorum(honest.HeaderRLP, validatorKeys, func(h *mutableQBFTHeader) {
+		h.setStateRoot(crypto.Keccak256Hash([]byte("double sign")))
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -316,21 +307,9 @@ func buildConflictingFixture(
 	baseHeader liveHeader,
 	validatorKeys map[ethcommon.Address]*ecdsa.PrivateKey,
 ) (besuRejectionUpdateFixture, error) {
-	mutable, err := decodeMutableQBFTHeader(baseHeader.HeaderRLP)
-	if err != nil {
-		return besuRejectionUpdateFixture{}, err
-	}
-	mutable.setHeight(targetHeight)
-	validators, err := mutable.validators()
-	if err != nil {
-		return besuRejectionUpdateFixture{}, err
-	}
-	signerKeys, err := signerKeysFor(validators[:3], validatorKeys)
-	if err != nil {
-		return besuRejectionUpdateFixture{}, err
-	}
-	mutable.setCommitSeals(signQBFTCommitSeals(mutable, signerKeys))
-	mutatedHeader, err := mutable.encode()
+	mutatedHeader, err := resealWithQuorum(baseHeader.HeaderRLP, validatorKeys, func(h *mutableQBFTHeader) {
+		h.setHeight(targetHeight)
+	})
 	if err != nil {
 		return besuRejectionUpdateFixture{}, err
 	}
@@ -340,6 +319,31 @@ func buildConflictingFixture(
 		HeaderRlp:     encodeHex(mutatedHeader),
 		TrustedHeight: trustedHeight,
 	}, nil
+}
+
+// resealWithQuorum applies mutate to headerRLP and re-seals it with the keys of the first BFT quorum
+// (ceil(2n/3)) of the header's validators.
+func resealWithQuorum(
+	headerRLP []byte,
+	validatorKeys map[ethcommon.Address]*ecdsa.PrivateKey,
+	mutate func(*mutableQBFTHeader),
+) ([]byte, error) {
+	mutable, err := decodeMutableQBFTHeader(headerRLP)
+	if err != nil {
+		return nil, err
+	}
+	mutate(mutable)
+	validators, err := mutable.validators()
+	if err != nil {
+		return nil, err
+	}
+	quorum := (2*len(validators) + 2) / 3
+	signerKeys, err := signerKeysFor(validators[:quorum], validatorKeys)
+	if err != nil {
+		return nil, err
+	}
+	mutable.setCommitSeals(signQBFTCommitSeals(mutable, signerKeys))
+	return mutable.encode()
 }
 
 func buildLowOverlapFixture(
