@@ -59,6 +59,8 @@ The trade-off is that a static limit does not track growth of the token and may 
 
 **Decision: limit both inbound mints and outbound burns, with a common capacity and window.** The authority configures a single capacity and refill window that applies to both directions. Each direction still tracks its own usage, shared across all clients for that token. An inbound transfer consumes inbound allowance; an outbound transfer consumes outbound allowance. Receiving tokens does not spend the allowance needed to send tokens, and vice versa.
 
+An outbound transfer that exceeds the limit reverts, so the packet is never sent. An inbound transfer that exceeds the limit fails the receive and results in an error acknowledgement rather than a reverted transaction. The packet is not left pending for a later retry. The error acknowledgement refunds the sender on the source chain, and that refund is subject to the source chain's inbound limit (see [Refund Handling](#refund-handling)).
+
 Sharing the settings keeps configuration to a single call and a single value to reason about. The trade-off is that operators cannot tighten one direction without tightening the other.
 
 ### Rewinding Usage
