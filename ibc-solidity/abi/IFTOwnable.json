@@ -188,12 +188,12 @@
     "inputs": [],
     "outputs": [
       {
-        "name": "inbound",
+        "name": "",
         "type": "uint256",
         "internalType": "uint256"
       },
       {
-        "name": "outbound",
+        "name": "",
         "type": "uint256",
         "internalType": "uint256"
       }
