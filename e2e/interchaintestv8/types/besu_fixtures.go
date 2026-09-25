@@ -269,44 +269,80 @@ func buildLowQuorumFixture(update besuUpdateFixture, header liveHeader) (besuRej
 	}, nil
 }
 
-// BuildQBFTDoubleSignUpdate returns an abi-encoded MsgUpdateClient carrying a copy of the live header at height
-// with its stateRoot replaced and re-sealed by a quorum of the local QBFT validator keys. It trusts the honest
-// consensus state at the same height, so a client that already stores height detects a double sign.
-// Validator keys are read relative to the repository root.
-func BuildQBFTDoubleSignUpdate(ctx context.Context, chain *ethereum.Ethereum, height uint64) ([]byte, error) {
-	honest, err := fetchLiveHeader(ctx, chain, height)
+// BuildQBFTUpdate returns an abi-encoded MsgUpdateClient carrying the live header at height, trusting the live
+// consensus state at trustedHeight.
+func BuildQBFTUpdate(ctx context.Context, chain *ethereum.Ethereum, trustedHeight, height uint64) ([]byte, error) {
+	return buildQBFTUpdate(ctx, chain, trustedHeight, height, nil)
+}
+
+// BuildQBFTDoubleSignUpdate is BuildQBFTUpdate with the header's stateRoot replaced and re-sealed, so a client that
+// already stores height detects a double sign.
+func BuildQBFTDoubleSignUpdate(ctx context.Context, chain *ethereum.Ethereum, trustedHeight, height uint64) ([]byte, error) {
+	return buildQBFTUpdate(ctx, chain, trustedHeight, height, func(h *mutableQBFTHeader) {
+		h.setStateRoot(crypto.Keccak256Hash([]byte("double sign")))
+	})
+}
+
+// BuildQBFTTimestampUpdate is BuildQBFTUpdate with the header's timestamp replaced and re-sealed.
+func BuildQBFTTimestampUpdate(ctx context.Context, chain *ethereum.Ethereum, trustedHeight, height, timestamp uint64) ([]byte, error) {
+	return buildQBFTUpdate(ctx, chain, trustedHeight, height, func(h *mutableQBFTHeader) {
+		h.setTimestamp(timestamp)
+	})
+}
+
+// FetchQBFTConsensusState returns the consensus state preimage of the live header at height.
+func FetchQBFTConsensusState(ctx context.Context, chain *ethereum.Ethereum, height uint64) (besumsgs.IBesuLightClientMsgsConsensusState, error) {
+	header, err := fetchLiveHeader(ctx, chain, height)
+	if err != nil {
+		return besumsgs.IBesuLightClientMsgsConsensusState{}, err
+	}
+	return header.consensusState(), nil
+}
+
+// buildQBFTUpdate applies mutate, if non-nil, to the live header at height and re-seals it with a quorum of the local
+// QBFT validator keys, read relative to the repository root.
+func buildQBFTUpdate(
+	ctx context.Context,
+	chain *ethereum.Ethereum,
+	trustedHeight uint64,
+	height uint64,
+	mutate func(*mutableQBFTHeader),
+) ([]byte, error) {
+	trusted, err := fetchLiveHeader(ctx, chain, trustedHeight)
 	if err != nil {
 		return nil, err
 	}
-	validatorKeys, err := loadQBFTValidatorKeys()
-	if err != nil {
-		return nil, err
-	}
-	signerKeys, err := signerKeysFor(honest.Validators[:3], validatorKeys)
+	header, err := fetchLiveHeader(ctx, chain, height)
 	if err != nil {
 		return nil, err
 	}
 
-	mutable, err := decodeMutableQBFTHeader(honest.HeaderRLP)
-	if err != nil {
-		return nil, err
-	}
-	mutable.setStateRoot(crypto.Keccak256Hash([]byte("double sign")))
-	mutable.setCommitSeals(signQBFTCommitSeals(mutable, signerKeys))
-	conflictingHeader, err := mutable.encode()
-	if err != nil {
-		return nil, err
+	headerRLP := header.HeaderRLP
+	if mutate != nil {
+		validatorKeys, err := loadQBFTValidatorKeys()
+		if err != nil {
+			return nil, err
+		}
+		signerKeys, err := signerKeysFor(header.Validators[:3], validatorKeys)
+		if err != nil {
+			return nil, err
+		}
+		mutable, err := decodeMutableQBFTHeader(header.HeaderRLP)
+		if err != nil {
+			return nil, err
+		}
+		mutate(mutable)
+		mutable.setCommitSeals(signQBFTCommitSeals(mutable, signerKeys))
+		if headerRLP, err = mutable.encode(); err != nil {
+			return nil, err
+		}
 	}
 
 	// The light client expects abi.encode(MsgUpdateClient), without the function selector.
 	return besumsgs.NewBindings().PackUpdateClient(besumsgs.IBesuLightClientMsgsMsgUpdateClient{
-		HeaderRlp:     conflictingHeader,
-		TrustedHeight: besumsgs.IICS02ClientMsgsHeight{RevisionHeight: height},
-		ConsensusStatePreimage: besumsgs.IBesuLightClientMsgsConsensusState{
-			Timestamp:  honest.Header.Time,
-			StateRoot:  honest.Header.Root,
-			Validators: honest.Validators,
-		},
+		HeaderRlp:              headerRLP,
+		TrustedHeight:          besumsgs.IICS02ClientMsgsHeight{RevisionHeight: trustedHeight},
+		ConsensusStatePreimage: trusted.consensusState(),
 	})[4:], nil
 }
 
@@ -470,6 +506,14 @@ func fetchLiveHeader(ctx context.Context, chain *ethereum.Ethereum, height uint6
 	}, nil
 }
 
+func (h liveHeader) consensusState() besumsgs.IBesuLightClientMsgsConsensusState {
+	return besumsgs.IBesuLightClientMsgsConsensusState{
+		Timestamp:  h.Header.Time,
+		StateRoot:  h.Header.Root,
+		Validators: h.Validators,
+	}
+}
+
 // fetchStorageProof returns the ABI-encoded storage proof nodes for the commitment at path and the
 // ABI-encoded account proof nodes for the router, both taken from one eth_getProof call at height.
 func fetchStorageProof(
@@ -576,6 +620,10 @@ func (h *mutableQBFTHeader) setHeight(height uint64) {
 
 func (h *mutableQBFTHeader) setStateRoot(stateRoot ethcommon.Hash) {
 	h.items[3] = mustRLP(stateRoot)
+}
+
+func (h *mutableQBFTHeader) setTimestamp(timestamp uint64) {
+	h.items[11] = mustRLP(timestamp)
 }
 
 func (h *mutableQBFTHeader) setValidators(validators []ethcommon.Address) {

@@ -26,6 +26,8 @@ import (
 
 	transfertypes "github.com/cosmos/ibc-go/v11/modules/apps/transfer/types"
 
+	"github.com/cosmos/interchaintest/v11/testutil"
+
 	"github.com/cosmos/solidity-ibc-eureka/packages/go-abigen/besumsgs"
 	"github.com/cosmos/solidity-ibc-eureka/packages/go-abigen/besuqbft"
 	"github.com/cosmos/solidity-ibc-eureka/packages/go-abigen/ibcerc20"
@@ -487,46 +489,38 @@ func (s *BesuToBesuTestSuite) Test_DoubleSignFreezesClient() {
 
 	const doubleSignClientID = "besu-double-sign"
 	var (
-		client      *besuqbft.Contract
-		height      uint64
-		trustedHash [32]byte
-		updateMsg   []byte
+		client        *besuqbft.Contract
+		trustedHeight uint64
+		height        uint64
+		trustedHash   [32]byte
+		updateMsg     []byte
 	)
 
 	s.Require().True(s.Run("Create dedicated client on Chain B", func() {
-		clientAddress := s.createAndRegisterBesuClient(&s.chainA, &s.chainB, doubleSignClientID, besuToBesuClientOnA)
+		client = s.createDedicatedBesuClient(doubleSignClientID)
+		trustedHeight = s.besuClientState(client).LatestHeight.RevisionHeight
+		height = trustedHeight + 1
+	}))
 
-		var err error
-		client, err = besuqbft.NewContract(clientAddress, s.chainB.eth.RPCClient)
+	s.Require().True(s.Run("Update the client to the next height", func() {
+		s.waitForBlock(ctx, &s.chainA, height)
+		honestUpdate, err := e2etypes.BuildQBFTUpdate(ctx, &s.chainA.eth, trustedHeight, height)
 		s.Require().NoError(err)
-
-		clientState := s.besuClientState(client)
-		s.Require().False(clientState.Frozen)
-		height = clientState.LatestHeight.RevisionHeight
+		s.requireUpdateResult(s.updateClient(ctx, doubleSignClientID, honestUpdate), 0) // Update
 
 		trustedHash, err = client.GetConsensusStateHash(nil, height)
 		s.Require().NoError(err)
 	}))
 
-	s.Require().True(s.Run("Build conflicting header at the trusted height", func() {
+	s.Require().True(s.Run("Build conflicting header at the stored height", func() {
 		var err error
-		updateMsg, err = e2etypes.BuildQBFTDoubleSignUpdate(ctx, &s.chainA.eth, height)
+		updateMsg, err = e2etypes.BuildQBFTDoubleSignUpdate(ctx, &s.chainA.eth, trustedHeight, height)
 		s.Require().NoError(err)
 	}))
 
 	s.Require().True(s.Run("Submit double sign and freeze the client", func() {
-		tx, err := s.chainB.ics26.UpdateClient(
-			s.mustTransactOpts(&s.chainB, s.chainB.relayerSubmitter), doubleSignClientID, updateMsg,
-		)
-		s.Require().NoError(err)
-		receipt, err := s.chainB.eth.GetTxReciept(ctx, tx.Hash())
-		s.Require().NoError(err)
-		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
-
-		updatedEvent, err := e2esuite.GetEvmEvent(receipt, s.chainB.ics26.ParseICS02ClientUpdated)
-		s.Require().NoError(err)
-		s.Require().Equal(doubleSignClientID, updatedEvent.ClientId)
-		s.Require().Equal(uint8(1), updatedEvent.Result) // ILightClientMsgs.UpdateResult.Misbehaviour
+		receipt := s.updateClient(ctx, doubleSignClientID, updateMsg)
+		s.requireUpdateResult(receipt, 1) // Misbehaviour
 
 		doubleSignEvent, err := e2esuite.GetEvmEvent(receipt, client.ParseDoubleSign)
 		s.Require().NoError(err)
@@ -541,21 +535,141 @@ func (s *BesuToBesuTestSuite) Test_DoubleSignFreezesClient() {
 	}))
 
 	s.Require().True(s.Run("Frozen client rejects further updates", func() {
-		ics26ABI, err := ics26router.ContractMetaData.GetAbi()
-		s.Require().NoError(err)
-		calldata, err := ics26ABI.Pack("updateClient", doubleSignClientID, updateMsg)
-		s.Require().NoError(err)
-
-		ics26Address := ethcommon.HexToAddress(s.chainB.contractAddresses.Ics26Router)
-		_, err = s.chainB.eth.RPCClient.CallContract(ctx, goethereum.CallMsg{
-			From: crypto.PubkeyToAddress(s.chainB.relayerSubmitter.PublicKey),
-			To:   &ics26Address,
-			Data: calldata,
-		}, nil)
-		var dataErr rpc.DataError
-		s.Require().ErrorAs(err, &dataErr)
-		s.Require().Equal(hexutil.Encode(crypto.Keccak256([]byte("FrozenClientState()"))[:4]), dataErr.ErrorData())
+		s.requireFrozenClientRevert(ctx, "updateClient", doubleSignClientID, updateMsg)
 	}))
+}
+
+// Test_TimeNonMonotonicityFreezesClient stores two consensus states whose timestamps do not increase with height on
+// a dedicated client on Chain B, then submits them as misbehaviour. Each update is only checked against its own
+// trusted height, so both updates are accepted.
+func (s *BesuToBesuTestSuite) Test_TimeNonMonotonicityFreezesClient() {
+	ctx := context.Background()
+
+	const timeMisbehaviourClientID = "besu-time-non-monotonicity"
+	var (
+		client          *besuqbft.Contract
+		trustedHeight   uint64
+		height1         uint64
+		height2         uint64
+		timestamp       uint64
+		misbehaviourMsg []byte
+	)
+
+	s.Require().True(s.Run("Create dedicated client on Chain B", func() {
+		client = s.createDedicatedBesuClient(timeMisbehaviourClientID)
+		trustedHeight = s.besuClientState(client).LatestHeight.RevisionHeight
+		height1, height2 = trustedHeight+1, trustedHeight+2
+	}))
+
+	s.Require().True(s.Run("Store consensus states with non-monotonic timestamps", func() {
+		s.waitForBlock(ctx, &s.chainA, height2)
+
+		state2, err := e2etypes.FetchQBFTConsensusState(ctx, &s.chainA.eth, height2)
+		s.Require().NoError(err)
+		timestamp = state2.Timestamp
+
+		honestUpdate, err := e2etypes.BuildQBFTUpdate(ctx, &s.chainA.eth, trustedHeight, height2)
+		s.Require().NoError(err)
+		s.requireUpdateResult(s.updateClient(ctx, timeMisbehaviourClientID, honestUpdate), 0) // Update
+
+		// Height1 is re-sealed with the timestamp of height2.
+		forgedUpdate, err := e2etypes.BuildQBFTTimestampUpdate(ctx, &s.chainA.eth, trustedHeight, height1, timestamp)
+		s.Require().NoError(err)
+		s.requireUpdateResult(s.updateClient(ctx, timeMisbehaviourClientID, forgedUpdate), 0) // Update
+
+		state1, err := e2etypes.FetchQBFTConsensusState(ctx, &s.chainA.eth, height1)
+		s.Require().NoError(err)
+		state1.Timestamp = timestamp
+
+		// The light client expects abi.encode(MsgTimeNonMonotonicityMisbehaviour), without the function selector.
+		misbehaviourMsg = besumsgs.NewBindings().PackTimeNonMonotonicityMisbehaviour(
+			besumsgs.IBesuLightClientMsgsMsgTimeNonMonotonicityMisbehaviour{
+				Height1:                 besumsgs.IICS02ClientMsgsHeight{RevisionHeight: height1},
+				Height2:                 besumsgs.IICS02ClientMsgsHeight{RevisionHeight: height2},
+				ConsensusStatePreimage1: state1,
+				ConsensusStatePreimage2: state2,
+			},
+		)[4:]
+		s.Require().False(s.besuClientState(client).Frozen)
+	}))
+
+	s.Require().True(s.Run("Submit misbehaviour and freeze the client", func() {
+		tx, err := s.chainB.ics26.SubmitMisbehaviour(
+			s.mustTransactOpts(&s.chainB, s.chainB.relayerSubmitter), timeMisbehaviourClientID, misbehaviourMsg,
+		)
+		s.Require().NoError(err)
+		receipt, err := s.chainB.eth.GetTxReciept(ctx, tx.Hash())
+		s.Require().NoError(err)
+		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
+
+		submittedEvent, err := e2esuite.GetEvmEvent(receipt, s.chainB.ics26.ParseICS02MisbehaviourSubmitted)
+		s.Require().NoError(err)
+		s.Require().Equal(timeMisbehaviourClientID, submittedEvent.ClientId)
+
+		timeEvent, err := e2esuite.GetEvmEvent(receipt, client.ParseTimeNonMonotonicity)
+		s.Require().NoError(err)
+		s.Require().Equal(height2, timeEvent.Height2)
+		s.Require().Equal(height1, timeEvent.Height1)
+		s.Require().Equal(timestamp, timeEvent.Timestamp2)
+		s.Require().Equal(timestamp, timeEvent.Timestamp1)
+
+		s.Require().True(s.besuClientState(client).Frozen)
+	}))
+
+	s.Require().True(s.Run("Frozen client rejects further misbehaviour", func() {
+		s.requireFrozenClientRevert(ctx, "submitMisbehaviour", timeMisbehaviourClientID, misbehaviourMsg)
+	}))
+}
+
+// createDedicatedBesuClient registers a Chain A client on Chain B that the relayer does not use.
+func (s *BesuToBesuTestSuite) createDedicatedBesuClient(clientID string) *besuqbft.Contract {
+	clientAddress := s.createAndRegisterBesuClient(&s.chainA, &s.chainB, clientID, besuToBesuClientOnA)
+	client, err := besuqbft.NewContract(clientAddress, s.chainB.eth.RPCClient)
+	s.Require().NoError(err)
+	s.Require().False(s.besuClientState(client).Frozen)
+	return client
+}
+
+func (s *BesuToBesuTestSuite) waitForBlock(ctx context.Context, chain *besuToBesuChainState, height uint64) {
+	s.Require().NoError(testutil.WaitForCondition(time.Minute, time.Second, func() (bool, error) {
+		latest, err := chain.eth.RPCClient.BlockNumber(ctx)
+		return latest >= height, err
+	}))
+}
+
+// updateClient submits updateMsg to clientID on Chain B through ICS26 and returns the successful receipt.
+func (s *BesuToBesuTestSuite) updateClient(ctx context.Context, clientID string, updateMsg []byte) *ethtypes.Receipt {
+	tx, err := s.chainB.ics26.UpdateClient(s.mustTransactOpts(&s.chainB, s.chainB.relayerSubmitter), clientID, updateMsg)
+	s.Require().NoError(err)
+	receipt, err := s.chainB.eth.GetTxReciept(ctx, tx.Hash())
+	s.Require().NoError(err)
+	s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
+	return receipt
+}
+
+// requireUpdateResult asserts the ILightClientMsgs.UpdateResult emitted in receipt.
+func (s *BesuToBesuTestSuite) requireUpdateResult(receipt *ethtypes.Receipt, result uint8) {
+	updatedEvent, err := e2esuite.GetEvmEvent(receipt, s.chainB.ics26.ParseICS02ClientUpdated)
+	s.Require().NoError(err)
+	s.Require().Equal(result, updatedEvent.Result)
+}
+
+// requireFrozenClientRevert asserts that calling the ICS26 method on Chain B reverts with FrozenClientState.
+func (s *BesuToBesuTestSuite) requireFrozenClientRevert(ctx context.Context, method string, args ...any) {
+	ics26ABI, err := ics26router.ContractMetaData.GetAbi()
+	s.Require().NoError(err)
+	calldata, err := ics26ABI.Pack(method, args...)
+	s.Require().NoError(err)
+
+	ics26Address := ethcommon.HexToAddress(s.chainB.contractAddresses.Ics26Router)
+	_, err = s.chainB.eth.RPCClient.CallContract(ctx, goethereum.CallMsg{
+		From: crypto.PubkeyToAddress(s.chainB.relayerSubmitter.PublicKey),
+		To:   &ics26Address,
+		Data: calldata,
+	}, nil)
+	var dataErr rpc.DataError
+	s.Require().ErrorAs(err, &dataErr)
+	s.Require().Equal(hexutil.Encode(crypto.Keccak256([]byte("FrozenClientState()"))[:4]), dataErr.ErrorData())
 }
 
 func (s *BesuToBesuTestSuite) besuClientState(client *besuqbft.Contract) besumsgs.IBesuLightClientMsgsClientState {

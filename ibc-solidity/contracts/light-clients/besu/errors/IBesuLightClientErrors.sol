@@ -24,6 +24,10 @@ interface IBesuLightClientErrors {
     /// @param headerTimestamp The submitted header timestamp.
     /// @param maxClockDrift The configured maximum clock drift.
     error HeaderFromFuture(uint256 currentTimestamp, uint256 headerTimestamp, uint256 maxClockDrift);
+    /// @notice The trusted height must be less than the header height
+    /// @param trustedHeight The submitted trusted height.
+    /// @param headerHeight The submitted header height.
+    error InvalidTrustedHeight(uint64 trustedHeight, uint64 headerHeight);
     /// @notice No consensus state exists for the requested height.
     /// @param revisionHeight The requested revision height.
     error ConsensusStateNotFound(uint64 revisionHeight);
@@ -96,4 +100,12 @@ interface IBesuLightClientErrors {
     /// @notice The commit seal signer is not in the validator set.
     /// @param signer The commit seal signer address.
     error UnknownCommitSealSigner(address signer);
+    /// @notice Height1 must be less than height2 for misbehaviour handling.
+    /// @param height1 The first trusted consensus state height.
+    /// @param height2 The second trusted consensus state height.
+    error InvalidMisbehaviourHeightOrder(uint64 height1, uint64 height2);
+    /// @notice No misbehaviour detected between the two trusted consensus states.
+    /// @param timestamp1 Timestamp of the first trusted consensus state.
+    /// @param timestamp2 Timestamp of the second trusted consensus state.
+    error InvalidTimeNonMonotonicityMisbehaviour(uint256 timestamp1, uint256 timestamp2);
 }
