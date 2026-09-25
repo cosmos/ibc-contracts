@@ -29,6 +29,13 @@ interface IBesuLightClientEncoding {
         pure
         returns (IBesuLightClientMsgs.MsgUpdateClient memory);
 
+    /// @notice Exposes the time non-monotonicity misbehaviour payload encoding.
+    /// @param message The misbehaviour message.
+    function timeNonMonotonicityMisbehaviour(IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour calldata message)
+        external
+        pure
+        returns (IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour memory);
+
     /// @notice Exposes the membership and non-membership proof encoding.
     /// @param proof The proof with its consensus state preimage.
     function membershipProof(IBesuLightClientMsgs.MembershipProof calldata proof)

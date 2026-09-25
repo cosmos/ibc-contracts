@@ -92,6 +92,15 @@ struct BesuCachedStorageRootTestCase {
     uint64 expectedTimestamp;
 }
 
+/// @dev Rejected time non-monotonicity misbehaviour, submitted once `fixture.nonAdjacentUpdate` is stored.
+/// @dev `timestamp` is the block timestamp at which the misbehaviour is submitted.
+struct BesuMisbehaviourTestCase {
+    string name;
+    uint64 timestamp;
+    bytes misbehaviour;
+    bytes expectedRevert;
+}
+
 /// @dev Constructor arguments that override the fixture defaults, and the expected revert if any.
 struct BesuConstructorTestCase {
     string name;
@@ -329,9 +338,18 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         client.misbehaviour(bytes(""));
     }
 
-    function test_misbehaviour_reverts() public {
-        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.UnsupportedMisbehaviour.selector));
-        client.misbehaviour(bytes(""));
+    /// @dev Live fixture headers have monotonic timestamps, so only rejections are covered here; accepted
+    /// misbehaviour is covered by `QBFTSimSuiteTest`.
+    function tableMisbehaviourTest(BesuMisbehaviourTestCase memory misbehaviour) public {
+        vm.warp(fixture.initialTrustedTimestamp + 1);
+        client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
+        bytes memory clientStateBefore = client.getClientState();
+        vm.warp(misbehaviour.timestamp);
+
+        vm.expectRevert(misbehaviour.expectedRevert);
+        client.misbehaviour(misbehaviour.misbehaviour);
+
+        assertEq(client.getClientState(), clientStateBefore);
     }
 
     function test_updateClient_revertThroughWrongWrapper() public {
@@ -690,7 +708,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     function fixtureUpdate() public view returns (BesuUpdateTestCase[] memory testCases) {
         BesuUpdateFixture memory emptyExpectedState;
 
-        testCases = new BesuUpdateTestCase[](17);
+        testCases = new BesuUpdateTestCase[](19);
         testCases[0] = BesuUpdateTestCase({
             name: "success: valid adjacent update",
             timestamp: fixture.initialTrustedTimestamp + 1,
@@ -780,7 +798,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
 
         IBesuLightClientMsgs.MsgUpdateClient memory unknownTrustedHeightUpdate =
             abi.decode(_encodeUpdate(fixture.nonAdjacentUpdate), (IBesuLightClientMsgs.MsgUpdateClient));
-        unknownTrustedHeightUpdate.trustedHeight.revisionHeight = fixture.initialTrustedHeight + 1000;
+        unknownTrustedHeightUpdate.trustedHeight.revisionHeight = fixture.nonAdjacentUpdate.height - 1;
 
         testCases[8] = BesuUpdateTestCase({
             name: "failure: unknown trusted height",
@@ -788,7 +806,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             update: abi.encode(unknownTrustedHeightUpdate),
             preUpdate: "",
             expectedRevert: abi.encodeWithSelector(
-                IBesuLightClientErrors.ConsensusStateNotFound.selector, fixture.initialTrustedHeight + 1000
+                IBesuLightClientErrors.ConsensusStateNotFound.selector, fixture.nonAdjacentUpdate.height - 1
             ),
             expectedState: emptyExpectedState
         });
@@ -879,6 +897,123 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             preUpdate: "",
             expectedRevert: abi.encodeWithSelector(SafeCast.SafeCastOverflowedUintDowncast.selector, 64, overflow),
             expectedState: emptyExpectedState
+        });
+
+        uint64 height = fixture.nonAdjacentUpdate.height;
+        IBesuLightClientMsgs.MsgUpdateClient memory sameHeightUpdate =
+            abi.decode(_encodeUpdate(fixture.nonAdjacentUpdate), (IBesuLightClientMsgs.MsgUpdateClient));
+        sameHeightUpdate.trustedHeight.revisionHeight = height;
+        testCases[17] = BesuUpdateTestCase({
+            name: "failure: trusted height equals header height",
+            timestamp: fixture.initialTrustedTimestamp + 1,
+            update: abi.encode(sameHeightUpdate),
+            preUpdate: "",
+            expectedRevert: abi.encodeWithSelector(
+                IBesuLightClientErrors.InvalidTrustedHeight.selector, height, height
+            ),
+            expectedState: emptyExpectedState
+        });
+
+        IBesuLightClientMsgs.MsgUpdateClient memory higherTrustedHeightUpdate =
+            abi.decode(_encodeUpdate(fixture.adjacentUpdate), (IBesuLightClientMsgs.MsgUpdateClient));
+        higherTrustedHeightUpdate.trustedHeight.revisionHeight = height;
+        higherTrustedHeightUpdate.consensusStatePreimage = _expectedConsensusState(fixture.nonAdjacentUpdate);
+        testCases[18] = BesuUpdateTestCase({
+            name: "failure: trusted height above header height",
+            timestamp: fixture.initialTrustedTimestamp + 1,
+            update: abi.encode(higherTrustedHeightUpdate),
+            preUpdate: _encodeUpdate(fixture.nonAdjacentUpdate),
+            expectedRevert: abi.encodeWithSelector(
+                IBesuLightClientErrors.InvalidTrustedHeight.selector, height, fixture.adjacentUpdate.height
+            ),
+            expectedState: emptyExpectedState
+        });
+    }
+
+    function fixtureMisbehaviour() public view returns (BesuMisbehaviourTestCase[] memory testCases) {
+        uint64 height1 = fixture.initialTrustedHeight;
+        uint64 height2 = fixture.nonAdjacentUpdate.height;
+        IBesuLightClientMsgs.ConsensusState memory state1 = _initialConsensusState();
+        IBesuLightClientMsgs.ConsensusState memory state2 = _expectedConsensusState(fixture.nonAdjacentUpdate);
+        uint64 timestamp = fixture.initialTrustedTimestamp + 1;
+
+        testCases = new BesuMisbehaviourTestCase[](8);
+        testCases[0] = BesuMisbehaviourTestCase({
+            name: "failure: monotonic timestamps",
+            timestamp: timestamp,
+            misbehaviour: abi.encode(_misbehaviourMsg(height1, state1, height2, state2)),
+            expectedRevert: abi.encodeWithSelector(
+                IBesuLightClientErrors.InvalidTimeNonMonotonicityMisbehaviour.selector,
+                state1.timestamp,
+                state2.timestamp
+            )
+        });
+        testCases[1] = BesuMisbehaviourTestCase({
+            name: "failure: equal heights",
+            timestamp: timestamp,
+            misbehaviour: abi.encode(_misbehaviourMsg(height2, state2, height2, state2)),
+            expectedRevert: abi.encodeWithSelector(
+                IBesuLightClientErrors.InvalidMisbehaviourHeightOrder.selector, height2, height2
+            )
+        });
+        testCases[2] = BesuMisbehaviourTestCase({
+            name: "failure: descending heights",
+            timestamp: timestamp,
+            misbehaviour: abi.encode(_misbehaviourMsg(height2, state2, height1, state1)),
+            expectedRevert: abi.encodeWithSelector(
+                IBesuLightClientErrors.InvalidMisbehaviourHeightOrder.selector, height2, height1
+            )
+        });
+
+        IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour memory wrongRevision =
+            _misbehaviourMsg(height1, state1, height2, state2);
+        wrongRevision.height1.revisionNumber = 1;
+        testCases[3] = BesuMisbehaviourTestCase({
+            name: "failure: wrong revision number for height1",
+            timestamp: timestamp,
+            misbehaviour: abi.encode(wrongRevision),
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidRevisionNumber.selector, 1)
+        });
+
+        wrongRevision = _misbehaviourMsg(height1, state1, height2, state2);
+        wrongRevision.height2.revisionNumber = 1;
+        testCases[4] = BesuMisbehaviourTestCase({
+            name: "failure: wrong revision number for height2",
+            timestamp: timestamp,
+            misbehaviour: abi.encode(wrongRevision),
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidRevisionNumber.selector, 1)
+        });
+        testCases[5] = BesuMisbehaviourTestCase({
+            name: "failure: unknown height",
+            timestamp: timestamp,
+            misbehaviour: abi.encode(_misbehaviourMsg(height1, state1, height2 + 1, state2)),
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.ConsensusStateNotFound.selector, height2 + 1)
+        });
+
+        IBesuLightClientMsgs.ConsensusState memory wrongState2 = _expectedConsensusState(fixture.nonAdjacentUpdate);
+        wrongState2.timestamp = state1.timestamp;
+        testCases[6] = BesuMisbehaviourTestCase({
+            name: "failure: wrong consensus state preimage",
+            timestamp: timestamp,
+            misbehaviour: abi.encode(_misbehaviourMsg(height1, state1, height2, wrongState2)),
+            expectedRevert: abi.encodeWithSelector(
+                IBesuLightClientErrors.ConsensusStatePreimageMismatch.selector,
+                _consensusStateHash(state2),
+                _consensusStateHash(wrongState2)
+            )
+        });
+
+        uint64 expiredAt = fixture.initialTrustedTimestamp + fixture.trustingPeriod;
+        testCases[7] = BesuMisbehaviourTestCase({
+            name: "failure: expired trusted state",
+            timestamp: expiredAt,
+            misbehaviour: abi.encode(_misbehaviourMsg(height1, state1, height2, state2)),
+            expectedRevert: abi.encodeWithSelector(
+                IBesuLightClientErrors.ConsensusStateExpired.selector,
+                fixture.initialTrustedTimestamp,
+                expiredAt,
+                fixture.trustingPeriod
+            )
         });
     }
 
@@ -1100,6 +1235,24 @@ abstract contract BesuLightClientFixtureTestBase is Test {
                 consensusStatePreimage: _trustedConsensusState(trustedHeight)
             })
         );
+    }
+
+    function _misbehaviourMsg(
+        uint64 height1,
+        IBesuLightClientMsgs.ConsensusState memory state1,
+        uint64 height2,
+        IBesuLightClientMsgs.ConsensusState memory state2
+    )
+        internal
+        pure
+        returns (IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour memory)
+    {
+        return IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour({
+            height1: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: height1 }),
+            height2: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: height2 }),
+            consensusStatePreimage1: state1,
+            consensusStatePreimage2: state2
+        });
     }
 
     /// @dev Wraps fixture account and storage proof nodes and a consensus state preimage into the client proof format.

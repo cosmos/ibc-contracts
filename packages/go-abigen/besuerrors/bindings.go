@@ -26,7 +26,7 @@ var (
 
 // BindingsMetaData contains all meta data concerning the Bindings contract.
 var BindingsMetaData = bind.MetaData{
-	ABI: "[{\"type\":\"error\",\"name\":\"ConsensusStateExpired\",\"inputs\":[{\"name\":\"trustedTimestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"currentTimestamp\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"trustingPeriod\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"type\":\"error\",\"name\":\"ConsensusStateNotFound\",\"inputs\":[{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"type\":\"error\",\"name\":\"ConsensusStatePreimageMismatch\",\"inputs\":[{\"name\":\"expectedHash\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"actualHash\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]},{\"type\":\"error\",\"name\":\"DuplicateCommitSealSigner\",\"inputs\":[{\"name\":\"signer\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"EmptyValidatorSet\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"FrozenClientState\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"HeaderFromFuture\",\"inputs\":[{\"name\":\"currentTimestamp\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"headerTimestamp\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"maxClockDrift\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"InsufficientTrustedValidatorOverlap\",\"inputs\":[{\"name\":\"actual\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"required\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"InsufficientValidatorQuorum\",\"inputs\":[{\"name\":\"actual\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"required\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"InvalidCommitSeal\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidCommitmentValue\",\"inputs\":[{\"name\":\"expectedValue\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"actualValue\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]},{\"type\":\"error\",\"name\":\"InvalidDifficulty\",\"inputs\":[{\"name\":\"actualDifficulty\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"InvalidECDSASignatureLength\",\"inputs\":[{\"name\":\"length\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"InvalidExclusionProof\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidExtraDataFormat\",\"inputs\":[{\"name\":\"itemsLength\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"InvalidHeaderFormat\",\"inputs\":[{\"name\":\"itemsLength\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"InvalidHeaderHeight\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidHeaderTimestamp\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidMixHash\",\"inputs\":[{\"name\":\"actualMixHash\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]},{\"type\":\"error\",\"name\":\"InvalidNonce\",\"inputs\":[{\"name\":\"actualNonce\",\"type\":\"bytes\",\"internalType\":\"bytes\"}]},{\"type\":\"error\",\"name\":\"InvalidOmmersHash\",\"inputs\":[{\"name\":\"actualOmmersHash\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]},{\"type\":\"error\",\"name\":\"InvalidPathLength\",\"inputs\":[{\"name\":\"expectedLength\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"actualLength\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"InvalidRevisionNumber\",\"inputs\":[{\"name\":\"providedRevisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"type\":\"error\",\"name\":\"InvalidTrustingPeriod\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidValidatorAddress\",\"inputs\":[{\"name\":\"validator\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"InvalidValueLength\",\"inputs\":[{\"name\":\"expectedLength\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"actualLength\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"StorageRootNotInCache\",\"inputs\":[{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"type\":\"error\",\"name\":\"UnknownCommitSealSigner\",\"inputs\":[{\"name\":\"signer\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"UnsortedValidatorSet\",\"inputs\":[{\"name\":\"index\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"UnsupportedMisbehaviour\",\"inputs\":[]}]",
+	ABI: "[{\"type\":\"error\",\"name\":\"ConsensusStateExpired\",\"inputs\":[{\"name\":\"trustedTimestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"currentTimestamp\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"trustingPeriod\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"type\":\"error\",\"name\":\"ConsensusStateNotFound\",\"inputs\":[{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"type\":\"error\",\"name\":\"ConsensusStatePreimageMismatch\",\"inputs\":[{\"name\":\"expectedHash\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"actualHash\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]},{\"type\":\"error\",\"name\":\"DuplicateCommitSealSigner\",\"inputs\":[{\"name\":\"signer\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"EmptyValidatorSet\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"FrozenClientState\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"HeaderFromFuture\",\"inputs\":[{\"name\":\"currentTimestamp\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"headerTimestamp\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"maxClockDrift\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"InsufficientTrustedValidatorOverlap\",\"inputs\":[{\"name\":\"actual\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"required\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"InsufficientValidatorQuorum\",\"inputs\":[{\"name\":\"actual\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"required\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"InvalidCommitSeal\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidCommitmentValue\",\"inputs\":[{\"name\":\"expectedValue\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"actualValue\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]},{\"type\":\"error\",\"name\":\"InvalidDifficulty\",\"inputs\":[{\"name\":\"actualDifficulty\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"InvalidECDSASignatureLength\",\"inputs\":[{\"name\":\"length\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"InvalidExclusionProof\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidExtraDataFormat\",\"inputs\":[{\"name\":\"itemsLength\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"InvalidHeaderFormat\",\"inputs\":[{\"name\":\"itemsLength\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"InvalidHeaderHeight\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidHeaderTimestamp\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidMisbehaviourHeightOrder\",\"inputs\":[{\"name\":\"height1\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"height2\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"type\":\"error\",\"name\":\"InvalidMixHash\",\"inputs\":[{\"name\":\"actualMixHash\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]},{\"type\":\"error\",\"name\":\"InvalidNonce\",\"inputs\":[{\"name\":\"actualNonce\",\"type\":\"bytes\",\"internalType\":\"bytes\"}]},{\"type\":\"error\",\"name\":\"InvalidOmmersHash\",\"inputs\":[{\"name\":\"actualOmmersHash\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]},{\"type\":\"error\",\"name\":\"InvalidPathLength\",\"inputs\":[{\"name\":\"expectedLength\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"actualLength\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"InvalidRevisionNumber\",\"inputs\":[{\"name\":\"providedRevisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"type\":\"error\",\"name\":\"InvalidTimeNonMonotonicityMisbehaviour\",\"inputs\":[{\"name\":\"timestamp1\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"timestamp2\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"InvalidTrustedHeight\",\"inputs\":[{\"name\":\"trustedHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"headerHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"type\":\"error\",\"name\":\"InvalidTrustingPeriod\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidValidatorAddress\",\"inputs\":[{\"name\":\"validator\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"InvalidValueLength\",\"inputs\":[{\"name\":\"expectedLength\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"actualLength\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"StorageRootNotInCache\",\"inputs\":[{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"type\":\"error\",\"name\":\"UnknownCommitSealSigner\",\"inputs\":[{\"name\":\"signer\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"UnsortedValidatorSet\",\"inputs\":[{\"name\":\"index\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"UnsupportedMisbehaviour\",\"inputs\":[]}]",
 	ID:  "Bindings",
 }
 
@@ -112,6 +112,9 @@ func (bindings *Bindings) UnpackError(raw []byte) (any, error) {
 	if bytes.Equal(raw[:4], bindings.abi.Errors["InvalidHeaderTimestamp"].ID.Bytes()[:4]) {
 		return bindings.UnpackInvalidHeaderTimestampError(raw[4:])
 	}
+	if bytes.Equal(raw[:4], bindings.abi.Errors["InvalidMisbehaviourHeightOrder"].ID.Bytes()[:4]) {
+		return bindings.UnpackInvalidMisbehaviourHeightOrderError(raw[4:])
+	}
 	if bytes.Equal(raw[:4], bindings.abi.Errors["InvalidMixHash"].ID.Bytes()[:4]) {
 		return bindings.UnpackInvalidMixHashError(raw[4:])
 	}
@@ -126,6 +129,12 @@ func (bindings *Bindings) UnpackError(raw []byte) (any, error) {
 	}
 	if bytes.Equal(raw[:4], bindings.abi.Errors["InvalidRevisionNumber"].ID.Bytes()[:4]) {
 		return bindings.UnpackInvalidRevisionNumberError(raw[4:])
+	}
+	if bytes.Equal(raw[:4], bindings.abi.Errors["InvalidTimeNonMonotonicityMisbehaviour"].ID.Bytes()[:4]) {
+		return bindings.UnpackInvalidTimeNonMonotonicityMisbehaviourError(raw[4:])
+	}
+	if bytes.Equal(raw[:4], bindings.abi.Errors["InvalidTrustedHeight"].ID.Bytes()[:4]) {
+		return bindings.UnpackInvalidTrustedHeightError(raw[4:])
 	}
 	if bytes.Equal(raw[:4], bindings.abi.Errors["InvalidTrustingPeriod"].ID.Bytes()[:4]) {
 		return bindings.UnpackInvalidTrustingPeriodError(raw[4:])
@@ -585,6 +594,31 @@ func (bindings *Bindings) UnpackInvalidHeaderTimestampError(raw []byte) (*Bindin
 	return out, nil
 }
 
+// BindingsInvalidMisbehaviourHeightOrder represents a InvalidMisbehaviourHeightOrder error raised by the Bindings contract.
+type BindingsInvalidMisbehaviourHeightOrder struct {
+	Height1 uint64
+	Height2 uint64
+}
+
+// ErrorID returns the hash of canonical representation of the error's signature.
+//
+// Solidity: error InvalidMisbehaviourHeightOrder(uint64 height1, uint64 height2)
+func BindingsInvalidMisbehaviourHeightOrderErrorID() common.Hash {
+	return common.HexToHash("0xa027eb9207b0c7d93d38984658c32721b2f38a46c7d493c7f88ac7acd75423c9")
+}
+
+// UnpackInvalidMisbehaviourHeightOrderError is the Go binding used to decode the provided
+// error data into the corresponding Go error struct.
+//
+// Solidity: error InvalidMisbehaviourHeightOrder(uint64 height1, uint64 height2)
+func (bindings *Bindings) UnpackInvalidMisbehaviourHeightOrderError(raw []byte) (*BindingsInvalidMisbehaviourHeightOrder, error) {
+	out := new(BindingsInvalidMisbehaviourHeightOrder)
+	if err := bindings.abi.UnpackIntoInterface(out, "InvalidMisbehaviourHeightOrder", raw); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BindingsInvalidMixHash represents a InvalidMixHash error raised by the Bindings contract.
 type BindingsInvalidMixHash struct {
 	ActualMixHash [32]byte
@@ -701,6 +735,56 @@ func BindingsInvalidRevisionNumberErrorID() common.Hash {
 func (bindings *Bindings) UnpackInvalidRevisionNumberError(raw []byte) (*BindingsInvalidRevisionNumber, error) {
 	out := new(BindingsInvalidRevisionNumber)
 	if err := bindings.abi.UnpackIntoInterface(out, "InvalidRevisionNumber", raw); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// BindingsInvalidTimeNonMonotonicityMisbehaviour represents a InvalidTimeNonMonotonicityMisbehaviour error raised by the Bindings contract.
+type BindingsInvalidTimeNonMonotonicityMisbehaviour struct {
+	Timestamp1 *big.Int
+	Timestamp2 *big.Int
+}
+
+// ErrorID returns the hash of canonical representation of the error's signature.
+//
+// Solidity: error InvalidTimeNonMonotonicityMisbehaviour(uint256 timestamp1, uint256 timestamp2)
+func BindingsInvalidTimeNonMonotonicityMisbehaviourErrorID() common.Hash {
+	return common.HexToHash("0xa8b46ac44d343ebbaa1a533f8a110a17e5a4fa2024090c014e4aad043cc3a4b8")
+}
+
+// UnpackInvalidTimeNonMonotonicityMisbehaviourError is the Go binding used to decode the provided
+// error data into the corresponding Go error struct.
+//
+// Solidity: error InvalidTimeNonMonotonicityMisbehaviour(uint256 timestamp1, uint256 timestamp2)
+func (bindings *Bindings) UnpackInvalidTimeNonMonotonicityMisbehaviourError(raw []byte) (*BindingsInvalidTimeNonMonotonicityMisbehaviour, error) {
+	out := new(BindingsInvalidTimeNonMonotonicityMisbehaviour)
+	if err := bindings.abi.UnpackIntoInterface(out, "InvalidTimeNonMonotonicityMisbehaviour", raw); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// BindingsInvalidTrustedHeight represents a InvalidTrustedHeight error raised by the Bindings contract.
+type BindingsInvalidTrustedHeight struct {
+	TrustedHeight uint64
+	HeaderHeight  uint64
+}
+
+// ErrorID returns the hash of canonical representation of the error's signature.
+//
+// Solidity: error InvalidTrustedHeight(uint64 trustedHeight, uint64 headerHeight)
+func BindingsInvalidTrustedHeightErrorID() common.Hash {
+	return common.HexToHash("0x7990f60fb5e07efced7af595819d30088be91d159bb31e046195138360d322e5")
+}
+
+// UnpackInvalidTrustedHeightError is the Go binding used to decode the provided
+// error data into the corresponding Go error struct.
+//
+// Solidity: error InvalidTrustedHeight(uint64 trustedHeight, uint64 headerHeight)
+func (bindings *Bindings) UnpackInvalidTrustedHeightError(raw []byte) (*BindingsInvalidTrustedHeight, error) {
+	out := new(BindingsInvalidTrustedHeight)
+	if err := bindings.abi.UnpackIntoInterface(out, "InvalidTrustedHeight", raw); err != nil {
 		return nil, err
 	}
 	return out, nil
