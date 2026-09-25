@@ -16,7 +16,7 @@ require (
 	github.com/cosmos/cosmos-sdk v0.55.0
 	github.com/cosmos/gogoproto v1.7.2
 	github.com/cosmos/ibc-go/modules/light-clients/08-wasm/v11 v11.1.0
-	github.com/cosmos/ibc-go/v11 v11.1.0
+	github.com/cosmos/ibc-go/v11 v11.2.0
 	github.com/cosmos/ics23/go v0.11.0
 	github.com/cosmos/interchaintest/v11 v11.0.0-20260805134452-6ecd341bf76a
 	github.com/cosmos/solidity-ibc-eureka/e2e/interchaintestv8/solana/go-anchor v0.0.0-00010101000000-000000000000
