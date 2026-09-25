@@ -166,6 +166,42 @@
   },
   {
     "type": "function",
+    "name": "getIFTRateLimit",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "capacity",
+        "type": "uint208",
+        "internalType": "uint208"
+      },
+      {
+        "name": "window",
+        "type": "uint48",
+        "internalType": "uint48"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getIFTRateLimitAvailable",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "getPendingTransfer",
     "inputs": [
       {
@@ -556,6 +592,24 @@
   },
   {
     "type": "function",
+    "name": "setIFTRateLimit",
+    "inputs": [
+      {
+        "name": "capacity",
+        "type": "uint208",
+        "internalType": "uint208"
+      },
+      {
+        "name": "window",
+        "type": "uint48",
+        "internalType": "uint48"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "supportsInterface",
     "inputs": [
       {
@@ -767,6 +821,25 @@
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "IFTRateLimitSet",
+    "inputs": [
+      {
+        "name": "capacity",
+        "type": "uint208",
+        "indexed": false,
+        "internalType": "uint208"
+      },
+      {
+        "name": "window",
+        "type": "uint48",
+        "indexed": false,
+        "internalType": "uint48"
       }
     ],
     "anonymous": false
@@ -1220,8 +1293,29 @@
   },
   {
     "type": "error",
+    "name": "RateLimitExceeded",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "ReentrancyGuardReentrantCall",
     "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SafeCastOverflowedUintDowncast",
+    "inputs": [
+      {
+        "name": "bits",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "value",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
   },
   {
     "type": "error",

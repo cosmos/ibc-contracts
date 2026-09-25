@@ -11,6 +11,7 @@ import { IICS26Router } from "../../contracts/interfaces/IICS26Router.sol";
 import { IIFTMsgs } from "../../contracts/msgs/IIFTMsgs.sol";
 
 import { IIFT } from "../../contracts/interfaces/IIFT.sol";
+import { IIFTRateLimit } from "../../contracts/interfaces/IIFTRateLimit.sol";
 import { IIFTErrors } from "../../contracts/errors/IIFTErrors.sol";
 
 import { IbcImpl } from "./utils/IbcImpl.sol";
@@ -34,6 +35,10 @@ contract IFTIntegrationTest is Test {
 
     string public constant TOKEN_NAME = "Test IFT";
     string public constant TOKEN_SYMBOL = "TIFT";
+
+    // Generous limits so that the fuzzed amounts below are never rate limited
+    uint208 public constant MAX_RATE_LIMIT_CAPACITY = type(uint208).max;
+    uint48 public constant RATE_LIMIT_WINDOW = 1 days;
 
     function setUp() public {
         integrationEnv = new IntegrationEnv();
@@ -72,13 +77,15 @@ contract IFTIntegrationTest is Test {
 
         _setupBridgePermissions();
         _registerBridges();
+        _setRateLimits(MAX_RATE_LIMIT_CAPACITY, RATE_LIMIT_WINDOW);
     }
 
     function _setupBridgePermissions() internal {
         uint64 ADMIN_ROLE = 0;
 
-        bytes4[] memory selectors = new bytes4[](1);
+        bytes4[] memory selectors = new bytes4[](2);
         selectors[0] = IIFT.registerIFTBridge.selector;
+        selectors[1] = IIFTRateLimit.setIFTRateLimit.selector;
 
         ibcImplA.accessManager().setTargetFunctionRole(address(iftOnA), selectors, ADMIN_ROLE);
         ibcImplB.accessManager().setTargetFunctionRole(address(iftOnB), selectors, ADMIN_ROLE);
@@ -94,6 +101,11 @@ contract IFTIntegrationTest is Test {
         );
     }
 
+    function _setRateLimits(uint208 capacity, uint48 window) internal {
+        iftOnA.setIFTRateLimit(capacity, window);
+        iftOnB.setIFTRateLimit(capacity, window);
+    }
+
     function test_deployment() public view {
         IIFTMsgs.IFTBridge memory bridgeA = iftOnA.getIFTBridge(th.FIRST_CLIENT_ID());
         assertEq(bridgeA.clientId, th.FIRST_CLIENT_ID());
@@ -107,7 +119,7 @@ contract IFTIntegrationTest is Test {
     }
 
     function testFuzz_success_iftTransferAcrossChains(uint256 amount) public {
-        vm.assume(amount > 0);
+        amount = bound(amount, 1, MAX_RATE_LIMIT_CAPACITY);
 
         address sender = integrationEnv.createUser();
         address receiver = integrationEnv.createUser();
@@ -143,7 +155,7 @@ contract IFTIntegrationTest is Test {
     }
 
     function testFuzz_success_roundTripTransfer(uint256 amount) public {
-        vm.assume(amount > 0);
+        amount = bound(amount, 1, MAX_RATE_LIMIT_CAPACITY);
 
         address userA = integrationEnv.createUser();
         address userB = integrationEnv.createUser();
@@ -176,7 +188,7 @@ contract IFTIntegrationTest is Test {
     }
 
     function testFuzz_timeout_refundsTokens(uint256 amount) public {
-        vm.assume(amount > 0);
+        amount = bound(amount, 1, MAX_RATE_LIMIT_CAPACITY);
 
         address sender = integrationEnv.createUser();
         address receiver = integrationEnv.createUser();
@@ -209,8 +221,9 @@ contract IFTIntegrationTest is Test {
     }
 
     function testFuzz_multipleTransfersInFlight(uint256 amount1, uint256 amount2) public {
-        // Check no overflow occurs when adding amounts
-        vm.assume(amount1 > 0 && amount2 > 0 && amount2 <= type(uint256).max - amount1);
+        // Both transfers share the outbound bucket, so together they must fit in the capacity
+        amount1 = bound(amount1, 1, MAX_RATE_LIMIT_CAPACITY / 2);
+        amount2 = bound(amount2, 1, MAX_RATE_LIMIT_CAPACITY / 2);
 
         address sender = integrationEnv.createUser();
         address receiver1 = integrationEnv.createUser();

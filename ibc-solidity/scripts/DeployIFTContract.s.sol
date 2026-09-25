@@ -15,6 +15,11 @@ import { IFTOwnable } from "../contracts/utils/IFTOwnable.sol";
 contract DeployIFTContract is Script {
     using stdJson for string;
 
+    /// @dev Rate limit capacity of each direction, generous so that e2e flows never hit it
+    uint208 internal constant IFT_RATE_LIMIT_CAPACITY = type(uint128).max;
+    /// @dev Rate limit refill window
+    uint48 internal constant IFT_RATE_LIMIT_WINDOW = 1 days;
+
     function run() public returns (string memory) {
         address ics27Gmp = vm.envAddress("ICS27_GMP_ADDRESS");
         string memory tokenName = vm.envString("IFT_TOKEN_NAME");
@@ -28,6 +33,7 @@ contract DeployIFTContract is Script {
                 iftLogic, abi.encodeCall(IFTOwnable.initialize, (msg.sender, tokenName, tokenSymbol, ics27Gmp))
             )
         );
+        IFTOwnable(deployed).setIFTRateLimit(IFT_RATE_LIMIT_CAPACITY, IFT_RATE_LIMIT_WINDOW);
 
         vm.stopBroadcast();
 

@@ -1,8 +1,8 @@
 # ADR: Rate Limiting in IFT in Solidity
 
-**Status**: Proposed
+**Status**: Accepted
 **Date**: 2026-09-10
-**Last Updated**: 2026-09-17
+**Last Updated**: 2026-09-24
 
 ## Context
 
@@ -25,7 +25,7 @@ This ADR describes the proposed IFT policy. The existing [IFT base contract](../
 |   **Feature**   |     Inbound      |                                                                                        Mints on receive are limited.                                                                                         |      ✅       |                                         We want to be as restrictive as possible.                                          |
 |   **Feature**   |     Outbound     |                                                                                          Burns on send are limited.                                                                                          |      ✅       |                                         We want to be as restrictive as possible.                                          |
 |   **Feature**   | Rewinding Usage  |                                                       Flow in the opposite direction gives capacity back, so round trips cannot exhaust the allowance.                                                       |      ❌       | Rewinding usage means that an attacker who can mint tokens can send outbound transfers to gain some capacity back to mint. |
-|   **Feature**   | Refund Handling  |                                                                    A timeout or error acknowledgement does not consume inbound allowance.                                                                    |      ✅       |                IFT already records pending transfers, unlike ICS-20, which defends against timeout replays.                |
+|   **Feature**   | Refund Handling  |                                                                    A timeout or error acknowledgement does not consume inbound allowance.                                                                    |      ❌       | An attacker who can forge timeout proofs could time out their own transfers and double spend the refunded tokens. |
 |    **Scope**    |     Optional     |                                                                                   Whether or not rate limits are optional                                                                                    |      ❌       |    Rate limits MUST be set before the token can be used. OZ default. Historically, when optional, users don't set this.    |
 |    **Scope**    | Per Token/Client |                                                              Whether or not rate limits are per token or per IBC light client (IBC connection)                                                               |      ✅       |         Rate limits will be per token to be as restrictive as possible. Does not preclude per-client limits later.         |
 
@@ -49,7 +49,7 @@ An exact sliding window provides a stricter guarantee: no more than the limit ca
 
 ### Capacity
 
-**Decision: use a static capacity.** The authority sets each directional limit as a fixed token amount together with its refill window. Operators typically know what their token is worth, so they can express a limit directly as the maximum amount that may cross the bridge over a window. A limit expressed as a percentage of local supply is harder to reason about, since local supply differs per chain and changes over time.
+**Decision: use a static capacity.** The authority sets the limit as a fixed token amount together with its refill window. The same capacity and window apply to both directions (see [Inbound and Outbound](#inbound-and-outbound)). Operators typically know what their token is worth, so they can express a limit directly as the maximum amount that may cross the bridge over a window. A limit expressed as a percentage of local supply is harder to reason about, since local supply differs per chain and changes over time.
 
 We considered deriving capacity from a percentage of local token supply so that the limit scales with the token without operator intervention. That design needs a snapshot of local supply, because reading live `totalSupply()` would let fraudulent mints raise their own capacity. It also needs an absolute floor, because a newly deployed token with zero local supply would otherwise have zero inbound capacity and could never receive its first transfer. Both mechanisms add implementation complexity and still require operators to pick static amounts for the floor. A static capacity avoids these problems and keeps the bound in the algorithm section simple to apply.
 
@@ -57,7 +57,11 @@ The trade-off is that a static limit does not track growth of the token and may 
 
 ### Inbound and Outbound
 
-**Decision: limit both inbound mints and outbound burns.** The proposed accounting uses an independent bucket for each direction, shared across all clients for that token. An inbound transfer consumes inbound allowance; an outbound transfer consumes outbound allowance. Receiving tokens does not spend the allowance needed to send tokens, and vice versa.
+**Decision: limit both inbound mints and outbound burns, with a common capacity and window.** The authority configures a single capacity and refill window that applies to both directions. Each direction still tracks its own usage, shared across all clients for that token. An inbound transfer consumes inbound allowance; an outbound transfer consumes outbound allowance. Receiving tokens does not spend the allowance needed to send tokens, and vice versa.
+
+An outbound transfer that exceeds the limit reverts, so the packet is never sent. An inbound transfer that exceeds the limit fails the receive and results in an error acknowledgement rather than a reverted transaction. The packet is not left pending for a later retry. The error acknowledgement refunds the sender on the source chain, and that refund is subject to the source chain's inbound limit (see [Refund Handling](#refund-handling)).
+
+Sharing the settings keeps configuration to a single call and a single value to reason about. The trade-off is that operators cannot tighten one direction without tightening the other.
 
 ### Rewinding Usage
 
@@ -69,11 +73,17 @@ However, rewinding usage creates a security risk. An attacker who can cause frau
 
 ### Refund Handling
 
-**Decision: refunds do not consume inbound allowance.** A timeout or error acknowledgement mints the sender's tokens back locally. The contract only refunds amounts it recorded as pending when they were burned, so a refund can never mint more than previously left this chain, and that amount was already charged to the outbound limit. Counting it against the inbound limit would let a full bucket strand a user's refund. Consistent with the no-rewinding decision, a refund does not restore outbound allowance either.
+**Decision: refunds consume inbound allowance like any other mint.** A timeout or error acknowledgement mints the sender's tokens back locally. The contract only refunds amounts it recorded as pending when they were burned, so a refund can never mint more than previously left this chain, and that amount was already charged to the outbound limit. At first glance this makes exempting refunds from the inbound limit look safe, and it would spare users from having a full inbound bucket delay their refund.
+
+However, an exemption gives an attacker more freedom in how they consume the inbound and outbound limits. Consider an attacker who can forge timeout proofs against the local light client. They send tokens to the counterparty chain, where the transfer completes and the tokens are minted. They then present a forged timeout for the same packets on the original chain and receive a refund. The refunds themselves are bounded by the outbound limit, since each one matches an earlier burn, but the attacker now holds the tokens on both chains. Finally, they send the counterparty tokens back through a regular IFT transfer, which mints on the original chain a second time. The result is a double spend on the original chain, and with exempt refunds only the final transfer would have been subject to the inbound limit, not the refunds.
+
+Charging refunds to the inbound bucket makes both mints count, so the damage is bounded in the same way as any other fraudulent mint. A refund that does not fit in the bucket reverts and the pending transfer stays recorded, so the relayer can retry it once the bucket has refilled. Consistent with the no-rewinding decision, a refund does not restore outbound allowance.
+
+We charge refunds to be as restrictive as possible. If this proves too inconvenient for users, the policy can be relaxed: even when refunds are charged, an attacker who can forge timeouts still holds the tokens on both chains and can double spend on the counterparty chain by sending the refunded tokens out again. Rate limits only bound the damage in either case.
 
 ### Per Token vs Per Client
 
-**Decision: share each token's directional limits across all of its registered IBC clients on a given chain.** Here, “per token” means per local IFT contract. Separate tokens have separate budgets, and deployments on other chains enforce their own limits; this does not create a synchronized global bucket.
+**Decision: share each token's rate limits across all of its registered IBC clients on a given chain.** Here, “per token” means per local IFT contract. Separate tokens have separate budgets, and deployments on other chains enforce their own limits; this does not create a synchronized global bucket.
 
 Given that the IFT contract is the authority for its own supply, it is reasonable to treat all clients as a single source of demand. This avoids multiplying the token's aggregate allowance by the number of clients.
 
@@ -81,8 +91,8 @@ On the other hand, per client limits would allow implementers to configure diffe
 
 Choosing per token limits now does not prevent us from adding per client limits in the future. Per client buckets can be layered on top of the per token bucket, so that a transfer must fit within both. Note that because rate limits are mandatory, a per client limit would make a newly registered client unusable until the authority configures its limit. This is a further reason to start with per token limits.
 
-## Open Implementation Questions
+## Implementation Notes
 
-The choices above establish the policy, but the implementation must still address some details:
+The policy is implemented in [`IFTRateLimitUpgradeable`](../../../ibc-solidity/contracts/utils/IFTRateLimitUpgradeable.sol) on top of OpenZeppelin's `RateLimiter.RefillingBucket`. A single limiter holds the shared capacity and window, and each direction is a separate entry in it, keyed by the direction. An unset limiter has zero capacity, which is what makes the limits mandatory.
 
-- **Capacity updates:** How are remaining allowance and elapsed refill handled when the authority changes capacity or the refill window? Updates must not accidentally reset consumed usage or apply a new refill rate retroactively.
+- **Capacity updates:** Before the authority changes the capacity or window, both directions are synced: the refill accrued under the old rate is applied and the usage timestamp is moved to now. Consumed usage is therefore preserved and the new rate only applies going forward. Lowering the capacity below a direction's current usage leaves that direction empty until its usage drains at the new rate.

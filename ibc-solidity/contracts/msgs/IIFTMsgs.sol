@@ -24,4 +24,12 @@ interface IIFTMsgs {
         address sender;
         uint256 amount;
     }
+
+    /// @notice Direction of a rate limited IFT flow
+    enum IFTRateLimitDirection {
+        /// Inbound covers mints received from a counterparty chain or refunds from failed outbound transfers
+        Inbound,
+        /// Outbound covers burns initiated by local transfers to a counterparty chain
+        Outbound
+    }
 }

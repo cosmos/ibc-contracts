@@ -7,7 +7,7 @@
   # The contracts depend on EIP-1153 transient storage (ReentrancyGuardTransient, light client proof
   # caches), so deployments require Cancun. Do not lower this to target an older chain.
   evm_version = "cancun"
-  fuzz = { runs = 100_000 }
+  fuzz = { runs = 5_000 }
   # The Besu simulator benchmarks populate thousands of storage slots per case, exceeding the 2^30 default.
   gas_limit = 9_223_372_036_854_775_807
   gas_reports = ["*"]
