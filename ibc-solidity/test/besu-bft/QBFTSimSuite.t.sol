@@ -4,10 +4,12 @@ pragma solidity ^0.8.28;
 import { Test } from "forge-std/Test.sol";
 import { Strings } from "@openzeppelin-contracts/utils/Strings.sol";
 
+import { IICS02ClientMsgs } from "../../contracts/msgs/IICS02ClientMsgs.sol";
 import { IICS26RouterMsgs } from "../../contracts/msgs/IICS26RouterMsgs.sol";
 import { ILightClientMsgs } from "../../contracts/msgs/ILightClientMsgs.sol";
 import { IBesuLightClient } from "../../contracts/light-clients/besu/interfaces/IBesuLightClient.sol";
 import { IBesuLightClientErrors } from "../../contracts/light-clients/besu/errors/IBesuLightClientErrors.sol";
+import { IBesuLightClientMsgs } from "../../contracts/light-clients/besu/msgs/IBesuLightClientMsgs.sol";
 import { ICS24Host } from "../../contracts/utils/ICS24Host.sol";
 
 import { IbcImpl } from "../solidity-ibc/utils/IbcImpl.sol";
@@ -63,6 +65,56 @@ contract QBFTSimSuiteTest is Test {
 
         vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.FrozenClientState.selector));
         client.updateClient(honest);
+    }
+
+    /// @dev A header not strictly newer than its trusted consensus state freezes the client instead of updating it.
+    function test_timeNonMonotonicityUpdate() public {
+        SimHeader.Data memory h = sim.nextBlock();
+        h.timestamp = sim.blockAt(2).timestamp;
+        sim.commit(sim.seal(h));
+        bytes memory update = sim.updateMsg(2, 3);
+
+        vm.expectEmit(address(client));
+        emit IBesuLightClient.TimeNonMonotonicity(3, 2, h.timestamp, h.timestamp);
+        assertEq(uint8(client.updateClient(update)), uint8(ILightClientMsgs.UpdateResult.Misbehaviour));
+
+        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.ConsensusStateNotFound.selector, 3));
+        client.getConsensusStateHash(3);
+        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.FrozenClientState.selector));
+        client.updateClient(update);
+    }
+
+    /// @dev Each update is only checked against its own trusted height, so a forged height-3 header timestamped
+    /// after the honest height-4 header is accepted. Submitting both stored states as misbehaviour freezes the client.
+    function test_timeNonMonotonicityMisbehaviour() public {
+        SimHeader.Data memory forged = sim.nextBlock();
+        sim.produceBlocks(2);
+        forged.timestamp = sim.blockAt(4).timestamp + 1;
+        forged = sim.seal(forged);
+
+        bytes memory honestUpdate = sim.updateMsg(2, 4);
+        bytes memory forgedUpdate = sim.updateMsg(2, forged);
+        assertEq(uint8(client.updateClient(honestUpdate)), uint8(ILightClientMsgs.UpdateResult.Update));
+        assertEq(uint8(client.updateClient(forgedUpdate)), uint8(ILightClientMsgs.UpdateResult.Update));
+
+        IBesuLightClientMsgs.ConsensusState memory honestState = sim.consensusState(4);
+        bytes memory misbehaviour = abi.encode(
+            IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour({
+                height1: IICS02ClientMsgs.Height(0, 3),
+                height2: IICS02ClientMsgs.Height(0, 4),
+                consensusStatePreimage1: IBesuLightClientMsgs.ConsensusState(
+                    forged.timestamp, forged.stateRoot, forged.validators
+                ),
+                consensusStatePreimage2: honestState
+            })
+        );
+
+        vm.expectEmit(address(client));
+        emit IBesuLightClient.TimeNonMonotonicity(4, 3, honestState.timestamp, forged.timestamp);
+        client.misbehaviour(misbehaviour);
+
+        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.FrozenClientState.selector));
+        client.misbehaviour(misbehaviour);
     }
 
     function test_timestampFromFuture() public {
