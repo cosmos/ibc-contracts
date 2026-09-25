@@ -21,6 +21,7 @@ interface IBesuLightClient is ILightClient {
     /// @param height1 The height of the first trusted consensus state. Less than `height2`.
     /// @param timestamp2 The timestamp of the second trusted consensus state.
     /// @param timestamp1 The timestamp of the first trusted consensus state.
+    // solhint-disable-next-line gas-indexed-events
     event TimeNonMonotonicity(uint64 indexed height2, uint64 height1, uint64 timestamp2, uint64 timestamp1);
 
     /// @notice Returns the stored consensus state hash at a revision height.
