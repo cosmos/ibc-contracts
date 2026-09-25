@@ -15,16 +15,13 @@ interface IBesuLightClient is ILightClient {
         uint64 indexed revisionHeight, bytes32 trustedConsensusStateHash, bytes32 conflictingConsensusStateHash
     );
 
-    /// @notice Emitted when a newer header is submitted with a timestamp that is less than or equal to the trusted
-    /// consensus state timestamp.
+    /// @notice Emitted when a time monotonicity violation is detected between two validly signed headers.
     /// @dev The client is permanently frozen when this is emitted.
-    /// @param revisionHeight The height of the newly submitted header.
-    /// @param trustedHeight The height of the trusted consensus state.
-    /// @param newTimestamp The timestamp of the newly submitted header.
-    /// @param trustedTimestamp The timestamp of the trusted consensus state.
-    event TimeNonMonotonicity(
-        uint64 indexed revisionHeight, uint64 trustedHeight, uint64 newTimestamp, uint64 trustedTimestamp
-    );
+    /// @param height2 The height of the second trusted consensus state.
+    /// @param height1 The height of the first trusted consensus state. Less than `height2`.
+    /// @param timestamp2 The timestamp of the second trusted consensus state.
+    /// @param timestamp1 The timestamp of the first trusted consensus state.
+    event TimeNonMonotonicity(uint64 indexed height2, uint64 height1, uint64 timestamp2, uint64 timestamp1);
 
     /// @notice Returns the stored consensus state hash at a revision height.
     /// @dev The hash is `keccak256(abi.encode(IBesuLightClientMsgs.ConsensusState))`.
