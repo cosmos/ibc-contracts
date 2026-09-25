@@ -54,8 +54,7 @@ The **source** Besu chain, whose headers and proofs are being verified, has no h
 
 - QBFT validator-contract mode
 - Mode transitions
-- Misbehaviour evidence handling
-- Frozen-client machinery
+- Misbehaviour evidence handling through `misbehaviour(bytes)` (double signs are detected in `updateClient`, see below)
 
 ## Constructor
 
@@ -107,7 +106,9 @@ On update, the contract:
 4. checks trusted-validator overlap against the preimage validators and quorum against the new header validators,
 5. stores `keccak256(abi.encode(ConsensusState))` for the new height, built from the header timestamp, the header `stateRoot`, and the header validator set.
 
-Submitting a header whose derived consensus state hash already matches the stored hash at that height returns `UpdateResult.NoOp`. A different consensus state at an already stored height reverts with `ConflictingConsensusState`.
+Submitting a header whose derived consensus state hash already matches the stored hash at that height returns `UpdateResult.NoOp`. A validly signed header that derives a different consensus state at an already stored height is a double sign: the client sets `ClientState.frozen`, emits `DoubleSign`, and returns `UpdateResult.Misbehaviour` without storing the conflicting consensus state.
+
+A frozen client is permanent. `updateClient`, `verifyMembership`, `verifyNonMembership`, and `misbehaviour` all revert with `FrozenClientState`, and there is no way to unfreeze it; a new client must be created instead.
 
 ## Membership / non-membership proofs
 
