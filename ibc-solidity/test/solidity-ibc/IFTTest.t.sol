@@ -583,17 +583,8 @@ contract IFTTest is Test {
         assertEq(pending.sender, transferTC.caller);
         assertEq(pending.amount, transferTC.amount);
 
-        IIFTRateLimit rateLimit = IIFTRateLimit(address(ift));
-        assertEq(
-            rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Outbound),
-            RATE_LIMIT_CAPACITY - transferTC.amount,
-            "outbound should be consumed"
-        );
-        assertEq(
-            rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Inbound),
-            RATE_LIMIT_CAPACITY,
-            "inbound should be untouched"
-        );
+        assertEq(_outboundAvailable(), RATE_LIMIT_CAPACITY - transferTC.amount, "outbound should be consumed");
+        assertEq(_inboundAvailable(), RATE_LIMIT_CAPACITY, "inbound should be untouched");
     }
 
     function fixtureAckTC() public returns (OnAckPacketTestCase[] memory) {
@@ -743,29 +734,17 @@ contract IFTTest is Test {
         IIBCSenderCallbacks(address(ift)).onAckPacket(ackTC.success, ackTC.callback);
 
         // The outbound bucket was charged by the transfer and is never restored
-        assertEq(
-            rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Outbound),
-            RATE_LIMIT_CAPACITY - transferAmount,
-            "outbound should stay consumed"
-        );
+        assertEq(_outboundAvailable(), RATE_LIMIT_CAPACITY - transferAmount, "outbound should stay consumed");
 
         if (ackTC.expectedRevert.length != 0) {
             assertEq(ift.getPendingTransfer(th.FIRST_CLIENT_ID(), seq).amount, transferAmount, "should stay pending");
-            assertEq(
-                rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Inbound),
-                ackTC.inboundAvailable,
-                "inbound should be untouched"
-            );
+            assertEq(_inboundAvailable(), ackTC.inboundAvailable, "inbound should be untouched");
             return;
         }
 
         // Only a refund consumes the inbound bucket
         uint256 refunded = ackTC.success ? 0 : transferAmount;
-        assertEq(
-            rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Inbound),
-            ackTC.inboundAvailable - refunded,
-            "inbound should be consumed by refunds only"
-        );
+        assertEq(_inboundAvailable(), ackTC.inboundAvailable - refunded, "inbound should be consumed by refunds only");
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -896,27 +875,17 @@ contract IFTTest is Test {
         IIBCSenderCallbacks(address(ift)).onTimeoutPacket(timeoutTC.callback);
 
         // The outbound bucket was charged by the transfer and is never restored
-        assertEq(
-            rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Outbound),
-            RATE_LIMIT_CAPACITY - transferAmount,
-            "outbound should stay consumed"
-        );
+        assertEq(_outboundAvailable(), RATE_LIMIT_CAPACITY - transferAmount, "outbound should stay consumed");
 
         if (timeoutTC.expectedRevert.length != 0) {
             assertEq(ift.getPendingTransfer(th.FIRST_CLIENT_ID(), seq).amount, transferAmount, "should stay pending");
-            assertEq(
-                rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Inbound),
-                timeoutTC.inboundAvailable,
-                "inbound should be untouched"
-            );
+            assertEq(_inboundAvailable(), timeoutTC.inboundAvailable, "inbound should be untouched");
             return;
         }
 
         // The refund consumes the inbound bucket
         assertEq(
-            rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Inbound),
-            timeoutTC.inboundAvailable - transferAmount,
-            "inbound should be consumed by the refund"
+            _inboundAvailable(), timeoutTC.inboundAvailable - transferAmount, "inbound should be consumed by the refund"
         );
 
         vm.expectRevert(
@@ -1055,17 +1024,8 @@ contract IFTTest is Test {
         uint256 receiverBalance = IERC20(address(ift)).balanceOf(mintTC.receiver);
         assertEq(receiverBalance, mintTC.amount);
 
-        IIFTRateLimit rateLimit = IIFTRateLimit(address(ift));
-        assertEq(
-            rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Inbound),
-            RATE_LIMIT_CAPACITY - mintTC.amount,
-            "inbound should be consumed"
-        );
-        assertEq(
-            rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Outbound),
-            RATE_LIMIT_CAPACITY,
-            "outbound should be untouched"
-        );
+        assertEq(_inboundAvailable(), RATE_LIMIT_CAPACITY - mintTC.amount, "inbound should be consumed");
+        assertEq(_outboundAvailable(), RATE_LIMIT_CAPACITY, "outbound should be untouched");
     }
 
     // Rate Limit Tests
@@ -1109,8 +1069,8 @@ contract IFTTest is Test {
         (uint208 capacity, uint48 window) = rateLimit.getIFTRateLimit();
         assertEq(capacity, 0);
         assertEq(window, 0);
-        assertEq(rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Inbound), 0);
-        assertEq(rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Outbound), 0);
+        assertEq(_inboundAvailable(), 0);
+        assertEq(_outboundAvailable(), 0);
 
         if (setRateLimitTC.expectedRevert.length != 0) {
             vm.expectRevert(setRateLimitTC.expectedRevert);
@@ -1130,8 +1090,8 @@ contract IFTTest is Test {
         assertEq(capacity, 1000);
         assertEq(window, 1 hours);
         // Freshly configured buckets start full in both directions
-        assertEq(rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Inbound), 1000);
-        assertEq(rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Outbound), 1000);
+        assertEq(_inboundAvailable(), 1000);
+        assertEq(_outboundAvailable(), 1000);
     }
 
     function testFuzz_rateLimit_unsetLimitsReject(uint256 amount) public {
@@ -1181,20 +1141,19 @@ contract IFTTest is Test {
         address sender = makeAddr("sender");
         deal(address(ift), sender, uint256(capacity) + 1, true);
         vm.mockCall(address(mockICS27), IICS27GMP.sendCall.selector, abi.encode(uint64(1)));
-        IIFTRateLimit rateLimit = IIFTRateLimit(address(ift));
 
         // Consume part of the outbound capacity
         vm.prank(sender);
         ift.iftTransfer(clientId, receiver, amount);
-        assertEq(rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Outbound), capacity - amount);
-        assertEq(rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Inbound), capacity);
+        assertEq(_outboundAvailable(), capacity - amount);
+        assertEq(_inboundAvailable(), capacity);
 
         // The rest of the capacity fits in one burst, and nothing more
         if (capacity > amount) {
             vm.prank(sender);
             ift.iftTransfer(clientId, receiver, capacity - amount);
         }
-        assertEq(rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Outbound), 0);
+        assertEq(_outboundAvailable(), 0);
         vm.expectRevert(RateLimiter.RateLimitExceeded.selector);
         vm.prank(sender);
         ift.iftTransfer(clientId, receiver, 1);
@@ -1216,17 +1175,16 @@ contract IFTTest is Test {
         address sender = makeAddr("sender");
         deal(address(ift), sender, 2 * uint256(capacity) + 1, true);
         vm.mockCall(address(mockICS27), IICS27GMP.sendCall.selector, abi.encode(uint64(1)));
-        IIFTRateLimit rateLimit = IIFTRateLimit(address(ift));
 
         // Empty the outbound bucket
         vm.prank(sender);
         ift.iftTransfer(clientId, receiver, capacity);
-        assertEq(rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Outbound), 0);
+        assertEq(_outboundAvailable(), 0);
 
         // The bucket refills at capacity / window per second
         vm.warp(vm.getBlockTimestamp() + elapsed);
         uint256 refilled = Math.mulDiv(elapsed, capacity, window);
-        assertEq(rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Outbound), refilled);
+        assertEq(_outboundAvailable(), refilled);
 
         vm.expectRevert(RateLimiter.RateLimitExceeded.selector);
         vm.prank(sender);
@@ -1237,11 +1195,11 @@ contract IFTTest is Test {
             vm.prank(sender);
             ift.iftTransfer(clientId, receiver, refilled);
         }
-        assertEq(rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Outbound), 0);
+        assertEq(_outboundAvailable(), 0);
 
         // A full window refills the bucket completely, never beyond the capacity
         vm.warp(vm.getBlockTimestamp() + window);
-        assertEq(rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Outbound), capacity);
+        assertEq(_outboundAvailable(), capacity);
     }
 
     function testFuzz_rateLimit_inboundBurst(uint208 capacity, uint256 amount) public {
@@ -1265,18 +1223,17 @@ contract IFTTest is Test {
                 })
             )
         );
-        IIFTRateLimit rateLimit = IIFTRateLimit(address(ift));
 
         // Consume part of the inbound capacity
         vm.prank(minter);
         ift.iftMint(receiver, amount);
-        assertEq(rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Inbound), capacity - amount);
-        assertEq(rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Outbound), capacity);
+        assertEq(_inboundAvailable(), capacity - amount);
+        assertEq(_outboundAvailable(), capacity);
 
         // The rest of the capacity fits in one burst, and nothing more
         vm.prank(minter);
         ift.iftMint(receiver, capacity - amount);
-        assertEq(rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Inbound), 0);
+        assertEq(_inboundAvailable(), 0);
         vm.expectRevert(RateLimiter.RateLimitExceeded.selector);
         vm.prank(minter);
         ift.iftMint(receiver, 1);
@@ -1304,17 +1261,16 @@ contract IFTTest is Test {
                 })
             )
         );
-        IIFTRateLimit rateLimit = IIFTRateLimit(address(ift));
 
         // Empty the inbound bucket
         vm.prank(minter);
         ift.iftMint(receiver, capacity);
-        assertEq(rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Inbound), 0);
+        assertEq(_inboundAvailable(), 0);
 
         // The bucket refills at capacity / window per second
         vm.warp(vm.getBlockTimestamp() + elapsed);
         uint256 refilled = Math.mulDiv(elapsed, capacity, window);
-        assertEq(rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Inbound), refilled);
+        assertEq(_inboundAvailable(), refilled);
 
         vm.expectRevert(RateLimiter.RateLimitExceeded.selector);
         vm.prank(minter);
@@ -1323,11 +1279,11 @@ contract IFTTest is Test {
         // Consume exactly what refilled
         vm.prank(minter);
         ift.iftMint(receiver, refilled);
-        assertEq(rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Inbound), 0);
+        assertEq(_inboundAvailable(), 0);
 
         // A full window refills the bucket completely, never beyond the capacity
         vm.warp(vm.getBlockTimestamp() + window);
-        assertEq(rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Inbound), capacity);
+        assertEq(_inboundAvailable(), capacity);
     }
 
     function testFuzz_rateLimit_refundConsumesInbound(uint208 capacity, uint256 amount) public {
@@ -1352,7 +1308,7 @@ contract IFTTest is Test {
         // Send the tokens out, which charges the outbound bucket
         vm.prank(sender);
         ift.iftTransfer(clientId, Strings.toHexString(makeAddr("receiver")), amount);
-        assertEq(rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Outbound), capacity - amount);
+        assertEq(_outboundAvailable(), capacity - amount);
 
         IIBCAppCallbacks.OnTimeoutPacketCallback memory callback = IIBCAppCallbacks.OnTimeoutPacketCallback({
             sourceClient: clientId,
@@ -1380,8 +1336,8 @@ contract IFTTest is Test {
         vm.prank(mockICS27);
         IIBCSenderCallbacks(address(ift)).onTimeoutPacket(callback);
         assertEq(IERC20(address(ift)).balanceOf(sender), amount);
-        assertEq(rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Inbound), 0);
-        assertEq(rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Outbound), capacity + 1 - amount);
+        assertEq(_inboundAvailable(), 0);
+        assertEq(_outboundAvailable(), capacity + 1 - amount);
     }
 
     function testFuzz_rateLimit_updateKeepsUsage(
@@ -1415,25 +1371,22 @@ contract IFTTest is Test {
         ift.iftTransfer(clientId, Strings.toHexString(makeAddr("receiver")), capacity);
         vm.warp(vm.getBlockTimestamp() + elapsed);
         uint256 used = capacity - Math.mulDiv(elapsed, capacity, window);
-        assertEq(rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Outbound), capacity - used);
+        assertEq(_outboundAvailable(), capacity - used);
 
         // Changing the window keeps the accrued refill and only changes the rate going forward
         vm.prank(admin);
         rateLimit.setIFTRateLimit(capacity, newWindow);
-        assertEq(rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Outbound), capacity - used);
+        assertEq(_outboundAvailable(), capacity - used);
         vm.warp(vm.getBlockTimestamp() + elapsed);
         used = Math.saturatingSub(used, Math.mulDiv(elapsed, capacity, newWindow));
-        assertEq(rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Outbound), capacity - used);
+        assertEq(_outboundAvailable(), capacity - used);
 
         // Changing the capacity keeps the usage, so a capacity below it leaves the bucket empty until it refills
         vm.prank(admin);
         rateLimit.setIFTRateLimit(newCapacity, newWindow);
-        assertEq(
-            rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Outbound),
-            Math.saturatingSub(newCapacity, used)
-        );
+        assertEq(_outboundAvailable(), Math.saturatingSub(newCapacity, used));
         // The settings are shared, so the unused inbound bucket follows the new capacity
-        assertEq(rateLimit.getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection.Inbound), newCapacity);
+        assertEq(_inboundAvailable(), newCapacity);
     }
 
     // Upgrade Tests
@@ -1709,6 +1662,14 @@ contract IFTTest is Test {
 
         bytes4 randomId = 0xdeadbeef;
         assertFalse(constructor_.supportsInterface(randomId));
+    }
+
+    function _inboundAvailable() private view returns (uint256 inbound) {
+        (inbound,) = IIFTRateLimit(address(ift)).getIFTRateLimitAvailable();
+    }
+
+    function _outboundAvailable() private view returns (uint256 outbound) {
+        (, outbound) = IIFTRateLimit(address(ift)).getIFTRateLimitAvailable();
     }
 }
 

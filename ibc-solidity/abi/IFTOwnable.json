@@ -185,16 +185,15 @@
   {
     "type": "function",
     "name": "getIFTRateLimitAvailable",
-    "inputs": [
-      {
-        "name": "direction",
-        "type": "uint8",
-        "internalType": "enum IIFTMsgs.IFTRateLimitDirection"
-      }
-    ],
+    "inputs": [],
     "outputs": [
       {
-        "name": "",
+        "name": "inbound",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "outbound",
         "type": "uint256",
         "internalType": "uint256"
       }

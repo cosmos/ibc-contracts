@@ -38,8 +38,10 @@ abstract contract IFTRateLimitUpgradeable is IIFTRateLimit {
     }
 
     /// @inheritdoc IIFTRateLimit
-    function getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection direction) external view returns (uint256) {
-        return _getIFTRateLimitStorage()._bucket.available(_directionKey(direction));
+    function getIFTRateLimitAvailable() external view returns (uint256 inbound, uint256 outbound) {
+        RateLimiter.RefillingBucket storage bucket = _getIFTRateLimitStorage()._bucket;
+        inbound = bucket.available(_directionKey(IIFTMsgs.IFTRateLimitDirection.Inbound));
+        outbound = bucket.available(_directionKey(IIFTMsgs.IFTRateLimitDirection.Outbound));
     }
 
     /// @notice Sets the rate limit shared by both directions

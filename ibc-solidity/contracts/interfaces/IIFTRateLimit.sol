@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.28;
 
-import { IIFTMsgs } from "../msgs/IIFTMsgs.sol";
-
 /// @title IIFTRateLimit
 /// @notice Interface for the per token rate limits of an IFT contract
 /// @dev Each direction is a refilling bucket that refills linearly over `window` seconds. Both directions share the
@@ -27,8 +25,9 @@ interface IIFTRateLimit {
     /// @return window The number of seconds it takes for an empty bucket to refill completely
     function getIFTRateLimit() external view returns (uint208 capacity, uint48 window);
 
-    /// @notice Returns the amount that can currently pass in a direction
-    /// @param direction The direction the rate limit applies to
-    /// @return The available amount, accounting for the refill accrued since the last update
-    function getIFTRateLimitAvailable(IIFTMsgs.IFTRateLimitDirection direction) external view returns (uint256);
+    /// @notice Returns the amounts that can currently pass in each direction
+    /// @dev Both amounts account for the refill accrued since the last update
+    /// @return inbound The amount that can currently be minted on receive
+    /// @return outbound The amount that can currently be burned on send
+    function getIFTRateLimitAvailable() external view returns (uint256 inbound, uint256 outbound);
 }
