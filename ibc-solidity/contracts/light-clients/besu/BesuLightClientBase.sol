@@ -113,6 +113,10 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             block.timestamp + clientState.maxClockDrift >= header.timestamp,
             HeaderFromFuture(block.timestamp, header.timestamp, clientState.maxClockDrift)
         );
+        require(
+            header.height > msg_.trustedHeight.revisionHeight,
+            InvalidTrustedHeight(msg_.trustedHeight.revisionHeight, header.height)
+        );
 
         _requireTrustedConsensusState(msg_.trustedHeight.revisionHeight, msg_.consensusStatePreimage);
 
@@ -136,7 +140,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             return ILightClientMsgs.UpdateResult.Misbehaviour;
         }
 
-        if (msg_.trustedHeight.revisionHeight >= header.height) {
+        if (msg_.consensusStatePreimage.timestamp >= header.timestamp) {
             clientState.frozen = true;
             emit TimeNonMonotonicity(
                 header.height,

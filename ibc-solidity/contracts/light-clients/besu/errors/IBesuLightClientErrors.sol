@@ -24,6 +24,10 @@ interface IBesuLightClientErrors {
     /// @param headerTimestamp The submitted header timestamp.
     /// @param maxClockDrift The configured maximum clock drift.
     error HeaderFromFuture(uint256 currentTimestamp, uint256 headerTimestamp, uint256 maxClockDrift);
+    /// @notice The trusted height must be less than the header height
+    /// @param trustedHeight The submitted trusted height.
+    /// @param headerHeight The submitted header height.
+    error InvalidTrustedHeight(uint64 trustedHeight, uint64 headerHeight);
     /// @notice No consensus state exists for the requested height.
     /// @param revisionHeight The requested revision height.
     error ConsensusStateNotFound(uint64 revisionHeight);
