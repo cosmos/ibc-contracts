@@ -206,7 +206,7 @@ The Foundry fixtures under `test/besu-bft/fixtures/` can be regenerated from the
 just solidity::generate-fixtures-besu
 ```
 
-This writes `test/besu-bft/fixtures/qbft.json` using live Besu QBFT headers, account proofs, and storage proofs captured during the e2e transfer flow. The fixture `proof` and `accountProof` fields hold the raw storage and account proof nodes as `abi.encode(bytes[])`; the Foundry tests wrap them into `MembershipProof` together with the consensus state preimage derived from the fixture's expected update state. The negative cases in that fixture are still derived by deterministic off-chain header mutation so the contract tests can keep explicit overlap / quorum / conflict coverage.
+This writes `test/besu-bft/fixtures/qbft.json` using live Besu QBFT headers, account proofs, and storage proofs captured during the e2e transfer flow. The fixture `proof` and `accountProof` fields hold the raw storage and account proof nodes as `abi.encode(bytes[])`; the Foundry tests wrap them into `MembershipProof` together with the consensus state preimage derived from the fixture's expected update state. The negative cases in that fixture are still derived by deterministic off-chain header mutation so the contract tests can keep explicit overlap / conflict coverage. Quorum in isolation is covered by `BesuLightClientQuorum.t.sol`.
 
 The synthetic IBFT2 validator sets and commit seals, and QBFT's synthetic low-overlap
 case, can be regenerated offline with the existing Go header and signing helpers:

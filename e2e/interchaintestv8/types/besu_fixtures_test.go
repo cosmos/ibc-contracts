@@ -118,7 +118,6 @@ func TestBesuIBFT2Fixture(t *testing.T) {
 	}{
 		{name: "adjacentUpdate", validators: []int{1, 2, 3, 4}, signers: []int{1, 2, 3}},
 		{name: "nonAdjacentUpdate", validators: []int{1, 2, 3, 5}, signers: []int{1, 2, 3}},
-		{name: "lowQuorumUpdate", validators: []int{1, 2, 3, 5}, signers: []int{1, 2}},
 		{name: "conflictingUpdate", validators: []int{1, 2, 3, 5}, signers: []int{1, 2, 3}},
 		{name: "lowOverlapUpdate", validators: []int{1, 5, 6, 7}, signers: []int{1, 5, 6}},
 	} {

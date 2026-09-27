@@ -38,7 +38,7 @@ All contracts are compiled for the **Cancun** EVM (`evm_version = "cancun"` in `
 - Destination chain requirement: the chain hosting the client must have Cancun (EIP-1153 transient storage) enabled; the proven router storage root is cached in transient storage so a batch of packet proofs at one height pays for a single account proof. See `light-clients/besu/README.md`.
 - Counterparty storage model: Eureka `ICS26Router` / `IBCStoreUpgradeable` commitments mapping.
 - Not supported in v1: QBFT validator-contract mode, mode transitions, and misbehaviour handling.
-- Current fixture status: `test/besu-bft/fixtures/` are synthetic regression fixtures; real Besu-derived golden fixtures remain a follow-up interoperability-confidence improvement.
+- Fixture status: `test/besu-bft/fixtures/qbft.json` is captured from the live Besu↔Besu e2e flow; `ibft2.json` remains synthetic until an IBFT2-focused e2e path exists. See `light-clients/besu/README.md`.
 
 ## Interchain Fungible Tokens (IFT)
 - Code reference: find the  `contracts` IFT contract code [here](https://github.com/cosmos/solidity-ibc-eureka/tree/mariuszzak/ift/contracts).

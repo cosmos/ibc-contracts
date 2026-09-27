@@ -57,7 +57,6 @@ type besuFixture struct {
 	MaxClockDrift            uint64                     `json:"maxClockDrift"`
 	AdjacentUpdate           besuUpdateFixture          `json:"adjacentUpdate"`
 	NonAdjacentUpdate        besuUpdateFixture          `json:"nonAdjacentUpdate"`
-	LowQuorumUpdate          besuRejectionUpdateFixture `json:"lowQuorumUpdate"`
 	ConflictingUpdate        besuRejectionUpdateFixture `json:"conflictingUpdate"`
 	LowOverlapUpdate         besuRejectionUpdateFixture `json:"lowOverlapUpdate"`
 	Membership               besuProofFixture           `json:"membership"`
@@ -174,10 +173,6 @@ func generateQBFTFixture(ctx context.Context, params GenerateQBFTFixtureParams) 
 	if err != nil {
 		return besuFixture{}, err
 	}
-	lowQuorumUpdate, err := buildLowQuorumFixture(nonAdjacentUpdate, nonAdjacentHeader)
-	if err != nil {
-		return besuFixture{}, err
-	}
 	conflictingUpdate, err := buildConflictingFixture(
 		params.InitialTrustedHeight,
 		nonAdjacentUpdate.Height,
@@ -215,7 +210,6 @@ func generateQBFTFixture(ctx context.Context, params GenerateQBFTFixtureParams) 
 		MaxClockDrift:            params.MaxClockDrift,
 		AdjacentUpdate:           adjacentUpdate,
 		NonAdjacentUpdate:        nonAdjacentUpdate,
-		LowQuorumUpdate:          lowQuorumUpdate,
 		ConflictingUpdate:        conflictingUpdate,
 		LowOverlapUpdate:         lowOverlapUpdate,
 		Membership:               membership,
@@ -241,31 +235,6 @@ func buildLiveUpdateFixture(
 		ExpectedTimestamp:  header.Header.Time,
 		ExpectedStateRoot:  header.Header.Root.Hex(),
 		ExpectedValidators: addressesToHex(header.Validators),
-	}, nil
-}
-
-func buildLowQuorumFixture(update besuUpdateFixture, header liveHeader) (besuRejectionUpdateFixture, error) {
-	mutable, err := decodeMutableQBFTHeader(header.HeaderRLP)
-	if err != nil {
-		return besuRejectionUpdateFixture{}, err
-	}
-	commitSeals, err := mutable.commitSeals()
-	if err != nil {
-		return besuRejectionUpdateFixture{}, err
-	}
-	if len(commitSeals) < 2 {
-		return besuRejectionUpdateFixture{}, fmt.Errorf("expected at least two commit seals, got %d", len(commitSeals))
-	}
-	mutable.setCommitSeals(commitSeals[:2])
-	mutatedHeader, err := mutable.encode()
-	if err != nil {
-		return besuRejectionUpdateFixture{}, err
-	}
-
-	return besuRejectionUpdateFixture{
-		Height:        update.Height,
-		HeaderRlp:     encodeHex(mutatedHeader),
-		TrustedHeight: update.TrustedHeight,
 	}, nil
 }
 
