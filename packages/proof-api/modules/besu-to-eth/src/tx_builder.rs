@@ -9,7 +9,7 @@ use std::{
 use alloy::{
     consensus::Header,
     network::Ethereum,
-    primitives::{hex, Address, Bytes, B256, U256},
+    primitives::{hex, keccak256, Address, Bytes, Signature, B256, U256},
     providers::{Provider, RootProvider},
     rpc::types::{EIP1186AccountProofResponse, EIP1186StorageProof},
     sol_types::{SolCall, SolValue},
@@ -30,7 +30,7 @@ use proof_api_lib::utils::{
     eth_eureka::{src_events_to_recv_and_ack_msgs, target_events_to_timeout_msgs},
     RelayEventsParams,
 };
-use rlp::Rlp;
+use rlp::{Rlp, RlpStream};
 
 use crate::BesuConsensusType;
 
@@ -133,12 +133,13 @@ impl TxBuilder {
         let trusted_state = consensus_state(&self.fetch_source_header(trusted_height).await?)?;
         let target_header = self.fetch_source_header(target_height).await?;
 
-        Ok(Self::build_update_client_calldata(
+        Self::build_update_client_calldata(
             dst_client_id,
             trusted_height,
             trusted_state,
             &target_header,
-        ))
+            self.consensus_type,
+        )
     }
 
     pub async fn relay_events(&self, params: RelayEventsParams) -> Result<Vec<u8>> {
@@ -235,7 +236,8 @@ impl TxBuilder {
             trusted_height,
             trusted_state,
             &header,
-        );
+            self.consensus_type,
+        )?;
 
         let all_calls: Vec<Bytes> = std::iter::once(update_call.into())
             .chain(packet_calls.into_iter().map(|call| match call {
@@ -254,9 +256,17 @@ impl TxBuilder {
         trusted_height: u64,
         trusted_state: IBesuLightClientMsgs::ConsensusState,
         target_header: &Header,
-    ) -> Vec<u8> {
+        consensus_type: BesuConsensusType,
+    ) -> Result<Vec<u8>> {
+        let target_header =
+            sort_commit_seals(target_header, consensus_type).with_context(|| {
+                format!(
+                    "failed to sort commit seals of source block {}",
+                    target_header.number
+                )
+            })?;
         let update_msg = IBesuLightClientMsgs::MsgUpdateClient {
-            headerRlp: alloy_rlp::encode(target_header).into(),
+            headerRlp: alloy_rlp::encode(&target_header).into(),
             trustedHeight: MsgHeight {
                 revisionNumber: 0,
                 revisionHeight: trusted_height,
@@ -264,11 +274,11 @@ impl TxBuilder {
             consensusStatePreimage: trusted_state,
         };
 
-        updateClientCall {
+        Ok(updateClientCall {
             clientId: dst_client_id.to_string(),
             updateMsg: update_msg.abi_encode().into(),
         }
-        .abi_encode()
+        .abi_encode())
     }
 
     async fn fetch_source_header(&self, block_height: u64) -> Result<Header> {
@@ -547,17 +557,84 @@ fn extract_validators_from_extra_data(extra_data: &[u8]) -> Result<Vec<Address>>
     Ok(out)
 }
 
+/// Returns a copy of `header` with its commit seals ordered by recovered signer address.
+///
+/// The light client requires commit seals in strictly ascending signer order, but Besu does not
+/// order them that way. Reordering keeps the header valid because the commit-seal digest excludes
+/// the seal list.
+fn sort_commit_seals(header: &Header, consensus_type: BesuConsensusType) -> Result<Header> {
+    let extra_data = Rlp::new(&header.extra_data);
+    let item_count = extra_data
+        .item_count()
+        .context("failed to decode extraData")?;
+    ensure!(
+        item_count == 5,
+        "expected 5 extraData items, got {item_count}"
+    );
+    let prefix = (0..4)
+        .map(|i| extra_data.at(i).map(|item| item.as_raw().to_vec()))
+        .collect::<Result<Vec<_>, _>>()
+        .context("failed to decode extraData items")?;
+    let seals: Vec<Vec<u8>> = extra_data
+        .list_at(4)
+        .context("failed to decode commit seals")?;
+
+    let encode_extra_data = |seals: Option<&[Vec<u8>]>| {
+        let mut stream = RlpStream::new_list(4 + usize::from(seals.is_some()));
+        for item in &prefix {
+            stream.append_raw(item, 1);
+        }
+        if let Some(seals) = seals {
+            stream.begin_list(seals.len());
+            for seal in seals {
+                stream.append(seal);
+            }
+        }
+        Bytes::from(stream.out().to_vec())
+    };
+
+    // QBFT signs the header with an empty seal list, IBFT2 with the seal list dropped.
+    let mut signing_header = header.clone();
+    signing_header.extra_data = match consensus_type {
+        BesuConsensusType::Qbft => encode_extra_data(Some(&[])),
+        BesuConsensusType::Ibft2 => encode_extra_data(None),
+    };
+    let digest = keccak256(alloy_rlp::encode(&signing_header));
+
+    let mut signed_seals = seals
+        .into_iter()
+        .map(|seal| {
+            let signer = Signature::from_raw(&seal)
+                .and_then(|signature| signature.recover_address_from_prehash(&digest))
+                .context("failed to recover commit seal signer")?;
+            Ok((signer, seal))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    signed_seals.sort_by_key(|(signer, _)| *signer);
+    if let Some(pair) = signed_seals.windows(2).find(|pair| pair[0].0 == pair[1].0) {
+        bail!("duplicate commit seal signer {}", pair[0].0);
+    }
+
+    let sorted_seals: Vec<_> = signed_seals.into_iter().map(|(_, seal)| seal).collect();
+    let mut sorted_header = header.clone();
+    sorted_header.extra_data = encode_extra_data(Some(&sorted_seals));
+    Ok(sorted_header)
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
 
     use super::{
         attach_packet_proofs, map_storage_proofs, packet_storage_key, retain_provable_packet_calls,
-        StorageSlotProof,
+        sort_commit_seals, StorageSlotProof,
     };
+    use crate::BesuConsensusType;
     use alloy::{
-        primitives::{Address, Bytes, B256, U256},
+        consensus::Header,
+        primitives::{keccak256, Address, Bytes, Signature, B256, U256},
         rpc::types::EIP1186StorageProof,
+        signers::{local::PrivateKeySigner, SignerSync},
         sol_types::SolValue,
     };
     use ibc_eureka_solidity_types::{
@@ -568,6 +645,7 @@ mod tests {
         },
         msgs::IBesuLightClientMsgs,
     };
+    use rlp::{Rlp, RlpStream};
 
     fn packet(sequence: u64) -> Packet {
         Packet {
@@ -822,5 +900,97 @@ mod tests {
             decode_recv_proof(&calls[0]).accountProofNodes,
             account_nodes
         );
+    }
+
+    fn besu_extra_data(validators: &[Address], seals: Option<&[Vec<u8>]>) -> Bytes {
+        let mut stream = RlpStream::new_list(4 + usize::from(seals.is_some()));
+        stream.append(&vec![0u8; 32]);
+        stream.begin_list(validators.len());
+        for validator in validators {
+            stream.append(&validator.as_slice());
+        }
+        stream.begin_list(0);
+        stream.append(&vec![0u8; 4]);
+        if let Some(seals) = seals {
+            stream.begin_list(seals.len());
+            for seal in seals {
+                stream.append(seal);
+            }
+        }
+        Bytes::from(stream.out().to_vec())
+    }
+
+    /// Returns a header sealed by `signers` in the given order, and the commit-seal digest.
+    fn sealed_header(
+        consensus_type: BesuConsensusType,
+        signers: &[&PrivateKeySigner],
+    ) -> (Header, B256) {
+        let mut validators: Vec<_> = signers.iter().map(|signer| signer.address()).collect();
+        validators.sort();
+        let mut header = Header {
+            number: 7,
+            extra_data: besu_extra_data(
+                &validators,
+                matches!(consensus_type, BesuConsensusType::Qbft).then_some(&[]),
+            ),
+            ..Header::default()
+        };
+        let digest = keccak256(alloy_rlp::encode(&header));
+        let seals: Vec<_> = signers
+            .iter()
+            .map(|signer| signer.sign_hash_sync(&digest).unwrap().as_bytes().to_vec())
+            .collect();
+        header.extra_data = besu_extra_data(&validators, Some(&seals));
+        (header, digest)
+    }
+
+    #[test]
+    fn sort_commit_seals_orders_seals_by_signer() {
+        let signers: Vec<_> = (0..4).map(|_| PrivateKeySigner::random()).collect();
+        let mut unsorted: Vec<_> = signers.iter().collect();
+        unsorted.sort_by_key(|signer| std::cmp::Reverse(signer.address()));
+
+        for consensus_type in [BesuConsensusType::Qbft, BesuConsensusType::Ibft2] {
+            let (header, digest) = sealed_header(consensus_type, &unsorted);
+            let sorted = sort_commit_seals(&header, consensus_type).unwrap();
+
+            let extra_data = Rlp::new(&sorted.extra_data);
+            let original = Rlp::new(&header.extra_data);
+            for i in 0..4 {
+                assert_eq!(
+                    extra_data.at(i).unwrap().as_raw(),
+                    original.at(i).unwrap().as_raw()
+                );
+            }
+            let recovered: Vec<_> = extra_data
+                .list_at::<Vec<u8>>(4)
+                .unwrap()
+                .iter()
+                .map(|seal| {
+                    Signature::from_raw(seal)
+                        .unwrap()
+                        .recover_address_from_prehash(&digest)
+                        .unwrap()
+                })
+                .collect();
+            let mut expected: Vec<_> = signers.iter().map(PrivateKeySigner::address).collect();
+            expected.sort();
+            assert_eq!(recovered, expected);
+            assert_eq!(
+                Header {
+                    extra_data: header.extra_data.clone(),
+                    ..sorted
+                },
+                header
+            );
+        }
+    }
+
+    #[test]
+    fn sort_commit_seals_rejects_duplicate_signers() {
+        let signer = PrivateKeySigner::random();
+        let (header, _) = sealed_header(BesuConsensusType::Qbft, &[&signer, &signer]);
+        let err = sort_commit_seals(&header, BesuConsensusType::Qbft).unwrap_err();
+        assert!(err.to_string().contains("duplicate commit seal signer"));
     }
 }
