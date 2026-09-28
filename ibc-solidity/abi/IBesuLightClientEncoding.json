@@ -41,6 +41,11 @@
             "internalType": "uint64"
           },
           {
+            "name": "isFrozen",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
             "name": "trustLevel",
             "type": "tuple",
             "internalType": "struct IBesuLightClientMsgs.TrustThreshold",
@@ -97,6 +102,11 @@
             "name": "maxClockDrift",
             "type": "uint64",
             "internalType": "uint64"
+          },
+          {
+            "name": "isFrozen",
+            "type": "bool",
+            "internalType": "bool"
           },
           {
             "name": "trustLevel",
