@@ -354,6 +354,31 @@
   },
   {
     "type": "event",
+    "name": "DoubleSign",
+    "inputs": [
+      {
+        "name": "revisionHeight",
+        "type": "uint64",
+        "indexed": true,
+        "internalType": "uint64"
+      },
+      {
+        "name": "trustedConsensusStateHash",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "conflictingConsensusStateHash",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "RoleAdminChanged",
     "inputs": [
       {
@@ -450,17 +475,6 @@
   },
   {
     "type": "error",
-    "name": "ConflictingConsensusState",
-    "inputs": [
-      {
-        "name": "revisionHeight",
-        "type": "uint64",
-        "internalType": "uint64"
-      }
-    ]
-  },
-  {
-    "type": "error",
     "name": "ConsensusStateExpired",
     "inputs": [
       {
@@ -521,6 +535,11 @@
   {
     "type": "error",
     "name": "EmptyValidatorSet",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "FrozenClientState",
     "inputs": []
   },
   {

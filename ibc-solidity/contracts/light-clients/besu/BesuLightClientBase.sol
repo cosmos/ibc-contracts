@@ -65,7 +65,8 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             ibcRouter: ibcRouter,
             latestHeight: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: initialTrustedHeight }),
             trustingPeriod: trustingPeriod,
-            maxClockDrift: maxClockDrift
+            maxClockDrift: maxClockDrift,
+            isFrozen: false
         });
 
         IBesuLightClientMsgs.ConsensusState memory initialConsensusState = IBesuLightClientMsgs.ConsensusState({
@@ -96,6 +97,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @inheritdoc ILightClient
     function updateClient(bytes calldata updateMsg)
         external
+        notFrozen
         onlyProofSubmitter
         returns (ILightClientMsgs.UpdateResult)
     {
@@ -129,7 +131,9 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
                 return ILightClientMsgs.UpdateResult.NoOp;
             }
 
-            revert ConflictingConsensusState(header.height); // misbehaviour, FOU-1374
+            clientState.isFrozen = true;
+            emit DoubleSign(header.height, existingHash, newHash);
+            return ILightClientMsgs.UpdateResult.Misbehaviour;
         }
 
         consensusStateHashes[header.height] = newHash;
@@ -144,6 +148,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @inheritdoc ILightClient
     function verifyMembership(ILightClientMsgs.MsgVerifyMembership calldata msg_)
         external
+        notFrozen
         onlyProofSubmitter
         returns (uint256)
     {
@@ -174,6 +179,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @inheritdoc ILightClient
     function verifyNonMembership(ILightClientMsgs.MsgVerifyNonMembership calldata msg_)
         external
+        notFrozen
         onlyProofSubmitter
         returns (uint256)
     {
@@ -197,7 +203,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     }
 
     /// @inheritdoc ILightClient
-    function misbehaviour(bytes calldata) external view onlyProofSubmitter {
+    function misbehaviour(bytes calldata) external view notFrozen onlyProofSubmitter {
         revert UnsupportedMisbehaviour();
     }
 
@@ -398,6 +404,12 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @return The cache key.
     function _cacheKey(address ibcRouter, uint64 revisionHeight) private pure returns (TransientSlot.Bytes32Slot) {
         return TransientSlot.asBytes32(keccak256(abi.encode(ibcRouter, revisionHeight)));
+    }
+
+    /// @notice Reverts if the client is frozen. A frozen client can never be unfrozen.
+    modifier notFrozen() {
+        require(!clientState.isFrozen, FrozenClientState());
+        _;
     }
 
     /// @notice Restricts access to proof submitters unless submission is open to anyone.

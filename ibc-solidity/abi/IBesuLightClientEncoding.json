@@ -39,6 +39,11 @@
             "name": "maxClockDrift",
             "type": "uint64",
             "internalType": "uint64"
+          },
+          {
+            "name": "isFrozen",
+            "type": "bool",
+            "internalType": "bool"
           }
         ]
       }
@@ -80,6 +85,11 @@
             "name": "maxClockDrift",
             "type": "uint64",
             "internalType": "uint64"
+          },
+          {
+            "name": "isFrozen",
+            "type": "bool",
+            "internalType": "bool"
           }
         ]
       }

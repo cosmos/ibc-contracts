@@ -16,13 +16,18 @@ import (
 
 	"github.com/stretchr/testify/suite"
 
+	goethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	ethcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/rpc"
 
 	transfertypes "github.com/cosmos/ibc-go/v11/modules/apps/transfer/types"
 
+	"github.com/cosmos/solidity-ibc-eureka/packages/go-abigen/besumsgs"
+	"github.com/cosmos/solidity-ibc-eureka/packages/go-abigen/besuqbft"
 	"github.com/cosmos/solidity-ibc-eureka/packages/go-abigen/ibcerc20"
 	"github.com/cosmos/solidity-ibc-eureka/packages/go-abigen/ics20transfer"
 	"github.com/cosmos/solidity-ibc-eureka/packages/go-abigen/ics26router"
@@ -133,8 +138,8 @@ func (s *BesuToBesuTestSuite) SetupSuite() {
 	s.startRelayer()
 	s.connectRelayer()
 
-	s.createAndRegisterBesuClient(&s.chainB, &s.chainA, besuToBesuClientOnA, besuToBesuClientOnB)
-	s.createAndRegisterBesuClient(&s.chainA, &s.chainB, besuToBesuClientOnB, besuToBesuClientOnA)
+	s.chainA.clientAddress = s.createAndRegisterBesuClient(&s.chainB, &s.chainA, besuToBesuClientOnA, besuToBesuClientOnB)
+	s.chainB.clientAddress = s.createAndRegisterBesuClient(&s.chainA, &s.chainB, besuToBesuClientOnB, besuToBesuClientOnA)
 }
 
 func (s *BesuToBesuTestSuite) Test_Deploy() {
@@ -476,6 +481,91 @@ func (s *BesuToBesuTestSuite) Test_TimeoutICS20TransferERC20FromChainAToChainB()
 	}))
 }
 
+// Test_DoubleSignFreezesClient freezes a dedicated client on Chain B so the shared clients stay usable.
+func (s *BesuToBesuTestSuite) Test_DoubleSignFreezesClient() {
+	ctx := context.Background()
+
+	const doubleSignClientID = "besu-double-sign"
+	var (
+		client      *besuqbft.Contract
+		height      uint64
+		trustedHash [32]byte
+		updateMsg   []byte
+	)
+
+	s.Require().True(s.Run("Create dedicated client on Chain B", func() {
+		clientAddress := s.createAndRegisterBesuClient(&s.chainA, &s.chainB, doubleSignClientID, besuToBesuClientOnA)
+
+		var err error
+		client, err = besuqbft.NewContract(clientAddress, s.chainB.eth.RPCClient)
+		s.Require().NoError(err)
+
+		clientState := s.besuClientState(client)
+		s.Require().False(clientState.IsFrozen)
+		height = clientState.LatestHeight.RevisionHeight
+
+		trustedHash, err = client.GetConsensusStateHash(nil, height)
+		s.Require().NoError(err)
+	}))
+
+	s.Require().True(s.Run("Build conflicting header at the trusted height", func() {
+		var err error
+		updateMsg, err = e2etypes.BuildQBFTDoubleSignUpdate(ctx, &s.chainA.eth, height)
+		s.Require().NoError(err)
+	}))
+
+	s.Require().True(s.Run("Submit double sign and freeze the client", func() {
+		tx, err := s.chainB.ics26.UpdateClient(
+			s.mustTransactOpts(&s.chainB, s.chainB.relayerSubmitter), doubleSignClientID, updateMsg,
+		)
+		s.Require().NoError(err)
+		receipt, err := s.chainB.eth.GetTxReciept(ctx, tx.Hash())
+		s.Require().NoError(err)
+		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
+
+		updatedEvent, err := e2esuite.GetEvmEvent(receipt, s.chainB.ics26.ParseICS02ClientUpdated)
+		s.Require().NoError(err)
+		s.Require().Equal(doubleSignClientID, updatedEvent.ClientId)
+		s.Require().Equal(uint8(1), updatedEvent.Result) // ILightClientMsgs.UpdateResult.Misbehaviour
+
+		doubleSignEvent, err := e2esuite.GetEvmEvent(receipt, client.ParseDoubleSign)
+		s.Require().NoError(err)
+		s.Require().Equal(height, doubleSignEvent.RevisionHeight)
+		s.Require().Equal(trustedHash, doubleSignEvent.TrustedConsensusStateHash)
+		s.Require().NotEqual(trustedHash, doubleSignEvent.ConflictingConsensusStateHash)
+
+		s.Require().True(s.besuClientState(client).IsFrozen)
+		storedHash, err := client.GetConsensusStateHash(nil, height)
+		s.Require().NoError(err)
+		s.Require().Equal(trustedHash, storedHash)
+	}))
+
+	s.Require().True(s.Run("Frozen client rejects further updates", func() {
+		ics26ABI, err := ics26router.ContractMetaData.GetAbi()
+		s.Require().NoError(err)
+		calldata, err := ics26ABI.Pack("updateClient", doubleSignClientID, updateMsg)
+		s.Require().NoError(err)
+
+		ics26Address := ethcommon.HexToAddress(s.chainB.contractAddresses.Ics26Router)
+		_, err = s.chainB.eth.RPCClient.CallContract(ctx, goethereum.CallMsg{
+			From: crypto.PubkeyToAddress(s.chainB.relayerSubmitter.PublicKey),
+			To:   &ics26Address,
+			Data: calldata,
+		}, nil)
+		var dataErr rpc.DataError
+		s.Require().ErrorAs(err, &dataErr)
+		s.Require().Equal(hexutil.Encode(crypto.Keccak256([]byte("FrozenClientState()"))[:4]), dataErr.ErrorData())
+	}))
+}
+
+func (s *BesuToBesuTestSuite) besuClientState(client *besuqbft.Contract) besumsgs.IBesuLightClientMsgsClientState {
+	clientStateBz, err := client.GetClientState(nil)
+	s.Require().NoError(err)
+	clientState, err := besumsgs.NewBindings().UnpackClientState(clientStateBz)
+	s.Require().NoError(err)
+	return clientState
+}
+
 func (s *BesuToBesuTestSuite) spinUpChain(ctx context.Context, params chainconfig.BesuQBFTParams) besuToBesuChainState {
 	network, err := chainconfig.SpinUpBesuQBFT(ctx, params)
 	s.Require().NoError(err)
@@ -586,7 +676,7 @@ func (s *BesuToBesuTestSuite) createAndRegisterBesuClient(
 	dstChain *besuToBesuChainState,
 	dstClientID string,
 	counterpartyClientID string,
-) {
+) ethcommon.Address {
 	resp, err := s.relayerClient.CreateClient(context.Background(), &proofapitypes.CreateClientRequest{
 		SrcChain: srcChain.eth.ChainID.String(),
 		DstChain: dstChain.eth.ChainID.String(),
@@ -629,7 +719,7 @@ func (s *BesuToBesuTestSuite) createAndRegisterBesuClient(
 	s.Require().NoError(err)
 	s.Require().Equal(createClientReceipt.ContractAddress, registeredClient)
 
-	dstChain.clientAddress = createClientReceipt.ContractAddress
+	return createClientReceipt.ContractAddress
 }
 
 func (s *BesuToBesuTestSuite) mustTransactOpts(chain *besuToBesuChainState, key *ecdsa.PrivateKey) *bind.TransactOpts {

@@ -56,10 +56,13 @@ contract QBFTSimSuiteTest is Test {
         b = sim.seal(b);
         sim.commit(a);
 
-        client.updateClient(sim.updateMsg(2, a));
+        bytes memory honest = sim.updateMsg(2, a);
+        client.updateClient(honest);
         bytes memory conflicting = sim.updateMsg(2, b);
-        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.ConflictingConsensusState.selector, 3));
-        client.updateClient(conflicting);
+        assertEq(uint8(client.updateClient(conflicting)), uint8(ILightClientMsgs.UpdateResult.Misbehaviour));
+
+        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.FrozenClientState.selector));
+        client.updateClient(honest);
     }
 
     function test_timestampFromFuture() public {
