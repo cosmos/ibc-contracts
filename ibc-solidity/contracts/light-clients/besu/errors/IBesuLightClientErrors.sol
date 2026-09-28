@@ -19,6 +19,10 @@ interface IBesuLightClientErrors {
     error InvalidHeaderTimestamp();
     /// @notice Trusting period must be greater than zero.
     error InvalidTrustingPeriod();
+    /// @notice Trust level must be within `[1/3, 1]` with a non-zero denominator.
+    /// @param numerator The provided numerator.
+    /// @param denominator The provided denominator.
+    error InvalidTrustLevel(uint8 numerator, uint8 denominator);
     /// @notice The submitted header timestamp is too far in the future.
     /// @param currentTimestamp The current block timestamp.
     /// @param headerTimestamp The submitted header timestamp.

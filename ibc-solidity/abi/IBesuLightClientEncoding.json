@@ -39,6 +39,23 @@
             "name": "maxClockDrift",
             "type": "uint64",
             "internalType": "uint64"
+          },
+          {
+            "name": "trustLevel",
+            "type": "tuple",
+            "internalType": "struct IBesuLightClientMsgs.TrustThreshold",
+            "components": [
+              {
+                "name": "numerator",
+                "type": "uint8",
+                "internalType": "uint8"
+              },
+              {
+                "name": "denominator",
+                "type": "uint8",
+                "internalType": "uint8"
+              }
+            ]
           }
         ]
       }
@@ -80,6 +97,23 @@
             "name": "maxClockDrift",
             "type": "uint64",
             "internalType": "uint64"
+          },
+          {
+            "name": "trustLevel",
+            "type": "tuple",
+            "internalType": "struct IBesuLightClientMsgs.TrustThreshold",
+            "components": [
+              {
+                "name": "numerator",
+                "type": "uint8",
+                "internalType": "uint8"
+              },
+              {
+                "name": "denominator",
+                "type": "uint8",
+                "internalType": "uint8"
+              }
+            ]
           }
         ]
       }
