@@ -60,17 +60,6 @@
   },
   {
     "type": "error",
-    "name": "DuplicateCommitSealSigner",
-    "inputs": [
-      {
-        "name": "signer",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
-  },
-  {
-    "type": "error",
     "name": "EmptyValidatorSet",
     "inputs": []
   },
@@ -318,6 +307,17 @@
         "name": "signer",
         "type": "address",
         "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "UnsortedCommitSealSigners",
+    "inputs": [
+      {
+        "name": "index",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ]
   },

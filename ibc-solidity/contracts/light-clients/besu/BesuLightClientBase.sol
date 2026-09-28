@@ -259,18 +259,21 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         return keccak256(abi.encode(keccak256(rawPath), IBCSTORE_STORAGE_SLOT));
     }
 
-    /// @notice Recovers unique commit seal signers for a digest.
+    /// @notice Recovers commit seal signers for a digest, requiring them to be sorted.
+    /// @dev Seals must be ordered by recovered signer in strictly ascending order, which also rejects duplicates.
     /// @param digest The commit seal digest.
     /// @param seals The commit seals to recover.
-    /// @return signers The recovered signer addresses.
+    /// @return signers The recovered signer addresses, in strictly ascending order.
     function _recoverSigners(bytes32 digest, bytes[] memory seals) private pure returns (address[] memory signers) {
         signers = new address[](seals.length);
-        for (uint256 i = 0; i < seals.length; ++i) {
-            address signer = _recoverSigner(digest, seals[i]);
-            for (uint256 j = 0; j < i; ++j) {
-                require(signers[j] != signer, DuplicateCommitSealSigner(signer));
-            }
-            signers[i] = signer;
+        if (seals.length == 0) {
+            return signers;
+        }
+
+        signers[0] = _recoverSigner(digest, seals[0]);
+        for (uint256 i = 1; i < seals.length; ++i) {
+            signers[i] = _recoverSigner(digest, seals[i]);
+            require(signers[i - 1] < signers[i], UnsortedCommitSealSigners(i - 1));
         }
     }
 
@@ -292,13 +295,22 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     }
 
     /// @notice Checks that signers overlap enough with the trusted validator set.
+    /// @dev Assumes both sets are strictly ascending. Checked in `_recoverSigners` and `_validateValidators`.
     /// @param signers The recovered commit seal signers.
     /// @param trustedValidators The trusted validator set.
     function _checkTrustedValidatorOverlap(address[] memory signers, address[] memory trustedValidators) private pure {
         uint256 actual = 0;
-        for (uint256 i = 0; i < signers.length; ++i) {
-            if (_containsMemory(trustedValidators, signers[i])) {
+        uint256 i = 0;
+        uint256 j = 0;
+        while (i < signers.length && j < trustedValidators.length) {
+            if (signers[i] == trustedValidators[j]) {
                 ++actual;
+                ++i;
+                ++j;
+            } else if (signers[i] < trustedValidators[j]) {
+                ++i;
+            } else {
+                ++j;
             }
         }
 
@@ -308,12 +320,17 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     }
 
     /// @notice Checks that signers meet quorum for the submitted header validator set.
-    /// @dev Assumes that the signer set has no duplicates. Checked in `_recoverSigners`.
+    /// @dev Assumes both sets are strictly ascending. Checked in `_recoverSigners` and `_validateValidators`.
     /// @param signers The recovered commit seal signers.
     /// @param validators The validator set from the submitted header.
     function _checkValidatorQuorum(address[] memory signers, address[] memory validators) private pure {
+        uint256 j = 0;
         for (uint256 i = 0; i < signers.length; ++i) {
-            require(_containsMemory(validators, signers[i]), UnknownCommitSealSigner(signers[i]));
+            while (j < validators.length && validators[j] < signers[i]) {
+                ++j;
+            }
+            require(j < validators.length && validators[j] == signers[i], UnknownCommitSealSigner(signers[i]));
+            ++j;
         }
 
         uint256 required = _bftThreshold(validators.length);
@@ -359,19 +376,6 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             uint256(preimage.timestamp) + clientState.trustingPeriod > block.timestamp,
             ConsensusStateExpired(preimage.timestamp, block.timestamp, clientState.trustingPeriod)
         );
-    }
-
-    /// @notice Checks whether a memory validator set contains a signer.
-    /// @param validators The memory validator set.
-    /// @param signer The signer to find.
-    /// @return True if `signer` is present.
-    function _containsMemory(address[] memory validators, address signer) private pure returns (bool) {
-        for (uint256 i = 0; i < validators.length; ++i) {
-            if (validators[i] == signer) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /// @notice Caches a storage root for a revision height in a transient slot.
