@@ -142,7 +142,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
         // solhint-disable-next-line gas-strict-inequalities
         if (msg_.consensusStatePreimage.timestamp >= header.timestamp) {
-            clientState.frozen = true;
+            clientState.isFrozen = true;
             emit TimeNonMonotonicity(
                 header.height,
                 msg_.trustedHeight.revisionHeight,
@@ -240,7 +240,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             )
         );
 
-        clientState.frozen = true;
+        clientState.isFrozen = true;
         emit TimeNonMonotonicity(
             msg_.height2.revisionHeight,
             msg_.height1.revisionHeight,
