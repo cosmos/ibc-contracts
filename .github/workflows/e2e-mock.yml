@@ -42,7 +42,7 @@ permissions: {}
 jobs:
   golangci:
     name: lint
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
@@ -59,7 +59,7 @@ jobs:
           working-directory: e2e/interchaintestv8
 
   generate-matrix:
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     outputs:
@@ -73,7 +73,7 @@ jobs:
           skip-tests: TestWithProofAPITestSuite/Test_2_ConcurrentRecvPacketToEth,TestWithProofAPITestSuite/Test_MultiPeriodClientUpdateToCosmos,TestWithProofAPITestSuite/Test_5_FinalizedTimeoutPacketFromEth,TestWithProofAPITestSuite/Test_UpdateClientToCosmos,TestWithEthToEthAttestedTestSuite,TestWithMultiAttestorTestSuite
 
   build-e2e-programs:
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
@@ -95,7 +95,7 @@ jobs:
         COSMOS_LC_ON_ETH: sp1
         IBC_ATTESTOR_IMAGE: ghcr.io/cosmos/ibc-attestor:v0.3.0
 
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: read

@@ -42,7 +42,7 @@ permissions: {}
 
 jobs:
   build-e2e-programs:
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
@@ -72,7 +72,7 @@ jobs:
       ETH_LC_ON_COSMOS: ${{ matrix.eth_lc_on_cosmos }}
       COSMOS_LC_ON_ETH: ${{ matrix.cosmos_lc_on_eth }}
 
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: read

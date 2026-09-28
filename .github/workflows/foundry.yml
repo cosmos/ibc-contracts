@@ -23,7 +23,7 @@ on:
 
 jobs:
   lint:
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
@@ -47,7 +47,7 @@ jobs:
           echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
 
   build:
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
@@ -65,7 +65,7 @@ jobs:
 
   test:
     needs: [lint, build]
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
@@ -95,7 +95,7 @@ jobs:
 
   benchmarks:
     needs: [build]
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
@@ -108,7 +108,7 @@ jobs:
 
   security:
     needs: [build]
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
@@ -132,7 +132,7 @@ jobs:
 
   coverage:
     needs: [test]
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:

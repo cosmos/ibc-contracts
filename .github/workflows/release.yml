@@ -14,7 +14,7 @@ env:
 
 jobs:
   release-sp1-programs:
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-latest
     permissions:
       contents: write
     if: startsWith(github.ref_name, 'sp1-programs-')
@@ -47,7 +47,7 @@ jobs:
           overwrite: true
 
   release-cw-ics08-wasm-eth:
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-latest
     permissions:
       contents: write
     if: startsWith(github.ref_name, 'cw-ics08-wasm-eth-')
@@ -64,7 +64,7 @@ jobs:
           overwrite: true
 
   release-solidity-contracts:
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-latest
     permissions:
       contents: write
     if: startsWith(github.ref_name, 'solidity-')
