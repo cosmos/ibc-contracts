@@ -27,7 +27,8 @@ Relayers therefore need to keep the preimages of the heights they intend to refe
 
 - Commit-seal verification follows the existing **YUI Solidity client + besu-ibc-relay-prover** model: reconstruct the sealing header by rewriting `extraData` into the protocol-specific signing form, then recover commit-seal signers from the `keccak256(RLP(header))` digest.
 - This module does **not** claim to independently rederive a distinct Besu network-level consensus-message payload beyond that established YUI/prover model.
-- Trusted overlap intentionally requires **`ceil(2n / 3)`** of the trusted validator set to have signed the new header, the same threshold Besu uses for commit-seal quorum. This is intentionally stricter than the current upstream YUI overlap check.
+- Trusted overlap requires at least **`ceil(n * trustLevel)`** of the trusted validator set to have signed the new header. `trustLevel` is a `TrustThreshold` fraction set at construction and must be within `[1/3, 1]`; the proof-api defaults it to `2/3`, the same threshold Besu uses for commit-seal quorum. Commit-seal quorum on the new header's validator set is always **`ceil(2n / 3)`**.
+- The trust level comparison is **inclusive**: exactly `n * trustLevel` trusted signers is enough. This differs from ICS07 Tendermint's `TrustThreshold`, which has the same name and shape but requires voting power strictly greater than the fraction. For example, at `1/3` with a trusted set of 6, 2 trusted signers pass here, while ICS07 would require 3.
 
 ## Supported scope
 
@@ -69,6 +70,7 @@ constructor(
     address[] memory initialTrustedValidators,
     uint64 trustingPeriod,
     uint64 maxClockDrift,
+    IBesuLightClientMsgs.TrustThreshold memory trustLevel,
     address roleManager
 )
 ```
@@ -80,6 +82,7 @@ constructor(
 - `initialTrustedValidators`: validator set trusted at `initialTrustedHeight`.
 - `trustingPeriod`: weak-subjectivity window in seconds. Must be non-zero.
 - `maxClockDrift`: allowed future drift for submitted headers in seconds.
+- `trustLevel`: minimum fraction of the trusted validator set that must sign an update. Must have a non-zero denominator and lie within `[1/3, 1]`, or the constructor reverts with `InvalidTrustLevel`.
 - `roleManager`: if non-zero, receives admin and `PROOF_SUBMITTER_ROLE`; if zero, proof submission is open to anyone through the zero-address sentinel.
 
 ## `updateClient(bytes)` ABI

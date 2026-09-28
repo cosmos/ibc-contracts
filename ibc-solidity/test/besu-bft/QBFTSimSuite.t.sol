@@ -7,6 +7,7 @@ import { Strings } from "@openzeppelin-contracts/utils/Strings.sol";
 import { IICS26RouterMsgs } from "../../contracts/msgs/IICS26RouterMsgs.sol";
 import { ILightClientMsgs } from "../../contracts/msgs/ILightClientMsgs.sol";
 import { IBesuLightClient } from "../../contracts/light-clients/besu/interfaces/IBesuLightClient.sol";
+import { IBesuLightClientMsgs } from "../../contracts/light-clients/besu/msgs/IBesuLightClientMsgs.sol";
 import { IBesuLightClientErrors } from "../../contracts/light-clients/besu/errors/IBesuLightClientErrors.sol";
 import { ICS24Host } from "../../contracts/utils/ICS24Host.sol";
 
@@ -31,7 +32,7 @@ contract QBFTSimSuiteTest is Test {
         s = new QBFTSimSuite(mode);
         s.addValidators(validatorCount);
         s.produceBlocks(2);
-        client = s.deployLightClient(TRUSTING_PERIOD, MAX_CLOCK_DRIFT);
+        client = s.deployLightClient(TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(2, 3));
     }
 
     function test_honestChain() public {
@@ -115,6 +116,33 @@ contract QBFTSimSuiteTest is Test {
             abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 0, 3)
         );
         client.updateClient(update);
+    }
+
+    function test_trustLevel() public {
+        IBesuLightClient lenient =
+            sim.deployLightClient(TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(1, 3));
+        IBesuLightClient strict =
+            sim.deployLightClient(TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(1, 1));
+
+        address[] memory three = new address[](3);
+        (three[0], three[1], three[2]) = (sim.validators()[0], sim.validators()[1], sim.validators()[2]);
+        bytes memory update = sim.updateMsg(2, sim.seal(sim.nextBlock(), three));
+        vm.expectRevert(
+            abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 3, 4)
+        );
+        strict.updateClient(update);
+
+        // Rotating half of the validators leaves 2 of 4 trusted signers: below 2/3, above 1/3.
+        sim.removeValidator(sim.validators()[0]);
+        sim.removeValidator(sim.validators()[0]);
+        sim.addValidators(2);
+        sim.produceBlock();
+        update = sim.updateMsg(2, 3);
+        vm.expectRevert(
+            abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 2, 3)
+        );
+        client.updateClient(update);
+        assertEq(uint8(lenient.updateClient(update)), uint8(ILightClientMsgs.UpdateResult.Update));
     }
 
     function test_packetProofs() public {

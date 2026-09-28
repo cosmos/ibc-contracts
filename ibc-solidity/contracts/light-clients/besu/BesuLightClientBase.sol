@@ -44,6 +44,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @param initialTrustedValidators Initial trusted validator set.
     /// @param trustingPeriod Maximum age in seconds for trusted consensus states.
     /// @param maxClockDrift Maximum allowed future drift in seconds for submitted headers.
+    /// @param trustLevel Minimum fraction of the trusted validator set that must sign a new header, in `[1/3, 1]`.
     /// @param roleManager Address that administers proof submission; if zero, proof submission is open.
     constructor(
         address ibcRouter,
@@ -53,11 +54,19 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         address[] memory initialTrustedValidators,
         uint64 trustingPeriod,
         uint64 maxClockDrift,
+        IBesuLightClientMsgs.TrustThreshold memory trustLevel,
         address roleManager
     ) {
         require(initialTrustedHeight != 0, InvalidHeaderHeight());
         require(initialTrustedTimestamp != 0, InvalidHeaderTimestamp());
         require(trustingPeriod != 0, InvalidTrustingPeriod());
+        /* solhint-disable gas-strict-inequalities */
+        require(
+            trustLevel.denominator != 0 && trustLevel.numerator <= trustLevel.denominator
+                && 3 * uint256(trustLevel.numerator) >= trustLevel.denominator,
+            InvalidTrustLevel(trustLevel.numerator, trustLevel.denominator)
+        );
+        /* solhint-enable gas-strict-inequalities */
 
         _validateValidators(initialTrustedValidators);
 
@@ -66,7 +75,8 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             latestHeight: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: initialTrustedHeight }),
             trustingPeriod: trustingPeriod,
             maxClockDrift: maxClockDrift,
-            isFrozen: false
+            isFrozen: false,
+            trustLevel: trustLevel
         });
 
         IBesuLightClientMsgs.ConsensusState memory initialConsensusState = IBesuLightClientMsgs.ConsensusState({
@@ -298,9 +308,10 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     }
 
     /// @notice Checks that signers overlap enough with the trusted validator set.
+    /// @dev Requires at least `ceil(n * trustLevel)` trusted validators to have signed.
     /// @param signers The recovered commit seal signers.
     /// @param trustedValidators The trusted validator set.
-    function _checkTrustedValidatorOverlap(address[] memory signers, address[] memory trustedValidators) private pure {
+    function _checkTrustedValidatorOverlap(address[] memory signers, address[] memory trustedValidators) private view {
         uint256 actual = 0;
         for (uint256 i = 0; i < signers.length; ++i) {
             if (_containsMemory(trustedValidators, signers[i])) {
@@ -308,7 +319,8 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             }
         }
 
-        uint256 required = _bftThreshold(trustedValidators.length);
+        IBesuLightClientMsgs.TrustThreshold memory trustLevel = clientState.trustLevel;
+        uint256 required = Math.ceilDiv(trustedValidators.length * trustLevel.numerator, trustLevel.denominator);
         require(actual >= required, InsufficientTrustedValidatorOverlap(actual, required));
         // solhint-disable-previous-line gas-strict-inequalities
     }
@@ -327,8 +339,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         // solhint-disable-previous-line gas-strict-inequalities
     }
 
-    /// @notice Computes the BFT threshold `ceil(2n / 3)` used for trusted overlap and quorum checks.
-    /// @dev Besu requires `ceil(2n / 3)` commit seals; the trusted overlap intentionally uses the same threshold.
+    /// @notice Computes the BFT threshold `ceil(2n / 3)` used for the commit-seal quorum check.
     /// @param n The validator set size.
     /// @return The minimum number of matching signers.
     function _bftThreshold(uint256 n) private pure returns (uint256) {
