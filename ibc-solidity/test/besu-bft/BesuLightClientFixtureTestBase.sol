@@ -385,10 +385,12 @@ abstract contract BesuLightClientFixtureTestBase is Test {
 
     /// @dev Quorum thresholds are ceil(2n / 3): 3 of 4, 4 of 6 and 5 of 7. With a 2/3 trust level the trusted overlap
     /// check runs before the quorum check with the same threshold, so quorum failures need a header validator set
-    /// larger than the trusted set.
+    /// larger than the trusted set. A 1/3 trust level only needs 2 of the 4 trusted signers, so the quorum check is
+    /// what rejects under-signed headers there.
     function fixtureQuorum() public pure returns (BesuQuorumTestCase[] memory testCases) {
         IBesuLightClientMsgs.TrustThreshold memory twoThirds = IBesuLightClientMsgs.TrustThreshold(2, 3);
-        testCases = new BesuQuorumTestCase[](6);
+        IBesuLightClientMsgs.TrustThreshold memory oneThird = IBesuLightClientMsgs.TrustThreshold(1, 3);
+        testCases = new BesuQuorumTestCase[](9);
         testCases[0] = BesuQuorumTestCase("success: three of four signers", 3, 4, twoThirds, "");
         testCases[1] = BesuQuorumTestCase("success: four signers with validator set grown to six", 4, 6, twoThirds, "");
         testCases[2] = BesuQuorumTestCase(
@@ -418,6 +420,21 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             4,
             IBesuLightClientMsgs.TrustThreshold(1, 1),
             abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 3, 4)
+        );
+        testCases[6] = BesuQuorumTestCase("success: three of four signers with minimum trust level", 3, 4, oneThird, "");
+        testCases[7] = BesuQuorumTestCase(
+            "failure: two of four signers with minimum trust level",
+            2,
+            4,
+            oneThird,
+            abi.encodeWithSelector(IBesuLightClientErrors.InsufficientValidatorQuorum.selector, 2, 3)
+        );
+        testCases[8] = BesuQuorumTestCase(
+            "failure: three signers with validator set grown to six with minimum trust level",
+            3,
+            6,
+            oneThird,
+            abi.encodeWithSelector(IBesuLightClientErrors.InsufficientValidatorQuorum.selector, 3, 4)
         );
     }
 
