@@ -295,6 +295,22 @@
   },
   {
     "type": "error",
+    "name": "InvalidTrustLevel",
+    "inputs": [
+      {
+        "name": "numerator",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "denominator",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "InvalidTrustedHeight",
     "inputs": [
       {

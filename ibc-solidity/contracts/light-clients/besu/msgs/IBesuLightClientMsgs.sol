@@ -6,18 +6,28 @@ import { IICS02ClientMsgs } from "../../../msgs/IICS02ClientMsgs.sol";
 /// @title Besu Light Client Messages
 /// @notice Defines shared message and state types for Besu BFT light clients.
 interface IBesuLightClientMsgs {
+    /// @notice Fraction of the trusted validator set that must sign a new header.
+    /// @param numerator Numerator of the fraction.
+    /// @param denominator Denominator of the fraction.
+    struct TrustThreshold {
+        uint8 numerator;
+        uint8 denominator;
+    }
+
     /// @notice Client state for a Besu BFT light client.
     /// @param ibcRouter Counterparty ICS26 router address whose storage is proven.
     /// @param latestHeight Latest trusted Besu height.
     /// @param trustingPeriod Maximum age in seconds for a trusted consensus state.
     /// @param maxClockDrift Maximum allowed future drift in seconds for submitted headers.
     /// @param isFrozen Whether the client has been permanently frozen due to misbehaviour.
+    /// @param trustLevel Minimum fraction of the trusted validator set that must sign a new header.
     struct ClientState {
         address ibcRouter;
         IICS02ClientMsgs.Height latestHeight;
         uint64 trustingPeriod;
         uint64 maxClockDrift;
         bool isFrozen;
+        TrustThreshold trustLevel;
     }
 
     /// @notice Trusted consensus state for a Besu height.
