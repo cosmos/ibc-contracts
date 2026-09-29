@@ -4,7 +4,7 @@
 
 These values are generated from deterministic Foundry tests and checked into the repository so benchmark changes are visible in GitHub diffs. Gas matches transaction receipt `gasUsed`: the post-refund total includes intrinsic gas, calldata, proxy routing, and execution.
 
-The benchmark profile uses Solidity 0.8.28, the Cancun EVM, IR compilation, 10,000 optimizer runs, and the fixtures committed under `test/`.
+The benchmark profile uses Solidity 0.8.37, the Cancun EVM, IR compilation, 10,000 optimizer runs, and the fixtures committed under `test/`.
 
 Regenerate the JSON snapshots and this document from the repository root:
 

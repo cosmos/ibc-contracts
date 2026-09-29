@@ -19,7 +19,7 @@
   out = "out"
   script = "scripts"
   snapshots = "benchmarks/snapshots"
-  solc = "0.8.28"
+  solc = "0.8.37"
   src = "contracts"
   test = "test"
   fs_permissions = [{ access = "read-write", path = "./" },]
