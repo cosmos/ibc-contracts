@@ -244,6 +244,8 @@ const (
 	ParameterKey_TrustingPeriod = "trusting_period"
 	// Max clock drift parameter key for proof API light client creation.
 	ParameterKey_MaxClockDrift = "max_clock_drift"
+	// Trust level parameter key for the proof API's besu light client creation.
+	ParameterKey_TrustLevel = "trust_level"
 	// Checksum hex parameter key for the proof API's ethereum light client creation.
 	ParameterKey_ChecksumHex = "checksum_hex"
 
