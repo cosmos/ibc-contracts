@@ -23,7 +23,7 @@ Typical use:
 QBFTSimSuite sim = new QBFTSimSuite(SimHeader.Mode.QBFT);
 sim.addValidators(4);
 sim.produceBlocks(2);
-IBesuLightClient client = sim.deployLightClient(1 days, 10);
+IBesuLightClient client = sim.deployLightClient(1 days, 10, IBesuLightClientMsgs.TrustThreshold(2, 3));
 sim.commitPacket(packet);
 sim.produceBlock();
 client.updateClient(sim.updateMsg(2, 3));

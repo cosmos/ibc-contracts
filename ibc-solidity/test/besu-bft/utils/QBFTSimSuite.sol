@@ -210,7 +210,14 @@ contract QBFTSimSuite is Test, SimWorldState {
     // ---------------------------------------------------------------- light client glue
 
     /// @notice Deploys the light client for `MODE`, trusting the current tip, with open proof submission.
-    function deployLightClient(uint64 trustingPeriod, uint64 maxClockDrift) external returns (IBesuLightClient) {
+    function deployLightClient(
+        uint64 trustingPeriod,
+        uint64 maxClockDrift,
+        IBesuLightClientMsgs.TrustThreshold memory trustLevel
+    )
+        external
+        returns (IBesuLightClient)
+    {
         uint64 height = tipHeight();
         Block storage tip = _chain[height];
         if (MODE == SimHeader.Mode.QBFT) {
@@ -222,11 +229,20 @@ contract QBFTSimSuite is Test, SimWorldState {
                 tip.validators,
                 trustingPeriod,
                 maxClockDrift,
+                trustLevel,
                 address(0)
             );
         }
         return new BesuIBFT2LightClient(
-            IBC_ROUTER, height, tip.timestamp, tip.stateRoot, tip.validators, trustingPeriod, maxClockDrift, address(0)
+            IBC_ROUTER,
+            height,
+            tip.timestamp,
+            tip.stateRoot,
+            tip.validators,
+            trustingPeriod,
+            maxClockDrift,
+            trustLevel,
+            address(0)
         );
     }
 
