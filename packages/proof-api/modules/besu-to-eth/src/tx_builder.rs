@@ -93,16 +93,24 @@ impl TxBuilder {
         let calldata = match self.consensus_type {
             BesuConsensusType::Qbft => besu_qbft_light_client::BesuQBFTLightClient::deploy_builder(
                 self.dst_provider.clone(),
-                *self.src_ics26_router.address(),
-                trusted_height,
-                trusted_state.timestamp,
-                trusted_state.stateRoot,
-                trusted_state.validators,
-                params.trusting_period,
-                params.max_clock_drift,
-                besu_qbft_light_client::IBesuLightClientMsgs::TrustThreshold {
-                    numerator: params.trust_level.numerator,
-                    denominator: params.trust_level.denominator,
+                besu_qbft_light_client::IBesuLightClientMsgs::ClientState {
+                    ibcRouter: *self.src_ics26_router.address(),
+                    latestHeight: besu_qbft_light_client::IICS02ClientMsgs::Height {
+                        revisionNumber: 0,
+                        revisionHeight: trusted_height,
+                    },
+                    trustingPeriod: params.trusting_period,
+                    maxClockDrift: params.max_clock_drift,
+                    isFrozen: false,
+                    trustLevel: besu_qbft_light_client::IBesuLightClientMsgs::TrustThreshold {
+                        numerator: params.trust_level.numerator,
+                        denominator: params.trust_level.denominator,
+                    },
+                },
+                besu_qbft_light_client::IBesuLightClientMsgs::ConsensusState {
+                    timestamp: trusted_state.timestamp,
+                    stateRoot: trusted_state.stateRoot,
+                    validators: trusted_state.validators,
                 },
                 params.role_manager,
             )
@@ -111,16 +119,24 @@ impl TxBuilder {
             BesuConsensusType::Ibft2 => {
                 besu_ibft2_light_client::BesuIBFT2LightClient::deploy_builder(
                     self.dst_provider.clone(),
-                    *self.src_ics26_router.address(),
-                    trusted_height,
-                    trusted_state.timestamp,
-                    trusted_state.stateRoot,
-                    trusted_state.validators,
-                    params.trusting_period,
-                    params.max_clock_drift,
-                    besu_ibft2_light_client::IBesuLightClientMsgs::TrustThreshold {
-                        numerator: params.trust_level.numerator,
-                        denominator: params.trust_level.denominator,
+                    besu_ibft2_light_client::IBesuLightClientMsgs::ClientState {
+                        ibcRouter: *self.src_ics26_router.address(),
+                        latestHeight: besu_ibft2_light_client::IICS02ClientMsgs::Height {
+                            revisionNumber: 0,
+                            revisionHeight: trusted_height,
+                        },
+                        trustingPeriod: params.trusting_period,
+                        maxClockDrift: params.max_clock_drift,
+                        isFrozen: false,
+                        trustLevel: besu_ibft2_light_client::IBesuLightClientMsgs::TrustThreshold {
+                            numerator: params.trust_level.numerator,
+                            denominator: params.trust_level.denominator,
+                        },
+                    },
+                    besu_ibft2_light_client::IBesuLightClientMsgs::ConsensusState {
+                        timestamp: trusted_state.timestamp,
+                        stateRoot: trusted_state.stateRoot,
+                        validators: trusted_state.validators,
                     },
                     params.role_manager,
                 )
