@@ -7,6 +7,8 @@ interface IBesuLightClientErrors {
     /// @notice The revision number must be zero for Besu light client heights.
     /// @param providedRevisionNumber The non-zero revision number.
     error InvalidRevisionNumber(uint64 providedRevisionNumber);
+    /// @notice The counterparty ICS26 router address is zero.
+    error InvalidIbcRouter();
     /// @notice The submitted header has an invalid RLP item count.
     /// @param itemsLength The decoded header item count.
     error InvalidHeaderFormat(uint256 itemsLength);

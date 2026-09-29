@@ -213,31 +213,18 @@ contract QBFTSimSuite is Test, SimWorldState {
         returns (IBesuLightClient)
     {
         uint64 height = tipHeight();
-        Block storage tip = _chain[height];
+        IBesuLightClientMsgs.ClientState memory clientState = IBesuLightClientMsgs.ClientState({
+            ibcRouter: IBC_ROUTER,
+            latestHeight: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: height }),
+            trustingPeriod: trustingPeriod,
+            maxClockDrift: maxClockDrift,
+            isFrozen: false,
+            trustLevel: trustLevel
+        });
         if (MODE == SimHeader.Mode.QBFT) {
-            return new BesuQBFTLightClient(
-                IBC_ROUTER,
-                height,
-                tip.timestamp,
-                tip.stateRoot,
-                tip.validators,
-                trustingPeriod,
-                maxClockDrift,
-                trustLevel,
-                address(0)
-            );
+            return new BesuQBFTLightClient(clientState, consensusState(height), address(0));
         }
-        return new BesuIBFT2LightClient(
-            IBC_ROUTER,
-            height,
-            tip.timestamp,
-            tip.stateRoot,
-            tip.validators,
-            trustingPeriod,
-            maxClockDrift,
-            trustLevel,
-            address(0)
-        );
+        return new BesuIBFT2LightClient(clientState, consensusState(height), address(0));
     }
 
     function consensusState(uint64 height) public view returns (IBesuLightClientMsgs.ConsensusState memory) {
