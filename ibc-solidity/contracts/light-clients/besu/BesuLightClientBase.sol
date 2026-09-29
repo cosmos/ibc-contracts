@@ -69,7 +69,6 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             ConsensusStateExpired(timestamp, block.timestamp, trustingPeriod)
         );
         require(
-            // solhint-disable-next-line gas-strict-inequalities
             block.timestamp + initialClientState.maxClockDrift >= timestamp,
             HeaderFromFuture(block.timestamp, timestamp, initialClientState.maxClockDrift)
         );
