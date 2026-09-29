@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.28;
 
-// solhint-disable gas-custom-errors,gas-strict-inequalities,gas-increment-by-one,no-inline-assembly
+// solhint-disable gas-custom-errors,gas-increment-by-one,no-inline-assembly
 
 import { RLP } from "@openzeppelin-contracts/utils/RLP.sol";
 import { MerklePatriciaTrie } from "./MerklePatriciaTrie.sol";
