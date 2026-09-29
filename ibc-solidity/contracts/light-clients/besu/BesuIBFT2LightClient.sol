@@ -4,6 +4,8 @@ pragma solidity ^0.8.28;
 import { RLP } from "@openzeppelin-contracts/utils/RLP.sol";
 import { Memory } from "@openzeppelin-contracts/utils/Memory.sol";
 
+import { IBesuLightClientMsgs } from "./msgs/IBesuLightClientMsgs.sol";
+
 import { BesuLightClientBase } from "./BesuLightClientBase.sol";
 import { Header } from "./utils/Header.sol";
 
@@ -20,6 +22,7 @@ contract BesuIBFT2LightClient is BesuLightClientBase {
     /// @param initialTrustedValidators Initial trusted validator set.
     /// @param trustingPeriod Maximum age in seconds for trusted consensus states.
     /// @param maxClockDrift Maximum allowed future drift in seconds for submitted headers.
+    /// @param trustLevel Minimum fraction of the trusted validator set that must sign a new header, in `[1/3, 1]`.
     /// @param roleManager Address that administers proof submission; if zero, proof submission is open.
     constructor(
         address ibcRouter,
@@ -29,6 +32,7 @@ contract BesuIBFT2LightClient is BesuLightClientBase {
         address[] memory initialTrustedValidators,
         uint64 trustingPeriod,
         uint64 maxClockDrift,
+        IBesuLightClientMsgs.TrustThreshold memory trustLevel,
         address roleManager
     )
         BesuLightClientBase(
@@ -39,6 +43,7 @@ contract BesuIBFT2LightClient is BesuLightClientBase {
             initialTrustedValidators,
             trustingPeriod,
             maxClockDrift,
+            trustLevel,
             roleManager
         )
     { }

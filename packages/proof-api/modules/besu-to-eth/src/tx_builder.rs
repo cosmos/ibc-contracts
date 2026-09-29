@@ -45,12 +45,14 @@ pub struct TxBuilder {
 struct CreateClientParams {
     trusting_period: u64,
     max_clock_drift: u64,
+    trust_level: IBesuLightClientMsgs::TrustThreshold,
     trusted_height: Option<u64>,
     role_manager: Address,
 }
 
 const TRUSTING_PERIOD: &str = "trusting_period";
 const MAX_CLOCK_DRIFT: &str = "max_clock_drift";
+const TRUST_LEVEL: &str = "trust_level";
 const TRUSTED_HEIGHT: &str = "trusted_height";
 const ROLE_MANAGER: &str = "role_manager";
 
@@ -98,6 +100,10 @@ impl TxBuilder {
                 trusted_state.validators,
                 params.trusting_period,
                 params.max_clock_drift,
+                besu_qbft_light_client::IBesuLightClientMsgs::TrustThreshold {
+                    numerator: params.trust_level.numerator,
+                    denominator: params.trust_level.denominator,
+                },
                 params.role_manager,
             )
             .calldata()
@@ -112,6 +118,10 @@ impl TxBuilder {
                     trusted_state.validators,
                     params.trusting_period,
                     params.max_clock_drift,
+                    besu_ibft2_light_client::IBesuLightClientMsgs::TrustThreshold {
+                        numerator: params.trust_level.numerator,
+                        denominator: params.trust_level.denominator,
+                    },
                     params.role_manager,
                 )
                 .calldata()
@@ -488,12 +498,18 @@ fn parse_create_client_params(parameters: &HashMap<String, String>) -> Result<Cr
     parameters
         .keys()
         .find(|key| {
-            ![TRUSTING_PERIOD, MAX_CLOCK_DRIFT, TRUSTED_HEIGHT, ROLE_MANAGER]
-                .contains(&key.as_str())
+            ![
+                TRUSTING_PERIOD,
+                MAX_CLOCK_DRIFT,
+                TRUST_LEVEL,
+                TRUSTED_HEIGHT,
+                ROLE_MANAGER,
+            ]
+            .contains(&key.as_str())
         })
         .map_or(Ok(()), |key| {
             Err(anyhow!(
-                "unexpected parameter `{key}`, only `{TRUSTING_PERIOD}`, `{MAX_CLOCK_DRIFT}`, `{TRUSTED_HEIGHT}`, and `{ROLE_MANAGER}` are allowed"
+                "unexpected parameter `{key}`, only `{TRUSTING_PERIOD}`, `{MAX_CLOCK_DRIFT}`, `{TRUST_LEVEL}`, `{TRUSTED_HEIGHT}`, and `{ROLE_MANAGER}` are allowed"
             ))
         })?;
 
@@ -508,6 +524,9 @@ fn parse_create_client_params(parameters: &HashMap<String, String>) -> Result<Cr
             .ok_or_else(|| anyhow!("missing `{MAX_CLOCK_DRIFT}` parameter"))?
             .parse()
             .with_context(|| format!("failed to parse `{MAX_CLOCK_DRIFT}` as decimal seconds"))?,
+        trust_level: parameters
+            .get(TRUST_LEVEL)
+            .map_or(Ok(DEFAULT_TRUST_LEVEL), |value| parse_trust_level(value))?,
         trusted_height: parameters
             .get(TRUSTED_HEIGHT)
             .map(|value| {
@@ -522,6 +541,38 @@ fn parse_create_client_params(parameters: &HashMap<String, String>) -> Result<Cr
                 Address::from_str(value)
                     .with_context(|| format!("failed to parse `{ROLE_MANAGER}` as hex address"))
             })?,
+    })
+}
+
+/// Default trust level, matching the `ceil(2n / 3)` commit-seal quorum.
+const DEFAULT_TRUST_LEVEL: IBesuLightClientMsgs::TrustThreshold =
+    IBesuLightClientMsgs::TrustThreshold {
+        numerator: 2,
+        denominator: 3,
+    };
+
+/// Parses a `<numerator>/<denominator>` trust level and checks that it is within `[1/3, 1]`.
+fn parse_trust_level(value: &str) -> Result<IBesuLightClientMsgs::TrustThreshold> {
+    let (numerator, denominator) = value
+        .split_once('/')
+        .and_then(|(numerator, denominator)| {
+            Some((
+                numerator.trim().parse::<u8>().ok()?,
+                denominator.trim().parse::<u8>().ok()?,
+            ))
+        })
+        .with_context(|| {
+            format!("failed to parse `{TRUST_LEVEL}` as `<numerator>/<denominator>`: {value}")
+        })?;
+    ensure!(
+        denominator != 0
+            && numerator <= denominator
+            && 3 * u16::from(numerator) >= u16::from(denominator),
+        "`{TRUST_LEVEL}` must be within [1/3, 1], got {numerator}/{denominator}"
+    );
+    Ok(IBesuLightClientMsgs::TrustThreshold {
+        numerator,
+        denominator,
     })
 }
 
@@ -552,8 +603,8 @@ mod tests {
     use std::collections::HashMap;
 
     use super::{
-        attach_packet_proofs, map_storage_proofs, packet_storage_key, retain_provable_packet_calls,
-        StorageSlotProof,
+        attach_packet_proofs, map_storage_proofs, packet_storage_key, parse_create_client_params,
+        retain_provable_packet_calls, StorageSlotProof, TRUST_LEVEL,
     };
     use alloy::{
         primitives::{Address, Bytes, B256, U256},
@@ -822,5 +873,30 @@ mod tests {
             decode_recv_proof(&calls[0]).accountProofNodes,
             account_nodes
         );
+    }
+
+    #[test]
+    fn create_client_params_trust_level() {
+        let params = |trust_level: Option<&str>| {
+            let mut params = HashMap::from([
+                ("trusting_period".to_string(), "1000".to_string()),
+                ("max_clock_drift".to_string(), "10".to_string()),
+            ]);
+            if let Some(trust_level) = trust_level {
+                params.insert(TRUST_LEVEL.to_string(), trust_level.to_string());
+            }
+            parse_create_client_params(&params)
+                .map(|params| (params.trust_level.numerator, params.trust_level.denominator))
+        };
+
+        assert_eq!(params(None).unwrap(), (2, 3));
+        assert_eq!(params(Some("1/3")).unwrap(), (1, 3));
+        assert_eq!(params(Some("1/1")).unwrap(), (1, 1));
+        for invalid in ["", "2", "2/", "a/3", "1/0", "0/0", "1/4", "4/3", "256/256"] {
+            assert!(
+                params(Some(invalid)).is_err(),
+                "{invalid} should be rejected"
+            );
+        }
     }
 }
