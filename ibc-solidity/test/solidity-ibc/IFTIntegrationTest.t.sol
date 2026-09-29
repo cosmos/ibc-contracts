@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 // solhint-disable
-// custom-errors,max-line-length,max-states-count,var-name-mixedcase,gas-small-strings,gas-strict-inequalities
+// custom-errors,max-line-length,max-states-count,var-name-mixedcase,gas-small-strings
 
 import { Test } from "forge-std/Test.sol";
 
