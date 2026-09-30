@@ -62,9 +62,9 @@ interface IBesuLightClientErrors {
     /// @notice The validator set is not sorted in ascending order.
     /// @param index The index of the first unsorted validator.
     error UnsortedValidatorSet(uint256 index);
-    /// @notice A commit seal signer appears more than once.
-    /// @param signer The duplicate signer address.
-    error DuplicateCommitSealSigner(address signer);
+    /// @notice The commit seals are not sorted in strictly ascending order of their recovered signers.
+    /// @param index The index of the first unsorted commit seal signer.
+    error UnsortedCommitSealSigners(uint256 index);
     /// @notice An ECDSA signature has an invalid length.
     /// @param length The invalid signature length.
     error InvalidECDSASignatureLength(uint256 length);
