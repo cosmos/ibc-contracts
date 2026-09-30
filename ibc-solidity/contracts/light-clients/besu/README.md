@@ -97,7 +97,7 @@ struct MsgUpdateClient {
 }
 ```
 
-- `headerRlp`: full raw Besu block header RLP, including `extraData` and commit seals.
+- `headerRlp`: full raw Besu block header RLP, including `extraData` and commit seals. The commit seals must be ordered by recovered signer address in strictly ascending order. Besu does not order them this way, so the submitter must reorder them; this is safe because the commit-seal digest excludes the seal list.
 - `trustedHeight`: must use `revisionNumber == 0` and identify a stored consensus state hash.
 - `consensusStatePreimage`: the consensus state trusted at `trustedHeight`. Its hash must match the stored hash.
 
@@ -105,7 +105,7 @@ On update, the contract:
 
 1. parses and validates the Besu header,
 2. checks the trusted consensus state preimage against the stored hash and the trusting period,
-3. reconstructs the protocol-specific commit-seal digest following the YUI + prover sealing-header model,
+3. reconstructs the protocol-specific commit-seal digest following the YUI + prover sealing-header model, and recovers the signers, rejecting seals that are not strictly ascending by signer,
 4. checks trusted-validator overlap against the preimage validators and quorum against the new header validators,
 5. stores `keccak256(abi.encode(ConsensusState))` for the new height, built from the header timestamp, the header `stateRoot`, and the header validator set.
 
