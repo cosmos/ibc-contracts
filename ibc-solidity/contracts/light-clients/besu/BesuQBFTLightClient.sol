@@ -4,7 +4,10 @@ pragma solidity ^0.8.28;
 import { RLP } from "@openzeppelin-contracts/utils/RLP.sol";
 import { Memory } from "@openzeppelin-contracts/utils/Memory.sol";
 
+import { IBesuLightClientMsgs } from "./msgs/IBesuLightClientMsgs.sol";
+
 import { BesuLightClientBase } from "./BesuLightClientBase.sol";
+import { Header } from "./utils/Header.sol";
 
 /// @title Besu QBFT Light Client
 /// @notice Verifies Besu QBFT headers and ICS26 router storage proofs.
@@ -19,6 +22,7 @@ contract BesuQBFTLightClient is BesuLightClientBase {
     /// @param initialTrustedValidators Initial trusted validator set.
     /// @param trustingPeriod Maximum age in seconds for trusted consensus states.
     /// @param maxClockDrift Maximum allowed future drift in seconds for submitted headers.
+    /// @param trustLevel Minimum fraction of the trusted validator set that must sign a new header, in `[1/3, 1]`.
     /// @param roleManager Address that administers proof submission; if zero, proof submission is open.
     constructor(
         address ibcRouter,
@@ -28,6 +32,7 @@ contract BesuQBFTLightClient is BesuLightClientBase {
         address[] memory initialTrustedValidators,
         uint64 trustingPeriod,
         uint64 maxClockDrift,
+        IBesuLightClientMsgs.TrustThreshold memory trustLevel,
         address roleManager
     )
         BesuLightClientBase(
@@ -38,12 +43,13 @@ contract BesuQBFTLightClient is BesuLightClientBase {
             initialTrustedValidators,
             trustingPeriod,
             maxClockDrift,
+            trustLevel,
             roleManager
         )
     { }
 
     /// @inheritdoc BesuLightClientBase
-    function _commitSealDigest(ParsedHeader memory header) internal pure override returns (bytes32) {
+    function _commitSealDigest(Header.Data memory header) internal pure override returns (bytes32) {
         bytes[] memory extraItems = new bytes[](5);
         extraItems[0] = header.extraDataItems[0].toBytes();
         extraItems[1] = header.extraDataItems[1].toBytes();

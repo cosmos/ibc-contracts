@@ -269,27 +269,47 @@ func buildLowQuorumFixture(update besuUpdateFixture, header liveHeader) (besuRej
 	}, nil
 }
 
+// BuildQBFTDoubleSignUpdate returns an abi-encoded MsgUpdateClient carrying a copy of the live header at height
+// with its stateRoot replaced and re-sealed by a quorum of the local QBFT validator keys. It trusts the honest
+// consensus state at the same height, so a client that already stores height detects a double sign.
+// Validator keys are read relative to the repository root.
+func BuildQBFTDoubleSignUpdate(ctx context.Context, chain *ethereum.Ethereum, height uint64) ([]byte, error) {
+	honest, err := fetchLiveHeader(ctx, chain, height)
+	if err != nil {
+		return nil, err
+	}
+	validatorKeys, err := loadQBFTValidatorKeys()
+	if err != nil {
+		return nil, err
+	}
+	conflictingHeader, err := resealWithQuorum(honest.HeaderRLP, validatorKeys, func(h *mutableQBFTHeader) {
+		h.setStateRoot(crypto.Keccak256Hash([]byte("double sign")))
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// The light client expects abi.encode(MsgUpdateClient), without the function selector.
+	return besumsgs.NewBindings().PackUpdateClient(besumsgs.IBesuLightClientMsgsMsgUpdateClient{
+		HeaderRlp:     conflictingHeader,
+		TrustedHeight: besumsgs.IICS02ClientMsgsHeight{RevisionHeight: height},
+		ConsensusStatePreimage: besumsgs.IBesuLightClientMsgsConsensusState{
+			Timestamp:  honest.Header.Time,
+			StateRoot:  honest.Header.Root,
+			Validators: honest.Validators,
+		},
+	})[4:], nil
+}
+
 func buildConflictingFixture(
 	trustedHeight uint64,
 	targetHeight uint64,
 	baseHeader liveHeader,
 	validatorKeys map[ethcommon.Address]*ecdsa.PrivateKey,
 ) (besuRejectionUpdateFixture, error) {
-	mutable, err := decodeMutableQBFTHeader(baseHeader.HeaderRLP)
-	if err != nil {
-		return besuRejectionUpdateFixture{}, err
-	}
-	mutable.setHeight(targetHeight)
-	validators, err := mutable.validators()
-	if err != nil {
-		return besuRejectionUpdateFixture{}, err
-	}
-	signerKeys, err := signerKeysFor(validators[:3], validatorKeys)
-	if err != nil {
-		return besuRejectionUpdateFixture{}, err
-	}
-	mutable.setCommitSeals(signQBFTCommitSeals(mutable, signerKeys))
-	mutatedHeader, err := mutable.encode()
+	mutatedHeader, err := resealWithQuorum(baseHeader.HeaderRLP, validatorKeys, func(h *mutableQBFTHeader) {
+		h.setHeight(targetHeight)
+	})
 	if err != nil {
 		return besuRejectionUpdateFixture{}, err
 	}
@@ -299,6 +319,31 @@ func buildConflictingFixture(
 		HeaderRlp:     encodeHex(mutatedHeader),
 		TrustedHeight: trustedHeight,
 	}, nil
+}
+
+// resealWithQuorum applies mutate to headerRLP and re-seals it with the keys of the first BFT quorum
+// (ceil(2n/3)) of the header's validators.
+func resealWithQuorum(
+	headerRLP []byte,
+	validatorKeys map[ethcommon.Address]*ecdsa.PrivateKey,
+	mutate func(*mutableQBFTHeader),
+) ([]byte, error) {
+	mutable, err := decodeMutableQBFTHeader(headerRLP)
+	if err != nil {
+		return nil, err
+	}
+	mutate(mutable)
+	validators, err := mutable.validators()
+	if err != nil {
+		return nil, err
+	}
+	quorum := (2*len(validators) + 2) / 3
+	signerKeys, err := signerKeysFor(validators[:quorum], validatorKeys)
+	if err != nil {
+		return nil, err
+	}
+	mutable.setCommitSeals(signQBFTCommitSeals(mutable, signerKeys))
+	return mutable.encode()
 }
 
 func buildLowOverlapFixture(
@@ -417,6 +462,14 @@ func fetchLiveHeader(ctx context.Context, chain *ethereum.Ethereum, height uint6
 	if err != nil {
 		return liveHeader{}, fmt.Errorf("decode header at height %d: %w", height, err)
 	}
+	// Besu does not order commit seals by signer, but the light client requires it.
+	if err := mutable.sortCommitSeals(); err != nil {
+		return liveHeader{}, fmt.Errorf("sort commit seals at height %d: %w", height, err)
+	}
+	headerRLP, err = mutable.encode()
+	if err != nil {
+		return liveHeader{}, fmt.Errorf("encode sorted header at height %d: %w", height, err)
+	}
 	validators, err := mutable.validators()
 	if err != nil {
 		return liveHeader{}, fmt.Errorf("extract validators at height %d: %w", height, err)
@@ -533,6 +586,10 @@ func (h *mutableQBFTHeader) setHeight(height uint64) {
 	h.items[8] = mustRLP(height)
 }
 
+func (h *mutableQBFTHeader) setStateRoot(stateRoot ethcommon.Hash) {
+	h.items[3] = mustRLP(stateRoot)
+}
+
 func (h *mutableQBFTHeader) setValidators(validators []ethcommon.Address) {
 	h.extraItems[1] = mustRLP(validators)
 }
@@ -541,11 +598,40 @@ func (h *mutableQBFTHeader) setCommitSeals(seals [][]byte) {
 	h.extraItems[4] = mustRLP(seals)
 }
 
+// sortCommitSeals orders the QBFT commit seals by recovered signer address, as the light client requires.
+func (h *mutableQBFTHeader) sortCommitSeals() error {
+	seals, err := h.commitSeals()
+	if err != nil {
+		return err
+	}
+	digest := h.commitSealDigest()
+	signers := make(map[string]ethcommon.Address, len(seals))
+	for _, seal := range seals {
+		pubkey, err := crypto.SigToPub(digest.Bytes(), seal)
+		if err != nil {
+			return err
+		}
+		signers[string(seal)] = crypto.PubkeyToAddress(*pubkey)
+	}
+	slices.SortFunc(seals, func(a, b []byte) int {
+		signerA, signerB := signers[string(a)], signers[string(b)]
+		return bytes.Compare(signerA[:], signerB[:])
+	})
+	h.setCommitSeals(seals)
+	return nil
+}
+
 func signQBFTCommitSeals(header *mutableQBFTHeader, keys []*ecdsa.PrivateKey) [][]byte {
 	return signCommitSeals(header.commitSealDigest(), keys)
 }
 
+// signCommitSeals signs digest with every key, ordering the seals by signer address as the light client requires.
 func signCommitSeals(digest ethcommon.Hash, keys []*ecdsa.PrivateKey) [][]byte {
+	keys = slices.Clone(keys)
+	slices.SortFunc(keys, func(a, b *ecdsa.PrivateKey) int {
+		signerA, signerB := crypto.PubkeyToAddress(a.PublicKey), crypto.PubkeyToAddress(b.PublicKey)
+		return bytes.Compare(signerA[:], signerB[:])
+	})
 	seals := make([][]byte, len(keys))
 	for i, key := range keys {
 		seal, err := crypto.Sign(digest.Bytes(), key)

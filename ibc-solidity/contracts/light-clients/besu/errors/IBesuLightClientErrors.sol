@@ -17,6 +17,12 @@ interface IBesuLightClientErrors {
     error InvalidHeaderHeight();
     /// @notice The submitted header timestamp is zero.
     error InvalidHeaderTimestamp();
+    /// @notice Trusting period must be greater than zero.
+    error InvalidTrustingPeriod();
+    /// @notice Trust level must be within `[1/3, 1]` with a non-zero denominator.
+    /// @param numerator The provided numerator.
+    /// @param denominator The provided denominator.
+    error InvalidTrustLevel(uint8 numerator, uint8 denominator);
     /// @notice The submitted header timestamp is too far in the future.
     /// @param currentTimestamp The current block timestamp.
     /// @param headerTimestamp The submitted header timestamp.
@@ -54,9 +60,9 @@ interface IBesuLightClientErrors {
     /// @notice The validator set is not sorted in ascending order.
     /// @param index The index of the first unsorted validator.
     error UnsortedValidatorSet(uint256 index);
-    /// @notice A commit seal signer appears more than once.
-    /// @param signer The duplicate signer address.
-    error DuplicateCommitSealSigner(address signer);
+    /// @notice The commit seals are not sorted in strictly ascending order of their recovered signers.
+    /// @param index The index of the first unsorted commit seal signer.
+    error UnsortedCommitSealSigners(uint256 index);
     /// @notice An ECDSA signature has an invalid length.
     /// @param length The invalid signature length.
     error InvalidECDSASignatureLength(uint256 length);
@@ -82,10 +88,8 @@ interface IBesuLightClientErrors {
     /// @param expectedValue The expected commitment value.
     /// @param actualValue The proven commitment value.
     error InvalidCommitmentValue(bytes32 expectedValue, bytes32 actualValue);
-    /// @notice A different consensus state already exists at the submitted height.
-    /// @param revisionHeight The conflicting revision height.
-    // TODO:This is a misbehaviour condition and should be handled by the client. (FOU-1374)
-    error ConflictingConsensusState(uint64 revisionHeight);
+    /// @notice The client is frozen due to misbehaviour and can no longer be used.
+    error FrozenClientState();
     /// @notice Misbehaviour handling is not supported by this client.
     error UnsupportedMisbehaviour();
     /// @notice The submitted exclusion proof is invalid.
@@ -93,4 +97,7 @@ interface IBesuLightClientErrors {
     /// @notice Storage root is not cached for the requested height.
     /// @param revisionHeight The requested revision height.
     error StorageRootNotInCache(uint64 revisionHeight);
+    /// @notice The commit seal signer is not in the validator set.
+    /// @param signer The commit seal signer address.
+    error UnknownCommitSealSigner(address signer);
 }

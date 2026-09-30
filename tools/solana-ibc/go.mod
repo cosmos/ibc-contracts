@@ -7,7 +7,7 @@ replace github.com/cosmos/solidity-ibc-eureka/packages/go-anchor => ../../packag
 require (
 	github.com/cosmos/solidity-ibc-eureka/packages/go-anchor v0.0.0
 	github.com/gagliardetto/solana-go v1.23.0
-	github.com/spf13/cobra v1.9.1
+	github.com/spf13/cobra v1.10.2
 )
 
 require (

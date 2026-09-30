@@ -30,6 +30,8 @@ type IBesuLightClientMsgsClientState struct {
 	LatestHeight   IICS02ClientMsgsHeight
 	TrustingPeriod uint64
 	MaxClockDrift  uint64
+	IsFrozen       bool
+	TrustLevel     IBesuLightClientMsgsTrustThreshold
 }
 
 // IBesuLightClientMsgsConsensusState is an auto generated low-level Go binding around an user-defined struct.
@@ -53,6 +55,12 @@ type IBesuLightClientMsgsMsgUpdateClient struct {
 	ConsensusStatePreimage IBesuLightClientMsgsConsensusState
 }
 
+// IBesuLightClientMsgsTrustThreshold is an auto generated low-level Go binding around an user-defined struct.
+type IBesuLightClientMsgsTrustThreshold struct {
+	Numerator   uint8
+	Denominator uint8
+}
+
 // IICS02ClientMsgsHeight is an auto generated low-level Go binding around an user-defined struct.
 type IICS02ClientMsgsHeight struct {
 	RevisionNumber uint64
@@ -61,7 +69,7 @@ type IICS02ClientMsgsHeight struct {
 
 // BindingsMetaData contains all meta data concerning the Bindings contract.
 var BindingsMetaData = bind.MetaData{
-	ABI: "[{\"type\":\"function\",\"name\":\"clientState\",\"inputs\":[{\"name\":\"state\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ClientState\",\"components\":[{\"name\":\"ibcRouter\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"latestHeight\",\"type\":\"tuple\",\"internalType\":\"structIICS02ClientMsgs.Height\",\"components\":[{\"name\":\"revisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"name\":\"trustingPeriod\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"maxClockDrift\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]}],\"outputs\":[],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"consensusState\",\"inputs\":[{\"name\":\"state\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]}],\"outputs\":[],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"membershipProof\",\"inputs\":[{\"name\":\"proof\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MembershipProof\",\"components\":[{\"name\":\"consensusStatePreimage\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]},{\"name\":\"accountProofNodes\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"},{\"name\":\"proofNodes\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"}]}],\"outputs\":[],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"proofNodes\",\"inputs\":[{\"name\":\"nodes\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"}],\"outputs\":[],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"updateClient\",\"inputs\":[{\"name\":\"message\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MsgUpdateClient\",\"components\":[{\"name\":\"headerRlp\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"trustedHeight\",\"type\":\"tuple\",\"internalType\":\"structIICS02ClientMsgs.Height\",\"components\":[{\"name\":\"revisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"name\":\"consensusStatePreimage\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]}]}],\"outputs\":[],\"stateMutability\":\"pure\"}]",
+	ABI: "[{\"type\":\"function\",\"name\":\"clientState\",\"inputs\":[{\"name\":\"state\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ClientState\",\"components\":[{\"name\":\"ibcRouter\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"latestHeight\",\"type\":\"tuple\",\"internalType\":\"structIICS02ClientMsgs.Height\",\"components\":[{\"name\":\"revisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"name\":\"trustingPeriod\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"maxClockDrift\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"isFrozen\",\"type\":\"bool\",\"internalType\":\"bool\"},{\"name\":\"trustLevel\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.TrustThreshold\",\"components\":[{\"name\":\"numerator\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"denominator\",\"type\":\"uint8\",\"internalType\":\"uint8\"}]}]}],\"outputs\":[{\"name\":\"\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ClientState\",\"components\":[{\"name\":\"ibcRouter\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"latestHeight\",\"type\":\"tuple\",\"internalType\":\"structIICS02ClientMsgs.Height\",\"components\":[{\"name\":\"revisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"name\":\"trustingPeriod\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"maxClockDrift\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"isFrozen\",\"type\":\"bool\",\"internalType\":\"bool\"},{\"name\":\"trustLevel\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.TrustThreshold\",\"components\":[{\"name\":\"numerator\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"denominator\",\"type\":\"uint8\",\"internalType\":\"uint8\"}]}]}],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"consensusState\",\"inputs\":[{\"name\":\"state\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]}],\"outputs\":[{\"name\":\"\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]}],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"membershipProof\",\"inputs\":[{\"name\":\"proof\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MembershipProof\",\"components\":[{\"name\":\"consensusStatePreimage\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]},{\"name\":\"accountProofNodes\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"},{\"name\":\"proofNodes\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"}]}],\"outputs\":[{\"name\":\"\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MembershipProof\",\"components\":[{\"name\":\"consensusStatePreimage\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]},{\"name\":\"accountProofNodes\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"},{\"name\":\"proofNodes\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"}]}],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"proofNodes\",\"inputs\":[{\"name\":\"nodes\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"}],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"updateClient\",\"inputs\":[{\"name\":\"message\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MsgUpdateClient\",\"components\":[{\"name\":\"headerRlp\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"trustedHeight\",\"type\":\"tuple\",\"internalType\":\"structIICS02ClientMsgs.Height\",\"components\":[{\"name\":\"revisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"name\":\"consensusStatePreimage\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]}]}],\"outputs\":[{\"name\":\"\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MsgUpdateClient\",\"components\":[{\"name\":\"headerRlp\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"trustedHeight\",\"type\":\"tuple\",\"internalType\":\"structIICS02ClientMsgs.Height\",\"components\":[{\"name\":\"revisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"name\":\"consensusStatePreimage\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]}]}],\"stateMutability\":\"pure\"}]",
 	ID:  "Bindings",
 }
 
@@ -91,10 +99,10 @@ func (c *Bindings) Instance(backend bind.ContractBackend, addr common.Address) *
 }
 
 // PackClientState is the Go binding used to pack the parameters required for calling
-// the contract method with ID 0xd7f6d9e1.  This method will panic if any
+// the contract method with ID 0xf22212fc.  This method will panic if any
 // invalid/nil inputs are passed.
 //
-// Solidity: function clientState((address,(uint64,uint64),uint64,uint64) state) pure returns()
+// Solidity: function clientState((address,(uint64,uint64),uint64,uint64,bool,(uint8,uint8)) state) pure returns((address,(uint64,uint64),uint64,uint64,bool,(uint8,uint8)))
 func (bindings *Bindings) PackClientState(state IBesuLightClientMsgsClientState) []byte {
 	enc, err := bindings.abi.Pack("clientState", state)
 	if err != nil {
@@ -104,19 +112,32 @@ func (bindings *Bindings) PackClientState(state IBesuLightClientMsgsClientState)
 }
 
 // TryPackClientState is the Go binding used to pack the parameters required for calling
-// the contract method with ID 0xd7f6d9e1.  This method will return an error
+// the contract method with ID 0xf22212fc.  This method will return an error
 // if any inputs are invalid/nil.
 //
-// Solidity: function clientState((address,(uint64,uint64),uint64,uint64) state) pure returns()
+// Solidity: function clientState((address,(uint64,uint64),uint64,uint64,bool,(uint8,uint8)) state) pure returns((address,(uint64,uint64),uint64,uint64,bool,(uint8,uint8)))
 func (bindings *Bindings) TryPackClientState(state IBesuLightClientMsgsClientState) ([]byte, error) {
 	return bindings.abi.Pack("clientState", state)
+}
+
+// UnpackClientState is the Go binding that unpacks the parameters returned
+// from invoking the contract method with ID 0xf22212fc.
+//
+// Solidity: function clientState((address,(uint64,uint64),uint64,uint64,bool,(uint8,uint8)) state) pure returns((address,(uint64,uint64),uint64,uint64,bool,(uint8,uint8)))
+func (bindings *Bindings) UnpackClientState(data []byte) (IBesuLightClientMsgsClientState, error) {
+	out, err := bindings.abi.Unpack("clientState", data)
+	if err != nil {
+		return *new(IBesuLightClientMsgsClientState), err
+	}
+	out0 := *abi.ConvertType(out[0], new(IBesuLightClientMsgsClientState)).(*IBesuLightClientMsgsClientState)
+	return out0, nil
 }
 
 // PackConsensusState is the Go binding used to pack the parameters required for calling
 // the contract method with ID 0xc6fe84b1.  This method will panic if any
 // invalid/nil inputs are passed.
 //
-// Solidity: function consensusState((uint64,bytes32,address[]) state) pure returns()
+// Solidity: function consensusState((uint64,bytes32,address[]) state) pure returns((uint64,bytes32,address[]))
 func (bindings *Bindings) PackConsensusState(state IBesuLightClientMsgsConsensusState) []byte {
 	enc, err := bindings.abi.Pack("consensusState", state)
 	if err != nil {
@@ -129,16 +150,29 @@ func (bindings *Bindings) PackConsensusState(state IBesuLightClientMsgsConsensus
 // the contract method with ID 0xc6fe84b1.  This method will return an error
 // if any inputs are invalid/nil.
 //
-// Solidity: function consensusState((uint64,bytes32,address[]) state) pure returns()
+// Solidity: function consensusState((uint64,bytes32,address[]) state) pure returns((uint64,bytes32,address[]))
 func (bindings *Bindings) TryPackConsensusState(state IBesuLightClientMsgsConsensusState) ([]byte, error) {
 	return bindings.abi.Pack("consensusState", state)
+}
+
+// UnpackConsensusState is the Go binding that unpacks the parameters returned
+// from invoking the contract method with ID 0xc6fe84b1.
+//
+// Solidity: function consensusState((uint64,bytes32,address[]) state) pure returns((uint64,bytes32,address[]))
+func (bindings *Bindings) UnpackConsensusState(data []byte) (IBesuLightClientMsgsConsensusState, error) {
+	out, err := bindings.abi.Unpack("consensusState", data)
+	if err != nil {
+		return *new(IBesuLightClientMsgsConsensusState), err
+	}
+	out0 := *abi.ConvertType(out[0], new(IBesuLightClientMsgsConsensusState)).(*IBesuLightClientMsgsConsensusState)
+	return out0, nil
 }
 
 // PackMembershipProof is the Go binding used to pack the parameters required for calling
 // the contract method with ID 0x723e4e38.  This method will panic if any
 // invalid/nil inputs are passed.
 //
-// Solidity: function membershipProof(((uint64,bytes32,address[]),bytes[],bytes[]) proof) pure returns()
+// Solidity: function membershipProof(((uint64,bytes32,address[]),bytes[],bytes[]) proof) pure returns(((uint64,bytes32,address[]),bytes[],bytes[]))
 func (bindings *Bindings) PackMembershipProof(proof IBesuLightClientMsgsMembershipProof) []byte {
 	enc, err := bindings.abi.Pack("membershipProof", proof)
 	if err != nil {
@@ -151,16 +185,29 @@ func (bindings *Bindings) PackMembershipProof(proof IBesuLightClientMsgsMembersh
 // the contract method with ID 0x723e4e38.  This method will return an error
 // if any inputs are invalid/nil.
 //
-// Solidity: function membershipProof(((uint64,bytes32,address[]),bytes[],bytes[]) proof) pure returns()
+// Solidity: function membershipProof(((uint64,bytes32,address[]),bytes[],bytes[]) proof) pure returns(((uint64,bytes32,address[]),bytes[],bytes[]))
 func (bindings *Bindings) TryPackMembershipProof(proof IBesuLightClientMsgsMembershipProof) ([]byte, error) {
 	return bindings.abi.Pack("membershipProof", proof)
+}
+
+// UnpackMembershipProof is the Go binding that unpacks the parameters returned
+// from invoking the contract method with ID 0x723e4e38.
+//
+// Solidity: function membershipProof(((uint64,bytes32,address[]),bytes[],bytes[]) proof) pure returns(((uint64,bytes32,address[]),bytes[],bytes[]))
+func (bindings *Bindings) UnpackMembershipProof(data []byte) (IBesuLightClientMsgsMembershipProof, error) {
+	out, err := bindings.abi.Unpack("membershipProof", data)
+	if err != nil {
+		return *new(IBesuLightClientMsgsMembershipProof), err
+	}
+	out0 := *abi.ConvertType(out[0], new(IBesuLightClientMsgsMembershipProof)).(*IBesuLightClientMsgsMembershipProof)
+	return out0, nil
 }
 
 // PackProofNodes is the Go binding used to pack the parameters required for calling
 // the contract method with ID 0x0cab8d85.  This method will panic if any
 // invalid/nil inputs are passed.
 //
-// Solidity: function proofNodes(bytes[] nodes) pure returns()
+// Solidity: function proofNodes(bytes[] nodes) pure returns(bytes[])
 func (bindings *Bindings) PackProofNodes(nodes [][]byte) []byte {
 	enc, err := bindings.abi.Pack("proofNodes", nodes)
 	if err != nil {
@@ -173,16 +220,29 @@ func (bindings *Bindings) PackProofNodes(nodes [][]byte) []byte {
 // the contract method with ID 0x0cab8d85.  This method will return an error
 // if any inputs are invalid/nil.
 //
-// Solidity: function proofNodes(bytes[] nodes) pure returns()
+// Solidity: function proofNodes(bytes[] nodes) pure returns(bytes[])
 func (bindings *Bindings) TryPackProofNodes(nodes [][]byte) ([]byte, error) {
 	return bindings.abi.Pack("proofNodes", nodes)
+}
+
+// UnpackProofNodes is the Go binding that unpacks the parameters returned
+// from invoking the contract method with ID 0x0cab8d85.
+//
+// Solidity: function proofNodes(bytes[] nodes) pure returns(bytes[])
+func (bindings *Bindings) UnpackProofNodes(data []byte) ([][]byte, error) {
+	out, err := bindings.abi.Unpack("proofNodes", data)
+	if err != nil {
+		return *new([][]byte), err
+	}
+	out0 := *abi.ConvertType(out[0], new([][]byte)).(*[][]byte)
+	return out0, nil
 }
 
 // PackUpdateClient is the Go binding used to pack the parameters required for calling
 // the contract method with ID 0xa9ca8472.  This method will panic if any
 // invalid/nil inputs are passed.
 //
-// Solidity: function updateClient((bytes,(uint64,uint64),(uint64,bytes32,address[])) message) pure returns()
+// Solidity: function updateClient((bytes,(uint64,uint64),(uint64,bytes32,address[])) message) pure returns((bytes,(uint64,uint64),(uint64,bytes32,address[])))
 func (bindings *Bindings) PackUpdateClient(message IBesuLightClientMsgsMsgUpdateClient) []byte {
 	enc, err := bindings.abi.Pack("updateClient", message)
 	if err != nil {
@@ -195,7 +255,20 @@ func (bindings *Bindings) PackUpdateClient(message IBesuLightClientMsgsMsgUpdate
 // the contract method with ID 0xa9ca8472.  This method will return an error
 // if any inputs are invalid/nil.
 //
-// Solidity: function updateClient((bytes,(uint64,uint64),(uint64,bytes32,address[])) message) pure returns()
+// Solidity: function updateClient((bytes,(uint64,uint64),(uint64,bytes32,address[])) message) pure returns((bytes,(uint64,uint64),(uint64,bytes32,address[])))
 func (bindings *Bindings) TryPackUpdateClient(message IBesuLightClientMsgsMsgUpdateClient) ([]byte, error) {
 	return bindings.abi.Pack("updateClient", message)
+}
+
+// UnpackUpdateClient is the Go binding that unpacks the parameters returned
+// from invoking the contract method with ID 0xa9ca8472.
+//
+// Solidity: function updateClient((bytes,(uint64,uint64),(uint64,bytes32,address[])) message) pure returns((bytes,(uint64,uint64),(uint64,bytes32,address[])))
+func (bindings *Bindings) UnpackUpdateClient(data []byte) (IBesuLightClientMsgsMsgUpdateClient, error) {
+	out, err := bindings.abi.Unpack("updateClient", data)
+	if err != nil {
+		return *new(IBesuLightClientMsgsMsgUpdateClient), err
+	}
+	out0 := *abi.ConvertType(out[0], new(IBesuLightClientMsgsMsgUpdateClient)).(*IBesuLightClientMsgsMsgUpdateClient)
+	return out0, nil
 }
