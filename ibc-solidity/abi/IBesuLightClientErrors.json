@@ -192,6 +192,11 @@
   },
   {
     "type": "error",
+    "name": "InvalidIbcRouter",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "InvalidMixHash",
     "inputs": [
       {
