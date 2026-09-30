@@ -12,6 +12,7 @@
     "one-contract-per-file": "off",
     "import-path-check": "off",
     "use-natspec": "off",
-    "function-max-lines": ["warn", 70]
+    "function-max-lines": ["warn", 70],
+    "gas-strict-inequalities": "off"
   }
 }

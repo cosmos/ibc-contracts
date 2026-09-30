@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.28;
 
-// solhint-disable gas-strict-inequalities
-
 import { Test } from "forge-std/Test.sol";
 import { ILightClient } from "../../contracts/interfaces/ILightClient.sol";
 import { ILightClientMsgs } from "../../contracts/msgs/ILightClientMsgs.sol";

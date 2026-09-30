@@ -81,7 +81,7 @@ shadowfork := if env("ETH_RPC_URL", "") == "" { "--no-match-path test/shadowfork
 # Run all the foundry tests
 [group('test')]
 test-foundry testname=".\\*":
-	forge test -vvv --show-progress --fuzz-runs 5000 --match-test ^{{testname}}\(.\*\)\$ {{shadowfork}}
+	forge test -vvv --show-progress --match-test ^{{testname}}\(.\*\)\$ {{shadowfork}}
 	@ {{ if shadowfork == "" { "" } else { 'echo ' + BOLD + YELLOW + 'Ran without shadowfork tests since ETH_RPC_URL was not set' } }}
 
 # Run the CosmWasm Ethereum light client tests

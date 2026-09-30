@@ -106,7 +106,6 @@ contract ICS26Router is
             msg_.timeoutTimestamp > block.timestamp, IBCInvalidTimeoutTimestamp(msg_.timeoutTimestamp, block.timestamp)
         );
         require(
-            // solhint-disable-next-line gas-strict-inequalities
             msg_.timeoutTimestamp - block.timestamp <= MAX_TIMEOUT_DURATION,
             IBCInvalidTimeoutDuration(MAX_TIMEOUT_DURATION, msg_.timeoutTimestamp - block.timestamp)
         );
@@ -271,7 +270,6 @@ contract ICS26Router is
         });
         uint256 counterpartyTimestamp = getClient(msg_.packet.sourceClient).verifyNonMembership(nonMembershipMsg);
         require(
-            // solhint-disable-next-line gas-strict-inequalities
             counterpartyTimestamp >= msg_.packet.timeoutTimestamp,
             IBCInvalidTimeoutTimestamp(msg_.packet.timeoutTimestamp, counterpartyTimestamp)
         );
