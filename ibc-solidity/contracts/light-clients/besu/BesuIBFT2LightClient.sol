@@ -14,38 +14,16 @@ import { Header } from "./utils/Header.sol";
 contract BesuIBFT2LightClient is BesuLightClientBase {
     using Memory for *;
 
-    /// @notice Creates a Besu IBFT2 light client from an initial trusted consensus state.
-    /// @param ibcRouter Counterparty ICS26 router address whose storage is proven.
-    /// @param initialTrustedHeight Initial trusted Besu height.
-    /// @param initialTrustedTimestamp Initial trusted header timestamp in seconds.
-    /// @param initialTrustedStateRoot Initial trusted root of the state trie at `initialTrustedHeight`.
-    /// @param initialTrustedValidators Initial trusted validator set.
-    /// @param trustingPeriod Maximum age in seconds for trusted consensus states.
-    /// @param maxClockDrift Maximum allowed future drift in seconds for submitted headers.
-    /// @param trustLevel Minimum fraction of the trusted validator set that must sign a new header, in `[1/3, 1]`.
+    /// @notice Creates a Besu IBFT2 light client from an initial trusted client and consensus state.
+    /// @param initialClientState Initial client state. Its `latestHeight` is the height of `initialConsensusState`.
+    /// @param initialConsensusState Initial trusted consensus state at `initialClientState.latestHeight`.
     /// @param roleManager Address that administers proof submission; if zero, proof submission is open.
     constructor(
-        address ibcRouter,
-        uint64 initialTrustedHeight,
-        uint64 initialTrustedTimestamp,
-        bytes32 initialTrustedStateRoot,
-        address[] memory initialTrustedValidators,
-        uint64 trustingPeriod,
-        uint64 maxClockDrift,
-        IBesuLightClientMsgs.TrustThreshold memory trustLevel,
+        IBesuLightClientMsgs.ClientState memory initialClientState,
+        IBesuLightClientMsgs.ConsensusState memory initialConsensusState,
         address roleManager
     )
-        BesuLightClientBase(
-            ibcRouter,
-            initialTrustedHeight,
-            initialTrustedTimestamp,
-            initialTrustedStateRoot,
-            initialTrustedValidators,
-            trustingPeriod,
-            maxClockDrift,
-            trustLevel,
-            roleManager
-        )
+        BesuLightClientBase(initialClientState, initialConsensusState, roleManager)
     { }
 
     /// @inheritdoc BesuLightClientBase
