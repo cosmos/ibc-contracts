@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.28;
 
-// solhint-disable gas-strict-inequalities
-
 import { IICS07TendermintMsgs } from "./msgs/IICS07TendermintMsgs.sol";
 import { IUpdateClientMsgs } from "./msgs/IUpdateClientMsgs.sol";
 import { IMembershipMsgs } from "./msgs/IMembershipMsgs.sol";

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.28;
 
-// solhint-disable gas-increment-by-one,gas-strict-inequalities,no-inline-assembly
+// solhint-disable gas-increment-by-one,no-inline-assembly
 
 import { Bytes } from "@openzeppelin-contracts/utils/Bytes.sol";
 import { RLP } from "@openzeppelin-contracts/utils/RLP.sol";

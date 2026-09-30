@@ -60,13 +60,11 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         require(initialTrustedHeight != 0, InvalidHeaderHeight());
         require(initialTrustedTimestamp != 0, InvalidHeaderTimestamp());
         require(trustingPeriod != 0, InvalidTrustingPeriod());
-        /* solhint-disable gas-strict-inequalities */
         require(
             trustLevel.denominator != 0 && trustLevel.numerator <= trustLevel.denominator
                 && 3 * uint256(trustLevel.numerator) >= trustLevel.denominator,
             InvalidTrustLevel(trustLevel.numerator, trustLevel.denominator)
         );
-        /* solhint-enable gas-strict-inequalities */
 
         _validateValidators(initialTrustedValidators);
 
@@ -119,7 +117,6 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         require(header.timestamp != 0, InvalidHeaderTimestamp());
         _validateValidators(header.validators);
         require(
-            // solhint-disable-next-line gas-strict-inequalities
             block.timestamp + clientState.maxClockDrift >= header.timestamp,
             HeaderFromFuture(block.timestamp, header.timestamp, clientState.maxClockDrift)
         );
@@ -150,7 +147,6 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             return ILightClientMsgs.UpdateResult.Misbehaviour;
         }
 
-        // solhint-disable-next-line gas-strict-inequalities
         if (msg_.consensusStatePreimage.timestamp >= header.timestamp) {
             clientState.isFrozen = true;
             emit TimeNonMonotonicity(
@@ -243,7 +239,6 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         _requireTrustedConsensusState(msg_.height2.revisionHeight, msg_.consensusStatePreimage2);
 
         require(
-            // solhint-disable-next-line gas-strict-inequalities
             msg_.consensusStatePreimage1.timestamp >= msg_.consensusStatePreimage2.timestamp,
             InvalidTimeNonMonotonicityMisbehaviour(
                 msg_.consensusStatePreimage1.timestamp, msg_.consensusStatePreimage2.timestamp
@@ -364,7 +359,6 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         IBesuLightClientMsgs.TrustThreshold memory trustLevel = clientState.trustLevel;
         uint256 required = Math.ceilDiv(trustedValidators.length * trustLevel.numerator, trustLevel.denominator);
         require(actual >= required, InsufficientTrustedValidatorOverlap(actual, required));
-        // solhint-disable-previous-line gas-strict-inequalities
     }
 
     /// @notice Checks that signers meet quorum for the submitted header validator set.
@@ -378,7 +372,6 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
         uint256 required = _bftThreshold(validators.length);
         require(signers.length >= required, InsufficientValidatorQuorum(signers.length, required));
-        // solhint-disable-previous-line gas-strict-inequalities
     }
 
     /// @notice Computes the BFT threshold `ceil(2n / 3)` used for the commit-seal quorum check.
