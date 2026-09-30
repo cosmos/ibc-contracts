@@ -94,8 +94,6 @@ interface IBesuLightClientErrors {
     error InvalidCommitmentValue(bytes32 expectedValue, bytes32 actualValue);
     /// @notice The client is frozen due to misbehaviour and can no longer be used.
     error FrozenClientState();
-    /// @notice Misbehaviour handling is not supported by this client.
-    error UnsupportedMisbehaviour();
     /// @notice The submitted exclusion proof is invalid.
     error InvalidExclusionProof();
     /// @notice Storage root is not cached for the requested height.
