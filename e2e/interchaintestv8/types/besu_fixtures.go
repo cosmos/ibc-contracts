@@ -497,6 +497,14 @@ func fetchLiveHeader(ctx context.Context, chain *ethereum.Ethereum, height uint6
 	if err != nil {
 		return liveHeader{}, fmt.Errorf("decode header at height %d: %w", height, err)
 	}
+	// Besu does not order commit seals by signer, but the light client requires it.
+	if err := mutable.sortCommitSeals(); err != nil {
+		return liveHeader{}, fmt.Errorf("sort commit seals at height %d: %w", height, err)
+	}
+	headerRLP, err = mutable.encode()
+	if err != nil {
+		return liveHeader{}, fmt.Errorf("encode sorted header at height %d: %w", height, err)
+	}
 	validators, err := mutable.validators()
 	if err != nil {
 		return liveHeader{}, fmt.Errorf("extract validators at height %d: %w", height, err)
@@ -637,11 +645,40 @@ func (h *mutableQBFTHeader) setCommitSeals(seals [][]byte) {
 	h.extraItems[4] = mustRLP(seals)
 }
 
+// sortCommitSeals orders the QBFT commit seals by recovered signer address, as the light client requires.
+func (h *mutableQBFTHeader) sortCommitSeals() error {
+	seals, err := h.commitSeals()
+	if err != nil {
+		return err
+	}
+	digest := h.commitSealDigest()
+	signers := make(map[string]ethcommon.Address, len(seals))
+	for _, seal := range seals {
+		pubkey, err := crypto.SigToPub(digest.Bytes(), seal)
+		if err != nil {
+			return err
+		}
+		signers[string(seal)] = crypto.PubkeyToAddress(*pubkey)
+	}
+	slices.SortFunc(seals, func(a, b []byte) int {
+		signerA, signerB := signers[string(a)], signers[string(b)]
+		return bytes.Compare(signerA[:], signerB[:])
+	})
+	h.setCommitSeals(seals)
+	return nil
+}
+
 func signQBFTCommitSeals(header *mutableQBFTHeader, keys []*ecdsa.PrivateKey) [][]byte {
 	return signCommitSeals(header.commitSealDigest(), keys)
 }
 
+// signCommitSeals signs digest with every key, ordering the seals by signer address as the light client requires.
 func signCommitSeals(digest ethcommon.Hash, keys []*ecdsa.PrivateKey) [][]byte {
+	keys = slices.Clone(keys)
+	slices.SortFunc(keys, func(a, b *ecdsa.PrivateKey) int {
+		signerA, signerB := crypto.PubkeyToAddress(a.PublicKey), crypto.PubkeyToAddress(b.PublicKey)
+		return bytes.Compare(signerA[:], signerB[:])
+	})
 	seals := make([][]byte, len(keys))
 	for i, key := range keys {
 		seal, err := crypto.Sign(digest.Bytes(), key)

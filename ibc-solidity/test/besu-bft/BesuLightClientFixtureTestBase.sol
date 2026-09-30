@@ -8,6 +8,7 @@ import { stdJson } from "forge-std/StdJson.sol";
 import { RLP } from "@openzeppelin-contracts/utils/RLP.sol";
 import { Memory } from "@openzeppelin-contracts/utils/Memory.sol";
 import { SafeCast } from "@openzeppelin-contracts/utils/math/SafeCast.sol";
+import { ECDSA } from "@openzeppelin-contracts/utils/cryptography/ECDSA.sol";
 
 import { ILightClientMsgs } from "../../contracts/msgs/ILightClientMsgs.sol";
 import { IICS02ClientMsgs } from "../../contracts/msgs/IICS02ClientMsgs.sol";
@@ -358,9 +359,9 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     function test_updateClient_revertThroughWrongWrapper() public {
         vm.warp(fixture.initialTrustedTimestamp + 1);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 0, 3)
-        );
+        // The wrong digest recovers arbitrary signers, which fail the signer order check. The failing index depends
+        // on the fixture bytes, so only the selector is matched.
+        vm.expectPartialRevert(IBesuLightClientErrors.UnsortedCommitSealSigners.selector);
         wrongWrapper.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
     }
 
@@ -786,7 +787,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     function fixtureUpdate() public view returns (BesuUpdateTestCase[] memory testCases) {
         BesuUpdateFixture memory emptyExpectedState;
 
-        testCases = new BesuUpdateTestCase[](19);
+        testCases = new BesuUpdateTestCase[](20);
         testCases[0] = BesuUpdateTestCase({
             name: "success: valid adjacent update",
             timestamp: fixture.initialTrustedTimestamp + 1,
@@ -959,8 +960,17 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             expectedState: emptyExpectedState
         });
 
-        uint256 overflow = uint256(type(uint64).max) + 1;
         testCases[15] = BesuUpdateTestCase({
+            name: "failure: unsorted commit seal signers",
+            timestamp: fixture.initialTrustedTimestamp + 1,
+            update: _swappedSealsUpdate(),
+            preUpdate: "",
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.UnsortedCommitSealSigners.selector, 0),
+            expectedState: emptyExpectedState
+        });
+
+        uint256 overflow = uint256(type(uint64).max) + 1;
+        testCases[16] = BesuUpdateTestCase({
             name: "failure: height overflows uint64",
             timestamp: fixture.initialTrustedTimestamp + 1,
             update: _headerItemUpdate(8, overflow),
@@ -968,7 +978,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             expectedRevert: abi.encodeWithSelector(SafeCast.SafeCastOverflowedUintDowncast.selector, 64, overflow),
             expectedState: emptyExpectedState
         });
-        testCases[16] = BesuUpdateTestCase({
+        testCases[17] = BesuUpdateTestCase({
             name: "failure: timestamp overflows uint64",
             timestamp: fixture.initialTrustedTimestamp + 1,
             update: _headerItemUpdate(11, overflow),
@@ -981,7 +991,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         IBesuLightClientMsgs.MsgUpdateClient memory sameHeightUpdate =
             abi.decode(_encodeUpdate(fixture.nonAdjacentUpdate), (IBesuLightClientMsgs.MsgUpdateClient));
         sameHeightUpdate.trustedHeight.revisionHeight = height;
-        testCases[17] = BesuUpdateTestCase({
+        testCases[18] = BesuUpdateTestCase({
             name: "failure: trusted height equals header height",
             timestamp: fixture.initialTrustedTimestamp + 1,
             update: abi.encode(sameHeightUpdate),
@@ -996,7 +1006,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             abi.decode(_encodeUpdate(fixture.adjacentUpdate), (IBesuLightClientMsgs.MsgUpdateClient));
         higherTrustedHeightUpdate.trustedHeight.revisionHeight = height;
         higherTrustedHeightUpdate.consensusStatePreimage = _expectedConsensusState(fixture.nonAdjacentUpdate);
-        testCases[18] = BesuUpdateTestCase({
+        testCases[19] = BesuUpdateTestCase({
             name: "failure: trusted height above header height",
             timestamp: fixture.initialTrustedTimestamp + 1,
             update: abi.encode(higherTrustedHeightUpdate),
@@ -1095,8 +1105,9 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         });
     }
 
-    /// @dev Appends a commit seal from a non-validator key to `nonAdjacentUpdate` and returns that signer.
-    /// The fixture's seals stay valid because the commit seal digest excludes the seal list.
+    /// @dev Adds a commit seal from a non-validator key to `nonAdjacentUpdate` and returns that signer.
+    /// The seal is inserted at its sorted position, and the fixture's seals stay valid because the commit seal
+    /// digest excludes the seal list.
     function _unknownSignerUpdate() internal view returns (bytes memory, address) {
         BesuUpdateFixture memory update = fixture.nonAdjacentUpdate;
         Memory.Slice[] memory headerItems = update.headerRlp.decodeList();
@@ -1105,15 +1116,47 @@ abstract contract BesuLightClientFixtureTestBase is Test {
 
         bytes32 digest = _commitSealDigest(headerItems, extraItems);
         uint256 unknownSignerKey = 0xdead;
+        address unknownSigner = vm.addr(unknownSignerKey);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(unknownSignerKey, digest);
 
         bytes[] memory encodedSeals = new bytes[](sealItems.length + 1);
+        uint256 offset = 0;
+        for (uint256 i = 0; i < sealItems.length; ++i) {
+            if (offset == 0 && _sealSigner(digest, RLP.readBytes(sealItems[i])) > unknownSigner) {
+                encodedSeals[i] = RLP.encode(abi.encodePacked(r, s, v));
+                offset = 1;
+            }
+            encodedSeals[i + offset] = sealItems[i].toBytes();
+        }
+        if (offset == 0) {
+            encodedSeals[sealItems.length] = RLP.encode(abi.encodePacked(r, s, v));
+        }
+        update.headerRlp = _encodeHeader(headerItems, extraItems, RLP.encode(encodedSeals));
+        return (_encodeUpdate(update), unknownSigner);
+    }
+
+    /// @dev Swaps the first two commit seals of `nonAdjacentUpdate`, breaking their signer order.
+    function _swappedSealsUpdate() internal view returns (bytes memory) {
+        BesuUpdateFixture memory update = fixture.nonAdjacentUpdate;
+        Memory.Slice[] memory headerItems = update.headerRlp.decodeList();
+        Memory.Slice[] memory extraItems = RLP.readBytes(headerItems[12]).decodeList();
+        Memory.Slice[] memory sealItems = RLP.readList(extraItems[4]);
+
+        bytes[] memory encodedSeals = new bytes[](sealItems.length);
         for (uint256 i = 0; i < sealItems.length; ++i) {
             encodedSeals[i] = sealItems[i].toBytes();
         }
-        encodedSeals[sealItems.length] = RLP.encode(abi.encodePacked(r, s, v));
+        (encodedSeals[0], encodedSeals[1]) = (encodedSeals[1], encodedSeals[0]);
         update.headerRlp = _encodeHeader(headerItems, extraItems, RLP.encode(encodedSeals));
-        return (_encodeUpdate(update), vm.addr(unknownSignerKey));
+        return _encodeUpdate(update);
+    }
+
+    /// @dev Recovers the signer of a raw commit seal, accepting Besu's 0/1 recovery ids.
+    function _sealSigner(bytes32 digest, bytes memory seal) internal pure returns (address) {
+        if (uint8(seal[64]) < 27) {
+            seal[64] = bytes1(uint8(seal[64]) + 27);
+        }
+        return ECDSA.recover(digest, seal);
     }
 
     /// @dev Re-encodes the non-adjacent update header with `validators` and commit seals signed by `signerKeys`.
@@ -1135,6 +1178,12 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         }
         extraItems[1] = RLP.encode(encodedValidators).asSlice();
 
+        // Seals must be ordered by signer address.
+        for (uint256 i = 1; i < signerKeys.length; ++i) {
+            for (uint256 j = i; j > 0 && vm.addr(signerKeys[j - 1]) > vm.addr(signerKeys[j]); --j) {
+                (signerKeys[j - 1], signerKeys[j]) = (signerKeys[j], signerKeys[j - 1]);
+            }
+        }
         bytes32 digest = _commitSealDigest(headerItems, extraItems);
         bytes[] memory encodedSeals = new bytes[](signerKeys.length);
         for (uint256 i = 0; i < signerKeys.length; ++i) {
