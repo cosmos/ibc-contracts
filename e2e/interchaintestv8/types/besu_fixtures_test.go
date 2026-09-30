@@ -245,3 +245,36 @@ func TestBesuQBFTLowOverlapFixture(t *testing.T) {
 		})
 	}
 }
+
+func TestBesuQBFTSortedCommitSeals(t *testing.T) {
+	t.Chdir("../../..")
+	fixturePath := filepath.Join(testvalues.BesuBFTFixturesDir, "qbft.json")
+	fixtureJSON, err := os.ReadFile(fixturePath)
+	require.NoError(t, err)
+	var fixture besuFixture
+	require.NoError(t, json.Unmarshal(fixtureJSON, &fixture))
+
+	// The live headers keep Besu's seal order unless sorted at generation time.
+	for _, headerRlp := range []*string{
+		&fixture.AdjacentUpdate.HeaderRlp,
+		&fixture.NonAdjacentUpdate.HeaderRlp,
+		&fixture.LowQuorumUpdate.HeaderRlp,
+		&fixture.ConflictingUpdate.HeaderRlp,
+		&fixture.LowOverlapUpdate.HeaderRlp,
+	} {
+		header, err := decodeMutableQBFTHeader(ethcommon.FromHex(*headerRlp))
+		require.NoError(t, err)
+		require.NoError(t, header.sortCommitSeals())
+		sortedRLP, err := header.encode()
+		require.NoError(t, err)
+		if *updateBesuSynthetic {
+			*headerRlp = encodeHex(sortedRLP)
+		}
+		require.Equal(t, encodeHex(sortedRLP), *headerRlp)
+	}
+	if *updateBesuSynthetic {
+		fixtureJSON, err = json.MarshalIndent(fixture, "", "  ")
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(fixturePath, fixtureJSON, 0o644)) //nolint:gosec // Shared test fixture.
+	}
+}

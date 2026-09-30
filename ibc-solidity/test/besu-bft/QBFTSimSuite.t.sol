@@ -99,6 +99,23 @@ contract QBFTSimSuiteTest is Test {
         client.updateClient(update);
     }
 
+    function test_unsortedOrDuplicateSigners() public {
+        SimHeader.Data memory h = sim.seal(sim.nextBlock());
+        (h.commitSeals[0], h.commitSeals[1]) = (h.commitSeals[1], h.commitSeals[0]);
+        bytes memory update = sim.updateMsg(2, h);
+        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.UnsortedCommitSealSigners.selector, 0));
+        client.updateClient(update);
+
+        uint256[] memory keys = new uint256[](4);
+        for (uint256 i = 0; i < 3; ++i) {
+            keys[i] = sim.validatorKey(sim.validators()[i]);
+        }
+        keys[3] = keys[2];
+        update = sim.updateMsg(2, sim.sealWithKeys(sim.nextBlock(), keys));
+        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.UnsortedCommitSealSigners.selector, 2));
+        client.updateClient(update);
+    }
+
     function test_validatorChurn() public {
         sim.removeValidator(sim.validators()[0]);
         sim.addValidator();
