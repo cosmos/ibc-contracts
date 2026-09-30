@@ -9,7 +9,7 @@ use std::{
 use alloy::{
     consensus::Header,
     network::Ethereum,
-    primitives::{hex, Address, Bytes, B256, U256},
+    primitives::{hex, keccak256, Address, Bytes, Signature, B256, U256},
     providers::{Provider, RootProvider},
     rpc::types::{EIP1186AccountProofResponse, EIP1186StorageProof},
     sol_types::{SolCall, SolValue},
@@ -30,7 +30,7 @@ use proof_api_lib::utils::{
     eth_eureka::{src_events_to_recv_and_ack_msgs, target_events_to_timeout_msgs},
     RelayEventsParams,
 };
-use rlp::Rlp;
+use rlp::{Rlp, RlpStream};
 
 use crate::BesuConsensusType;
 
@@ -45,12 +45,14 @@ pub struct TxBuilder {
 struct CreateClientParams {
     trusting_period: u64,
     max_clock_drift: u64,
+    trust_level: IBesuLightClientMsgs::TrustThreshold,
     trusted_height: Option<u64>,
     role_manager: Address,
 }
 
 const TRUSTING_PERIOD: &str = "trusting_period";
 const MAX_CLOCK_DRIFT: &str = "max_clock_drift";
+const TRUST_LEVEL: &str = "trust_level";
 const TRUSTED_HEIGHT: &str = "trusted_height";
 const ROLE_MANAGER: &str = "role_manager";
 
@@ -98,6 +100,10 @@ impl TxBuilder {
                 trusted_state.validators,
                 params.trusting_period,
                 params.max_clock_drift,
+                besu_qbft_light_client::IBesuLightClientMsgs::TrustThreshold {
+                    numerator: params.trust_level.numerator,
+                    denominator: params.trust_level.denominator,
+                },
                 params.role_manager,
             )
             .calldata()
@@ -112,6 +118,10 @@ impl TxBuilder {
                     trusted_state.validators,
                     params.trusting_period,
                     params.max_clock_drift,
+                    besu_ibft2_light_client::IBesuLightClientMsgs::TrustThreshold {
+                        numerator: params.trust_level.numerator,
+                        denominator: params.trust_level.denominator,
+                    },
                     params.role_manager,
                 )
                 .calldata()
@@ -133,12 +143,13 @@ impl TxBuilder {
         let trusted_state = consensus_state(&self.fetch_source_header(trusted_height).await?)?;
         let target_header = self.fetch_source_header(target_height).await?;
 
-        Ok(Self::build_update_client_calldata(
+        Self::build_update_client_calldata(
             dst_client_id,
             trusted_height,
             trusted_state,
             &target_header,
-        ))
+            self.consensus_type,
+        )
     }
 
     pub async fn relay_events(&self, params: RelayEventsParams) -> Result<Vec<u8>> {
@@ -235,7 +246,8 @@ impl TxBuilder {
             trusted_height,
             trusted_state,
             &header,
-        );
+            self.consensus_type,
+        )?;
 
         let all_calls: Vec<Bytes> = std::iter::once(update_call.into())
             .chain(packet_calls.into_iter().map(|call| match call {
@@ -254,9 +266,17 @@ impl TxBuilder {
         trusted_height: u64,
         trusted_state: IBesuLightClientMsgs::ConsensusState,
         target_header: &Header,
-    ) -> Vec<u8> {
+        consensus_type: BesuConsensusType,
+    ) -> Result<Vec<u8>> {
+        let target_header =
+            sort_commit_seals(target_header, consensus_type).with_context(|| {
+                format!(
+                    "failed to sort commit seals of source block {}",
+                    target_header.number
+                )
+            })?;
         let update_msg = IBesuLightClientMsgs::MsgUpdateClient {
-            headerRlp: alloy_rlp::encode(target_header).into(),
+            headerRlp: alloy_rlp::encode(&target_header).into(),
             trustedHeight: MsgHeight {
                 revisionNumber: 0,
                 revisionHeight: trusted_height,
@@ -264,11 +284,11 @@ impl TxBuilder {
             consensusStatePreimage: trusted_state,
         };
 
-        updateClientCall {
+        Ok(updateClientCall {
             clientId: dst_client_id.to_string(),
             updateMsg: update_msg.abi_encode().into(),
         }
-        .abi_encode()
+        .abi_encode())
     }
 
     async fn fetch_source_header(&self, block_height: u64) -> Result<Header> {
@@ -488,12 +508,18 @@ fn parse_create_client_params(parameters: &HashMap<String, String>) -> Result<Cr
     parameters
         .keys()
         .find(|key| {
-            ![TRUSTING_PERIOD, MAX_CLOCK_DRIFT, TRUSTED_HEIGHT, ROLE_MANAGER]
-                .contains(&key.as_str())
+            ![
+                TRUSTING_PERIOD,
+                MAX_CLOCK_DRIFT,
+                TRUST_LEVEL,
+                TRUSTED_HEIGHT,
+                ROLE_MANAGER,
+            ]
+            .contains(&key.as_str())
         })
         .map_or(Ok(()), |key| {
             Err(anyhow!(
-                "unexpected parameter `{key}`, only `{TRUSTING_PERIOD}`, `{MAX_CLOCK_DRIFT}`, `{TRUSTED_HEIGHT}`, and `{ROLE_MANAGER}` are allowed"
+                "unexpected parameter `{key}`, only `{TRUSTING_PERIOD}`, `{MAX_CLOCK_DRIFT}`, `{TRUST_LEVEL}`, `{TRUSTED_HEIGHT}`, and `{ROLE_MANAGER}` are allowed"
             ))
         })?;
 
@@ -508,6 +534,9 @@ fn parse_create_client_params(parameters: &HashMap<String, String>) -> Result<Cr
             .ok_or_else(|| anyhow!("missing `{MAX_CLOCK_DRIFT}` parameter"))?
             .parse()
             .with_context(|| format!("failed to parse `{MAX_CLOCK_DRIFT}` as decimal seconds"))?,
+        trust_level: parameters
+            .get(TRUST_LEVEL)
+            .map_or(Ok(DEFAULT_TRUST_LEVEL), |value| parse_trust_level(value))?,
         trusted_height: parameters
             .get(TRUSTED_HEIGHT)
             .map(|value| {
@@ -522,6 +551,38 @@ fn parse_create_client_params(parameters: &HashMap<String, String>) -> Result<Cr
                 Address::from_str(value)
                     .with_context(|| format!("failed to parse `{ROLE_MANAGER}` as hex address"))
             })?,
+    })
+}
+
+/// Default trust level, matching the `ceil(2n / 3)` commit-seal quorum.
+const DEFAULT_TRUST_LEVEL: IBesuLightClientMsgs::TrustThreshold =
+    IBesuLightClientMsgs::TrustThreshold {
+        numerator: 2,
+        denominator: 3,
+    };
+
+/// Parses a `<numerator>/<denominator>` trust level and checks that it is within `[1/3, 1]`.
+fn parse_trust_level(value: &str) -> Result<IBesuLightClientMsgs::TrustThreshold> {
+    let (numerator, denominator) = value
+        .split_once('/')
+        .and_then(|(numerator, denominator)| {
+            Some((
+                numerator.trim().parse::<u8>().ok()?,
+                denominator.trim().parse::<u8>().ok()?,
+            ))
+        })
+        .with_context(|| {
+            format!("failed to parse `{TRUST_LEVEL}` as `<numerator>/<denominator>`: {value}")
+        })?;
+    ensure!(
+        denominator != 0
+            && numerator <= denominator
+            && 3 * u16::from(numerator) >= u16::from(denominator),
+        "`{TRUST_LEVEL}` must be within [1/3, 1], got {numerator}/{denominator}"
+    );
+    Ok(IBesuLightClientMsgs::TrustThreshold {
+        numerator,
+        denominator,
     })
 }
 
@@ -547,17 +608,84 @@ fn extract_validators_from_extra_data(extra_data: &[u8]) -> Result<Vec<Address>>
     Ok(out)
 }
 
+/// Returns a copy of `header` with its commit seals ordered by recovered signer address.
+///
+/// The light client requires commit seals in strictly ascending signer order, but Besu does not
+/// order them that way. Reordering keeps the header valid because the commit-seal digest excludes
+/// the seal list.
+fn sort_commit_seals(header: &Header, consensus_type: BesuConsensusType) -> Result<Header> {
+    let extra_data = Rlp::new(&header.extra_data);
+    let item_count = extra_data
+        .item_count()
+        .context("failed to decode extraData")?;
+    ensure!(
+        item_count == 5,
+        "expected 5 extraData items, got {item_count}"
+    );
+    let prefix = (0..4)
+        .map(|i| extra_data.at(i).map(|item| item.as_raw().to_vec()))
+        .collect::<Result<Vec<_>, _>>()
+        .context("failed to decode extraData items")?;
+    let seals: Vec<Vec<u8>> = extra_data
+        .list_at(4)
+        .context("failed to decode commit seals")?;
+
+    let encode_extra_data = |seals: Option<&[Vec<u8>]>| {
+        let mut stream = RlpStream::new_list(4 + usize::from(seals.is_some()));
+        for item in &prefix {
+            stream.append_raw(item, 1);
+        }
+        if let Some(seals) = seals {
+            stream.begin_list(seals.len());
+            for seal in seals {
+                stream.append(seal);
+            }
+        }
+        Bytes::from(stream.out().to_vec())
+    };
+
+    // QBFT signs the header with an empty seal list, IBFT2 with the seal list dropped.
+    let mut signing_header = header.clone();
+    signing_header.extra_data = match consensus_type {
+        BesuConsensusType::Qbft => encode_extra_data(Some(&[])),
+        BesuConsensusType::Ibft2 => encode_extra_data(None),
+    };
+    let digest = keccak256(alloy_rlp::encode(&signing_header));
+
+    let mut signed_seals = seals
+        .into_iter()
+        .map(|seal| {
+            let signer = Signature::from_raw(&seal)
+                .and_then(|signature| signature.recover_address_from_prehash(&digest))
+                .context("failed to recover commit seal signer")?;
+            Ok((signer, seal))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    signed_seals.sort_by_key(|(signer, _)| *signer);
+    if let Some(pair) = signed_seals.windows(2).find(|pair| pair[0].0 == pair[1].0) {
+        bail!("duplicate commit seal signer {}", pair[0].0);
+    }
+
+    let sorted_seals: Vec<_> = signed_seals.into_iter().map(|(_, seal)| seal).collect();
+    let mut sorted_header = header.clone();
+    sorted_header.extra_data = encode_extra_data(Some(&sorted_seals));
+    Ok(sorted_header)
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
 
     use super::{
-        attach_packet_proofs, map_storage_proofs, packet_storage_key, retain_provable_packet_calls,
-        StorageSlotProof,
+        attach_packet_proofs, map_storage_proofs, packet_storage_key, parse_create_client_params,
+        retain_provable_packet_calls, sort_commit_seals, StorageSlotProof, TRUST_LEVEL,
     };
+    use crate::BesuConsensusType;
     use alloy::{
-        primitives::{Address, Bytes, B256, U256},
+        consensus::Header,
+        primitives::{keccak256, Address, Bytes, Signature, B256, U256},
         rpc::types::EIP1186StorageProof,
+        signers::{local::PrivateKeySigner, SignerSync},
         sol_types::SolValue,
     };
     use ibc_eureka_solidity_types::{
@@ -568,6 +696,7 @@ mod tests {
         },
         msgs::IBesuLightClientMsgs,
     };
+    use rlp::{Rlp, RlpStream};
 
     fn packet(sequence: u64) -> Packet {
         Packet {
@@ -822,5 +951,122 @@ mod tests {
             decode_recv_proof(&calls[0]).accountProofNodes,
             account_nodes
         );
+    }
+
+    #[test]
+    fn create_client_params_trust_level() {
+        let params = |trust_level: Option<&str>| {
+            let mut params = HashMap::from([
+                ("trusting_period".to_string(), "1000".to_string()),
+                ("max_clock_drift".to_string(), "10".to_string()),
+            ]);
+            if let Some(trust_level) = trust_level {
+                params.insert(TRUST_LEVEL.to_string(), trust_level.to_string());
+            }
+            parse_create_client_params(&params)
+                .map(|params| (params.trust_level.numerator, params.trust_level.denominator))
+        };
+
+        assert_eq!(params(None).unwrap(), (2, 3));
+        assert_eq!(params(Some("1/3")).unwrap(), (1, 3));
+        assert_eq!(params(Some("1/1")).unwrap(), (1, 1));
+        for invalid in ["", "2", "2/", "a/3", "1/0", "0/0", "1/4", "4/3", "256/256"] {
+            assert!(
+                params(Some(invalid)).is_err(),
+                "{invalid} should be rejected"
+            );
+        }
+    }
+
+    fn besu_extra_data(validators: &[Address], seals: Option<&[Vec<u8>]>) -> Bytes {
+        let mut stream = RlpStream::new_list(4 + usize::from(seals.is_some()));
+        stream.append(&vec![0u8; 32]);
+        stream.begin_list(validators.len());
+        for validator in validators {
+            stream.append(&validator.as_slice());
+        }
+        stream.begin_list(0);
+        stream.append(&vec![0u8; 4]);
+        if let Some(seals) = seals {
+            stream.begin_list(seals.len());
+            for seal in seals {
+                stream.append(seal);
+            }
+        }
+        Bytes::from(stream.out().to_vec())
+    }
+
+    /// Returns a header sealed by `signers` in the given order, and the commit-seal digest.
+    fn sealed_header(
+        consensus_type: BesuConsensusType,
+        signers: &[&PrivateKeySigner],
+    ) -> (Header, B256) {
+        let mut validators: Vec<_> = signers.iter().map(|signer| signer.address()).collect();
+        validators.sort();
+        let mut header = Header {
+            number: 7,
+            extra_data: besu_extra_data(
+                &validators,
+                matches!(consensus_type, BesuConsensusType::Qbft).then_some(&[]),
+            ),
+            ..Header::default()
+        };
+        let digest = keccak256(alloy_rlp::encode(&header));
+        let seals: Vec<_> = signers
+            .iter()
+            .map(|signer| signer.sign_hash_sync(&digest).unwrap().as_bytes().to_vec())
+            .collect();
+        header.extra_data = besu_extra_data(&validators, Some(&seals));
+        (header, digest)
+    }
+
+    #[test]
+    fn sort_commit_seals_orders_seals_by_signer() {
+        let signers: Vec<_> = (0..4).map(|_| PrivateKeySigner::random()).collect();
+        let mut unsorted: Vec<_> = signers.iter().collect();
+        unsorted.sort_by_key(|signer| std::cmp::Reverse(signer.address()));
+
+        for consensus_type in [BesuConsensusType::Qbft, BesuConsensusType::Ibft2] {
+            let (header, digest) = sealed_header(consensus_type, &unsorted);
+            let sorted = sort_commit_seals(&header, consensus_type).unwrap();
+
+            let extra_data = Rlp::new(&sorted.extra_data);
+            let original = Rlp::new(&header.extra_data);
+            for i in 0..4 {
+                assert_eq!(
+                    extra_data.at(i).unwrap().as_raw(),
+                    original.at(i).unwrap().as_raw()
+                );
+            }
+            let recovered: Vec<_> = extra_data
+                .list_at::<Vec<u8>>(4)
+                .unwrap()
+                .iter()
+                .map(|seal| {
+                    Signature::from_raw(seal)
+                        .unwrap()
+                        .recover_address_from_prehash(&digest)
+                        .unwrap()
+                })
+                .collect();
+            let mut expected: Vec<_> = signers.iter().map(PrivateKeySigner::address).collect();
+            expected.sort();
+            assert_eq!(recovered, expected);
+            assert_eq!(
+                Header {
+                    extra_data: header.extra_data.clone(),
+                    ..sorted
+                },
+                header
+            );
+        }
+    }
+
+    #[test]
+    fn sort_commit_seals_rejects_duplicate_signers() {
+        let signer = PrivateKeySigner::random();
+        let (header, _) = sealed_header(BesuConsensusType::Qbft, &[&signer, &signer]);
+        let err = sort_commit_seals(&header, BesuConsensusType::Qbft).unwrap_err();
+        assert!(err.to_string().contains("duplicate commit seal signer"));
     }
 }

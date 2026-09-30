@@ -8,8 +8,8 @@
   packages = with pkgs; [
     # nixpkgs' go-ethereum lags the abigen version CI pins; see nix/abigen.nix.
     (callPackage ../../nix/abigen.nix {})
-    solc_0_8_28
-    (inputs.solc.mkDefault pkgs solc_0_8_28)
+    solc_0_8_37
+    (inputs.solc.mkDefault pkgs solc_0_8_37)
     # py-evm (a slither dependency) does not support python 3.14, which is
     # the default python3 in nixpkgs-unstable; pin slither to python 3.13.
     (python313Packages.toPythonApplication python313Packages.slither-analyzer)

@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.28;
 
-// solhint-disable gas-strict-inequalities
-
 import { Test } from "forge-std/Test.sol";
 import { ILightClient } from "../../contracts/interfaces/ILightClient.sol";
 import { ILightClientMsgs } from "../../contracts/msgs/ILightClientMsgs.sol";
 import { IBesuLightClient } from "../../contracts/light-clients/besu/interfaces/IBesuLightClient.sol";
+import { IBesuLightClientMsgs } from "../../contracts/light-clients/besu/msgs/IBesuLightClientMsgs.sol";
 import { ICS24Host } from "../../contracts/utils/ICS24Host.sol";
 import { QBFTSimSuite } from "../besu-bft/utils/QBFTSimSuite.sol";
 import { SimHeader } from "../besu-bft/utils/SimHeader.sol";
@@ -21,7 +20,7 @@ contract BesuQBFTSimBenchmark is Test {
             QBFTSimSuite sim = new QBFTSimSuite(SimHeader.Mode.QBFT);
             sim.addValidators(counts[i]);
             sim.produceBlocks(2);
-            IBesuLightClient client = sim.deployLightClient(1 days, 10);
+            IBesuLightClient client = sim.deployLightClient(1 days, 10, IBesuLightClientMsgs.TrustThreshold(2, 3));
             sim.produceBlock();
             bytes memory update = sim.updateMsg(2, 3);
             string memory name = string.concat("update.validators_", vm.toString(counts[i]));
@@ -44,7 +43,7 @@ contract BesuQBFTSimBenchmark is Test {
                 QBFTSimSuite sim = new QBFTSimSuite(SimHeader.Mode.QBFT);
                 sim.addValidators(4);
                 sim.produceBlocks(2);
-                IBesuLightClient client = sim.deployLightClient(1 days, 10);
+                IBesuLightClient client = sim.deployLightClient(1 days, 10, IBesuLightClientMsgs.TrustThreshold(2, 3));
                 sim.addAccounts(sizes[a] - 1);
                 for (uint64 seq = 1; seq <= sizes[c]; ++seq) {
                     sim.setCommitment(

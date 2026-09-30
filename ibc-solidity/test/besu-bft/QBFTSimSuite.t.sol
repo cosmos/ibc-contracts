@@ -7,6 +7,7 @@ import { Strings } from "@openzeppelin-contracts/utils/Strings.sol";
 import { IICS26RouterMsgs } from "../../contracts/msgs/IICS26RouterMsgs.sol";
 import { ILightClientMsgs } from "../../contracts/msgs/ILightClientMsgs.sol";
 import { IBesuLightClient } from "../../contracts/light-clients/besu/interfaces/IBesuLightClient.sol";
+import { IBesuLightClientMsgs } from "../../contracts/light-clients/besu/msgs/IBesuLightClientMsgs.sol";
 import { IBesuLightClientErrors } from "../../contracts/light-clients/besu/errors/IBesuLightClientErrors.sol";
 import { ICS24Host } from "../../contracts/utils/ICS24Host.sol";
 
@@ -31,7 +32,7 @@ contract QBFTSimSuiteTest is Test {
         s = new QBFTSimSuite(mode);
         s.addValidators(validatorCount);
         s.produceBlocks(2);
-        client = s.deployLightClient(TRUSTING_PERIOD, MAX_CLOCK_DRIFT);
+        client = s.deployLightClient(TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(2, 3));
     }
 
     function test_honestChain() public {
@@ -56,10 +57,13 @@ contract QBFTSimSuiteTest is Test {
         b = sim.seal(b);
         sim.commit(a);
 
-        client.updateClient(sim.updateMsg(2, a));
+        bytes memory honest = sim.updateMsg(2, a);
+        client.updateClient(honest);
         bytes memory conflicting = sim.updateMsg(2, b);
-        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.ConflictingConsensusState.selector, 3));
-        client.updateClient(conflicting);
+        assertEq(uint8(client.updateClient(conflicting)), uint8(ILightClientMsgs.UpdateResult.Misbehaviour));
+
+        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.FrozenClientState.selector));
+        client.updateClient(honest);
     }
 
     function test_timestampFromFuture() public {
@@ -95,6 +99,23 @@ contract QBFTSimSuiteTest is Test {
         client.updateClient(update);
     }
 
+    function test_unsortedOrDuplicateSigners() public {
+        SimHeader.Data memory h = sim.seal(sim.nextBlock());
+        (h.commitSeals[0], h.commitSeals[1]) = (h.commitSeals[1], h.commitSeals[0]);
+        bytes memory update = sim.updateMsg(2, h);
+        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.UnsortedCommitSealSigners.selector, 0));
+        client.updateClient(update);
+
+        uint256[] memory keys = new uint256[](4);
+        for (uint256 i = 0; i < 3; ++i) {
+            keys[i] = sim.validatorKey(sim.validators()[i]);
+        }
+        keys[3] = keys[2];
+        update = sim.updateMsg(2, sim.sealWithKeys(sim.nextBlock(), keys));
+        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.UnsortedCommitSealSigners.selector, 2));
+        client.updateClient(update);
+    }
+
     function test_validatorChurn() public {
         sim.removeValidator(sim.validators()[0]);
         sim.addValidator();
@@ -112,6 +133,33 @@ contract QBFTSimSuiteTest is Test {
             abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 0, 3)
         );
         client.updateClient(update);
+    }
+
+    function test_trustLevel() public {
+        IBesuLightClient lenient =
+            sim.deployLightClient(TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(1, 3));
+        IBesuLightClient strict =
+            sim.deployLightClient(TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(1, 1));
+
+        address[] memory three = new address[](3);
+        (three[0], three[1], three[2]) = (sim.validators()[0], sim.validators()[1], sim.validators()[2]);
+        bytes memory update = sim.updateMsg(2, sim.seal(sim.nextBlock(), three));
+        vm.expectRevert(
+            abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 3, 4)
+        );
+        strict.updateClient(update);
+
+        // Rotating half of the validators leaves 2 of 4 trusted signers: below 2/3, above 1/3.
+        sim.removeValidator(sim.validators()[0]);
+        sim.removeValidator(sim.validators()[0]);
+        sim.addValidators(2);
+        sim.produceBlock();
+        update = sim.updateMsg(2, 3);
+        vm.expectRevert(
+            abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 2, 3)
+        );
+        client.updateClient(update);
+        assertEq(uint8(lenient.updateClient(update)), uint8(ILightClientMsgs.UpdateResult.Update));
     }
 
     function test_packetProofs() public {

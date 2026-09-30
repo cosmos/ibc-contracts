@@ -38,6 +38,23 @@
         "internalType": "uint64"
       },
       {
+        "name": "trustLevel",
+        "type": "tuple",
+        "internalType": "struct IBesuLightClientMsgs.TrustThreshold",
+        "components": [
+          {
+            "name": "numerator",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "denominator",
+            "type": "uint8",
+            "internalType": "uint8"
+          }
+        ]
+      },
+      {
         "name": "roleManager",
         "type": "address",
         "internalType": "address"
@@ -354,6 +371,31 @@
   },
   {
     "type": "event",
+    "name": "DoubleSign",
+    "inputs": [
+      {
+        "name": "revisionHeight",
+        "type": "uint64",
+        "indexed": true,
+        "internalType": "uint64"
+      },
+      {
+        "name": "trustedConsensusStateHash",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "conflictingConsensusStateHash",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "RoleAdminChanged",
     "inputs": [
       {
@@ -450,17 +492,6 @@
   },
   {
     "type": "error",
-    "name": "ConflictingConsensusState",
-    "inputs": [
-      {
-        "name": "revisionHeight",
-        "type": "uint64",
-        "internalType": "uint64"
-      }
-    ]
-  },
-  {
-    "type": "error",
     "name": "ConsensusStateExpired",
     "inputs": [
       {
@@ -509,18 +540,12 @@
   },
   {
     "type": "error",
-    "name": "DuplicateCommitSealSigner",
-    "inputs": [
-      {
-        "name": "signer",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
+    "name": "EmptyValidatorSet",
+    "inputs": []
   },
   {
     "type": "error",
-    "name": "EmptyValidatorSet",
+    "name": "FrozenClientState",
     "inputs": []
   },
   {
@@ -718,6 +743,22 @@
   },
   {
     "type": "error",
+    "name": "InvalidTrustLevel",
+    "inputs": [
+      {
+        "name": "numerator",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "denominator",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "InvalidTrustingPeriod",
     "inputs": []
   },
@@ -799,6 +840,17 @@
         "name": "signer",
         "type": "address",
         "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "UnsortedCommitSealSigners",
+    "inputs": [
+      {
+        "name": "index",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ]
   },

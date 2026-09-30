@@ -26,7 +26,7 @@ var (
 
 // BindingsMetaData contains all meta data concerning the Bindings contract.
 var BindingsMetaData = bind.MetaData{
-	ABI: "[{\"type\":\"error\",\"name\":\"ConflictingConsensusState\",\"inputs\":[{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"type\":\"error\",\"name\":\"ConsensusStateExpired\",\"inputs\":[{\"name\":\"trustedTimestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"currentTimestamp\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"trustingPeriod\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"type\":\"error\",\"name\":\"ConsensusStateNotFound\",\"inputs\":[{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"type\":\"error\",\"name\":\"ConsensusStatePreimageMismatch\",\"inputs\":[{\"name\":\"expectedHash\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"actualHash\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]},{\"type\":\"error\",\"name\":\"DuplicateCommitSealSigner\",\"inputs\":[{\"name\":\"signer\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"EmptyValidatorSet\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"HeaderFromFuture\",\"inputs\":[{\"name\":\"currentTimestamp\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"headerTimestamp\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"maxClockDrift\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"InsufficientTrustedValidatorOverlap\",\"inputs\":[{\"name\":\"actual\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"required\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"InsufficientValidatorQuorum\",\"inputs\":[{\"name\":\"actual\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"required\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"InvalidCommitSeal\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidCommitmentValue\",\"inputs\":[{\"name\":\"expectedValue\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"actualValue\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]},{\"type\":\"error\",\"name\":\"InvalidDifficulty\",\"inputs\":[{\"name\":\"actualDifficulty\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"InvalidECDSASignatureLength\",\"inputs\":[{\"name\":\"length\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"InvalidExclusionProof\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidExtraDataFormat\",\"inputs\":[{\"name\":\"itemsLength\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"InvalidHeaderFormat\",\"inputs\":[{\"name\":\"itemsLength\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"InvalidHeaderHeight\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidHeaderTimestamp\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidMixHash\",\"inputs\":[{\"name\":\"actualMixHash\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]},{\"type\":\"error\",\"name\":\"InvalidNonce\",\"inputs\":[{\"name\":\"actualNonce\",\"type\":\"bytes\",\"internalType\":\"bytes\"}]},{\"type\":\"error\",\"name\":\"InvalidOmmersHash\",\"inputs\":[{\"name\":\"actualOmmersHash\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]},{\"type\":\"error\",\"name\":\"InvalidPathLength\",\"inputs\":[{\"name\":\"expectedLength\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"actualLength\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"InvalidRevisionNumber\",\"inputs\":[{\"name\":\"providedRevisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"type\":\"error\",\"name\":\"InvalidTrustingPeriod\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidValidatorAddress\",\"inputs\":[{\"name\":\"validator\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"InvalidValueLength\",\"inputs\":[{\"name\":\"expectedLength\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"actualLength\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"StorageRootNotInCache\",\"inputs\":[{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"type\":\"error\",\"name\":\"UnknownCommitSealSigner\",\"inputs\":[{\"name\":\"signer\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"UnsortedValidatorSet\",\"inputs\":[{\"name\":\"index\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"UnsupportedMisbehaviour\",\"inputs\":[]}]",
+	ABI: "[{\"type\":\"error\",\"name\":\"ConsensusStateExpired\",\"inputs\":[{\"name\":\"trustedTimestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"currentTimestamp\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"trustingPeriod\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"type\":\"error\",\"name\":\"ConsensusStateNotFound\",\"inputs\":[{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"type\":\"error\",\"name\":\"ConsensusStatePreimageMismatch\",\"inputs\":[{\"name\":\"expectedHash\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"actualHash\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]},{\"type\":\"error\",\"name\":\"EmptyValidatorSet\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"FrozenClientState\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"HeaderFromFuture\",\"inputs\":[{\"name\":\"currentTimestamp\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"headerTimestamp\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"maxClockDrift\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"InsufficientTrustedValidatorOverlap\",\"inputs\":[{\"name\":\"actual\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"required\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"InsufficientValidatorQuorum\",\"inputs\":[{\"name\":\"actual\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"required\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"InvalidCommitSeal\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidCommitmentValue\",\"inputs\":[{\"name\":\"expectedValue\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"actualValue\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]},{\"type\":\"error\",\"name\":\"InvalidDifficulty\",\"inputs\":[{\"name\":\"actualDifficulty\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"InvalidECDSASignatureLength\",\"inputs\":[{\"name\":\"length\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"InvalidExclusionProof\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidExtraDataFormat\",\"inputs\":[{\"name\":\"itemsLength\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"InvalidHeaderFormat\",\"inputs\":[{\"name\":\"itemsLength\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"InvalidHeaderHeight\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidHeaderTimestamp\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidMixHash\",\"inputs\":[{\"name\":\"actualMixHash\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]},{\"type\":\"error\",\"name\":\"InvalidNonce\",\"inputs\":[{\"name\":\"actualNonce\",\"type\":\"bytes\",\"internalType\":\"bytes\"}]},{\"type\":\"error\",\"name\":\"InvalidOmmersHash\",\"inputs\":[{\"name\":\"actualOmmersHash\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]},{\"type\":\"error\",\"name\":\"InvalidPathLength\",\"inputs\":[{\"name\":\"expectedLength\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"actualLength\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"InvalidRevisionNumber\",\"inputs\":[{\"name\":\"providedRevisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"type\":\"error\",\"name\":\"InvalidTrustLevel\",\"inputs\":[{\"name\":\"numerator\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"denominator\",\"type\":\"uint8\",\"internalType\":\"uint8\"}]},{\"type\":\"error\",\"name\":\"InvalidTrustingPeriod\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidValidatorAddress\",\"inputs\":[{\"name\":\"validator\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"InvalidValueLength\",\"inputs\":[{\"name\":\"expectedLength\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"actualLength\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"StorageRootNotInCache\",\"inputs\":[{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"type\":\"error\",\"name\":\"UnknownCommitSealSigner\",\"inputs\":[{\"name\":\"signer\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"UnsortedCommitSealSigners\",\"inputs\":[{\"name\":\"index\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"UnsortedValidatorSet\",\"inputs\":[{\"name\":\"index\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"UnsupportedMisbehaviour\",\"inputs\":[]}]",
 	ID:  "Bindings",
 }
 
@@ -58,9 +58,6 @@ func (c *Bindings) Instance(backend bind.ContractBackend, addr common.Address) *
 // UnpackError attempts to decode the provided error data using user-defined
 // error definitions.
 func (bindings *Bindings) UnpackError(raw []byte) (any, error) {
-	if bytes.Equal(raw[:4], bindings.abi.Errors["ConflictingConsensusState"].ID.Bytes()[:4]) {
-		return bindings.UnpackConflictingConsensusStateError(raw[4:])
-	}
 	if bytes.Equal(raw[:4], bindings.abi.Errors["ConsensusStateExpired"].ID.Bytes()[:4]) {
 		return bindings.UnpackConsensusStateExpiredError(raw[4:])
 	}
@@ -70,11 +67,11 @@ func (bindings *Bindings) UnpackError(raw []byte) (any, error) {
 	if bytes.Equal(raw[:4], bindings.abi.Errors["ConsensusStatePreimageMismatch"].ID.Bytes()[:4]) {
 		return bindings.UnpackConsensusStatePreimageMismatchError(raw[4:])
 	}
-	if bytes.Equal(raw[:4], bindings.abi.Errors["DuplicateCommitSealSigner"].ID.Bytes()[:4]) {
-		return bindings.UnpackDuplicateCommitSealSignerError(raw[4:])
-	}
 	if bytes.Equal(raw[:4], bindings.abi.Errors["EmptyValidatorSet"].ID.Bytes()[:4]) {
 		return bindings.UnpackEmptyValidatorSetError(raw[4:])
+	}
+	if bytes.Equal(raw[:4], bindings.abi.Errors["FrozenClientState"].ID.Bytes()[:4]) {
+		return bindings.UnpackFrozenClientStateError(raw[4:])
 	}
 	if bytes.Equal(raw[:4], bindings.abi.Errors["HeaderFromFuture"].ID.Bytes()[:4]) {
 		return bindings.UnpackHeaderFromFutureError(raw[4:])
@@ -127,6 +124,9 @@ func (bindings *Bindings) UnpackError(raw []byte) (any, error) {
 	if bytes.Equal(raw[:4], bindings.abi.Errors["InvalidRevisionNumber"].ID.Bytes()[:4]) {
 		return bindings.UnpackInvalidRevisionNumberError(raw[4:])
 	}
+	if bytes.Equal(raw[:4], bindings.abi.Errors["InvalidTrustLevel"].ID.Bytes()[:4]) {
+		return bindings.UnpackInvalidTrustLevelError(raw[4:])
+	}
 	if bytes.Equal(raw[:4], bindings.abi.Errors["InvalidTrustingPeriod"].ID.Bytes()[:4]) {
 		return bindings.UnpackInvalidTrustingPeriodError(raw[4:])
 	}
@@ -142,6 +142,9 @@ func (bindings *Bindings) UnpackError(raw []byte) (any, error) {
 	if bytes.Equal(raw[:4], bindings.abi.Errors["UnknownCommitSealSigner"].ID.Bytes()[:4]) {
 		return bindings.UnpackUnknownCommitSealSignerError(raw[4:])
 	}
+	if bytes.Equal(raw[:4], bindings.abi.Errors["UnsortedCommitSealSigners"].ID.Bytes()[:4]) {
+		return bindings.UnpackUnsortedCommitSealSignersError(raw[4:])
+	}
 	if bytes.Equal(raw[:4], bindings.abi.Errors["UnsortedValidatorSet"].ID.Bytes()[:4]) {
 		return bindings.UnpackUnsortedValidatorSetError(raw[4:])
 	}
@@ -149,30 +152,6 @@ func (bindings *Bindings) UnpackError(raw []byte) (any, error) {
 		return bindings.UnpackUnsupportedMisbehaviourError(raw[4:])
 	}
 	return nil, errors.New("Unknown error")
-}
-
-// BindingsConflictingConsensusState represents a ConflictingConsensusState error raised by the Bindings contract.
-type BindingsConflictingConsensusState struct {
-	RevisionHeight uint64
-}
-
-// ErrorID returns the hash of canonical representation of the error's signature.
-//
-// Solidity: error ConflictingConsensusState(uint64 revisionHeight)
-func BindingsConflictingConsensusStateErrorID() common.Hash {
-	return common.HexToHash("0xc1aea5f771727a12f1fa132a61d693d481402a66b30685d67bb11fd749aabf06")
-}
-
-// UnpackConflictingConsensusStateError is the Go binding used to decode the provided
-// error data into the corresponding Go error struct.
-//
-// Solidity: error ConflictingConsensusState(uint64 revisionHeight)
-func (bindings *Bindings) UnpackConflictingConsensusStateError(raw []byte) (*BindingsConflictingConsensusState, error) {
-	out := new(BindingsConflictingConsensusState)
-	if err := bindings.abi.UnpackIntoInterface(out, "ConflictingConsensusState", raw); err != nil {
-		return nil, err
-	}
-	return out, nil
 }
 
 // BindingsConsensusStateExpired represents a ConsensusStateExpired error raised by the Bindings contract.
@@ -250,30 +229,6 @@ func (bindings *Bindings) UnpackConsensusStatePreimageMismatchError(raw []byte) 
 	return out, nil
 }
 
-// BindingsDuplicateCommitSealSigner represents a DuplicateCommitSealSigner error raised by the Bindings contract.
-type BindingsDuplicateCommitSealSigner struct {
-	Signer common.Address
-}
-
-// ErrorID returns the hash of canonical representation of the error's signature.
-//
-// Solidity: error DuplicateCommitSealSigner(address signer)
-func BindingsDuplicateCommitSealSignerErrorID() common.Hash {
-	return common.HexToHash("0x33af0d5f5b6e9d5e6bcd3744d09854f4cd4fd41459d0b4b6dac048b5636a3b37")
-}
-
-// UnpackDuplicateCommitSealSignerError is the Go binding used to decode the provided
-// error data into the corresponding Go error struct.
-//
-// Solidity: error DuplicateCommitSealSigner(address signer)
-func (bindings *Bindings) UnpackDuplicateCommitSealSignerError(raw []byte) (*BindingsDuplicateCommitSealSigner, error) {
-	out := new(BindingsDuplicateCommitSealSigner)
-	if err := bindings.abi.UnpackIntoInterface(out, "DuplicateCommitSealSigner", raw); err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // BindingsEmptyValidatorSet represents a EmptyValidatorSet error raised by the Bindings contract.
 type BindingsEmptyValidatorSet struct {
 }
@@ -292,6 +247,29 @@ func BindingsEmptyValidatorSetErrorID() common.Hash {
 func (bindings *Bindings) UnpackEmptyValidatorSetError(raw []byte) (*BindingsEmptyValidatorSet, error) {
 	out := new(BindingsEmptyValidatorSet)
 	if err := bindings.abi.UnpackIntoInterface(out, "EmptyValidatorSet", raw); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// BindingsFrozenClientState represents a FrozenClientState error raised by the Bindings contract.
+type BindingsFrozenClientState struct {
+}
+
+// ErrorID returns the hash of canonical representation of the error's signature.
+//
+// Solidity: error FrozenClientState()
+func BindingsFrozenClientStateErrorID() common.Hash {
+	return common.HexToHash("0x928b12330b30961cafcd06290d6fce6801ceb625727babdbacac64acec0ec82b")
+}
+
+// UnpackFrozenClientStateError is the Go binding used to decode the provided
+// error data into the corresponding Go error struct.
+//
+// Solidity: error FrozenClientState()
+func (bindings *Bindings) UnpackFrozenClientStateError(raw []byte) (*BindingsFrozenClientState, error) {
+	out := new(BindingsFrozenClientState)
+	if err := bindings.abi.UnpackIntoInterface(out, "FrozenClientState", raw); err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -707,6 +685,31 @@ func (bindings *Bindings) UnpackInvalidRevisionNumberError(raw []byte) (*Binding
 	return out, nil
 }
 
+// BindingsInvalidTrustLevel represents a InvalidTrustLevel error raised by the Bindings contract.
+type BindingsInvalidTrustLevel struct {
+	Numerator   uint8
+	Denominator uint8
+}
+
+// ErrorID returns the hash of canonical representation of the error's signature.
+//
+// Solidity: error InvalidTrustLevel(uint8 numerator, uint8 denominator)
+func BindingsInvalidTrustLevelErrorID() common.Hash {
+	return common.HexToHash("0xa61ea9d347287b85ba4f65f570a4870d3a6ec69447b3f37775a1e38a4c30fb2d")
+}
+
+// UnpackInvalidTrustLevelError is the Go binding used to decode the provided
+// error data into the corresponding Go error struct.
+//
+// Solidity: error InvalidTrustLevel(uint8 numerator, uint8 denominator)
+func (bindings *Bindings) UnpackInvalidTrustLevelError(raw []byte) (*BindingsInvalidTrustLevel, error) {
+	out := new(BindingsInvalidTrustLevel)
+	if err := bindings.abi.UnpackIntoInterface(out, "InvalidTrustLevel", raw); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BindingsInvalidTrustingPeriod represents a InvalidTrustingPeriod error raised by the Bindings contract.
 type BindingsInvalidTrustingPeriod struct {
 }
@@ -822,6 +825,30 @@ func BindingsUnknownCommitSealSignerErrorID() common.Hash {
 func (bindings *Bindings) UnpackUnknownCommitSealSignerError(raw []byte) (*BindingsUnknownCommitSealSigner, error) {
 	out := new(BindingsUnknownCommitSealSigner)
 	if err := bindings.abi.UnpackIntoInterface(out, "UnknownCommitSealSigner", raw); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// BindingsUnsortedCommitSealSigners represents a UnsortedCommitSealSigners error raised by the Bindings contract.
+type BindingsUnsortedCommitSealSigners struct {
+	Index *big.Int
+}
+
+// ErrorID returns the hash of canonical representation of the error's signature.
+//
+// Solidity: error UnsortedCommitSealSigners(uint256 index)
+func BindingsUnsortedCommitSealSignersErrorID() common.Hash {
+	return common.HexToHash("0xab6fdd9695bc2efc662e3251938712a699b18c6e191ff8bc38d3168e40afbaa3")
+}
+
+// UnpackUnsortedCommitSealSignersError is the Go binding used to decode the provided
+// error data into the corresponding Go error struct.
+//
+// Solidity: error UnsortedCommitSealSigners(uint256 index)
+func (bindings *Bindings) UnpackUnsortedCommitSealSignersError(raw []byte) (*BindingsUnsortedCommitSealSigners, error) {
+	out := new(BindingsUnsortedCommitSealSigners)
+	if err := bindings.abi.UnpackIntoInterface(out, "UnsortedCommitSealSigners", raw); err != nil {
 		return nil, err
 	}
 	return out, nil
