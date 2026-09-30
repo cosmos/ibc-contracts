@@ -139,6 +139,10 @@ impl TxBuilder {
             .get_block_number()
             .await
             .context("failed to fetch latest source block number")?;
+        ensure!(
+            needs_update(trusted_height, target_height)?,
+            "client {dst_client_id} is already at the latest source height {target_height}"
+        );
 
         let trusted_state = consensus_state(&self.fetch_source_header(trusted_height).await?)?;
         let target_header = self.fetch_source_header(target_height).await?;
@@ -212,11 +216,6 @@ impl TxBuilder {
             bail!("no packets collected")
         }
 
-        let trusted_height = self
-            .fetch_destination_trusted_height(&params.dst_client_id)
-            .await?;
-        let trusted_state = consensus_state(&self.fetch_source_header(trusted_height).await?)?;
-
         let storage_keys = packet_calls
             .iter()
             .map(packet_storage_key)
@@ -241,15 +240,11 @@ impl TxBuilder {
             &consensus_state(&header)?,
         )?;
 
-        let update_call = Self::build_update_client_calldata(
-            &params.dst_client_id,
-            trusted_height,
-            trusted_state,
-            &header,
-            self.consensus_type,
-        )?;
-
-        let all_calls: Vec<Bytes> = std::iter::once(update_call.into())
+        let all_calls: Vec<Bytes> = self
+            .update_client_calldata_if_needed(&params.dst_client_id, &header)
+            .await?
+            .map(Bytes::from)
+            .into_iter()
             .chain(packet_calls.into_iter().map(|call| match call {
                 routerCalls::ackPacket(call) => call.abi_encode().into(),
                 routerCalls::recvPacket(call) => call.abi_encode().into(),
@@ -259,6 +254,30 @@ impl TxBuilder {
             .collect();
 
         Ok(multicallCall { data: all_calls }.abi_encode())
+    }
+
+    /// Builds the update from the destination client's trusted height to `target_header`, or
+    /// returns `None` when the client already trusts that height.
+    async fn update_client_calldata_if_needed(
+        &self,
+        dst_client_id: &str,
+        target_header: &Header,
+    ) -> Result<Option<Vec<u8>>> {
+        let trusted_height = self.fetch_destination_trusted_height(dst_client_id).await?;
+        if !needs_update(trusted_height, target_header.number)? {
+            tracing::info!("Client already at height {trusted_height}, skipping update");
+            return Ok(None);
+        }
+
+        let trusted_state = consensus_state(&self.fetch_source_header(trusted_height).await?)?;
+        Self::build_update_client_calldata(
+            dst_client_id,
+            trusted_height,
+            trusted_state,
+            target_header,
+            self.consensus_type,
+        )
+        .map(Some)
     }
 
     fn build_update_client_calldata(
@@ -341,6 +360,19 @@ impl TxBuilder {
                 format!("failed to decode destination client state for {dst_client_id}")
             })
     }
+}
+
+/// Whether the destination client must be updated before proving at `proof_height`.
+///
+/// The light client requires an update header strictly above its trusted height, so an update is
+/// only built once the source has advanced past it. At equal heights the client already stores
+/// the consensus state proofs are verified against.
+fn needs_update(trusted_height: u64, proof_height: u64) -> Result<bool> {
+    ensure!(
+        proof_height >= trusted_height,
+        "destination client trusts height {trusted_height}, ahead of the latest source block {proof_height}; retry once the source node catches up"
+    );
+    Ok(proof_height > trusted_height)
 }
 
 /// Rebuilds the consensus state the light client derives from a source header.
@@ -677,8 +709,9 @@ mod tests {
     use std::collections::HashMap;
 
     use super::{
-        attach_packet_proofs, map_storage_proofs, packet_storage_key, parse_create_client_params,
-        retain_provable_packet_calls, sort_commit_seals, StorageSlotProof, TRUST_LEVEL,
+        attach_packet_proofs, map_storage_proofs, needs_update, packet_storage_key,
+        parse_create_client_params, retain_provable_packet_calls, sort_commit_seals,
+        StorageSlotProof, TRUST_LEVEL,
     };
     use crate::BesuConsensusType;
     use alloy::{
@@ -951,6 +984,13 @@ mod tests {
             decode_recv_proof(&calls[0]).accountProofNodes,
             account_nodes
         );
+    }
+
+    #[test]
+    fn needs_update_only_when_source_is_ahead() {
+        assert!(needs_update(10, 11).unwrap());
+        assert!(!needs_update(10, 10).unwrap());
+        assert!(needs_update(10, 9).is_err());
     }
 
     #[test]
