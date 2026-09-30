@@ -114,6 +114,10 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             block.timestamp + clientState.maxClockDrift >= header.timestamp,
             HeaderFromFuture(block.timestamp, header.timestamp, clientState.maxClockDrift)
         );
+        require(
+            header.height > msg_.trustedHeight.revisionHeight,
+            InvalidTrustedHeight(msg_.trustedHeight.revisionHeight, header.height)
+        );
 
         _requireTrustedConsensusState(msg_.trustedHeight.revisionHeight, msg_.consensusStatePreimage);
 
@@ -134,6 +138,17 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
             clientState.isFrozen = true;
             emit DoubleSign(header.height, existingHash, newHash);
+            return ILightClientMsgs.UpdateResult.Misbehaviour;
+        }
+
+        if (msg_.consensusStatePreimage.timestamp >= header.timestamp) {
+            clientState.isFrozen = true;
+            emit TimeNonMonotonicity(
+                header.height,
+                msg_.trustedHeight.revisionHeight,
+                header.timestamp,
+                msg_.consensusStatePreimage.timestamp
+            );
             return ILightClientMsgs.UpdateResult.Misbehaviour;
         }
 
@@ -204,8 +219,34 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     }
 
     /// @inheritdoc ILightClient
-    function misbehaviour(bytes calldata) external view notFrozen onlyProofSubmitter {
-        revert UnsupportedMisbehaviour();
+    function misbehaviour(bytes calldata misbehaviourMsg) external notFrozen onlyProofSubmitter {
+        IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour memory msg_ =
+            abi.decode(misbehaviourMsg, (IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour));
+        require(msg_.height1.revisionNumber == 0, InvalidRevisionNumber(msg_.height1.revisionNumber));
+        require(msg_.height2.revisionNumber == 0, InvalidRevisionNumber(msg_.height2.revisionNumber));
+        require(
+            msg_.height1.revisionHeight < msg_.height2.revisionHeight,
+            InvalidMisbehaviourHeightOrder(msg_.height1.revisionHeight, msg_.height2.revisionHeight)
+        );
+
+        // Stored consensus states remain valid evidence after their trusting period.
+        _requireStoredConsensusState(msg_.height1.revisionHeight, msg_.consensusStatePreimage1);
+        _requireStoredConsensusState(msg_.height2.revisionHeight, msg_.consensusStatePreimage2);
+
+        require(
+            msg_.consensusStatePreimage1.timestamp >= msg_.consensusStatePreimage2.timestamp,
+            InvalidTimeNonMonotonicityMisbehaviour(
+                msg_.consensusStatePreimage1.timestamp, msg_.consensusStatePreimage2.timestamp
+            )
+        );
+
+        clientState.isFrozen = true;
+        emit TimeNonMonotonicity(
+            msg_.height2.revisionHeight,
+            msg_.height1.revisionHeight,
+            msg_.consensusStatePreimage2.timestamp,
+            msg_.consensusStatePreimage1.timestamp
+        );
     }
 
     /// @notice Computes the protocol-specific commit seal digest for a parsed header.
@@ -372,16 +413,28 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         private
         view
     {
+        _requireStoredConsensusState(revisionHeight, preimage);
+        require(
+            uint256(preimage.timestamp) + clientState.trustingPeriod > block.timestamp,
+            ConsensusStateExpired(preimage.timestamp, block.timestamp, clientState.trustingPeriod)
+        );
+    }
+
+    /// @notice Reverts unless the given consensus state matches the stored hash at the height.
+    /// @param revisionHeight The consensus state revision height.
+    /// @param preimage The consensus state preimage to check.
+    function _requireStoredConsensusState(
+        uint64 revisionHeight,
+        IBesuLightClientMsgs.ConsensusState memory preimage
+    )
+        private
+        view
+    {
         bytes32 consensusStateHash = consensusStateHashes[revisionHeight];
         require(consensusStateHash != bytes32(0), ConsensusStateNotFound(revisionHeight));
 
         bytes32 preimageHash = keccak256(abi.encode(preimage));
         require(consensusStateHash == preimageHash, ConsensusStatePreimageMismatch(consensusStateHash, preimageHash));
-
-        require(
-            uint256(preimage.timestamp) + clientState.trustingPeriod > block.timestamp,
-            ConsensusStateExpired(preimage.timestamp, block.timestamp, clientState.trustingPeriod)
-        );
     }
 
     /// @notice Caches a storage root for a revision height in a transient slot.

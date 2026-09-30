@@ -217,13 +217,13 @@
     "name": "misbehaviour",
     "inputs": [
       {
-        "name": "",
+        "name": "misbehaviourMsg",
         "type": "bytes",
         "internalType": "bytes"
       }
     ],
     "outputs": [],
-    "stateMutability": "view"
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -501,6 +501,37 @@
     "anonymous": false
   },
   {
+    "type": "event",
+    "name": "TimeNonMonotonicity",
+    "inputs": [
+      {
+        "name": "height2",
+        "type": "uint64",
+        "indexed": true,
+        "internalType": "uint64"
+      },
+      {
+        "name": "height1",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      },
+      {
+        "name": "timestamp2",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      },
+      {
+        "name": "timestamp1",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      }
+    ],
+    "anonymous": false
+  },
+  {
     "type": "error",
     "name": "AccessControlBadConfirmation",
     "inputs": []
@@ -719,6 +750,22 @@
   },
   {
     "type": "error",
+    "name": "InvalidMisbehaviourHeightOrder",
+    "inputs": [
+      {
+        "name": "height1",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "height2",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "InvalidMixHash",
     "inputs": [
       {
@@ -779,6 +826,22 @@
   },
   {
     "type": "error",
+    "name": "InvalidTimeNonMonotonicityMisbehaviour",
+    "inputs": [
+      {
+        "name": "timestamp1",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "timestamp2",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "InvalidTrustLevel",
     "inputs": [
       {
@@ -790,6 +853,22 @@
         "name": "denominator",
         "type": "uint8",
         "internalType": "uint8"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InvalidTrustedHeight",
+    "inputs": [
+      {
+        "name": "trustedHeight",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "headerHeight",
+        "type": "uint64",
+        "internalType": "uint64"
       }
     ]
   },
@@ -900,10 +979,5 @@
         "internalType": "uint256"
       }
     ]
-  },
-  {
-    "type": "error",
-    "name": "UnsupportedMisbehaviour",
-    "inputs": []
   }
 ]
