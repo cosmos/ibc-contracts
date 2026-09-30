@@ -43,6 +43,10 @@ contract E2ETestDeploy is Script, IICS07TendermintMsgs, DeployAccessManagerWithR
     string internal constant IFT_TOKEN_NAME = "Test IFT";
     /// @dev ERC20 token symbol for the test IFT contract
     string internal constant IFT_TOKEN_SYMBOL = "TIFT";
+    /// @dev Rate limit capacity of each direction for the test IFT contract, generous so that e2e flows never hit it
+    uint208 internal constant IFT_RATE_LIMIT_CAPACITY = type(uint128).max;
+    /// @dev Rate limit refill window for the test IFT contract
+    uint48 internal constant IFT_RATE_LIMIT_WINDOW = 1 days;
 
     struct DeployedContracts {
         address verifierPlonk;
@@ -110,6 +114,7 @@ contract E2ETestDeploy is Script, IICS07TendermintMsgs, DeployAccessManagerWithR
                 abi.encodeCall(IFTOwnable.initialize, (msg.sender, IFT_TOKEN_NAME, IFT_TOKEN_SYMBOL, d.ics27Gmp))
             )
         );
+        IFTOwnable(d.ift).setIFTRateLimit(IFT_RATE_LIMIT_CAPACITY, IFT_RATE_LIMIT_WINDOW);
 
         // Deploy CosmosIFTSendCallConstructor if ICA address is provided
         if (bytes(iftIcaAddress).length > 0) {

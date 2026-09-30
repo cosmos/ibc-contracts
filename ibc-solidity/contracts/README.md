@@ -20,6 +20,7 @@ All contracts are compiled for the **Cancun** EVM (`evm_version = "cancun"` in `
 - `IBCRolesLib.sol` – Shared role ids and selector lists for access-managed permissions across ICS20/ICS26/ICS02.
 - `IBCSenderCallbacksLib.sol`, `IBCCallbackReceiver.sol` – Helpers for standardized callback interfaces used by apps.
 - `RateLimitUpgradeable.sol` – Reusable per-token, per-day rate limiting mixin used by escrow.
+- `IFTRateLimitUpgradeable.sol` – Refilling-bucket rate limiting mixin for IFT built on OpenZeppelin's `RateLimiter`, with one limiter keyed by direction so inbound (mint) and outbound (burn) share a capacity and window but track usage independently.
 - `RelayerHelper.sol` – Read-only helper for relayers to query packet commitments, receipts, and successful acknowledgements from `ICS26Router`.
 
 ## Light clients (`light-clients/`)
@@ -33,11 +34,12 @@ All contracts are compiled for the **Cancun** EVM (`evm_version = "cancun"` in `
 - Supported: Besu **IBFT 2.0** and **QBFT** in **header-validator mode**.
 - Verification model: weak subjectivity via **trusting period** and validator-set overlap checks.
 - Commit-seal verification: follows the existing **YUI Solidity client + besu-ibc-relay-prover** sealing-header reconstruction model.
-- Trusted overlap threshold: requires **`ceil(2n / 3)`** of the trusted validator set to have signed the new header (the same threshold as Besu commit-seal quorum), which is intentionally stricter than the current upstream YUI check.
+- Trusted overlap threshold: requires at least **`ceil(n * trustLevel)`** of the trusted validator set to have signed the new header, where `trustLevel` is configured at deployment within `[1/3, 1]` (the proof-api defaults to `2/3`, the same threshold as Besu commit-seal quorum). Commit-seal quorum stays at **`ceil(2n / 3)`**. See `light-clients/besu/README.md`.
 - Proof surface: Besu block headers, commit seals, Ethereum account proofs, and Ethereum storage proofs.
 - Destination chain requirement: the chain hosting the client must have Cancun (EIP-1153 transient storage) enabled; the proven router storage root is cached in transient storage so a batch of packet proofs at one height pays for a single account proof. See `light-clients/besu/README.md`.
 - Counterparty storage model: Eureka `ICS26Router` / `IBCStoreUpgradeable` commitments mapping.
-- Not supported in v1: QBFT validator-contract mode, mode transitions, and misbehaviour handling.
+- Misbehaviour: a double sign (conflicting consensus state at an already stored height) submitted through `updateClient` permanently freezes the client.
+- Not supported in v1: QBFT validator-contract mode, mode transitions, and `misbehaviour(bytes)` evidence submission.
 - Current fixture status: `test/besu-bft/fixtures/` are synthetic regression fixtures; real Besu-derived golden fixtures remain a follow-up interoperability-confidence improvement.
 
 ## Interchain Fungible Tokens (IFT)
@@ -46,6 +48,7 @@ All contracts are compiled for the **Cancun** EVM (`evm_version = "cancun"` in `
 - Bridges: `registerIFTBridge` configures a counterparty IFT contract per IBC client along with an `IIFTSendCallConstructor` helper to encode the mint call for that chain.
 - Sending: `iftTransfer` burns locally, builds ICS27 `SendCall` to the remote IFT, records `PendingTransfer`, and emits initiation events; default timeout is 15 minutes if not provided.
 - Receiving: `iftMint` is callable only by the ICS27-controlled account; it mints locally after verifying the counterparty sender matches the registered bridge and clears pending transfers on ack/timeout callbacks to refund/mint as appropriate.
+- Rate limits: `setIFTRateLimit` configures a single capacity and refill window shared by both directions, each of which tracks its own usage. Limits are mandatory (until set, every transfer is rejected), shared across all bridges of the token, and never restored by flow in the opposite direction; refunds of pending transfers consume inbound allowance like any other mint. See the [ADR](../../docs/adr/solidity/ift-ratelimit.md).
 - Extensibility: implement concrete ERC20 constructors and different `IIFTSendCallConstructor` variants for EVM vs Cosmos SDK token factory flows; access is governed by `AccessManaged` authority roles.
 
 ## Interfaces, errors, and message shapes

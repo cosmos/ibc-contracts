@@ -171,9 +171,15 @@ contract QBFTSimSuite is Test, SimWorldState {
     }
 
     /// @notice Seals `h` with arbitrary private keys, e.g. to add unknown or duplicate signers.
+    /// @dev Seals are ordered by signer address, as the light client requires.
     function sealWithKeys(SimHeader.Data memory h, uint256[] memory keys) public view returns (SimHeader.Data memory) {
         bytes32 digest = h.commitSealDigest(MODE);
         h.commitSeals = new bytes[](keys.length);
+        for (uint256 i = 1; i < keys.length; ++i) {
+            for (uint256 j = i; j > 0 && vm.addr(keys[j - 1]) > vm.addr(keys[j]); --j) {
+                (keys[j - 1], keys[j]) = (keys[j], keys[j - 1]);
+            }
+        }
         for (uint256 i = 0; i < keys.length; ++i) {
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(keys[i], digest);
             h.commitSeals[i] = abi.encodePacked(r, s, v);
@@ -204,7 +210,14 @@ contract QBFTSimSuite is Test, SimWorldState {
     // ---------------------------------------------------------------- light client glue
 
     /// @notice Deploys the light client for `MODE`, trusting the current tip, with open proof submission.
-    function deployLightClient(uint64 trustingPeriod, uint64 maxClockDrift) external returns (IBesuLightClient) {
+    function deployLightClient(
+        uint64 trustingPeriod,
+        uint64 maxClockDrift,
+        IBesuLightClientMsgs.TrustThreshold memory trustLevel
+    )
+        external
+        returns (IBesuLightClient)
+    {
         uint64 height = tipHeight();
         Block storage tip = _chain[height];
         if (MODE == SimHeader.Mode.QBFT) {
@@ -216,11 +229,20 @@ contract QBFTSimSuite is Test, SimWorldState {
                 tip.validators,
                 trustingPeriod,
                 maxClockDrift,
+                trustLevel,
                 address(0)
             );
         }
         return new BesuIBFT2LightClient(
-            IBC_ROUTER, height, tip.timestamp, tip.stateRoot, tip.validators, trustingPeriod, maxClockDrift, address(0)
+            IBC_ROUTER,
+            height,
+            tip.timestamp,
+            tip.stateRoot,
+            tip.validators,
+            trustingPeriod,
+            maxClockDrift,
+            trustLevel,
+            address(0)
         );
     }
 

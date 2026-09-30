@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.28;
 
-// solhint-disable gas-strict-inequalities,code-complexity
+// solhint-disable code-complexity
 
 import { IIFTSendCallConstructor } from "../interfaces/IIFTSendCallConstructor.sol";
 
