@@ -235,8 +235,9 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             InvalidMisbehaviourHeightOrder(msg_.height1.revisionHeight, msg_.height2.revisionHeight)
         );
 
-        _requireTrustedConsensusState(msg_.height1.revisionHeight, msg_.consensusStatePreimage1);
-        _requireTrustedConsensusState(msg_.height2.revisionHeight, msg_.consensusStatePreimage2);
+        // Stored consensus states remain valid evidence after their trusting period.
+        _requireStoredConsensusState(msg_.height1.revisionHeight, msg_.consensusStatePreimage1);
+        _requireStoredConsensusState(msg_.height2.revisionHeight, msg_.consensusStatePreimage2);
 
         require(
             msg_.consensusStatePreimage1.timestamp >= msg_.consensusStatePreimage2.timestamp,
@@ -418,16 +419,28 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         private
         view
     {
+        _requireStoredConsensusState(revisionHeight, preimage);
+        require(
+            uint256(preimage.timestamp) + clientState.trustingPeriod > block.timestamp,
+            ConsensusStateExpired(preimage.timestamp, block.timestamp, clientState.trustingPeriod)
+        );
+    }
+
+    /// @notice Reverts unless the given consensus state matches the stored hash at the height.
+    /// @param revisionHeight The consensus state revision height.
+    /// @param preimage The consensus state preimage to check.
+    function _requireStoredConsensusState(
+        uint64 revisionHeight,
+        IBesuLightClientMsgs.ConsensusState memory preimage
+    )
+        private
+        view
+    {
         bytes32 consensusStateHash = consensusStateHashes[revisionHeight];
         require(consensusStateHash != bytes32(0), ConsensusStateNotFound(revisionHeight));
 
         bytes32 preimageHash = keccak256(abi.encode(preimage));
         require(consensusStateHash == preimageHash, ConsensusStatePreimageMismatch(consensusStateHash, preimageHash));
-
-        require(
-            uint256(preimage.timestamp) + clientState.trustingPeriod > block.timestamp,
-            ConsensusStateExpired(preimage.timestamp, block.timestamp, clientState.trustingPeriod)
-        );
     }
 
     /// @notice Caches a storage root for a revision height in a transient slot.

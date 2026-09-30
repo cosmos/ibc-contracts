@@ -85,7 +85,8 @@ contract QBFTSimSuiteTest is Test {
     }
 
     /// @dev Each update is only checked against its own trusted height, so a forged height-3 header timestamped
-    /// after the honest height-4 header is accepted. Submitting both stored states as misbehaviour freezes the client.
+    /// after the honest height-4 header is accepted. Submitting both stored states as misbehaviour freezes the client,
+    /// even after both are past their trusting period.
     function test_timeNonMonotonicityMisbehaviour() public {
         SimHeader.Data memory forged = sim.nextBlock();
         sim.produceBlocks(2);
@@ -109,6 +110,7 @@ contract QBFTSimSuiteTest is Test {
             })
         );
 
+        vm.warp(honestState.timestamp + TRUSTING_PERIOD);
         vm.expectEmit(address(client));
         emit IBesuLightClient.TimeNonMonotonicity(4, 3, honestState.timestamp, forged.timestamp);
         client.misbehaviour(misbehaviour);

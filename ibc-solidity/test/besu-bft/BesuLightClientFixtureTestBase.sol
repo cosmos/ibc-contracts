@@ -1091,16 +1091,15 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             )
         });
 
-        uint64 expiredAt = fixture.initialTrustedTimestamp + fixture.trustingPeriod;
+        // Stored states remain valid evidence after their trusting period, so the timestamps are still compared.
         testCases[7] = BesuMisbehaviourTestCase({
-            name: "failure: expired trusted state",
-            timestamp: expiredAt,
+            name: "failure: monotonic timestamps past trusting period",
+            timestamp: state2.timestamp + fixture.trustingPeriod,
             misbehaviour: abi.encode(_misbehaviourMsg(height1, state1, height2, state2)),
             expectedRevert: abi.encodeWithSelector(
-                IBesuLightClientErrors.ConsensusStateExpired.selector,
-                fixture.initialTrustedTimestamp,
-                expiredAt,
-                fixture.trustingPeriod
+                IBesuLightClientErrors.InvalidTimeNonMonotonicityMisbehaviour.selector,
+                state1.timestamp,
+                state2.timestamp
             )
         });
     }

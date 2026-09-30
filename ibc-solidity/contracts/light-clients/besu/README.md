@@ -55,7 +55,6 @@ The **source** Besu chain, whose headers and proofs are being verified, has no h
 
 - QBFT validator-contract mode
 - Mode transitions
-- Misbehaviour evidence handling through `misbehaviour(bytes)` (double signs are detected in `updateClient`, see below)
 
 ## Constructor
 
@@ -110,6 +109,8 @@ On update, the contract:
 5. stores `keccak256(abi.encode(ConsensusState))` for the new height, built from the header timestamp, the header `stateRoot`, and the header validator set.
 
 Submitting a header whose derived consensus state hash already matches the stored hash at that height returns `UpdateResult.NoOp`. A validly signed header that derives a different consensus state at an already stored height is a double sign: the client sets `ClientState.isFrozen`, emits `DoubleSign`, and returns `UpdateResult.Misbehaviour` without storing the conflicting consensus state.
+
+The header height must be strictly greater than `trustedHeight`, or the update reverts with `InvalidTrustedHeight`. A validly signed header whose timestamp is not greater than the trusted consensus state's timestamp is time non-monotonicity: the client freezes, emits `TimeNonMonotonicity`, and returns `UpdateResult.Misbehaviour`. Because each update is only compared with its own trusted height, two stored consensus states can still end up with timestamps that do not increase with height. `misbehaviour(bytes)` takes `abi.encode(IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour)` with two stored heights `height1 < height2` and their preimages, and freezes the client when `timestamp1 >= timestamp2`. The preimages must match the stored hashes, but the trusting period does not apply: stored states remain valid evidence after they expire.
 
 A frozen client is permanent. `updateClient`, `verifyMembership`, `verifyNonMembership`, and `misbehaviour` all revert with `FrozenClientState`, and there is no way to unfreeze it; a new client must be created instead.
 

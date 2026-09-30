@@ -943,10 +943,5 @@
         "internalType": "uint256"
       }
     ]
-  },
-  {
-    "type": "error",
-    "name": "UnsupportedMisbehaviour",
-    "inputs": []
   }
 ]
