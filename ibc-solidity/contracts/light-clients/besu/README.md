@@ -62,27 +62,23 @@ Both wrappers take the same constructor arguments:
 
 ```solidity
 constructor(
-    address ibcRouter,
-    uint64 initialTrustedHeight,
-    uint64 initialTrustedTimestamp,
-    bytes32 initialTrustedStateRoot,
-    address[] memory initialTrustedValidators,
-    uint64 trustingPeriod,
-    uint64 maxClockDrift,
-    IBesuLightClientMsgs.TrustThreshold memory trustLevel,
+    IBesuLightClientMsgs.ClientState memory initialClientState,
+    IBesuLightClientMsgs.ConsensusState memory initialConsensusState,
     address roleManager
 )
 ```
 
-- `ibcRouter`: counterparty `ICS26Router` proxy address whose account/storage proofs are tracked.
-- `initialTrustedHeight`: trusted Besu block number. Revision number is always `0`.
-- `initialTrustedTimestamp`: trusted header timestamp in seconds.
-- `initialTrustedStateRoot`: state root of the Besu header at `initialTrustedHeight`.
-- `initialTrustedValidators`: validator set trusted at `initialTrustedHeight`.
-- `trustingPeriod`: weak-subjectivity window in seconds. Must be non-zero.
-- `maxClockDrift`: allowed future drift for submitted headers in seconds.
-- `trustLevel`: minimum fraction of the trusted validator set that must sign an update. Must have a non-zero denominator and lie within `[1/3, 1]`, or the constructor reverts with `InvalidTrustLevel`.
+- `initialClientState`: the initial client state, returned as is by `getClientState()`.
+  - `ibcRouter`: counterparty `ICS26Router` proxy address whose account/storage proofs are tracked. Must be non-zero.
+  - `latestHeight`: trusted Besu block number. `initialConsensusState` is stored at this height. Revision number must be `0` and revision height non-zero.
+  - `trustingPeriod`: weak-subjectivity window in seconds. Must be non-zero.
+  - `maxClockDrift`: allowed future drift for submitted headers in seconds.
+  - `isFrozen`: must be `false`.
+  - `trustLevel`: minimum fraction of the trusted validator set that must sign an update. Must have a non-zero denominator and lie within `[1/3, 1]`, or the constructor reverts with `InvalidTrustLevel`.
+- `initialConsensusState`: the consensus state trusted at `latestHeight`: the header's timestamp in seconds (non-zero), state root, and validator set (non-empty, sorted ascending, no zero address). It must be within the trusting period and no further than `maxClockDrift` in the future at deployment, the same checks `updateClient` applies.
 - `roleManager`: if non-zero, receives admin and `PROOF_SUBMITTER_ROLE`; if zero, proof submission is open to anyone through the zero-address sentinel.
+
+No proof is checked for the initial states; the deployer is trusted to supply them.
 
 ## `updateClient(bytes)` ABI
 

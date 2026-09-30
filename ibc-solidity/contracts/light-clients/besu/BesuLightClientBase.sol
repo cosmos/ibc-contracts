@@ -37,28 +37,24 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     mapping(uint64 revisionHeight => bytes32 consensusStateHash) private consensusStateHashes;
 
     /// @notice Initializes shared Besu light client state.
-    /// @param ibcRouter Counterparty ICS26 router address whose storage is proven.
-    /// @param initialTrustedHeight Initial trusted Besu height.
-    /// @param initialTrustedTimestamp Initial trusted header timestamp in seconds.
-    /// @param initialTrustedStateRoot Initial trusted root of the state trie at `initialTrustedHeight`.
-    /// @param initialTrustedValidators Initial trusted validator set.
-    /// @param trustingPeriod Maximum age in seconds for trusted consensus states.
-    /// @param maxClockDrift Maximum allowed future drift in seconds for submitted headers.
-    /// @param trustLevel Minimum fraction of the trusted validator set that must sign a new header, in `[1/3, 1]`.
+    /// @dev `initialConsensusState` is trusted at `initialClientState.latestHeight`.
+    /// @param initialClientState Initial client state. Must not be frozen and must use revision number `0`.
+    /// @param initialConsensusState Initial trusted consensus state at `initialClientState.latestHeight`.
     /// @param roleManager Address that administers proof submission; if zero, proof submission is open.
     constructor(
-        address ibcRouter,
-        uint64 initialTrustedHeight,
-        uint64 initialTrustedTimestamp,
-        bytes32 initialTrustedStateRoot,
-        address[] memory initialTrustedValidators,
-        uint64 trustingPeriod,
-        uint64 maxClockDrift,
-        IBesuLightClientMsgs.TrustThreshold memory trustLevel,
+        IBesuLightClientMsgs.ClientState memory initialClientState,
+        IBesuLightClientMsgs.ConsensusState memory initialConsensusState,
         address roleManager
     ) {
-        require(initialTrustedHeight != 0, InvalidHeaderHeight());
-        require(initialTrustedTimestamp != 0, InvalidHeaderTimestamp());
+        IICS02ClientMsgs.Height memory latestHeight = initialClientState.latestHeight;
+        IBesuLightClientMsgs.TrustThreshold memory trustLevel = initialClientState.trustLevel;
+        uint64 trustingPeriod = initialClientState.trustingPeriod;
+        uint64 timestamp = initialConsensusState.timestamp;
+
+        require(initialClientState.ibcRouter != address(0), InvalidIbcRouter());
+        require(latestHeight.revisionNumber == 0, InvalidRevisionNumber(latestHeight.revisionNumber));
+        require(latestHeight.revisionHeight != 0, InvalidHeaderHeight());
+        require(!initialClientState.isFrozen, FrozenClientState());
         require(trustingPeriod != 0, InvalidTrustingPeriod());
         require(
             trustLevel.denominator != 0 && trustLevel.numerator <= trustLevel.denominator
@@ -66,21 +62,19 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             InvalidTrustLevel(trustLevel.numerator, trustLevel.denominator)
         );
 
-        _validateValidators(initialTrustedValidators);
+        require(timestamp != 0, InvalidHeaderTimestamp());
+        _validateValidators(initialConsensusState.validators);
+        require(
+            uint256(timestamp) + trustingPeriod > block.timestamp,
+            ConsensusStateExpired(timestamp, block.timestamp, trustingPeriod)
+        );
+        require(
+            block.timestamp + initialClientState.maxClockDrift >= timestamp,
+            HeaderFromFuture(block.timestamp, timestamp, initialClientState.maxClockDrift)
+        );
 
-        clientState = IBesuLightClientMsgs.ClientState({
-            ibcRouter: ibcRouter,
-            latestHeight: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: initialTrustedHeight }),
-            trustingPeriod: trustingPeriod,
-            maxClockDrift: maxClockDrift,
-            isFrozen: false,
-            trustLevel: trustLevel
-        });
-
-        IBesuLightClientMsgs.ConsensusState memory initialConsensusState = IBesuLightClientMsgs.ConsensusState({
-            timestamp: initialTrustedTimestamp, stateRoot: initialTrustedStateRoot, validators: initialTrustedValidators
-        });
-        consensusStateHashes[initialTrustedHeight] = keccak256(abi.encode(initialConsensusState));
+        clientState = initialClientState;
+        consensusStateHashes[latestHeight.revisionHeight] = keccak256(abi.encode(initialConsensusState));
 
         if (roleManager == address(0)) {
             _grantRole(PROOF_SUBMITTER_ROLE, address(0));
