@@ -23,7 +23,7 @@ import { Header } from "./utils/Header.sol";
 abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientErrors, AccessControl {
     using TransientSlot for TransientSlot.Bytes32Slot;
 
-    /// @notice Role allowed to submit client updates and proof verifications.
+    /// @notice Role allowed to submit client updates and proof verifications. Misbehaviour is permissionless.
     // natlint-disable-next-line MissingInheritdoc
     bytes32 public constant PROOF_SUBMITTER_ROLE = keccak256("PROOF_SUBMITTER_ROLE");
 
@@ -104,58 +104,39 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         returns (ILightClientMsgs.UpdateResult)
     {
         IBesuLightClientMsgs.MsgUpdateClient memory msg_ = abi.decode(updateMsg, (IBesuLightClientMsgs.MsgUpdateClient));
-        require(msg_.trustedHeight.revisionNumber == 0, InvalidRevisionNumber(msg_.trustedHeight.revisionNumber));
-
-        Header.Data memory header = Header.decodeRlp(msg_.headerRlp);
-        require(header.height != 0, InvalidHeaderHeight());
-        require(header.timestamp != 0, InvalidHeaderTimestamp());
-        _validateValidators(header.validators);
+        (uint64 height, IBesuLightClientMsgs.ConsensusState memory newConsensusState) = _verifyHeader(msg_);
         require(
-            block.timestamp + clientState.maxClockDrift >= header.timestamp,
-            HeaderFromFuture(block.timestamp, header.timestamp, clientState.maxClockDrift)
+            block.timestamp + clientState.maxClockDrift >= newConsensusState.timestamp,
+            HeaderFromFuture(block.timestamp, newConsensusState.timestamp, clientState.maxClockDrift)
         );
-        require(
-            header.height > msg_.trustedHeight.revisionHeight,
-            InvalidTrustedHeight(msg_.trustedHeight.revisionHeight, header.height)
-        );
-
-        _requireTrustedConsensusState(msg_.trustedHeight.revisionHeight, msg_.consensusStatePreimage);
-
-        address[] memory signers = _recoverSigners(_commitSealDigest(header), header.commitSeals);
-        _checkTrustedValidatorOverlap(signers, msg_.consensusStatePreimage.validators);
-        _checkValidatorQuorum(signers, header.validators);
-
-        IBesuLightClientMsgs.ConsensusState memory newConsensusState = IBesuLightClientMsgs.ConsensusState({
-            timestamp: header.timestamp, stateRoot: header.stateRoot, validators: header.validators
-        });
 
         bytes32 newHash = keccak256(abi.encode(newConsensusState));
-        bytes32 existingHash = consensusStateHashes[header.height];
+        bytes32 existingHash = consensusStateHashes[height];
         if (existingHash != bytes32(0)) {
             if (existingHash == newHash) {
                 return ILightClientMsgs.UpdateResult.NoOp;
             }
 
             clientState.isFrozen = true;
-            emit DoubleSign(header.height, existingHash, newHash);
+            emit DoubleSign(height, existingHash, newHash);
             return ILightClientMsgs.UpdateResult.Misbehaviour;
         }
 
-        if (msg_.consensusStatePreimage.timestamp >= header.timestamp) {
+        if (msg_.consensusStatePreimage.timestamp >= newConsensusState.timestamp) {
             clientState.isFrozen = true;
             emit TimeNonMonotonicity(
-                header.height,
+                height,
                 msg_.trustedHeight.revisionHeight,
-                header.timestamp,
+                newConsensusState.timestamp,
                 msg_.consensusStatePreimage.timestamp
             );
             return ILightClientMsgs.UpdateResult.Misbehaviour;
         }
 
-        consensusStateHashes[header.height] = newHash;
+        consensusStateHashes[height] = newHash;
 
-        if (header.height > clientState.latestHeight.revisionHeight) {
-            clientState.latestHeight.revisionHeight = header.height;
+        if (height > clientState.latestHeight.revisionHeight) {
+            clientState.latestHeight.revisionHeight = height;
         }
 
         return ILightClientMsgs.UpdateResult.Update;
@@ -219,9 +200,31 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     }
 
     /// @inheritdoc ILightClient
-    function misbehaviour(bytes calldata misbehaviourMsg) external notFrozen onlyProofSubmitter {
-        IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour memory msg_ =
-            abi.decode(misbehaviourMsg, (IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour));
+    /// @dev Permissionless: evidence is either already stored consensus states or headers that pass the same
+    /// signature and trust checks as `updateClient`, so freezing requires genuine validator misbehaviour.
+    function misbehaviour(bytes calldata misbehaviourMsg) external notFrozen {
+        IBesuLightClientMsgs.MsgSubmitMisbehaviour memory msg_ =
+            abi.decode(misbehaviourMsg, (IBesuLightClientMsgs.MsgSubmitMisbehaviour));
+        if (msg_.misbehaviourType == IBesuLightClientMsgs.MisbehaviourType.TimeNonMonotonicity) {
+            _timeNonMonotonicityMisbehaviour(
+                abi.decode(msg_.misbehaviour, (IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour))
+            );
+        } else {
+            _headersMisbehaviour(abi.decode(msg_.misbehaviour, (IBesuLightClientMsgs.MsgHeadersMisbehaviour)));
+        }
+    }
+
+    /// @notice Computes the protocol-specific commit seal digest for a parsed header.
+    /// @dev See `hashBlockForCommitSeal` in QBFT specification: https://entethalliance.org/specs/qbft/v1
+    /// @param header The parsed Besu header.
+    /// @return The digest signed by commit seals.
+    function _commitSealDigest(Header.Data memory header) internal pure virtual returns (bytes32);
+
+    /// @notice Freezes the client if two stored consensus states violate time monotonicity.
+    /// @param msg_ The time non-monotonicity misbehaviour message.
+    function _timeNonMonotonicityMisbehaviour(IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour memory msg_)
+        private
+    {
         require(msg_.height1.revisionNumber == 0, InvalidRevisionNumber(msg_.height1.revisionNumber));
         require(msg_.height2.revisionNumber == 0, InvalidRevisionNumber(msg_.height2.revisionNumber));
         require(
@@ -233,27 +236,90 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         _requireStoredConsensusState(msg_.height1.revisionHeight, msg_.consensusStatePreimage1);
         _requireStoredConsensusState(msg_.height2.revisionHeight, msg_.consensusStatePreimage2);
 
-        require(
-            msg_.consensusStatePreimage1.timestamp >= msg_.consensusStatePreimage2.timestamp,
-            InvalidTimeNonMonotonicityMisbehaviour(
-                msg_.consensusStatePreimage1.timestamp, msg_.consensusStatePreimage2.timestamp
-            )
-        );
-
-        clientState.isFrozen = true;
-        emit TimeNonMonotonicity(
-            msg_.height2.revisionHeight,
+        _freezeOnConflict(
             msg_.height1.revisionHeight,
-            msg_.consensusStatePreimage2.timestamp,
-            msg_.consensusStatePreimage1.timestamp
+            msg_.consensusStatePreimage1,
+            msg_.height2.revisionHeight,
+            msg_.consensusStatePreimage2
         );
     }
 
-    /// @notice Computes the protocol-specific commit seal digest for a parsed header.
-    /// @dev See `hashBlockForCommitSeal` in QBFT specification: https://entethalliance.org/specs/qbft/v1
-    /// @param header The parsed Besu header.
-    /// @return The digest signed by commit seals.
-    function _commitSealDigest(Header.Data memory header) internal pure virtual returns (bytes32);
+    /// @notice Freezes the client if two validly signed headers prove a double sign or time non-monotonicity.
+    /// @param msg_ The headers misbehaviour message.
+    function _headersMisbehaviour(IBesuLightClientMsgs.MsgHeadersMisbehaviour memory msg_) private {
+        (uint64 height1, IBesuLightClientMsgs.ConsensusState memory consensusState1) = _verifyHeader(msg_.update1);
+        (uint64 height2, IBesuLightClientMsgs.ConsensusState memory consensusState2) = _verifyHeader(msg_.update2);
+        _freezeOnConflict(height1, consensusState1, height2, consensusState2);
+    }
+
+    /// @notice Freezes the client if two consensus states conflict, reverting otherwise.
+    /// @dev At the same height, the consensus states must differ (double sign). At different heights, the lower
+    /// consensus state's timestamp must not be less than the higher one's (time non-monotonicity).
+    /// @param heightA The height of the first consensus state.
+    /// @param a The first consensus state.
+    /// @param heightB The height of the second consensus state.
+    /// @param b The second consensus state.
+    function _freezeOnConflict(
+        uint64 heightA,
+        IBesuLightClientMsgs.ConsensusState memory a,
+        uint64 heightB,
+        IBesuLightClientMsgs.ConsensusState memory b
+    )
+        private
+    {
+        if (heightA == heightB) {
+            bytes32 hashA = keccak256(abi.encode(a));
+            bytes32 hashB = keccak256(abi.encode(b));
+            require(hashA != hashB, InvalidDoubleSignMisbehaviour(heightA, hashA));
+
+            clientState.isFrozen = true;
+            emit DoubleSign(heightA, hashA, hashB);
+            return;
+        }
+
+        if (heightA > heightB) {
+            (heightA, a, heightB, b) = (heightB, b, heightA, a);
+        }
+        require(a.timestamp >= b.timestamp, InvalidTimeNonMonotonicityMisbehaviour(a.timestamp, b.timestamp));
+
+        clientState.isFrozen = true;
+        emit TimeNonMonotonicity(heightB, heightA, b.timestamp, a.timestamp);
+    }
+
+    /// @notice Verifies a header against its trusted consensus state and derives its consensus state.
+    /// @dev Does not check clock drift, so callers that store the result must check it themselves.
+    /// @param msg_ The header with its trusted height and trusted consensus state preimage.
+    /// @return height The header height.
+    /// @return consensusState The consensus state derived from the header.
+    function _verifyHeader(IBesuLightClientMsgs.MsgUpdateClient memory msg_)
+        private
+        view
+        returns (uint64 height, IBesuLightClientMsgs.ConsensusState memory consensusState)
+    {
+        require(msg_.trustedHeight.revisionNumber == 0, InvalidRevisionNumber(msg_.trustedHeight.revisionNumber));
+
+        Header.Data memory header = Header.decodeRlp(msg_.headerRlp);
+        require(header.height != 0, InvalidHeaderHeight());
+        require(header.timestamp != 0, InvalidHeaderTimestamp());
+        _validateValidators(header.validators);
+        require(
+            header.height > msg_.trustedHeight.revisionHeight,
+            InvalidTrustedHeight(msg_.trustedHeight.revisionHeight, header.height)
+        );
+
+        _requireTrustedConsensusState(msg_.trustedHeight.revisionHeight, msg_.consensusStatePreimage);
+
+        address[] memory signers = _recoverSigners(_commitSealDigest(header), header.commitSeals);
+        _checkTrustedValidatorOverlap(signers, msg_.consensusStatePreimage.validators);
+        _checkValidatorQuorum(signers, header.validators);
+
+        return (
+            header.height,
+            IBesuLightClientMsgs.ConsensusState({
+                timestamp: header.timestamp, stateRoot: header.stateRoot, validators: header.validators
+            })
+        );
+    }
 
     /// @notice Returns the storage root for a revision height, verifying the account proof if provided.
     /// @dev If the account proof is empty, the storage root is retrieved from a transient cache

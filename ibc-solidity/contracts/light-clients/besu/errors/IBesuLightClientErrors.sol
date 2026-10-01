@@ -112,4 +112,8 @@ interface IBesuLightClientErrors {
     /// @param timestamp1 Timestamp of the first trusted consensus state.
     /// @param timestamp2 Timestamp of the second trusted consensus state.
     error InvalidTimeNonMonotonicityMisbehaviour(uint256 timestamp1, uint256 timestamp2);
+    /// @notice Two headers at the same height derive the same consensus state, so they do not prove a double sign.
+    /// @param revisionHeight The height of both headers.
+    /// @param consensusStateHash The consensus state hash derived from both headers.
+    error InvalidDoubleSignMisbehaviour(uint64 revisionHeight, bytes32 consensusStateHash);
 }

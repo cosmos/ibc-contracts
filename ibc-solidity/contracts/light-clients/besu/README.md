@@ -106,7 +106,25 @@ On update, the contract:
 
 Submitting a header whose derived consensus state hash already matches the stored hash at that height returns `UpdateResult.NoOp`. A validly signed header that derives a different consensus state at an already stored height is a double sign: the client sets `ClientState.isFrozen`, emits `DoubleSign`, and returns `UpdateResult.Misbehaviour` without storing the conflicting consensus state.
 
-The header height must be strictly greater than `trustedHeight`, or the update reverts with `InvalidTrustedHeight`. A validly signed header whose timestamp is not greater than the trusted consensus state's timestamp is time non-monotonicity: the client freezes, emits `TimeNonMonotonicity`, and returns `UpdateResult.Misbehaviour`. Because each update is only compared with its own trusted height, two stored consensus states can still end up with timestamps that do not increase with height. `misbehaviour(bytes)` takes `abi.encode(IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour)` with two stored heights `height1 < height2` and their preimages, and freezes the client when `timestamp1 >= timestamp2`. The preimages must match the stored hashes, but the trusting period does not apply: stored states remain valid evidence after they expire.
+The header height must be strictly greater than `trustedHeight`, or the update reverts with `InvalidTrustedHeight`. A validly signed header whose timestamp is not greater than the trusted consensus state's timestamp is time non-monotonicity: the client freezes, emits `TimeNonMonotonicity`, and returns `UpdateResult.Misbehaviour`. Because each update is only compared with its own trusted height, two stored consensus states can still end up with timestamps that do not increase with height.
+
+## Misbehaviour
+
+`misbehaviour(bytes)` is permissionless: anyone can submit evidence, regardless of `PROOF_SUBMITTER_ROLE`. It takes `abi.encode(IBesuLightClientMsgs.MsgSubmitMisbehaviour)`, which wraps one ABI-encoded evidence message tagged with its `MisbehaviourType`:
+
+```solidity
+enum MisbehaviourType { TimeNonMonotonicity, Headers }
+
+struct MsgSubmitMisbehaviour {
+    MisbehaviourType misbehaviourType;
+    bytes misbehaviour;
+}
+```
+
+- `TimeNonMonotonicity`: `abi.encode(MsgTimeNonMonotonicityMisbehaviour)` with two stored heights `height1 < height2` and their preimages. The client freezes when `timestamp1 >= timestamp2`. The preimages must match the stored hashes, but the trusting period does not apply: stored states remain valid evidence after they expire.
+- `Headers`: `abi.encode(MsgHeadersMisbehaviour)` with two `MsgUpdateClient` messages. Each header is verified against its own trusted consensus state exactly as in `updateClient`, including the trusting period, trusted-validator overlap and quorum, except that the clock-drift check is skipped. The headers need not be stored and may be in either order. Headers at the same height that derive different consensus states freeze the client with `DoubleSign`; headers at different heights where the lower header's timestamp is not less than the higher header's timestamp freeze it with `TimeNonMonotonicity`.
+
+Evidence that does not prove misbehaviour reverts. Opening submission is safe because the evidence is either consensus states the client already accepted or headers that meet the same signature thresholds as an update, so freezing the client requires genuine validator misbehaviour.
 
 A frozen client is permanent. `updateClient`, `verifyMembership`, `verifyNonMembership`, and `misbehaviour` all revert with `FrozenClientState`, and there is no way to unfreeze it; a new client must be created instead.
 
