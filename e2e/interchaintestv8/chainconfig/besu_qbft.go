@@ -222,42 +222,27 @@ func (c BesuQBFTChain) UpdateValidatorSet(ctx context.Context, service string, a
 	}
 	validator := crypto.PubkeyToAddress(key.PublicKey)
 
-	clients := make([]*ethclient.Client, 0, len(besuQBFTServices))
-	defer func() {
-		for _, client := range clients {
-			client.Close()
-		}
-	}()
+	// Besu only proposes votes that change the validator set, so the removed validator's own vote is ignored.
 	for _, voter := range besuQBFTServices {
-		portOutput, err := c.runCompose(ctx, "port", voter, "8545")
-		if err != nil {
-			return 0, fmt.Errorf("resolve %s rpc port: %w", voter, err)
-		}
-		_, port, ok := strings.Cut(strings.TrimSpace(string(portOutput)), ":")
-		if !ok {
-			return 0, fmt.Errorf("resolve %s rpc port: unexpected output %q", voter, portOutput)
-		}
-		client, err := ethclient.DialContext(ctx, "http://127.0.0.1:"+port)
-		if err != nil {
-			return 0, fmt.Errorf("dial %s rpc: %w", voter, err)
-		}
-		clients = append(clients, client)
-
-		// Besu only proposes votes that change the validator set, so the removed validator's own vote is ignored.
-		var accepted bool
-		if err := client.Client().CallContext(ctx, &accepted, "qbft_proposeValidatorVote", validator, add); err != nil {
-			return 0, fmt.Errorf("propose validator vote on %s: %w", voter, err)
+		if err := c.validatorRPC(ctx, voter, "qbft_proposeValidatorVote", validator, add); err != nil {
+			return 0, err
 		}
 	}
 
+	client, err := ethclient.DialContext(ctx, c.RPC)
+	if err != nil {
+		return 0, fmt.Errorf("dial rpc: %w", err)
+	}
+	defer client.Close()
+
 	var height uint64
 	err = testutil.WaitForCondition(2*time.Minute, time.Second, func() (bool, error) {
-		latest, err := clients[0].BlockNumber(ctx)
+		latest, err := client.BlockNumber(ctx)
 		if err != nil {
 			return false, err
 		}
 		var validators []common.Address
-		if err := clients[0].Client().CallContext(ctx, &validators, "qbft_getValidatorsByBlockNumber", hexutil.EncodeUint64(latest)); err != nil {
+		if err := client.Client().CallContext(ctx, &validators, "qbft_getValidatorsByBlockNumber", hexutil.EncodeUint64(latest)); err != nil {
 			return false, err
 		}
 		height = latest
@@ -267,14 +252,46 @@ func (c BesuQBFTChain) UpdateValidatorSet(ctx context.Context, service string, a
 		return 0, fmt.Errorf("wait for validator set change: %w", err)
 	}
 
-	for i, client := range clients {
-		var discarded bool
-		if err := client.Client().CallContext(ctx, &discarded, "qbft_discardValidatorVote", validator); err != nil {
-			return 0, fmt.Errorf("discard validator vote on %s: %w", besuQBFTServices[i], err)
+	for _, voter := range besuQBFTServices {
+		if err := c.validatorRPC(ctx, voter, "qbft_discardValidatorVote", validator); err != nil {
+			return 0, err
 		}
 	}
 
 	return height, nil
+}
+
+// validatorRPC calls method on the RPC endpoint of service from inside its container, since only validator1 publishes
+// its RPC port. The image ships without curl, so the request goes through bash's /dev/tcp.
+func (c BesuQBFTChain) validatorRPC(ctx context.Context, service, method string, params ...any) error {
+	body, err := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "method": method, "params": params})
+	if err != nil {
+		return err
+	}
+	const script = `exec 3<>/dev/tcp/127.0.0.1/8545 && ` +
+		`printf 'POST / HTTP/1.0\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n%s' "${#1}" "$1" >&3 && ` +
+		`cat <&3`
+	output, err := c.runCompose(ctx, "exec", "-T", service, "bash", "-c", script, "bash", string(body))
+	if err != nil {
+		return fmt.Errorf("%s on %s: %w", method, service, err)
+	}
+
+	_, respBody, ok := strings.Cut(string(output), "\r\n\r\n")
+	if !ok {
+		return fmt.Errorf("%s on %s: malformed http response %q", method, service, output)
+	}
+	var resp struct {
+		Error *struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(respBody), &resp); err != nil {
+		return fmt.Errorf("%s on %s: decode response %q: %w", method, service, respBody, err)
+	}
+	if resp.Error != nil {
+		return fmt.Errorf("%s on %s: %s", method, service, resp.Error.Message)
+	}
+	return nil
 }
 
 func (c BesuQBFTChain) runCompose(ctx context.Context, args ...string) ([]byte, error) {

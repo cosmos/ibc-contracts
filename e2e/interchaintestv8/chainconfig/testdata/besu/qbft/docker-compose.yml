@@ -36,8 +36,6 @@ services:
       - ./genesis.json:/opt/besu/genesis.json:ro
       - ./keys/validator2/key:/opt/besu/key:ro
       - validator2-data:/opt/besu/data
-    ports:
-      - "8545"
     networks:
       qbft_testnet:
         ipv4_address: 10.42.0.3
@@ -57,8 +55,6 @@ services:
       - ./genesis.json:/opt/besu/genesis.json:ro
       - ./keys/validator3/key:/opt/besu/key:ro
       - validator3-data:/opt/besu/data
-    ports:
-      - "8545"
     networks:
       qbft_testnet:
         ipv4_address: 10.42.0.4
@@ -78,8 +74,6 @@ services:
       - ./genesis.json:/opt/besu/genesis.json:ro
       - ./keys/validator4/key:/opt/besu/key:ro
       - validator4-data:/opt/besu/data
-    ports:
-      - "8545"
     networks:
       qbft_testnet:
         ipv4_address: 10.42.0.5
