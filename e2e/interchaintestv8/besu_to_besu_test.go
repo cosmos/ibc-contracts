@@ -581,15 +581,20 @@ func (s *BesuToBesuTestSuite) Test_TimeNonMonotonicityFreezesClient() {
 		s.Require().NoError(err)
 		state1.Timestamp = timestamp
 
-		// The light client expects abi.encode(MsgTimeNonMonotonicityMisbehaviour), without the function selector.
-		misbehaviourMsg = besumsgs.NewBindings().PackTimeNonMonotonicityMisbehaviour(
-			besumsgs.IBesuLightClientMsgsMsgTimeNonMonotonicityMisbehaviour{
-				Height1:                 besumsgs.IICS02ClientMsgsHeight{RevisionHeight: height1},
-				Height2:                 besumsgs.IICS02ClientMsgsHeight{RevisionHeight: height2},
-				ConsensusStatePreimage1: state1,
-				ConsensusStatePreimage2: state2,
-			},
-		)[4:]
+		// The light client expects abi.encode(MsgSubmitMisbehaviour) wrapping
+		// abi.encode(MsgTimeNonMonotonicityMisbehaviour), both without the function selector.
+		bindings := besumsgs.NewBindings()
+		misbehaviourMsg = bindings.PackSubmitMisbehaviour(besumsgs.IBesuLightClientMsgsMsgSubmitMisbehaviour{
+			MisbehaviourType: 0, // TimeNonMonotonicity
+			Misbehaviour: bindings.PackTimeNonMonotonicityMisbehaviour(
+				besumsgs.IBesuLightClientMsgsMsgTimeNonMonotonicityMisbehaviour{
+					Height1:                 besumsgs.IICS02ClientMsgsHeight{RevisionHeight: height1},
+					Height2:                 besumsgs.IICS02ClientMsgsHeight{RevisionHeight: height2},
+					ConsensusStatePreimage1: state1,
+					ConsensusStatePreimage2: state2,
+				},
+			)[4:],
+		})[4:]
 		s.Require().False(s.besuClientState(client).IsFrozen)
 	}))
 
