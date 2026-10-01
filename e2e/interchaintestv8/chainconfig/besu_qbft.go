@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -204,6 +206,75 @@ func (c BesuQBFTChain) DumpLogs(ctx context.Context) error {
 		fmt.Print(string(logs))
 	}
 	return err
+}
+
+// UpdateValidatorSet votes on every validator node to add or remove the validator run by service, and returns the
+// first observed height whose validator set includes the change. The votes are discarded afterwards so that later
+// changes start from a clean slate.
+func (c BesuQBFTChain) UpdateValidatorSet(ctx context.Context, service string, add bool) (uint64, error) {
+	keyHex, err := besuQBFTAssets.ReadFile(fmt.Sprintf("testdata/besu/qbft/keys/%s/key", service))
+	if err != nil {
+		return 0, fmt.Errorf("read %s key: %w", service, err)
+	}
+	key, err := crypto.HexToECDSA(strings.TrimPrefix(strings.TrimSpace(string(keyHex)), "0x"))
+	if err != nil {
+		return 0, fmt.Errorf("parse %s key: %w", service, err)
+	}
+	validator := crypto.PubkeyToAddress(key.PublicKey)
+
+	clients := make([]*ethclient.Client, 0, len(besuQBFTServices))
+	defer func() {
+		for _, client := range clients {
+			client.Close()
+		}
+	}()
+	for _, voter := range besuQBFTServices {
+		portOutput, err := c.runCompose(ctx, "port", voter, "8545")
+		if err != nil {
+			return 0, fmt.Errorf("resolve %s rpc port: %w", voter, err)
+		}
+		_, port, ok := strings.Cut(strings.TrimSpace(string(portOutput)), ":")
+		if !ok {
+			return 0, fmt.Errorf("resolve %s rpc port: unexpected output %q", voter, portOutput)
+		}
+		client, err := ethclient.DialContext(ctx, "http://127.0.0.1:"+port)
+		if err != nil {
+			return 0, fmt.Errorf("dial %s rpc: %w", voter, err)
+		}
+		clients = append(clients, client)
+
+		// Besu only proposes votes that change the validator set, so the removed validator's own vote is ignored.
+		var accepted bool
+		if err := client.Client().CallContext(ctx, &accepted, "qbft_proposeValidatorVote", validator, add); err != nil {
+			return 0, fmt.Errorf("propose validator vote on %s: %w", voter, err)
+		}
+	}
+
+	var height uint64
+	err = testutil.WaitForCondition(2*time.Minute, time.Second, func() (bool, error) {
+		latest, err := clients[0].BlockNumber(ctx)
+		if err != nil {
+			return false, err
+		}
+		var validators []common.Address
+		if err := clients[0].Client().CallContext(ctx, &validators, "qbft_getValidatorsByBlockNumber", hexutil.EncodeUint64(latest)); err != nil {
+			return false, err
+		}
+		height = latest
+		return slices.Contains(validators, validator) == add, nil
+	})
+	if err != nil {
+		return 0, fmt.Errorf("wait for validator set change: %w", err)
+	}
+
+	for i, client := range clients {
+		var discarded bool
+		if err := client.Client().CallContext(ctx, &discarded, "qbft_discardValidatorVote", validator); err != nil {
+			return 0, fmt.Errorf("discard validator vote on %s: %w", besuQBFTServices[i], err)
+		}
+	}
+
+	return height, nil
 }
 
 func (c BesuQBFTChain) runCompose(ctx context.Context, args ...string) ([]byte, error) {

@@ -51,6 +51,8 @@ const (
 	besuToBesuClientOnB = "besu-chain-a"
 
 	besuToBesuConsensusTypeQBFT = "qbft"
+
+	besuToBesuDefaultTrustLevel = "2/3"
 )
 
 var besuToBesuChainBIPs = [4]string{"10.43.0.2", "10.43.0.3", "10.43.0.4", "10.43.0.5"}
@@ -140,8 +142,8 @@ func (s *BesuToBesuTestSuite) SetupSuite() {
 	s.startRelayer()
 	s.connectRelayer()
 
-	s.chainA.clientAddress = s.createAndRegisterBesuClient(&s.chainB, &s.chainA, besuToBesuClientOnA, besuToBesuClientOnB)
-	s.chainB.clientAddress = s.createAndRegisterBesuClient(&s.chainA, &s.chainB, besuToBesuClientOnB, besuToBesuClientOnA)
+	s.chainA.clientAddress = s.createAndRegisterBesuClient(&s.chainB, &s.chainA, besuToBesuClientOnA, besuToBesuClientOnB, besuToBesuDefaultTrustLevel)
+	s.chainB.clientAddress = s.createAndRegisterBesuClient(&s.chainA, &s.chainB, besuToBesuClientOnB, besuToBesuClientOnA, besuToBesuDefaultTrustLevel)
 }
 
 func (s *BesuToBesuTestSuite) Test_Deploy() {
@@ -497,7 +499,7 @@ func (s *BesuToBesuTestSuite) Test_DoubleSignFreezesClient() {
 	)
 
 	s.Require().True(s.Run("Create dedicated client on Chain B", func() {
-		client = s.createDedicatedBesuClient(doubleSignClientID)
+		client = s.createDedicatedBesuClient(doubleSignClientID, besuToBesuDefaultTrustLevel)
 		trustedHeight = s.besuClientState(client).LatestHeight.RevisionHeight
 		height = trustedHeight + 1
 	}))
@@ -535,7 +537,7 @@ func (s *BesuToBesuTestSuite) Test_DoubleSignFreezesClient() {
 	}))
 
 	s.Require().True(s.Run("Frozen client rejects further updates", func() {
-		s.requireFrozenClientRevert(ctx, "updateClient", doubleSignClientID, updateMsg)
+		s.requireICS26Revert(ctx, s.besuClientErr("FrozenClientState"), "updateClient", doubleSignClientID, updateMsg)
 	}))
 }
 
@@ -556,7 +558,7 @@ func (s *BesuToBesuTestSuite) Test_TimeNonMonotonicityFreezesClient() {
 	)
 
 	s.Require().True(s.Run("Create dedicated client on Chain B", func() {
-		client = s.createDedicatedBesuClient(timeMisbehaviourClientID)
+		client = s.createDedicatedBesuClient(timeMisbehaviourClientID, besuToBesuDefaultTrustLevel)
 		trustedHeight = s.besuClientState(client).LatestHeight.RevisionHeight
 		height1, height2 = trustedHeight+1, trustedHeight+2
 	}))
@@ -617,13 +619,97 @@ func (s *BesuToBesuTestSuite) Test_TimeNonMonotonicityFreezesClient() {
 	}))
 
 	s.Require().True(s.Run("Frozen client rejects further misbehaviour", func() {
-		s.requireFrozenClientRevert(ctx, "submitMisbehaviour", timeMisbehaviourClientID, misbehaviourMsg)
+		s.requireICS26Revert(ctx, s.besuClientErr("FrozenClientState"), "submitMisbehaviour", timeMisbehaviourClientID, misbehaviourMsg)
+	}))
+}
+
+// Test_ValidatorSetChanges removes and then re-adds a Chain A validator through live QBFT votes while dedicated
+// clients on Chain B follow the chain. While 3 validators remain, Besu seals each block with only 2 commit seals, so a
+// client trusting the original 4 validators at the default 2/3 trust level cannot update past the removal, while a
+// client at 1/3 can. Once the validator rejoins, blocks carry 3 seals from the original set and both clients catch up.
+func (s *BesuToBesuTestSuite) Test_ValidatorSetChanges() {
+	ctx := context.Background()
+
+	const (
+		changedValidator     = "validator4"
+		lowTrustClientID     = "besu-validator-change-low-trust"
+		defaultTrustClientID = "besu-validator-change-default-trust"
+	)
+	var (
+		lowTrustClient     *besuqbft.Contract
+		defaultTrustClient *besuqbft.Contract
+		defaultTrustHeight uint64
+		initialValidators  []ethcommon.Address
+		removalHeight      uint64
+		rejoinHeight       uint64
+	)
+
+	s.Require().True(s.Run("Create dedicated clients on Chain B", func() {
+		lowTrustClient = s.createDedicatedBesuClient(lowTrustClientID, "1/3")
+		defaultTrustClient = s.createDedicatedBesuClient(defaultTrustClientID, besuToBesuDefaultTrustLevel)
+		defaultTrustHeight = s.besuClientState(defaultTrustClient).LatestHeight.RevisionHeight
+
+		initialState, err := e2etypes.FetchQBFTConsensusState(ctx, &s.chainA.eth, defaultTrustHeight)
+		s.Require().NoError(err)
+		initialValidators = initialState.Validators
+		s.Require().Len(initialValidators, 4)
+	}))
+
+	s.Require().True(s.Run("Remove a validator from Chain A", func() {
+		var err error
+		removalHeight, err = s.chainA.network.UpdateValidatorSet(ctx, changedValidator, false)
+		s.Require().NoError(err)
+
+		state, err := e2etypes.FetchQBFTConsensusState(ctx, &s.chainA.eth, removalHeight)
+		s.Require().NoError(err)
+		s.Require().Len(state.Validators, 3)
+		s.Require().Subset(initialValidators, state.Validators)
+	}))
+
+	s.Require().True(s.Run("Low trust client follows the removal", func() {
+		trustedHeight := s.besuClientState(lowTrustClient).LatestHeight.RevisionHeight
+		updateMsg, err := e2etypes.BuildQBFTUpdate(ctx, &s.chainA.eth, trustedHeight, removalHeight)
+		s.Require().NoError(err)
+		s.requireUpdateResult(s.updateClient(ctx, lowTrustClientID, updateMsg), 0) // Update
+		s.Require().Equal(removalHeight, s.besuClientState(lowTrustClient).LatestHeight.RevisionHeight)
+	}))
+
+	s.Require().True(s.Run("Default trust client cannot update past the removal", func() {
+		updateMsg, err := e2etypes.BuildQBFTUpdate(ctx, &s.chainA.eth, defaultTrustHeight, removalHeight)
+		s.Require().NoError(err)
+		// 2 of the 3 remaining validators sign, but ceil(4 * 2/3) = 3 trusted validators are required.
+		overlapErr := s.besuClientErr("InsufficientTrustedValidatorOverlap", big.NewInt(2), big.NewInt(3))
+		s.requireICS26Revert(ctx, overlapErr, "updateClient", defaultTrustClientID, updateMsg)
+	}))
+
+	s.Require().True(s.Run("Re-add the validator to Chain A", func() {
+		var err error
+		rejoinHeight, err = s.chainA.network.UpdateValidatorSet(ctx, changedValidator, true)
+		s.Require().NoError(err)
+
+		state, err := e2etypes.FetchQBFTConsensusState(ctx, &s.chainA.eth, rejoinHeight)
+		s.Require().NoError(err)
+		s.Require().Equal(initialValidators, state.Validators)
+	}))
+
+	s.Require().True(s.Run("Low trust client follows the re-addition", func() {
+		updateMsg, err := e2etypes.BuildQBFTUpdate(ctx, &s.chainA.eth, removalHeight, rejoinHeight)
+		s.Require().NoError(err)
+		s.requireUpdateResult(s.updateClient(ctx, lowTrustClientID, updateMsg), 0) // Update
+		s.Require().Equal(rejoinHeight, s.besuClientState(lowTrustClient).LatestHeight.RevisionHeight)
+	}))
+
+	s.Require().True(s.Run("Default trust client catches up after the re-addition", func() {
+		updateMsg, err := e2etypes.BuildQBFTUpdate(ctx, &s.chainA.eth, defaultTrustHeight, rejoinHeight)
+		s.Require().NoError(err)
+		s.requireUpdateResult(s.updateClient(ctx, defaultTrustClientID, updateMsg), 0) // Update
+		s.Require().Equal(rejoinHeight, s.besuClientState(defaultTrustClient).LatestHeight.RevisionHeight)
 	}))
 }
 
 // createDedicatedBesuClient registers a Chain A client on Chain B that the relayer does not use.
-func (s *BesuToBesuTestSuite) createDedicatedBesuClient(clientID string) *besuqbft.Contract {
-	clientAddress := s.createAndRegisterBesuClient(&s.chainA, &s.chainB, clientID, besuToBesuClientOnA)
+func (s *BesuToBesuTestSuite) createDedicatedBesuClient(clientID, trustLevel string) *besuqbft.Contract {
+	clientAddress := s.createAndRegisterBesuClient(&s.chainA, &s.chainB, clientID, besuToBesuClientOnA, trustLevel)
 	client, err := besuqbft.NewContract(clientAddress, s.chainB.eth.RPCClient)
 	s.Require().NoError(err)
 	s.Require().False(s.besuClientState(client).IsFrozen)
@@ -654,8 +740,8 @@ func (s *BesuToBesuTestSuite) requireUpdateResult(receipt *ethtypes.Receipt, res
 	s.Require().Equal(result, updatedEvent.Result)
 }
 
-// requireFrozenClientRevert asserts that calling the ICS26 method on Chain B reverts with FrozenClientState.
-func (s *BesuToBesuTestSuite) requireFrozenClientRevert(ctx context.Context, method string, args ...any) {
+// requireICS26Revert asserts that calling the ICS26 method on Chain B reverts with errData.
+func (s *BesuToBesuTestSuite) requireICS26Revert(ctx context.Context, errData []byte, method string, args ...any) {
 	ics26ABI, err := ics26router.ContractMetaData.GetAbi()
 	s.Require().NoError(err)
 	calldata, err := ics26ABI.Pack(method, args...)
@@ -669,7 +755,18 @@ func (s *BesuToBesuTestSuite) requireFrozenClientRevert(ctx context.Context, met
 	}, nil)
 	var dataErr rpc.DataError
 	s.Require().ErrorAs(err, &dataErr)
-	s.Require().Equal(hexutil.Encode(crypto.Keccak256([]byte("FrozenClientState()"))[:4]), dataErr.ErrorData())
+	s.Require().Equal(hexutil.Encode(errData), dataErr.ErrorData())
+}
+
+// besuClientErr returns the revert data of the Besu light client custom error name with args.
+func (s *BesuToBesuTestSuite) besuClientErr(name string, args ...any) []byte {
+	clientABI, err := besuqbft.ContractMetaData.GetAbi()
+	s.Require().NoError(err)
+	customErr, ok := clientABI.Errors[name]
+	s.Require().True(ok, "unknown error %s", name)
+	argsData, err := customErr.Inputs.Pack(args...)
+	s.Require().NoError(err)
+	return append(customErr.ID.Bytes()[:4], argsData...)
 }
 
 func (s *BesuToBesuTestSuite) besuClientState(client *besuqbft.Contract) besumsgs.IBesuLightClientMsgsClientState {
@@ -790,6 +887,7 @@ func (s *BesuToBesuTestSuite) createAndRegisterBesuClient(
 	dstChain *besuToBesuChainState,
 	dstClientID string,
 	counterpartyClientID string,
+	trustLevel string,
 ) ethcommon.Address {
 	resp, err := s.relayerClient.CreateClient(context.Background(), &proofapitypes.CreateClientRequest{
 		SrcChain: srcChain.eth.ChainID.String(),
@@ -797,7 +895,7 @@ func (s *BesuToBesuTestSuite) createAndRegisterBesuClient(
 		Parameters: map[string]string{
 			testvalues.ParameterKey_TrustingPeriod: strconv.Itoa(testvalues.DefaultTrustPeriod),
 			testvalues.ParameterKey_MaxClockDrift:  strconv.Itoa(testvalues.DefaultMaxClockDrift),
-			testvalues.ParameterKey_TrustLevel:     "2/3",
+			testvalues.ParameterKey_TrustLevel:     trustLevel,
 			testvalues.ParameterKey_RoleManager:    dstChain.contractAddresses.Ics26Router,
 		},
 	})
