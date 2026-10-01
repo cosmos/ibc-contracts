@@ -560,6 +560,9 @@ func (s *BesuToBesuTestSuite) Test_ErrorAckICS20TransferERC20FromChainAToChainB(
 		expectedUserBalanceA := new(big.Int).Sub(new(big.Int).Set(initialUserBalanceA), transferAmount)
 		s.Require().Equal(0, expectedUserBalanceA.Cmp(userBalanceA))
 
+		escrowAddressA, err = s.chainA.ics20.GetEscrow(nil, besuToBesuClientOnA)
+		s.Require().NoError(err)
+		s.Require().NotEqual(ethcommon.Address{}, escrowAddressA)
 		escrowBalanceA, err := s.chainA.erc20.BalanceOf(nil, escrowAddressA)
 		s.Require().NoError(err)
 		expectedEscrowBalanceA := new(big.Int).Add(new(big.Int).Set(initialEscrowBalanceA), transferAmount)
