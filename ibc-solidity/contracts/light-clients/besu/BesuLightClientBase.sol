@@ -227,10 +227,6 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     {
         require(msg_.height1.revisionNumber == 0, InvalidRevisionNumber(msg_.height1.revisionNumber));
         require(msg_.height2.revisionNumber == 0, InvalidRevisionNumber(msg_.height2.revisionNumber));
-        require(
-            msg_.height1.revisionHeight < msg_.height2.revisionHeight,
-            InvalidMisbehaviourHeightOrder(msg_.height1.revisionHeight, msg_.height2.revisionHeight)
-        );
 
         // Stored consensus states remain valid evidence after their trusting period.
         _requireStoredConsensusState(msg_.height1.revisionHeight, msg_.consensusStatePreimage1);
@@ -277,6 +273,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             return;
         }
 
+        // Order by height so that heightA < heightB.
         if (heightA > heightB) {
             (heightA, a, heightB, b) = (heightB, b, heightA, a);
         }

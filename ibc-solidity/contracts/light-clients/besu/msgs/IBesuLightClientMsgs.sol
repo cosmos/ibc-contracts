@@ -66,7 +66,7 @@ interface IBesuLightClientMsgs {
     /// providing two consensus states that are trusted but have timestamps that are not monotonic. The states only need
     /// to match their stored hashes; they may be past their trusting period.
     /// @param height1 Height of the first trusted consensus state.
-    /// @param height2 Height of the second trusted consensus state. Must be greater than `height1`.
+    /// @param height2 Height of the second trusted consensus state. Must differ from `height1`; order is irrelevant.
     /// @param consensusStatePreimage1 Preimage of the first trusted consensus state.
     /// @param consensusStatePreimage2 Preimage of the second trusted consensus state.
     struct MsgTimeNonMonotonicityMisbehaviour {

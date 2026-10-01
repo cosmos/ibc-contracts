@@ -1072,15 +1072,17 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             timestamp: timestamp,
             misbehaviour: _encodeMisbehaviour(_misbehaviourMsg(height2, state2, height2, state2)),
             expectedRevert: abi.encodeWithSelector(
-                    IBesuLightClientErrors.InvalidMisbehaviourHeightOrder.selector, height2, height2
+                    IBesuLightClientErrors.InvalidDoubleSignMisbehaviour.selector, height2, _consensusStateHash(state2)
                 )
         });
         testCases[2] = BesuMisbehaviourTestCase({
-            name: "failure: descending heights",
+            name: "failure: monotonic timestamps in descending height order",
             timestamp: timestamp,
             misbehaviour: _encodeMisbehaviour(_misbehaviourMsg(height2, state2, height1, state1)),
             expectedRevert: abi.encodeWithSelector(
-                    IBesuLightClientErrors.InvalidMisbehaviourHeightOrder.selector, height2, height1
+                    IBesuLightClientErrors.InvalidTimeNonMonotonicityMisbehaviour.selector,
+                    state1.timestamp,
+                    state2.timestamp
                 )
         });
 

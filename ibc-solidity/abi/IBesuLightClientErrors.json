@@ -213,22 +213,6 @@
   },
   {
     "type": "error",
-    "name": "InvalidMisbehaviourHeightOrder",
-    "inputs": [
-      {
-        "name": "height1",
-        "type": "uint64",
-        "internalType": "uint64"
-      },
-      {
-        "name": "height2",
-        "type": "uint64",
-        "internalType": "uint64"
-      }
-    ]
-  },
-  {
-    "type": "error",
     "name": "InvalidMixHash",
     "inputs": [
       {

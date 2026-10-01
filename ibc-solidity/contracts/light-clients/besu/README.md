@@ -121,7 +121,7 @@ struct MsgSubmitMisbehaviour {
 }
 ```
 
-- `TimeNonMonotonicity`: `abi.encode(MsgTimeNonMonotonicityMisbehaviour)` with two stored heights `height1 < height2` and their preimages. The client freezes when `timestamp1 >= timestamp2`. The preimages must match the stored hashes, but the trusting period does not apply: stored states remain valid evidence after they expire.
+- `TimeNonMonotonicity`: `abi.encode(MsgTimeNonMonotonicityMisbehaviour)` with two stored heights and their preimages, in either order. The client freezes when the lower height's timestamp is not less than the higher height's timestamp. The preimages must match the stored hashes, but the trusting period does not apply: stored states remain valid evidence after they expire.
 - `Headers`: `abi.encode(MsgHeadersMisbehaviour)` with two `MsgUpdateClient` messages. Each header is verified against its own trusted consensus state exactly as in `updateClient`, including the trusting period, trusted-validator overlap and quorum, except that the clock-drift check is skipped. The headers need not be stored and may be in either order. Headers at the same height that derive different consensus states freeze the client with `DoubleSign`; headers at different heights where the lower header's timestamp is not less than the higher header's timestamp freeze it with `TimeNonMonotonicity`.
 
 Evidence that does not prove misbehaviour reverts. Opening submission is safe because the evidence is either consensus states the client already accepted or headers that meet the same signature thresholds as an update, so freezing the client requires genuine validator misbehaviour.
