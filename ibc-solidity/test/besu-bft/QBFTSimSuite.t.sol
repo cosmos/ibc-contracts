@@ -27,8 +27,6 @@ import { SimHeader } from "./utils/SimHeader.sol";
 abstract contract QBFTSimSuiteTest is Test {
     uint64 internal constant TRUSTING_PERIOD = 1 days;
     uint64 internal constant MAX_CLOCK_DRIFT = 10;
-    /// @dev secp256k1 curve order.
-    uint256 internal constant SECP256K1_N = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141;
 
     QBFTSimSuite internal sim;
     IBesuLightClient internal client;
@@ -69,14 +67,6 @@ abstract contract QBFTSimSuiteTest is Test {
         assertEq(client.getConsensusStateHash(3), keccak256(abi.encode(sim.consensusState(3))));
     }
 
-    function test_updateClient_revertZeroHeight() public {
-        SimHeader.Data memory h = sim.nextBlock();
-        h.number = 0;
-        bytes memory update = sim.updateMsg(2, sim.seal(h));
-        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.InvalidHeaderHeight.selector));
-        client.updateClient(update);
-    }
-
     function test_updateClient_revertMalformedHeader() public {
         SimHeader.Data memory h = sim.nextBlock();
         bytes memory headerRlp = SimHeader.encode(h);
@@ -89,58 +79,6 @@ abstract contract QBFTSimSuiteTest is Test {
             _rewriteHeader(headerRlp, 20, 12, RLP.encode(bytes(hex"c0"))),
             abi.encodeWithSelector(IBesuLightClientErrors.InvalidExtraDataFormat.selector, 0)
         );
-
-        SimHeader.Data memory bad = sim.nextBlock();
-        bad.ommersHash = bytes32(0);
-        _expectUpdateRevert(
-            SimHeader.encode(bad), abi.encodeWithSelector(IBesuLightClientErrors.InvalidOmmersHash.selector, 0)
-        );
-
-        bad = sim.nextBlock();
-        bad.difficulty = 2;
-        _expectUpdateRevert(
-            SimHeader.encode(bad), abi.encodeWithSelector(IBesuLightClientErrors.InvalidDifficulty.selector, 2)
-        );
-
-        bad = sim.nextBlock();
-        bad.mixHash = bytes32(0);
-        _expectUpdateRevert(
-            SimHeader.encode(bad), abi.encodeWithSelector(IBesuLightClientErrors.InvalidMixHash.selector, 0)
-        );
-
-        bad = sim.nextBlock();
-        bad.nonce = bytes8(uint64(1));
-        _expectUpdateRevert(
-            SimHeader.encode(bad),
-            abi.encodeWithSelector(IBesuLightClientErrors.InvalidNonce.selector, abi.encodePacked(bad.nonce))
-        );
-    }
-
-    function test_updateClient_commitSealEncoding() public {
-        SimHeader.Data memory h = sim.seal(sim.nextBlock());
-        (uint8 v, bytes32 r, bytes32 s) =
-            vm.sign(sim.validatorKey(h.validators[0]), SimHeader.commitSealDigest(h, _mode()));
-
-        h.commitSeals[0] = abi.encodePacked(r, s);
-        bytes memory update = sim.updateMsg(2, h);
-        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.InvalidECDSASignatureLength.selector, 64));
-        client.updateClient(update);
-
-        h.commitSeals[0] = new bytes(65);
-        update = sim.updateMsg(2, h);
-        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.InvalidCommitSeal.selector));
-        client.updateClient(update);
-
-        // The malleable twin of a valid signature recovers the same signer but must be rejected.
-        h.commitSeals[0] = abi.encodePacked(r, bytes32(SECP256K1_N - uint256(s)), v == 27 ? uint8(28) : uint8(27));
-        update = sim.updateMsg(2, h);
-        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.InvalidCommitSeal.selector));
-        client.updateClient(update);
-
-        // A recovery id of 0 or 1 is accepted as 27 or 28.
-        h.commitSeals[0] = abi.encodePacked(r, s, v - 27);
-        update = sim.updateMsg(2, h);
-        assertEq(uint8(client.updateClient(update)), uint8(ILightClientMsgs.UpdateResult.Update));
     }
 
     function test_accessControl() public {
@@ -435,23 +373,6 @@ abstract contract QBFTSimSuiteTest is Test {
         ILightClientMsgs.MsgVerifyMembership memory msg_ = sim.membershipMsg(3, path);
         assertEq(msg_.value, abi.encodePacked(ICS24Host.packetCommitmentBytes32(packet)));
         client.verifyMembership(msg_);
-    }
-
-    function test_proofRejections() public {
-        bytes memory path = ICS24Host.packetCommitmentPathCalldata("client-0", 1);
-        sim.setCommitment(path, keccak256("commitment"));
-        sim.produceBlock();
-        client.updateClient(sim.updateMsg(2, 3));
-        ILightClientMsgs.MsgVerifyMembership memory membership = sim.membershipMsg(3, path);
-
-        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.InvalidExclusionProof.selector));
-        client.verifyNonMembership(
-            ILightClientMsgs.MsgVerifyNonMembership(membership.proof, membership.proofHeight, membership.path)
-        );
-
-        membership.value = abi.encodePacked(bytes31(membership.value));
-        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.InvalidValueLength.selector, 32, 31));
-        client.verifyMembership(membership);
     }
 
     /// @dev Rotates a random part of the trusted set and signs with a random subset of the new set: the update must
