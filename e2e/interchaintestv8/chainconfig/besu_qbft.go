@@ -7,6 +7,7 @@ import (
 	"crypto/ecdsa"
 	"embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"math/big"
@@ -232,8 +233,8 @@ func (c BesuQBFTChain) RemoveValidator(ctx context.Context, service string) (uin
 }
 
 // voteValidator has every current validator vote to add or remove the validator run by service, and waits until the
-// change applies. The votes are discarded afterwards so that later changes start from a clean slate.
-func (c BesuQBFTChain) voteValidator(ctx context.Context, service string, add bool) (uint64, error) {
+// change applies. The votes are discarded afterwards, also on failure, so that later changes start from a clean slate.
+func (c BesuQBFTChain) voteValidator(ctx context.Context, service string, add bool) (height uint64, err error) {
 	validator, err := besuQBFTValidatorAddress(service)
 	if err != nil {
 		return 0, err
@@ -267,13 +268,19 @@ func (c BesuQBFTChain) voteValidator(ctx context.Context, service string, add bo
 		}
 	}
 
+	defer func() {
+		for _, voter := range voters {
+			if discardErr := c.validatorRPC(ctx, voter, "qbft_discardValidatorVote", validator); discardErr != nil {
+				err = errors.Join(err, discardErr)
+			}
+		}
+	}()
 	for _, voter := range voters {
 		if err := c.validatorRPC(ctx, voter, "qbft_proposeValidatorVote", validator, add); err != nil {
 			return 0, err
 		}
 	}
 
-	var height uint64
 	err = testutil.WaitForCondition(2*time.Minute, time.Second, func() (bool, error) {
 		latest, err := client.BlockNumber(ctx)
 		if err != nil {
@@ -288,12 +295,6 @@ func (c BesuQBFTChain) voteValidator(ctx context.Context, service string, add bo
 	})
 	if err != nil {
 		return 0, fmt.Errorf("wait for validator set change: %w", err)
-	}
-
-	for _, voter := range voters {
-		if err := c.validatorRPC(ctx, voter, "qbft_discardValidatorVote", validator); err != nil {
-			return 0, err
-		}
 	}
 
 	return height, nil
