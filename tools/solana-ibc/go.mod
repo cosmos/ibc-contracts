@@ -6,7 +6,7 @@ replace github.com/cosmos/solidity-ibc-eureka/packages/go-anchor => ../../packag
 
 require (
 	github.com/cosmos/solidity-ibc-eureka/packages/go-anchor v0.0.0
-	github.com/gagliardetto/solana-go v1.23.0
+	github.com/gagliardetto/solana-go v1.24.0
 	github.com/spf13/cobra v1.10.2
 )
 
@@ -21,7 +21,7 @@ require (
 	github.com/goccy/go-json v0.10.6 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/klauspost/compress v1.18.0 // indirect
+	github.com/klauspost/compress v1.18.7 // indirect
 	github.com/logrusorgru/aurora v2.0.3+incompatible // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
@@ -34,8 +34,8 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/ratelimit v0.3.1 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	golang.org/x/crypto v0.52.0 // indirect
-	golang.org/x/sys v0.45.0 // indirect
-	golang.org/x/term v0.43.0 // indirect
-	golang.org/x/time v0.11.0 // indirect
+	golang.org/x/crypto v0.55.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/term v0.45.0 // indirect
+	golang.org/x/time v0.14.0 // indirect
 )
