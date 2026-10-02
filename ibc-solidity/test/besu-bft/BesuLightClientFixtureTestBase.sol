@@ -1060,28 +1060,30 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         testCases[0] = BesuMisbehaviourTestCase({
             name: "failure: monotonic timestamps",
             timestamp: timestamp,
-            misbehaviour: abi.encode(_misbehaviourMsg(height1, state1, height2, state2)),
+            misbehaviour: _encodeMisbehaviour(_misbehaviourMsg(height1, state1, height2, state2)),
             expectedRevert: abi.encodeWithSelector(
-                IBesuLightClientErrors.InvalidTimeNonMonotonicityMisbehaviour.selector,
-                state1.timestamp,
-                state2.timestamp
-            )
+                    IBesuLightClientErrors.InvalidTimeNonMonotonicityMisbehaviour.selector,
+                    state1.timestamp,
+                    state2.timestamp
+                )
         });
         testCases[1] = BesuMisbehaviourTestCase({
             name: "failure: equal heights",
             timestamp: timestamp,
-            misbehaviour: abi.encode(_misbehaviourMsg(height2, state2, height2, state2)),
+            misbehaviour: _encodeMisbehaviour(_misbehaviourMsg(height2, state2, height2, state2)),
             expectedRevert: abi.encodeWithSelector(
-                IBesuLightClientErrors.InvalidMisbehaviourHeightOrder.selector, height2, height2
-            )
+                    IBesuLightClientErrors.InvalidDoubleSignMisbehaviour.selector, height2, _consensusStateHash(state2)
+                )
         });
         testCases[2] = BesuMisbehaviourTestCase({
-            name: "failure: descending heights",
+            name: "failure: monotonic timestamps in descending height order",
             timestamp: timestamp,
-            misbehaviour: abi.encode(_misbehaviourMsg(height2, state2, height1, state1)),
+            misbehaviour: _encodeMisbehaviour(_misbehaviourMsg(height2, state2, height1, state1)),
             expectedRevert: abi.encodeWithSelector(
-                IBesuLightClientErrors.InvalidMisbehaviourHeightOrder.selector, height2, height1
-            )
+                    IBesuLightClientErrors.InvalidTimeNonMonotonicityMisbehaviour.selector,
+                    state1.timestamp,
+                    state2.timestamp
+                )
         });
 
         IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour memory wrongRevision =
@@ -1090,7 +1092,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         testCases[3] = BesuMisbehaviourTestCase({
             name: "failure: wrong revision number for height1",
             timestamp: timestamp,
-            misbehaviour: abi.encode(wrongRevision),
+            misbehaviour: _encodeMisbehaviour(wrongRevision),
             expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidRevisionNumber.selector, 1)
         });
 
@@ -1099,13 +1101,13 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         testCases[4] = BesuMisbehaviourTestCase({
             name: "failure: wrong revision number for height2",
             timestamp: timestamp,
-            misbehaviour: abi.encode(wrongRevision),
+            misbehaviour: _encodeMisbehaviour(wrongRevision),
             expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidRevisionNumber.selector, 1)
         });
         testCases[5] = BesuMisbehaviourTestCase({
             name: "failure: unknown height",
             timestamp: timestamp,
-            misbehaviour: abi.encode(_misbehaviourMsg(height1, state1, height2 + 1, state2)),
+            misbehaviour: _encodeMisbehaviour(_misbehaviourMsg(height1, state1, height2 + 1, state2)),
             expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.ConsensusStateNotFound.selector, height2 + 1)
         });
 
@@ -1114,7 +1116,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         testCases[6] = BesuMisbehaviourTestCase({
             name: "failure: wrong consensus state preimage",
             timestamp: timestamp,
-            misbehaviour: abi.encode(_misbehaviourMsg(height1, state1, height2, wrongState2)),
+            misbehaviour: _encodeMisbehaviour(_misbehaviourMsg(height1, state1, height2, wrongState2)),
             expectedRevert: abi.encodeWithSelector(
                 IBesuLightClientErrors.ConsensusStatePreimageMismatch.selector,
                 _consensusStateHash(state2),
@@ -1126,7 +1128,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         testCases[7] = BesuMisbehaviourTestCase({
             name: "failure: monotonic timestamps past trusting period",
             timestamp: state2.timestamp + fixture.trustingPeriod,
-            misbehaviour: abi.encode(_misbehaviourMsg(height1, state1, height2, state2)),
+            misbehaviour: _encodeMisbehaviour(_misbehaviourMsg(height1, state1, height2, state2)),
             expectedRevert: abi.encodeWithSelector(
                 IBesuLightClientErrors.InvalidTimeNonMonotonicityMisbehaviour.selector,
                 state1.timestamp,
@@ -1422,6 +1424,18 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             consensusStatePreimage1: state1,
             consensusStatePreimage2: state2
         });
+    }
+
+    function _encodeMisbehaviour(IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour memory misbehaviour)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        return abi.encode(
+            IBesuLightClientMsgs.MsgSubmitMisbehaviour(
+                IBesuLightClientMsgs.MisbehaviourType.TimeNonMonotonicity, abi.encode(misbehaviour)
+            )
+        );
     }
 
     /// @dev Wraps fixture account and storage proof nodes and a consensus state preimage into the client proof format.

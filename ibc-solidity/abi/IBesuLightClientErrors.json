@@ -144,6 +144,22 @@
   },
   {
     "type": "error",
+    "name": "InvalidDoubleSignMisbehaviour",
+    "inputs": [
+      {
+        "name": "revisionHeight",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "consensusStateHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "InvalidECDSASignatureLength",
     "inputs": [
       {
@@ -194,22 +210,6 @@
     "type": "error",
     "name": "InvalidIbcRouter",
     "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "InvalidMisbehaviourHeightOrder",
-    "inputs": [
-      {
-        "name": "height1",
-        "type": "uint64",
-        "internalType": "uint64"
-      },
-      {
-        "name": "height2",
-        "type": "uint64",
-        "internalType": "uint64"
-      }
-    ]
   },
   {
     "type": "error",

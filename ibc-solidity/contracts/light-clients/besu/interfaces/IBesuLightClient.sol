@@ -9,8 +9,10 @@ interface IBesuLightClient is ILightClient {
     /// @notice Emitted when two validly signed headers commit different consensus states at the same height.
     /// @dev The client is permanently frozen when this is emitted.
     /// @param revisionHeight The height at which the double sign occurred.
-    /// @param trustedConsensusStateHash The consensus state hash already stored at `revisionHeight`.
-    /// @param conflictingConsensusStateHash The conflicting consensus state hash derived from the submitted header.
+    /// @param trustedConsensusStateHash The consensus state hash already stored at `revisionHeight`, or derived from
+    /// the first header of a `MsgHeadersMisbehaviour`.
+    /// @param conflictingConsensusStateHash The conflicting consensus state hash derived from the submitted header, or
+    /// from the second header of a `MsgHeadersMisbehaviour`.
     event DoubleSign(
         uint64 indexed revisionHeight, bytes32 trustedConsensusStateHash, bytes32 conflictingConsensusStateHash
     );
