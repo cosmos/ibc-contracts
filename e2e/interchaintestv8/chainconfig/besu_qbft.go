@@ -116,8 +116,8 @@ func SpinUpBesuQBFT(ctx context.Context, params BesuQBFTParams) (chain BesuQBFTC
 		return BesuQBFTChain{}, fmt.Errorf("patch besu qbft genesis: %w", err)
 	}
 
-	if err := patchBesuQBFTCompose(filepath.Join(projectDir, besuQBFTComposeFile), params); err != nil {
-		return BesuQBFTChain{}, fmt.Errorf("patch besu qbft compose file: %w", err)
+	if err := patchBesuQBFTTopology(projectDir, params); err != nil {
+		return BesuQBFTChain{}, fmt.Errorf("patch besu qbft topology: %w", err)
 	}
 
 	chain.projectName = filepath.Base(projectDir)
@@ -257,12 +257,8 @@ func patchBesuQBFTGenesis(path string, chainID uint64) error {
 	return os.WriteFile(path, updated, 0o644) //nolint:gosec
 }
 
-func patchBesuQBFTCompose(path string, params BesuQBFTParams) error {
-	contents, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-
+// patchBesuQBFTTopology rewrites the default subnet and validator IPs in the compose file and static node lists.
+func patchBesuQBFTTopology(projectDir string, params BesuQBFTParams) error {
 	replacer := strings.NewReplacer(
 		defaultBesuQBFTSubnet, params.Subnet,
 		defaultBesuQBFTGateway, params.Gateway,
@@ -272,8 +268,21 @@ func patchBesuQBFTCompose(path string, params BesuQBFTParams) error {
 		defaultBesuQBFTValidatorIPs[3], params.ValidatorIPs[3],
 	)
 
-	// Docker Compose reads this generated configuration outside the Go process.
-	return os.WriteFile(path, []byte(replacer.Replace(string(contents))), 0o644) //nolint:gosec
+	paths := []string{filepath.Join(projectDir, besuQBFTComposeFile)}
+	for _, service := range besuQBFTServices {
+		paths = append(paths, filepath.Join(projectDir, "static-nodes", service+".json"))
+	}
+	for _, path := range paths {
+		contents, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		// Docker Compose and Besu read these generated files outside the Go process.
+		if err := os.WriteFile(path, []byte(replacer.Replace(string(contents))), 0o644); err != nil { //nolint:gosec
+			return err
+		}
+	}
+	return nil
 }
 
 func waitForBesuQBFTReady(ctx context.Context, rpcURL string) error {

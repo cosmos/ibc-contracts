@@ -7,6 +7,8 @@ interface IBesuLightClientErrors {
     /// @notice The revision number must be zero for Besu light client heights.
     /// @param providedRevisionNumber The non-zero revision number.
     error InvalidRevisionNumber(uint64 providedRevisionNumber);
+    /// @notice The counterparty ICS26 router address is zero.
+    error InvalidIbcRouter();
     /// @notice The submitted header has an invalid RLP item count.
     /// @param itemsLength The decoded header item count.
     error InvalidHeaderFormat(uint256 itemsLength);
@@ -28,6 +30,10 @@ interface IBesuLightClientErrors {
     /// @param headerTimestamp The submitted header timestamp.
     /// @param maxClockDrift The configured maximum clock drift.
     error HeaderFromFuture(uint256 currentTimestamp, uint256 headerTimestamp, uint256 maxClockDrift);
+    /// @notice The trusted height must be less than the header height
+    /// @param trustedHeight The submitted trusted height.
+    /// @param headerHeight The submitted header height.
+    error InvalidTrustedHeight(uint64 trustedHeight, uint64 headerHeight);
     /// @notice No consensus state exists for the requested height.
     /// @param revisionHeight The requested revision height.
     error ConsensusStateNotFound(uint64 revisionHeight);
@@ -60,9 +66,9 @@ interface IBesuLightClientErrors {
     /// @notice The validator set is not sorted in ascending order.
     /// @param index The index of the first unsorted validator.
     error UnsortedValidatorSet(uint256 index);
-    /// @notice A commit seal signer appears more than once.
-    /// @param signer The duplicate signer address.
-    error DuplicateCommitSealSigner(address signer);
+    /// @notice The commit seals are not sorted in strictly ascending order of their recovered signers.
+    /// @param index The index of the first unsorted commit seal signer.
+    error UnsortedCommitSealSigners(uint256 index);
     /// @notice An ECDSA signature has an invalid length.
     /// @param length The invalid signature length.
     error InvalidECDSASignatureLength(uint256 length);
@@ -90,8 +96,6 @@ interface IBesuLightClientErrors {
     error InvalidCommitmentValue(bytes32 expectedValue, bytes32 actualValue);
     /// @notice The client is frozen due to misbehaviour and can no longer be used.
     error FrozenClientState();
-    /// @notice Misbehaviour handling is not supported by this client.
-    error UnsupportedMisbehaviour();
     /// @notice The submitted exclusion proof is invalid.
     error InvalidExclusionProof();
     /// @notice Storage root is not cached for the requested height.
@@ -100,4 +104,12 @@ interface IBesuLightClientErrors {
     /// @notice The commit seal signer is not in the validator set.
     /// @param signer The commit seal signer address.
     error UnknownCommitSealSigner(address signer);
+    /// @notice Height1 must be less than height2 for misbehaviour handling.
+    /// @param height1 The first trusted consensus state height.
+    /// @param height2 The second trusted consensus state height.
+    error InvalidMisbehaviourHeightOrder(uint64 height1, uint64 height2);
+    /// @notice No misbehaviour detected between the two trusted consensus states.
+    /// @param timestamp1 Timestamp of the first trusted consensus state.
+    /// @param timestamp2 Timestamp of the second trusted consensus state.
+    error InvalidTimeNonMonotonicityMisbehaviour(uint256 timestamp1, uint256 timestamp2);
 }

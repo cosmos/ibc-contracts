@@ -37,52 +37,44 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     mapping(uint64 revisionHeight => bytes32 consensusStateHash) private consensusStateHashes;
 
     /// @notice Initializes shared Besu light client state.
-    /// @param ibcRouter Counterparty ICS26 router address whose storage is proven.
-    /// @param initialTrustedHeight Initial trusted Besu height.
-    /// @param initialTrustedTimestamp Initial trusted header timestamp in seconds.
-    /// @param initialTrustedStateRoot Initial trusted root of the state trie at `initialTrustedHeight`.
-    /// @param initialTrustedValidators Initial trusted validator set.
-    /// @param trustingPeriod Maximum age in seconds for trusted consensus states.
-    /// @param maxClockDrift Maximum allowed future drift in seconds for submitted headers.
-    /// @param trustLevel Minimum fraction of the trusted validator set that must sign a new header, in `[1/3, 1]`.
+    /// @dev `initialConsensusState` is trusted at `initialClientState.latestHeight`.
+    /// @param initialClientState Initial client state. Must not be frozen and must use revision number `0`.
+    /// @param initialConsensusState Initial trusted consensus state at `initialClientState.latestHeight`.
     /// @param roleManager Address that administers proof submission; if zero, proof submission is open.
     constructor(
-        address ibcRouter,
-        uint64 initialTrustedHeight,
-        uint64 initialTrustedTimestamp,
-        bytes32 initialTrustedStateRoot,
-        address[] memory initialTrustedValidators,
-        uint64 trustingPeriod,
-        uint64 maxClockDrift,
-        IBesuLightClientMsgs.TrustThreshold memory trustLevel,
+        IBesuLightClientMsgs.ClientState memory initialClientState,
+        IBesuLightClientMsgs.ConsensusState memory initialConsensusState,
         address roleManager
     ) {
-        require(initialTrustedHeight != 0, InvalidHeaderHeight());
-        require(initialTrustedTimestamp != 0, InvalidHeaderTimestamp());
+        IICS02ClientMsgs.Height memory latestHeight = initialClientState.latestHeight;
+        IBesuLightClientMsgs.TrustThreshold memory trustLevel = initialClientState.trustLevel;
+        uint64 trustingPeriod = initialClientState.trustingPeriod;
+        uint64 timestamp = initialConsensusState.timestamp;
+
+        require(initialClientState.ibcRouter != address(0), InvalidIbcRouter());
+        require(latestHeight.revisionNumber == 0, InvalidRevisionNumber(latestHeight.revisionNumber));
+        require(latestHeight.revisionHeight != 0, InvalidHeaderHeight());
+        require(!initialClientState.isFrozen, FrozenClientState());
         require(trustingPeriod != 0, InvalidTrustingPeriod());
-        /* solhint-disable gas-strict-inequalities */
         require(
             trustLevel.denominator != 0 && trustLevel.numerator <= trustLevel.denominator
                 && 3 * uint256(trustLevel.numerator) >= trustLevel.denominator,
             InvalidTrustLevel(trustLevel.numerator, trustLevel.denominator)
         );
-        /* solhint-enable gas-strict-inequalities */
 
-        _validateValidators(initialTrustedValidators);
+        require(timestamp != 0, InvalidHeaderTimestamp());
+        _validateValidators(initialConsensusState.validators);
+        require(
+            uint256(timestamp) + trustingPeriod > block.timestamp,
+            ConsensusStateExpired(timestamp, block.timestamp, trustingPeriod)
+        );
+        require(
+            block.timestamp + initialClientState.maxClockDrift >= timestamp,
+            HeaderFromFuture(block.timestamp, timestamp, initialClientState.maxClockDrift)
+        );
 
-        clientState = IBesuLightClientMsgs.ClientState({
-            ibcRouter: ibcRouter,
-            latestHeight: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: initialTrustedHeight }),
-            trustingPeriod: trustingPeriod,
-            maxClockDrift: maxClockDrift,
-            isFrozen: false,
-            trustLevel: trustLevel
-        });
-
-        IBesuLightClientMsgs.ConsensusState memory initialConsensusState = IBesuLightClientMsgs.ConsensusState({
-            timestamp: initialTrustedTimestamp, stateRoot: initialTrustedStateRoot, validators: initialTrustedValidators
-        });
-        consensusStateHashes[initialTrustedHeight] = keccak256(abi.encode(initialConsensusState));
+        clientState = initialClientState;
+        consensusStateHashes[latestHeight.revisionHeight] = keccak256(abi.encode(initialConsensusState));
 
         if (roleManager == address(0)) {
             _grantRole(PROOF_SUBMITTER_ROLE, address(0));
@@ -119,9 +111,12 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         require(header.timestamp != 0, InvalidHeaderTimestamp());
         _validateValidators(header.validators);
         require(
-            // solhint-disable-next-line gas-strict-inequalities
             block.timestamp + clientState.maxClockDrift >= header.timestamp,
             HeaderFromFuture(block.timestamp, header.timestamp, clientState.maxClockDrift)
+        );
+        require(
+            header.height > msg_.trustedHeight.revisionHeight,
+            InvalidTrustedHeight(msg_.trustedHeight.revisionHeight, header.height)
         );
 
         _requireTrustedConsensusState(msg_.trustedHeight.revisionHeight, msg_.consensusStatePreimage);
@@ -143,6 +138,17 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
             clientState.isFrozen = true;
             emit DoubleSign(header.height, existingHash, newHash);
+            return ILightClientMsgs.UpdateResult.Misbehaviour;
+        }
+
+        if (msg_.consensusStatePreimage.timestamp >= header.timestamp) {
+            clientState.isFrozen = true;
+            emit TimeNonMonotonicity(
+                header.height,
+                msg_.trustedHeight.revisionHeight,
+                header.timestamp,
+                msg_.consensusStatePreimage.timestamp
+            );
             return ILightClientMsgs.UpdateResult.Misbehaviour;
         }
 
@@ -213,8 +219,34 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     }
 
     /// @inheritdoc ILightClient
-    function misbehaviour(bytes calldata) external view notFrozen onlyProofSubmitter {
-        revert UnsupportedMisbehaviour();
+    function misbehaviour(bytes calldata misbehaviourMsg) external notFrozen onlyProofSubmitter {
+        IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour memory msg_ =
+            abi.decode(misbehaviourMsg, (IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour));
+        require(msg_.height1.revisionNumber == 0, InvalidRevisionNumber(msg_.height1.revisionNumber));
+        require(msg_.height2.revisionNumber == 0, InvalidRevisionNumber(msg_.height2.revisionNumber));
+        require(
+            msg_.height1.revisionHeight < msg_.height2.revisionHeight,
+            InvalidMisbehaviourHeightOrder(msg_.height1.revisionHeight, msg_.height2.revisionHeight)
+        );
+
+        // Stored consensus states remain valid evidence after their trusting period.
+        _requireStoredConsensusState(msg_.height1.revisionHeight, msg_.consensusStatePreimage1);
+        _requireStoredConsensusState(msg_.height2.revisionHeight, msg_.consensusStatePreimage2);
+
+        require(
+            msg_.consensusStatePreimage1.timestamp >= msg_.consensusStatePreimage2.timestamp,
+            InvalidTimeNonMonotonicityMisbehaviour(
+                msg_.consensusStatePreimage1.timestamp, msg_.consensusStatePreimage2.timestamp
+            )
+        );
+
+        clientState.isFrozen = true;
+        emit TimeNonMonotonicity(
+            msg_.height2.revisionHeight,
+            msg_.height1.revisionHeight,
+            msg_.consensusStatePreimage2.timestamp,
+            msg_.consensusStatePreimage1.timestamp
+        );
     }
 
     /// @notice Computes the protocol-specific commit seal digest for a parsed header.
@@ -275,18 +307,21 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         return keccak256(abi.encode(keccak256(rawPath), IBCSTORE_STORAGE_SLOT));
     }
 
-    /// @notice Recovers unique commit seal signers for a digest.
+    /// @notice Recovers commit seal signers for a digest, requiring them to be sorted.
+    /// @dev Seals must be ordered by recovered signer in strictly ascending order, which also rejects duplicates.
     /// @param digest The commit seal digest.
     /// @param seals The commit seals to recover.
-    /// @return signers The recovered signer addresses.
+    /// @return signers The recovered signer addresses, in strictly ascending order.
     function _recoverSigners(bytes32 digest, bytes[] memory seals) private pure returns (address[] memory signers) {
         signers = new address[](seals.length);
-        for (uint256 i = 0; i < seals.length; ++i) {
-            address signer = _recoverSigner(digest, seals[i]);
-            for (uint256 j = 0; j < i; ++j) {
-                require(signers[j] != signer, DuplicateCommitSealSigner(signer));
-            }
-            signers[i] = signer;
+        if (seals.length == 0) {
+            return signers;
+        }
+
+        signers[0] = _recoverSigner(digest, seals[0]);
+        for (uint256 i = 1; i < seals.length; ++i) {
+            signers[i] = _recoverSigner(digest, seals[i]);
+            require(signers[i - 1] < signers[i], UnsortedCommitSealSigners(i - 1));
         }
     }
 
@@ -309,34 +344,46 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
     /// @notice Checks that signers overlap enough with the trusted validator set.
     /// @dev Requires at least `ceil(n * trustLevel)` trusted validators to have signed.
+    /// Assumes both sets are strictly ascending. Checked in `_recoverSigners` and `_validateValidators`.
     /// @param signers The recovered commit seal signers.
     /// @param trustedValidators The trusted validator set.
     function _checkTrustedValidatorOverlap(address[] memory signers, address[] memory trustedValidators) private view {
         uint256 actual = 0;
-        for (uint256 i = 0; i < signers.length; ++i) {
-            if (_containsMemory(trustedValidators, signers[i])) {
+        uint256 i = 0;
+        uint256 j = 0;
+        while (i < signers.length && j < trustedValidators.length) {
+            if (signers[i] == trustedValidators[j]) {
                 ++actual;
+                ++i;
+                ++j;
+            } else if (signers[i] < trustedValidators[j]) {
+                ++i;
+            } else {
+                ++j;
             }
         }
 
         IBesuLightClientMsgs.TrustThreshold memory trustLevel = clientState.trustLevel;
         uint256 required = Math.ceilDiv(trustedValidators.length * trustLevel.numerator, trustLevel.denominator);
         require(actual >= required, InsufficientTrustedValidatorOverlap(actual, required));
-        // solhint-disable-previous-line gas-strict-inequalities
     }
 
     /// @notice Checks that signers meet quorum for the submitted header validator set.
-    /// @dev Assumes that the signer set has no duplicates. Checked in `_recoverSigners`.
+    /// @dev Assumes both sets are strictly ascending. Checked in `_recoverSigners` and `_validateValidators`.
     /// @param signers The recovered commit seal signers.
     /// @param validators The validator set from the submitted header.
     function _checkValidatorQuorum(address[] memory signers, address[] memory validators) private pure {
+        uint256 j = 0;
         for (uint256 i = 0; i < signers.length; ++i) {
-            require(_containsMemory(validators, signers[i]), UnknownCommitSealSigner(signers[i]));
+            while (j < validators.length && validators[j] < signers[i]) {
+                ++j;
+            }
+            require(j < validators.length && validators[j] == signers[i], UnknownCommitSealSigner(signers[i]));
+            ++j;
         }
 
         uint256 required = _bftThreshold(validators.length);
         require(signers.length >= required, InsufficientValidatorQuorum(signers.length, required));
-        // solhint-disable-previous-line gas-strict-inequalities
     }
 
     /// @notice Computes the BFT threshold `ceil(2n / 3)` used for the commit-seal quorum check.
@@ -366,29 +413,28 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         private
         view
     {
-        bytes32 consensusStateHash = consensusStateHashes[revisionHeight];
-        require(consensusStateHash != bytes32(0), ConsensusStateNotFound(revisionHeight));
-
-        bytes32 preimageHash = keccak256(abi.encode(preimage));
-        require(consensusStateHash == preimageHash, ConsensusStatePreimageMismatch(consensusStateHash, preimageHash));
-
+        _requireStoredConsensusState(revisionHeight, preimage);
         require(
             uint256(preimage.timestamp) + clientState.trustingPeriod > block.timestamp,
             ConsensusStateExpired(preimage.timestamp, block.timestamp, clientState.trustingPeriod)
         );
     }
 
-    /// @notice Checks whether a memory validator set contains a signer.
-    /// @param validators The memory validator set.
-    /// @param signer The signer to find.
-    /// @return True if `signer` is present.
-    function _containsMemory(address[] memory validators, address signer) private pure returns (bool) {
-        for (uint256 i = 0; i < validators.length; ++i) {
-            if (validators[i] == signer) {
-                return true;
-            }
-        }
-        return false;
+    /// @notice Reverts unless the given consensus state matches the stored hash at the height.
+    /// @param revisionHeight The consensus state revision height.
+    /// @param preimage The consensus state preimage to check.
+    function _requireStoredConsensusState(
+        uint64 revisionHeight,
+        IBesuLightClientMsgs.ConsensusState memory preimage
+    )
+        private
+        view
+    {
+        bytes32 consensusStateHash = consensusStateHashes[revisionHeight];
+        require(consensusStateHash != bytes32(0), ConsensusStateNotFound(revisionHeight));
+
+        bytes32 preimageHash = keccak256(abi.encode(preimage));
+        require(consensusStateHash == preimageHash, ConsensusStatePreimageMismatch(consensusStateHash, preimageHash));
     }
 
     /// @notice Caches a storage root for a revision height in a transient slot.

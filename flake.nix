@@ -7,7 +7,9 @@
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     solc = {
-      url = "github:hellwolf/solc.nix";
+      # TODO: switch back to github:hellwolf/solc.nix once
+      # https://github.com/hellwolf/solc.nix/pull/32 (solc 0.8.37) is merged.
+      url = "github:srdtrk/solc.nix/v_0_8_37";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     foundry.url = "github:shazow/foundry.nix/stable";

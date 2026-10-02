@@ -171,9 +171,15 @@ contract QBFTSimSuite is Test, SimWorldState {
     }
 
     /// @notice Seals `h` with arbitrary private keys, e.g. to add unknown or duplicate signers.
+    /// @dev Seals are ordered by signer address, as the light client requires.
     function sealWithKeys(SimHeader.Data memory h, uint256[] memory keys) public view returns (SimHeader.Data memory) {
         bytes32 digest = h.commitSealDigest(MODE);
         h.commitSeals = new bytes[](keys.length);
+        for (uint256 i = 1; i < keys.length; ++i) {
+            for (uint256 j = i; j > 0 && vm.addr(keys[j - 1]) > vm.addr(keys[j]); --j) {
+                (keys[j - 1], keys[j]) = (keys[j], keys[j - 1]);
+            }
+        }
         for (uint256 i = 0; i < keys.length; ++i) {
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(keys[i], digest);
             h.commitSeals[i] = abi.encodePacked(r, s, v);
@@ -213,31 +219,18 @@ contract QBFTSimSuite is Test, SimWorldState {
         returns (IBesuLightClient)
     {
         uint64 height = tipHeight();
-        Block storage tip = _chain[height];
+        IBesuLightClientMsgs.ClientState memory clientState = IBesuLightClientMsgs.ClientState({
+            ibcRouter: IBC_ROUTER,
+            latestHeight: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: height }),
+            trustingPeriod: trustingPeriod,
+            maxClockDrift: maxClockDrift,
+            isFrozen: false,
+            trustLevel: trustLevel
+        });
         if (MODE == SimHeader.Mode.QBFT) {
-            return new BesuQBFTLightClient(
-                IBC_ROUTER,
-                height,
-                tip.timestamp,
-                tip.stateRoot,
-                tip.validators,
-                trustingPeriod,
-                maxClockDrift,
-                trustLevel,
-                address(0)
-            );
+            return new BesuQBFTLightClient(clientState, consensusState(height), address(0));
         }
-        return new BesuIBFT2LightClient(
-            IBC_ROUTER,
-            height,
-            tip.timestamp,
-            tip.stateRoot,
-            tip.validators,
-            trustingPeriod,
-            maxClockDrift,
-            trustLevel,
-            address(0)
-        );
+        return new BesuIBFT2LightClient(clientState, consensusState(height), address(0));
     }
 
     function consensusState(uint64 height) public view returns (IBesuLightClientMsgs.ConsensusState memory) {

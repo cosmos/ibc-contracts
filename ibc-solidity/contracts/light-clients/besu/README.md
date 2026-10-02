@@ -55,7 +55,6 @@ The **source** Besu chain, whose headers and proofs are being verified, has no h
 
 - QBFT validator-contract mode
 - Mode transitions
-- Misbehaviour evidence handling through `misbehaviour(bytes)` (double signs are detected in `updateClient`, see below)
 
 ## Constructor
 
@@ -63,27 +62,23 @@ Both wrappers take the same constructor arguments:
 
 ```solidity
 constructor(
-    address ibcRouter,
-    uint64 initialTrustedHeight,
-    uint64 initialTrustedTimestamp,
-    bytes32 initialTrustedStateRoot,
-    address[] memory initialTrustedValidators,
-    uint64 trustingPeriod,
-    uint64 maxClockDrift,
-    IBesuLightClientMsgs.TrustThreshold memory trustLevel,
+    IBesuLightClientMsgs.ClientState memory initialClientState,
+    IBesuLightClientMsgs.ConsensusState memory initialConsensusState,
     address roleManager
 )
 ```
 
-- `ibcRouter`: counterparty `ICS26Router` proxy address whose account/storage proofs are tracked.
-- `initialTrustedHeight`: trusted Besu block number. Revision number is always `0`.
-- `initialTrustedTimestamp`: trusted header timestamp in seconds.
-- `initialTrustedStateRoot`: state root of the Besu header at `initialTrustedHeight`.
-- `initialTrustedValidators`: validator set trusted at `initialTrustedHeight`.
-- `trustingPeriod`: weak-subjectivity window in seconds. Must be non-zero.
-- `maxClockDrift`: allowed future drift for submitted headers in seconds.
-- `trustLevel`: minimum fraction of the trusted validator set that must sign an update. Must have a non-zero denominator and lie within `[1/3, 1]`, or the constructor reverts with `InvalidTrustLevel`.
+- `initialClientState`: the initial client state, returned as is by `getClientState()`.
+  - `ibcRouter`: counterparty `ICS26Router` proxy address whose account/storage proofs are tracked. Must be non-zero.
+  - `latestHeight`: trusted Besu block number. `initialConsensusState` is stored at this height. Revision number must be `0` and revision height non-zero.
+  - `trustingPeriod`: weak-subjectivity window in seconds. Must be non-zero.
+  - `maxClockDrift`: allowed future drift for submitted headers in seconds.
+  - `isFrozen`: must be `false`.
+  - `trustLevel`: minimum fraction of the trusted validator set that must sign an update. Must have a non-zero denominator and lie within `[1/3, 1]`, or the constructor reverts with `InvalidTrustLevel`.
+- `initialConsensusState`: the consensus state trusted at `latestHeight`: the header's timestamp in seconds (non-zero), state root, and validator set (non-empty, sorted ascending, no zero address). It must be within the trusting period and no further than `maxClockDrift` in the future at deployment, the same checks `updateClient` applies.
 - `roleManager`: if non-zero, receives admin and `PROOF_SUBMITTER_ROLE`; if zero, proof submission is open to anyone through the zero-address sentinel.
+
+No proof is checked for the initial states; the deployer is trusted to supply them.
 
 ## `updateClient(bytes)` ABI
 
@@ -97,7 +92,7 @@ struct MsgUpdateClient {
 }
 ```
 
-- `headerRlp`: full raw Besu block header RLP, including `extraData` and commit seals.
+- `headerRlp`: full raw Besu block header RLP, including `extraData` and commit seals. The commit seals must be ordered by recovered signer address in strictly ascending order. Besu does not order them this way, so the submitter must reorder them; this is safe because the commit-seal digest excludes the seal list.
 - `trustedHeight`: must use `revisionNumber == 0` and identify a stored consensus state hash.
 - `consensusStatePreimage`: the consensus state trusted at `trustedHeight`. Its hash must match the stored hash.
 
@@ -105,11 +100,13 @@ On update, the contract:
 
 1. parses and validates the Besu header,
 2. checks the trusted consensus state preimage against the stored hash and the trusting period,
-3. reconstructs the protocol-specific commit-seal digest following the YUI + prover sealing-header model,
+3. reconstructs the protocol-specific commit-seal digest following the YUI + prover sealing-header model, and recovers the signers, rejecting seals that are not strictly ascending by signer,
 4. checks trusted-validator overlap against the preimage validators and quorum against the new header validators,
 5. stores `keccak256(abi.encode(ConsensusState))` for the new height, built from the header timestamp, the header `stateRoot`, and the header validator set.
 
 Submitting a header whose derived consensus state hash already matches the stored hash at that height returns `UpdateResult.NoOp`. A validly signed header that derives a different consensus state at an already stored height is a double sign: the client sets `ClientState.isFrozen`, emits `DoubleSign`, and returns `UpdateResult.Misbehaviour` without storing the conflicting consensus state.
+
+The header height must be strictly greater than `trustedHeight`, or the update reverts with `InvalidTrustedHeight`. A validly signed header whose timestamp is not greater than the trusted consensus state's timestamp is time non-monotonicity: the client freezes, emits `TimeNonMonotonicity`, and returns `UpdateResult.Misbehaviour`. Because each update is only compared with its own trusted height, two stored consensus states can still end up with timestamps that do not increase with height. `misbehaviour(bytes)` takes `abi.encode(IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour)` with two stored heights `height1 < height2` and their preimages, and freezes the client when `timestamp1 >= timestamp2`. The preimages must match the stored hashes, but the trusting period does not apply: stored states remain valid evidence after they expire.
 
 A frozen client is permanent. `updateClient`, `verifyMembership`, `verifyNonMembership`, and `misbehaviour` all revert with `FrozenClientState`, and there is no way to unfreeze it; a new client must be created instead.
 
