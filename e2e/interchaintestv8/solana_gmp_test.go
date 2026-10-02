@@ -379,19 +379,13 @@ func (s *IbcEurekaSolanaGMPTestSuite) Test_GMPCounterFromCosmos() {
 			s.Solana.Chain.SubmitChunkedUpdateClient(ctx, s.T(), s.Require(), updateResp, s.SolanaRelayer)
 
 			// Now retrieve and relay the GMP packet
-			resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
+			solanaRelayTxSig = e2esuite.RelayToSolana(ctx, s.T(), s.ProofApiClient, &s.Solana.Chain, s.SolanaRelayer, &proofapitypes.RelayByTxRequest{
 				SrcChain:    simd.Config().ChainID,
 				DstChain:    testvalues.SolanaChainID,
 				SourceTxIds: [][]byte{cosmosGMPTxHash},
 				SrcClientId: CosmosClientID,
 				DstClientId: SolanaClientID,
 			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx, "Relay should return transaction")
-
-			// Execute on Solana using chunked submission
-			solanaRelayTxSig, err = s.Solana.Chain.SubmitChunkedRelayPackets(ctx, s.T(), resp, s.SolanaRelayer)
-			s.Require().NoError(err)
 			s.T().Logf("%s: GMP execution completed on Solana", userLabel)
 
 			return solanaRelayTxSig
@@ -515,22 +509,14 @@ func (s *IbcEurekaSolanaGMPTestSuite) Test_GMPCounterFromCosmos() {
 			}))
 
 			// Then relay the ack to Cosmos
-			var ackRelayTxBodyBz []byte
-			s.Require().True(s.Run(fmt.Sprintf("Retrieve %s ack relay tx", label), func() {
-				resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
+			s.Require().True(s.Run(fmt.Sprintf("Relay %s ack to Cosmos", label), func() {
+				relayTxResult := s.RelayToCosmos(ctx, s.ProofApiClient, simd, s.Cosmos.Users[0], CosmosDefaultGasLimit, &proofapitypes.RelayByTxRequest{
 					SrcChain:    testvalues.SolanaChainID,
 					DstChain:    simd.Config().ChainID,
 					SourceTxIds: [][]byte{[]byte(solanaRelayTxSig.String())},
 					SrcClientId: SolanaClientID,
 					DstClientId: CosmosClientID,
 				})
-				s.Require().NoError(err)
-				s.Require().NotEmpty(resp.Tx)
-				ackRelayTxBodyBz = resp.Tx
-			}))
-
-			s.Require().True(s.Run(fmt.Sprintf("Broadcast %s ack to Cosmos", label), func() {
-				relayTxResult := s.MustBroadcastSdkTxBody(ctx, simd, s.Cosmos.Users[0], CosmosDefaultGasLimit, ackRelayTxBodyBz)
 				s.Require().Equal(uint32(0), relayTxResult.Code, "Ack relay tx should succeed")
 				s.T().Logf("%s ack relayed to Cosmos: %s (code: %d, gas: %d)",
 					label, relayTxResult.TxHash, relayTxResult.Code, relayTxResult.GasUsed)
@@ -688,18 +674,13 @@ func (s *IbcEurekaSolanaGMPTestSuite) Test_GMPSPLTokenTransferFromCosmos() {
 	// Relay and execute on Solana
 	var solanaRelayTxSig solanago.Signature
 	s.Require().True(s.Run("Relay and Execute SPL Transfer on Solana", func() {
-		resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
+		solanaRelayTxSig = e2esuite.RelayToSolana(ctx, s.T(), s.ProofApiClient, &s.Solana.Chain, s.SolanaRelayer, &proofapitypes.RelayByTxRequest{
 			SrcChain:    simd.Config().ChainID,
 			DstChain:    testvalues.SolanaChainID,
 			SourceTxIds: [][]byte{cosmosGMPTxHash},
 			SrcClientId: CosmosClientID,
 			DstClientId: SolanaClientID,
 		})
-		s.Require().NoError(err)
-		s.Require().NotEmpty(resp.Tx, "Relay should return transaction")
-
-		solanaRelayTxSig, err = s.Solana.Chain.SubmitChunkedRelayPackets(ctx, s.T(), resp, s.SolanaRelayer)
-		s.Require().NoError(err)
 		s.T().Logf("SPL transfer executed on Solana: %s", solanaRelayTxSig)
 	}))
 
@@ -751,22 +732,14 @@ func (s *IbcEurekaSolanaGMPTestSuite) Test_GMPSPLTokenTransferFromCosmos() {
 			s.T().Logf("SPL transfer ack verified on Solana: success (no return data)")
 		}))
 
-		var ackRelayTxBodyBz []byte
-		s.Require().True(s.Run("Retrieve acknowledgment relay tx", func() {
-			resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
+		s.Require().True(s.Run("Relay ack to Cosmos", func() {
+			relayTxResult := s.RelayToCosmos(ctx, s.ProofApiClient, simd, cosmosUser, CosmosDefaultGasLimit, &proofapitypes.RelayByTxRequest{
 				SrcChain:    testvalues.SolanaChainID,
 				DstChain:    simd.Config().ChainID,
 				SourceTxIds: [][]byte{[]byte(solanaRelayTxSig.String())},
 				SrcClientId: SolanaClientID,
 				DstClientId: CosmosClientID,
 			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
-			ackRelayTxBodyBz = resp.Tx
-		}))
-
-		s.Require().True(s.Run("Broadcast ack to Cosmos", func() {
-			relayTxResult := s.MustBroadcastSdkTxBody(ctx, simd, cosmosUser, CosmosDefaultGasLimit, ackRelayTxBodyBz)
 			s.Require().Equal(uint32(0), relayTxResult.Code, "Ack relay tx should succeed")
 			s.T().Logf("SPL transfer ack relayed to Cosmos: %s (code: %d, gas: %d)",
 				relayTxResult.TxHash, relayTxResult.Code, relayTxResult.GasUsed)
@@ -923,40 +896,26 @@ func (s *IbcEurekaSolanaGMPTestSuite) Test_GMPSendCallFromSolana() {
 	var ackTxHash []byte
 	var ackBytes []byte
 	s.Require().True(s.Run("Receive packet in Cosmos", func() {
-		var recvRelayTx []byte
-		s.Require().True(s.Run("Retrieve relay tx", func() {
-			txHashBytes := []byte(solanaPacketTxHash)
+		receipt := s.RelayToCosmos(ctx, s.ProofApiClient, simd, s.Cosmos.Users[0], 2_000_000, &proofapitypes.RelayByTxRequest{
+			SrcChain:    testvalues.SolanaChainID,
+			DstChain:    simd.Config().ChainID,
+			SourceTxIds: [][]byte{[]byte(solanaPacketTxHash)},
+			SrcClientId: SolanaClientID,
+			DstClientId: CosmosClientID,
+		})
+		s.T().Logf("Recv packet tx result: code=%d, log=%s, gas=%d", receipt.Code, receipt.RawLog, receipt.GasUsed)
 
-			resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
-				SrcChain:    testvalues.SolanaChainID,
-				DstChain:    simd.Config().ChainID,
-				SourceTxIds: [][]byte{txHashBytes},
-				SrcClientId: SolanaClientID,
-				DstClientId: CosmosClientID,
-			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
-			s.Require().Empty(resp.Address)
+		s.Require().Equal(uint32(0), receipt.Code, "Tx should succeed")
+		s.Require().NotEmpty(receipt.TxHash)
 
-			recvRelayTx = resp.Tx
-		}))
+		var err error
+		ackTxHash, err = hex.DecodeString(receipt.TxHash)
+		s.Require().NoError(err)
 
-		s.Require().True(s.Run("Submit relay tx to Cosmos", func() {
-			receipt := s.MustBroadcastSdkTxBody(ctx, simd, s.Cosmos.Users[0], 2_000_000, recvRelayTx)
-			s.T().Logf("Recv packet tx result: code=%d, log=%s, gas=%d", receipt.Code, receipt.RawLog, receipt.GasUsed)
-
-			s.Require().Equal(uint32(0), receipt.Code, "Tx should succeed")
-			s.Require().NotEmpty(receipt.TxHash)
-
-			var err error
-			ackTxHash, err = hex.DecodeString(receipt.TxHash)
-			s.Require().NoError(err)
-
-			ackHex, err := cosmos.GetEventValue(receipt.Events, channeltypesv2.EventTypeWriteAck, channeltypesv2.AttributeKeyEncodedAckHex)
-			s.Require().NoError(err, "Failed to get acknowledgement from write_acknowledgement event")
-			ackBytes, err = hex.DecodeString(ackHex)
-			s.Require().NoError(err, "Failed to decode acknowledgement hex")
-		}))
+		ackHex, err := cosmos.GetEventValue(receipt.Events, channeltypesv2.EventTypeWriteAck, channeltypesv2.AttributeKeyEncodedAckHex)
+		s.Require().NoError(err, "Failed to get acknowledgement from write_acknowledgement event")
+		ackBytes, err = hex.DecodeString(ackHex)
+		s.Require().NoError(err, "Failed to decode acknowledgement hex")
 
 		s.Require().True(s.Run("Verify balance changed on Cosmos", func() {
 			resp, err := e2esuite.GRPCQuery[banktypes.QueryBalanceResponse](ctx, simd, &banktypes.QueryBalanceRequest{
@@ -979,20 +938,15 @@ func (s *IbcEurekaSolanaGMPTestSuite) Test_GMPSendCallFromSolana() {
 
 	var gmpResultPDA solanago.PublicKey
 	s.Require().True(s.Run("Acknowledge packet in Solana", func() {
-		resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
+		gmpResultPDA, _ = solana.GMPCallResultPDA(ics27_gmp.ProgramID, SolanaClientID, sequence)
+
+		sig := e2esuite.RelayToSolana(ctx, s.T(), s.ProofApiClient, &s.Solana.Chain, s.SolanaRelayer, &proofapitypes.RelayByTxRequest{
 			SrcChain:    simd.Config().ChainID,
 			DstChain:    testvalues.SolanaChainID,
 			SourceTxIds: [][]byte{ackTxHash},
 			SrcClientId: CosmosClientID,
 			DstClientId: SolanaClientID,
 		})
-		s.Require().NoError(err)
-		s.Require().NotEmpty(resp.Tx, "Relay should return transaction")
-
-		gmpResultPDA, _ = solana.GMPCallResultPDA(ics27_gmp.ProgramID, SolanaClientID, sequence)
-
-		sig, err := s.Solana.Chain.SubmitChunkedRelayPackets(ctx, s.T(), resp, s.SolanaRelayer)
-		s.Require().NoError(err)
 		s.T().Logf("Acknowledgement transaction broadcasted: %s", sig)
 
 		s.Solana.Chain.VerifyPacketCommitmentDeleted(ctx, s.T(), s.Require(), SolanaClientID, sequence)
@@ -1507,20 +1461,15 @@ func (s *IbcEurekaSolanaGMPTestSuite) Test_GMPTimeoutFromSolana() {
 	s.Require().NoError(err)
 
 	s.Require().True(s.Run("Relay timeout back to Solana", func() {
-		resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
+		gmpResultPDA, _ := solana.GMPCallResultPDA(ics27_gmp.ProgramID, SolanaClientID, sequence)
+
+		sig := e2esuite.RelayToSolana(ctx, s.T(), s.ProofApiClient, &s.Solana.Chain, s.SolanaRelayer, &proofapitypes.RelayByTxRequest{
 			SrcChain:     simd.Config().ChainID,
 			DstChain:     testvalues.SolanaChainID,
 			TimeoutTxIds: [][]byte{solanaPacketTxHash},
 			SrcClientId:  CosmosClientID,
 			DstClientId:  SolanaClientID,
 		})
-		s.Require().NoError(err)
-		s.Require().NotEmpty(resp.Tx, "Relay should return transaction")
-
-		gmpResultPDA, _ := solana.GMPCallResultPDA(ics27_gmp.ProgramID, SolanaClientID, sequence)
-
-		sig, err := s.Solana.Chain.SubmitChunkedRelayPackets(ctx, s.T(), resp, s.SolanaRelayer)
-		s.Require().NoError(err)
 		s.T().Logf("Timeout transaction broadcasted: %s", sig)
 
 		s.T().Log("Timeout successfully processed on Solana")
@@ -2188,35 +2137,22 @@ func (s *IbcEurekaSolanaGMPTestSuite) Test_GMPFailedExecutionFromSolana() {
 	// Relay packet to Cosmos and execute (will return error ack)
 	var cosmosRecvTxHash string
 	s.Require().True(s.Run("Receive packet in Cosmos (execution will fail gracefully)", func() {
-		var recvRelayTx []byte
-		s.Require().True(s.Run("Retrieve relay tx", func() {
-			txHashBytes := []byte(solanaPacketTxHash)
+		receipt := s.RelayToCosmos(ctx, s.ProofApiClient, simd, s.Cosmos.Users[0], 2_000_000, &proofapitypes.RelayByTxRequest{
+			SrcChain:    testvalues.SolanaChainID,
+			DstChain:    simd.Config().ChainID,
+			SourceTxIds: [][]byte{[]byte(solanaPacketTxHash)},
+			SrcClientId: SolanaClientID,
+			DstClientId: CosmosClientID,
+		})
+		s.T().Logf("Recv packet tx result: code=%d, log=%s, gas=%d", receipt.Code, receipt.RawLog, receipt.GasUsed)
 
-			resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
-				SrcChain:    testvalues.SolanaChainID,
-				DstChain:    simd.Config().ChainID,
-				SourceTxIds: [][]byte{txHashBytes},
-				SrcClientId: SolanaClientID,
-				DstClientId: CosmosClientID,
-			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
+		// The IBC packet should be received successfully (code=0)
+		// even though the application-level execution failed
+		s.Require().Equal(uint32(0), receipt.Code, "Recv packet should succeed (IBC layer)")
+		s.Require().NotEmpty(receipt.TxHash)
 
-			recvRelayTx = resp.Tx
-		}))
-
-		s.Require().True(s.Run("Submit relay tx to Cosmos", func() {
-			receipt := s.MustBroadcastSdkTxBody(ctx, simd, s.Cosmos.Users[0], 2_000_000, recvRelayTx)
-			s.T().Logf("Recv packet tx result: code=%d, log=%s, gas=%d", receipt.Code, receipt.RawLog, receipt.GasUsed)
-
-			// The IBC packet should be received successfully (code=0)
-			// even though the application-level execution failed
-			s.Require().Equal(uint32(0), receipt.Code, "Recv packet should succeed (IBC layer)")
-			s.Require().NotEmpty(receipt.TxHash)
-
-			cosmosRecvTxHash = receipt.TxHash
-			s.T().Logf("Packet received on Cosmos, execution failed, error ack written: %s", cosmosRecvTxHash)
-		}))
+		cosmosRecvTxHash = receipt.TxHash
+		s.T().Logf("Packet received on Cosmos, execution failed, error ack written: %s", cosmosRecvTxHash)
 	}))
 
 	// Relay error acknowledgment back to Solana
@@ -2224,18 +2160,13 @@ func (s *IbcEurekaSolanaGMPTestSuite) Test_GMPFailedExecutionFromSolana() {
 		cosmosRecvTxHashBytes, err := hex.DecodeString(cosmosRecvTxHash)
 		s.Require().NoError(err)
 
-		resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
+		sig := e2esuite.RelayToSolana(ctx, s.T(), s.ProofApiClient, &s.Solana.Chain, s.SolanaRelayer, &proofapitypes.RelayByTxRequest{
 			SrcChain:    simd.Config().ChainID,
 			DstChain:    testvalues.SolanaChainID,
 			SourceTxIds: [][]byte{cosmosRecvTxHashBytes},
 			SrcClientId: CosmosClientID,
 			DstClientId: SolanaClientID,
 		})
-		s.Require().NoError(err)
-		s.Require().NotEmpty(resp.Tx)
-
-		sig, err := s.Solana.Chain.SubmitChunkedRelayPackets(ctx, s.T(), resp, s.SolanaRelayer)
-		s.Require().NoError(err)
 		s.T().Logf("Error acknowledgment successfully relayed to Solana: %s", sig)
 	}))
 
@@ -2849,18 +2780,13 @@ func (s *IbcEurekaSolanaGMPTestSuite) Test_GMPPrefundedPDANotBlocked() {
 
 		s.Solana.Chain.SubmitChunkedUpdateClient(ctx, s.T(), s.Require(), updateResp, s.SolanaRelayer)
 
-		resp, err := s.ProofApiClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+		solanaRelayTxSig = e2esuite.RelayToSolana(ctx, s.T(), s.ProofApiClient, &s.Solana.Chain, s.SolanaRelayer, &proofapitypes.RelayByTxRequest{
 			SrcChain:    simd.Config().ChainID,
 			DstChain:    testvalues.SolanaChainID,
 			SourceTxIds: [][]byte{cosmosGMPTxHash},
 			SrcClientId: CosmosClientID,
 			DstClientId: SolanaClientID,
 		})
-		s.Require().NoError(err)
-		s.Require().NotEmpty(resp.Tx)
-
-		solanaRelayTxSig, err = s.Solana.Chain.SubmitChunkedRelayPackets(ctx, s.T(), resp, s.SolanaRelayer)
-		s.Require().NoError(err)
 		s.T().Logf("GMP execution completed on Solana despite pre-funded PDA: %s", solanaRelayTxSig)
 	}))
 

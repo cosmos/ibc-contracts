@@ -795,19 +795,13 @@ func (s *IbcSolanaAttestationTestSuite) Test_Attestation_CosmosToSolanaTransfer(
 		}))
 
 		s.Require().True(s.Run("Relay packet", func() {
-			resp, err := s.ProofApiClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+			solanaRelayTxSig = e2esuite.RelayToSolana(ctx, s.T(), s.ProofApiClient, &s.Solana.Chain, s.SolanaUser, &proofapitypes.RelayByTxRequest{
 				SrcChain:    simd.Config().ChainID,
 				DstChain:    testvalues.SolanaChainID,
 				SourceTxIds: [][]byte{cosmosRelayPacketTxHash},
 				SrcClientId: CosmosClientID,
 				DstClientId: s.AttestationClientID,
 			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
-
-			var err2 error
-			solanaRelayTxSig, err2 = s.Solana.Chain.SubmitChunkedRelayPackets(ctx, s.T(), resp, s.SolanaUser)
-			s.Require().NoError(err2)
 			s.T().Logf("Packet relayed to Solana - tx: %s", solanaRelayTxSig)
 		}))
 	}))
@@ -890,17 +884,13 @@ func (s *IbcSolanaAttestationTestSuite) Test_Attestation_CosmosToSolanaTransfer(
 	}))
 
 	s.Require().True(s.Run("Relay acknowledgment back to Cosmos", func() {
-		resp, err := s.ProofApiClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+		relayTxResult := s.RelayToCosmos(ctx, s.ProofApiClient, simd, s.Cosmos.Users[0], CosmosDefaultGasLimit, &proofapitypes.RelayByTxRequest{
 			SrcChain:    testvalues.SolanaChainID,
 			DstChain:    simd.Config().ChainID,
 			SourceTxIds: [][]byte{[]byte(solanaRelayTxSig.String())},
 			SrcClientId: s.AttestationClientID,
 			DstClientId: CosmosClientID,
 		})
-		s.Require().NoError(err)
-		s.Require().NotEmpty(resp.Tx)
-
-		relayTxResult := s.MustBroadcastSdkTxBody(ctx, simd, s.Cosmos.Users[0], CosmosDefaultGasLimit, resp.Tx)
 		s.T().Logf("ACK relayed to Cosmos - tx: %s", relayTxResult.TxHash)
 	}))
 
@@ -1038,19 +1028,13 @@ func (s *IbcSolanaAttestationTestSuite) Test_Attestation_Roundtrip() {
 		}))
 
 		s.Require().True(s.Run("Relay packet to Solana", func() {
-			resp, err := s.ProofApiClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+			solanaRelayTxSig = e2esuite.RelayToSolana(ctx, s.T(), s.ProofApiClient, &s.Solana.Chain, s.SolanaUser, &proofapitypes.RelayByTxRequest{
 				SrcChain:    simd.Config().ChainID,
 				DstChain:    testvalues.SolanaChainID,
 				SourceTxIds: [][]byte{cosmosRelayPacketTxHash},
 				SrcClientId: CosmosClientID,
 				DstClientId: s.AttestationClientID,
 			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
-
-			var err2 error
-			solanaRelayTxSig, err2 = s.Solana.Chain.SubmitChunkedRelayPackets(ctx, s.T(), resp, s.SolanaUser)
-			s.Require().NoError(err2)
 			s.T().Logf("Packet relayed to Solana - tx: %s", solanaRelayTxSig)
 		}))
 
@@ -1070,17 +1054,13 @@ func (s *IbcSolanaAttestationTestSuite) Test_Attestation_Roundtrip() {
 		}))
 
 		s.Require().True(s.Run("Relay ACK to Cosmos", func() {
-			resp, err := s.ProofApiClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+			relayTxResult := s.RelayToCosmos(ctx, s.ProofApiClient, simd, cosmosUserWallet, CosmosDefaultGasLimit, &proofapitypes.RelayByTxRequest{
 				SrcChain:    testvalues.SolanaChainID,
 				DstChain:    simd.Config().ChainID,
 				SourceTxIds: [][]byte{[]byte(solanaRelayTxSig.String())},
 				SrcClientId: s.AttestationClientID,
 				DstClientId: CosmosClientID,
 			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
-
-			relayTxResult := s.MustBroadcastSdkTxBody(ctx, simd, cosmosUserWallet, CosmosDefaultGasLimit, resp.Tx)
 			s.T().Logf("ACK relayed to Cosmos - tx: %s", relayTxResult.TxHash)
 		}))
 
@@ -1195,17 +1175,13 @@ func (s *IbcSolanaAttestationTestSuite) Test_Attestation_Roundtrip() {
 		var cosmosRecvTxHash string
 
 		s.Require().True(s.Run("Relay packet to Cosmos", func() {
-			resp, err := s.ProofApiClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+			relayTxResult := s.RelayToCosmos(ctx, s.ProofApiClient, simd, cosmosUserWallet, CosmosDefaultGasLimit, &proofapitypes.RelayByTxRequest{
 				SrcChain:    testvalues.SolanaChainID,
 				DstChain:    simd.Config().ChainID,
 				SourceTxIds: [][]byte{[]byte(solanaSendTxSig.String())},
 				SrcClientId: s.AttestationClientID,
 				DstClientId: CosmosClientID,
 			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
-
-			relayTxResult := s.MustBroadcastSdkTxBody(ctx, simd, cosmosUserWallet, CosmosDefaultGasLimit, resp.Tx)
 			cosmosRecvTxHash = relayTxResult.TxHash
 			s.T().Logf("Packet relayed to Cosmos - tx: %s", cosmosRecvTxHash)
 		}))
@@ -1224,18 +1200,13 @@ func (s *IbcSolanaAttestationTestSuite) Test_Attestation_Roundtrip() {
 			cosmosRecvTxHashBytes, err := hex.DecodeString(cosmosRecvTxHash)
 			s.Require().NoError(err)
 
-			resp, err := s.ProofApiClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+			ackTxSig := e2esuite.RelayToSolana(ctx, s.T(), s.ProofApiClient, &s.Solana.Chain, s.SolanaUser, &proofapitypes.RelayByTxRequest{
 				SrcChain:    simd.Config().ChainID,
 				DstChain:    testvalues.SolanaChainID,
 				SourceTxIds: [][]byte{cosmosRecvTxHashBytes},
 				SrcClientId: CosmosClientID,
 				DstClientId: s.AttestationClientID,
 			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
-
-			ackTxSig, err := s.Solana.Chain.SubmitChunkedRelayPackets(ctx, s.T(), resp, s.SolanaUser)
-			s.Require().NoError(err)
 			s.T().Logf("ACK relayed to Solana - tx: %s", ackTxSig)
 		}))
 
@@ -1399,18 +1370,13 @@ func (s *IbcSolanaAttestationTestSuite) Test_Attestation_TimeoutFromSolana() {
 	}))
 
 	s.Require().True(s.Run("Relay timeout from Cosmos to Solana via attested path", func() {
-		resp, err := s.ProofApiClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+		sig := e2esuite.RelayToSolana(ctx, s.T(), s.ProofApiClient, &s.Solana.Chain, s.SolanaUser, &proofapitypes.RelayByTxRequest{
 			SrcChain:     simd.Config().ChainID,
 			DstChain:     testvalues.SolanaChainID,
 			TimeoutTxIds: [][]byte{[]byte(solanaSendTxSig.String())},
 			SrcClientId:  CosmosClientID,
 			DstClientId:  s.AttestationClientID,
 		})
-		s.Require().NoError(err)
-		s.Require().NotEmpty(resp.Tx, "Relay should return transaction")
-
-		sig, err := s.Solana.Chain.SubmitChunkedRelayPackets(ctx, s.T(), resp, s.SolanaUser)
-		s.Require().NoError(err)
 		s.T().Logf("Timeout relayed to Solana: %s", sig)
 	}))
 
@@ -1505,17 +1471,13 @@ func (s *IbcSolanaAttestationTestSuite) Test_Attestation_TimeoutFromCosmos() {
 	}))
 
 	s.Require().True(s.Run("Relay timeout from Solana to Cosmos via attested path", func() {
-		resp, err := s.ProofApiClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+		relayTxResult := s.RelayToCosmos(ctx, s.ProofApiClient, simd, cosmosUserWallet, CosmosDefaultGasLimit, &proofapitypes.RelayByTxRequest{
 			SrcChain:     testvalues.SolanaChainID,
 			DstChain:     simd.Config().ChainID,
 			TimeoutTxIds: [][]byte{cosmosPacketTxHash},
 			SrcClientId:  s.AttestationClientID,
 			DstClientId:  CosmosClientID,
 		})
-		s.Require().NoError(err)
-		s.Require().NotEmpty(resp.Tx, "Relay should return transaction")
-
-		relayTxResult := s.MustBroadcastSdkTxBody(ctx, simd, cosmosUserWallet, CosmosDefaultGasLimit, resp.Tx)
 		s.T().Logf("Timeout relayed to Cosmos: %s", relayTxResult.TxHash)
 	}))
 
