@@ -202,12 +202,13 @@ func (s *BesuToBesuTestSuite) Test_ICS20TransferERC20FromChainAToChainB() {
 	erc20AddressA := ethcommon.HexToAddress(s.chainA.contractAddresses.Erc20)
 
 	var (
-		sendTxHash  []byte
-		sendReceipt *ethtypes.Receipt
-		sendPacket  ics26router.IICS26RouterMsgsPacket
-		recvReceipt *ethtypes.Receipt
-		ibcERC20OnB *ibcerc20.Contract
-		ackReceipt  *ethtypes.Receipt
+		initialUserBalanceA *big.Int
+		sendTxHash          []byte
+		sendReceipt         *ethtypes.Receipt
+		sendPacket          ics26router.IICS26RouterMsgsPacket
+		recvReceipt         *ethtypes.Receipt
+		ibcERC20OnB         *ibcerc20.Contract
+		ackReceipt          *ethtypes.Receipt
 	)
 
 	s.Require().True(s.Run("Fund user on Chain A", func() {
@@ -217,6 +218,9 @@ func (s *BesuToBesuTestSuite) Test_ICS20TransferERC20FromChainAToChainB() {
 		fundReceipt, err := s.chainA.eth.GetTxReciept(ctx, fundTx.Hash())
 		s.Require().NoError(err)
 		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, fundReceipt.Status)
+
+		initialUserBalanceA, err = s.chainA.erc20.BalanceOf(nil, userAddressA)
+		s.Require().NoError(err)
 	}))
 
 	s.Require().True(s.Run("Approve ICS20 on Chain A", func() {
@@ -261,7 +265,7 @@ func (s *BesuToBesuTestSuite) Test_ICS20TransferERC20FromChainAToChainB() {
 
 		userBalanceA, err := s.chainA.erc20.BalanceOf(nil, userAddressA)
 		s.Require().NoError(err)
-		expectedBalanceA := new(big.Int).Sub(new(big.Int).Set(testvalues.StartingERC20Balance), transferAmount)
+		expectedBalanceA := new(big.Int).Sub(new(big.Int).Set(initialUserBalanceA), transferAmount)
 		s.Require().Equal(0, expectedBalanceA.Cmp(userBalanceA))
 	}))
 
