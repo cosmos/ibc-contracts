@@ -399,7 +399,6 @@ func (s *IbcEurekaGmpTestSuite) SendCallFromCosmosTest(ctx context.Context, proo
 	eth, simd := s.Eth.Chains[0], s.Cosmos.Chains[0]
 	simdUser := s.Cosmos.Users[0]
 
-	ics26Address := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
 	testAmount := big.NewInt(1)
 
 	testUserKey, err := eth.CreateUser()
@@ -461,29 +460,14 @@ func (s *IbcEurekaGmpTestSuite) SendCallFromCosmosTest(ctx context.Context, proo
 
 	var ackTxHash []byte
 	s.Require().True(s.Run("Receive packet in Ethereum", func() {
-		var recvRelayTx []byte
-		s.Require().True(s.Run("Retrieve relay tx", func() {
-			resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
-				SrcChain:    simd.Config().ChainID,
-				DstChain:    eth.ChainID.String(),
-				SourceTxIds: [][]byte{sendTxHash},
-				SrcClientId: testvalues.FirstWasmClientID,
-				DstClientId: testvalues.CustomClientID,
-			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
-			s.Require().Equal(resp.Address, ics26Address.String())
-
-			recvRelayTx = resp.Tx
-		}))
-
-		s.Require().True(s.Run("Submit relay tx", func() {
-			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 2_000_000, &ics26Address, recvRelayTx)
-			s.Require().NoError(err)
-			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status, fmt.Sprintf("Tx failed: %+v", receipt))
-
-			ackTxHash = receipt.TxHash.Bytes()
-		}))
+		receipt := e2esuite.RelayToEVM(ctx, s.T(), s.ProofApiClient, eth, s.EthRelayerSubmitter, &proofapitypes.RelayByTxRequest{
+			SrcChain:    simd.Config().ChainID,
+			DstChain:    eth.ChainID.String(),
+			SourceTxIds: [][]byte{sendTxHash},
+			SrcClientId: testvalues.FirstWasmClientID,
+			DstClientId: testvalues.CustomClientID,
+		})
+		ackTxHash = receipt.TxHash.Bytes()
 
 		s.True(s.Run("Verify balances on Ethereum", func() {
 			// ICS27Account balance should be zero
@@ -498,30 +482,18 @@ func (s *IbcEurekaGmpTestSuite) SendCallFromCosmosTest(ctx context.Context, proo
 	}))
 
 	s.Require().True(s.Run("Acknowledge packet in Cosmos", func() {
-		var relayTxBodyBz []byte
-		s.Require().True(s.Run("Retrieve relay tx", func() {
-			resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
-				SrcChain:    eth.ChainID.String(),
-				DstChain:    simd.Config().ChainID,
-				SourceTxIds: [][]byte{ackTxHash},
-				SrcClientId: testvalues.CustomClientID,
-				DstClientId: testvalues.FirstWasmClientID,
-			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
-			s.Require().Empty(resp.Address)
+		resp := s.RelayToCosmos(ctx, s.ProofApiClient, simd, s.SimdRelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
+			SrcChain:    eth.ChainID.String(),
+			DstChain:    simd.Config().ChainID,
+			SourceTxIds: [][]byte{ackTxHash},
+			SrcClientId: testvalues.CustomClientID,
+			DstClientId: testvalues.FirstWasmClientID,
+		})
 
-			relayTxBodyBz = resp.Tx
-		}))
-
-		s.Require().True(s.Run("Broadcast relay tx", func() {
-			resp := s.MustBroadcastSdkTxBody(ctx, simd, s.SimdRelayerSubmitter, 2_000_000, relayTxBodyBz)
-
-			var err error
-			ackTxHash, err = hex.DecodeString(resp.TxHash)
-			s.Require().NoError(err)
-			s.Require().NotEmpty(ackTxHash)
-		}))
+		var err error
+		ackTxHash, err = hex.DecodeString(resp.TxHash)
+		s.Require().NoError(err)
+		s.Require().NotEmpty(ackTxHash)
 	}))
 }
 
@@ -538,7 +510,6 @@ func (s *IbcEurekaGmpTestSuite) SendCallFromEthTest(ctx context.Context, proofTy
 	eth, simd := s.Eth.Chains[0], s.Cosmos.Chains[0]
 	ethUserAddress := crypto.PubkeyToAddress(s.key.PublicKey)
 
-	ics26Address := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
 	testAmount := sdk.NewCoins(sdk.NewCoin(simd.Config().Denom, sdkmath.NewInt(1)))
 	testSimdUser := s.CreateAndFundCosmosUserWithBalance(ctx, simd, testAmount[0].Amount.Int64())
 
@@ -609,31 +580,19 @@ func (s *IbcEurekaGmpTestSuite) SendCallFromEthTest(ctx context.Context, proofTy
 
 	var ackTxHash []byte
 	s.Require().True(s.Run("Receive packet in Cosmos", func() {
-		var recvRelayTx []byte
-		s.Require().True(s.Run("Retrieve relay tx", func() {
-			resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
-				SrcChain:    eth.ChainID.String(),
-				DstChain:    simd.Config().ChainID,
-				SourceTxIds: [][]byte{sendTxHash},
-				SrcClientId: testvalues.CustomClientID,
-				DstClientId: testvalues.FirstWasmClientID,
-			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
-			s.Require().Empty(resp.Address)
+		receipt := s.RelayToCosmos(ctx, s.ProofApiClient, simd, s.SimdRelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
+			SrcChain:    eth.ChainID.String(),
+			DstChain:    simd.Config().ChainID,
+			SourceTxIds: [][]byte{sendTxHash},
+			SrcClientId: testvalues.CustomClientID,
+			DstClientId: testvalues.FirstWasmClientID,
+		})
+		s.Require().Equal(uint32(0), receipt.Code, fmt.Sprintf("Tx failed: %+v", receipt))
+		s.Require().NotEmpty(receipt.TxHash)
 
-			recvRelayTx = resp.Tx
-		}))
-
-		s.Require().True(s.Run("Submit relay tx", func() {
-			receipt := s.MustBroadcastSdkTxBody(ctx, simd, s.SimdRelayerSubmitter, 2_000_000, recvRelayTx)
-			s.Require().Equal(uint32(0), receipt.Code, fmt.Sprintf("Tx failed: %+v", receipt))
-			s.Require().NotEmpty(receipt.TxHash)
-
-			var err error
-			ackTxHash, err = hex.DecodeString(receipt.TxHash)
-			s.Require().NoError(err)
-		}))
+		var err error
+		ackTxHash, err = hex.DecodeString(receipt.TxHash)
+		s.Require().NoError(err)
 
 		s.True(s.Run("Verify balances on Cosmos", func() {
 			// ICS27Account balance should be zero
@@ -658,26 +617,12 @@ func (s *IbcEurekaGmpTestSuite) SendCallFromEthTest(ctx context.Context, proofTy
 	}))
 
 	s.Require().True(s.Run("Acknowledge packet in Eth", func() {
-		var relayTxBodyBz []byte
-		s.Require().True(s.Run("Retrieve relay tx", func() {
-			resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
-				SrcChain:    simd.Config().ChainID,
-				DstChain:    eth.ChainID.String(),
-				SourceTxIds: [][]byte{ackTxHash},
-				SrcClientId: testvalues.FirstWasmClientID,
-				DstClientId: testvalues.CustomClientID,
-			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
-			s.Require().Equal(resp.Address, ics26Address.String())
-
-			relayTxBodyBz = resp.Tx
-		}))
-
-		s.Require().True(s.Run("Broadcast relay tx", func() {
-			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 2_000_000, &ics26Address, relayTxBodyBz)
-			s.Require().NoError(err)
-			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status, fmt.Sprintf("Tx failed: %+v", receipt))
-		}))
+		e2esuite.RelayToEVM(ctx, s.T(), s.ProofApiClient, eth, s.EthRelayerSubmitter, &proofapitypes.RelayByTxRequest{
+			SrcChain:    simd.Config().ChainID,
+			DstChain:    eth.ChainID.String(),
+			SourceTxIds: [][]byte{ackTxHash},
+			SrcClientId: testvalues.FirstWasmClientID,
+			DstClientId: testvalues.CustomClientID,
+		})
 	}))
 }

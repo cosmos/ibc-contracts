@@ -462,7 +462,6 @@ func (s *MultiAttestorTestSuite) Test_MultiAttestorTransferWithAggregation() {
 	transferAmount := big.NewInt(testvalues.TransferAmount)
 	userAddressEth := crypto.PubkeyToAddress(s.userKeyEth.PublicKey)
 	ics20AddressEth := ethcommon.HexToAddress(s.contractAddresses.Ics20Transfer)
-	ics26AddressEth := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
 	erc20AddressEth := ethcommon.HexToAddress(s.contractAddresses.Erc20)
 
 	initialBalanceEth := new(big.Int).Set(testvalues.StartingERC20Balance)
@@ -520,46 +519,34 @@ func (s *MultiAttestorTestSuite) Test_MultiAttestorTransferWithAggregation() {
 	var recvSeqOnCosmos uint64
 	var recvTxHashOnCosmos []byte
 	s.Require().True(s.Run("(Eth -> Cosmos): Relay packet with multi-attestor aggregation", func() {
-		var relayTx []byte
-		s.Require().True(s.Run("Retrieve relay tx (aggregates signatures from multiple attestors)", func() {
-			s.T().Logf("Requesting relay with %d attestors and quorum %d",
-				len(s.ethAttestorResult.Endpoints), s.quorumThreshold)
+		s.T().Logf("Requesting relay with %d attestors and quorum %d",
+			len(s.ethAttestorResult.Endpoints), s.quorumThreshold)
 
-			resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
-				SrcChain:    eth.ChainID.String(),
-				DstChain:    simd.Config().ChainID,
-				SourceTxIds: [][]byte{sendTxHashEthToCosmos},
-				SrcClientId: MultiAttestorClientOnEth,
-				DstClientId: s.getEthLcClientIDOnCosmos(),
-			})
-			s.Require().NoError(err, "Multi-attestor aggregation should succeed with %d of %d attestors",
-				s.activeAttestors, s.quorumThreshold)
-			s.Require().NotEmpty(resp.Tx)
+		resp := s.RelayToCosmos(ctx, s.ProofApiClient, simd, s.SimdRelayerSubmitter, 20_000_000, &proofapitypes.RelayByTxRequest{
+			SrcChain:    eth.ChainID.String(),
+			DstChain:    simd.Config().ChainID,
+			SourceTxIds: [][]byte{sendTxHashEthToCosmos},
+			SrcClientId: MultiAttestorClientOnEth,
+			DstClientId: s.getEthLcClientIDOnCosmos(),
+		})
 
-			relayTx = resp.Tx
-		}))
+		// Capture the recv tx hash for ack relay
+		var err error
+		recvTxHashOnCosmos, err = hex.DecodeString(resp.TxHash)
+		s.Require().NoError(err)
+		s.T().Logf("Recv tx hash on Cosmos: %s", resp.TxHash)
 
-		s.Require().True(s.Run("Broadcast relay tx on Cosmos", func() {
-			resp := s.MustBroadcastSdkTxBody(ctx, simd, s.SimdRelayerSubmitter, 20_000_000, relayTx)
+		recvSeqStr, err := cosmoshelper.GetEventValue(resp.Events, channeltypesv2.EventTypeRecvPacket, channeltypesv2.AttributeKeySequence)
+		s.Require().NoError(err)
+		recvSeqOnCosmos, err = strconv.ParseUint(recvSeqStr, 10, 64)
+		s.Require().NoError(err)
+		s.T().Logf("RecvPacket event received for packet seq %d", recvSeqOnCosmos)
 
-			// Capture the recv tx hash for ack relay
-			var err error
-			recvTxHashOnCosmos, err = hex.DecodeString(resp.TxHash)
-			s.Require().NoError(err)
-			s.T().Logf("Recv tx hash on Cosmos: %s", resp.TxHash)
-
-			recvSeqStr, err := cosmoshelper.GetEventValue(resp.Events, channeltypesv2.EventTypeRecvPacket, channeltypesv2.AttributeKeySequence)
-			s.Require().NoError(err)
-			recvSeqOnCosmos, err = strconv.ParseUint(recvSeqStr, 10, 64)
-			s.Require().NoError(err)
-			s.T().Logf("RecvPacket event received for packet seq %d", recvSeqOnCosmos)
-
-			// Get the IBC denom on Cosmos
-			destPort := "transfer"
-			destClient := s.getEthLcClientIDOnCosmos()
-			baseDenom := strings.ToLower(erc20AddressEth.Hex())
-			ibcDenomOnCosmos = transfertypes.NewDenom(baseDenom, transfertypes.NewHop(destPort, destClient))
-		}))
+		// Get the IBC denom on Cosmos
+		destPort := "transfer"
+		destClient := s.getEthLcClientIDOnCosmos()
+		baseDenom := strings.ToLower(erc20AddressEth.Hex())
+		ibcDenomOnCosmos = transfertypes.NewDenom(baseDenom, transfertypes.NewHop(destPort, destClient))
 	}))
 
 	s.Require().True(s.Run("(Eth -> Cosmos): Verify balances on Cosmos after receive", func() {
@@ -582,30 +569,17 @@ func (s *MultiAttestorTestSuite) Test_MultiAttestorTransferWithAggregation() {
 	}))
 
 	s.Require().True(s.Run("(Eth -> Cosmos): Relay acknowledgement with multi-attestor aggregation", func() {
-		var ackRelayTx []byte
-		s.Require().True(s.Run("Retrieve ack relay tx", func() {
-			resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
-				SrcChain:    simd.Config().ChainID,
-				DstChain:    eth.ChainID.String(),
-				SourceTxIds: [][]byte{recvTxHashOnCosmos},
-				SrcClientId: s.getEthLcClientIDOnCosmos(),
-				DstClientId: MultiAttestorClientOnEth,
-			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
+		receipt := e2esuite.RelayToEVM(ctx, s.T(), s.ProofApiClient, eth, s.EthRelayerSubmitter, &proofapitypes.RelayByTxRequest{
+			SrcChain:    simd.Config().ChainID,
+			DstChain:    eth.ChainID.String(),
+			SourceTxIds: [][]byte{recvTxHashOnCosmos},
+			SrcClientId: s.getEthLcClientIDOnCosmos(),
+			DstClientId: MultiAttestorClientOnEth,
+		})
 
-			ackRelayTx = resp.Tx
-		}))
-
-		s.Require().True(s.Run("Broadcast ack relay tx on Ethereum", func() {
-			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 15_000_000, &ics26AddressEth, ackRelayTx)
-			s.Require().NoError(err)
-			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
-
-			ackEvent, err := e2esuite.GetEvmEvent(receipt, s.ics26Contract.ParseAckPacket)
-			s.Require().NoError(err)
-			s.T().Logf("AckPacket event received for packet seq %d", ackEvent.Packet.Sequence)
-		}))
+		ackEvent, err := e2esuite.GetEvmEvent(receipt, s.ics26Contract.ParseAckPacket)
+		s.Require().NoError(err)
+		s.T().Logf("AckPacket event received for packet seq %d", ackEvent.Packet.Sequence)
 	}))
 
 	s.Require().True(s.Run("(Eth -> Cosmos): Verify commitment removed after ack", func() {
@@ -671,35 +645,21 @@ func (s *MultiAttestorTestSuite) Test_MultiAttestorTransferWithAggregation() {
 
 	var recvTxHashOnEth []byte
 	s.Require().True(s.Run("(Cosmos -> Eth): Relay packet with multi-attestor aggregation", func() {
-		var relayTx []byte
-		s.Require().True(s.Run("Retrieve relay tx", func() {
-			resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
-				SrcChain:    simd.Config().ChainID,
-				DstChain:    eth.ChainID.String(),
-				SourceTxIds: [][]byte{cosmosSendTxHash},
-				SrcClientId: s.getEthLcClientIDOnCosmos(),
-				DstClientId: MultiAttestorClientOnEth,
-			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
-			s.Require().Equal(ics26AddressEth.String(), resp.Address)
+		receipt := e2esuite.RelayToEVM(ctx, s.T(), s.ProofApiClient, eth, s.EthRelayerSubmitter, &proofapitypes.RelayByTxRequest{
+			SrcChain:    simd.Config().ChainID,
+			DstChain:    eth.ChainID.String(),
+			SourceTxIds: [][]byte{cosmosSendTxHash},
+			SrcClientId: s.getEthLcClientIDOnCosmos(),
+			DstClientId: MultiAttestorClientOnEth,
+		})
 
-			relayTx = resp.Tx
-		}))
+		// Capture recv tx hash for ack relay
+		recvTxHashOnEth = receipt.TxHash.Bytes()
+		s.T().Logf("Recv tx hash on Eth: %s", receipt.TxHash.Hex())
 
-		s.Require().True(s.Run("Broadcast relay tx on Ethereum", func() {
-			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 15_000_000, &ics26AddressEth, relayTx)
-			s.Require().NoError(err)
-			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
-
-			// Capture recv tx hash for ack relay
-			recvTxHashOnEth = receipt.TxHash.Bytes()
-			s.T().Logf("Recv tx hash on Eth: %s", receipt.TxHash.Hex())
-
-			ackEvent, err := e2esuite.GetEvmEvent(receipt, s.ics26Contract.ParseWriteAcknowledgement)
-			s.Require().NoError(err)
-			s.T().Logf("WriteAcknowledgement event received for packet seq %d", ackEvent.Packet.Sequence)
-		}))
+		ackEvent, err := e2esuite.GetEvmEvent(receipt, s.ics26Contract.ParseWriteAcknowledgement)
+		s.Require().NoError(err)
+		s.T().Logf("WriteAcknowledgement event received for packet seq %d", ackEvent.Packet.Sequence)
 	}))
 
 	s.Require().True(s.Run("(Cosmos -> Eth): Verify balances on Ethereum after receive", func() {
@@ -726,28 +686,17 @@ func (s *MultiAttestorTestSuite) Test_MultiAttestorTransferWithAggregation() {
 	}))
 
 	s.Require().True(s.Run("(Cosmos -> Eth): Relay final acknowledgement", func() {
-		var ackRelayTx []byte
-		s.Require().True(s.Run("Retrieve ack relay tx", func() {
-			resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
-				SrcChain:    eth.ChainID.String(),
-				DstChain:    simd.Config().ChainID,
-				SrcClientId: MultiAttestorClientOnEth,
-				DstClientId: s.getEthLcClientIDOnCosmos(),
-				SourceTxIds: [][]byte{recvTxHashOnEth},
-			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
+		resp := s.RelayToCosmos(ctx, s.ProofApiClient, simd, s.SimdRelayerSubmitter, 20_000_000, &proofapitypes.RelayByTxRequest{
+			SrcChain:    eth.ChainID.String(),
+			DstChain:    simd.Config().ChainID,
+			SrcClientId: MultiAttestorClientOnEth,
+			DstClientId: s.getEthLcClientIDOnCosmos(),
+			SourceTxIds: [][]byte{recvTxHashOnEth},
+		})
 
-			ackRelayTx = resp.Tx
-		}))
-
-		s.Require().True(s.Run("Broadcast ack relay tx on Cosmos", func() {
-			resp := s.MustBroadcastSdkTxBody(ctx, simd, s.SimdRelayerSubmitter, 20_000_000, ackRelayTx)
-
-			ackSeqStr, err := cosmoshelper.GetEventValue(resp.Events, channeltypesv2.EventTypeAcknowledgePacket, channeltypesv2.AttributeKeySequence)
-			s.Require().NoError(err)
-			s.T().Logf("Final AckPacket event received for packet seq %s", ackSeqStr)
-		}))
+		ackSeqStr, err := cosmoshelper.GetEventValue(resp.Events, channeltypesv2.EventTypeAcknowledgePacket, channeltypesv2.AttributeKeySequence)
+		s.Require().NoError(err)
+		s.T().Logf("Final AckPacket event received for packet seq %s", ackSeqStr)
 	}))
 
 	s.Require().True(s.Run("(Cosmos -> Eth): Verify commitment removed after ack", func() {

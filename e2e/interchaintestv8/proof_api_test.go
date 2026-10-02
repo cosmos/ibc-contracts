@@ -89,7 +89,6 @@ func (s *ProofAPITestSuite) FilteredRecvPacketToEthTest(
 
 	eth, simd := s.Eth.Chains[0], s.Cosmos.Chains[0]
 
-	ics26Address := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
 	transferAmount := big.NewInt(testvalues.TransferAmount)
 	totalTransferAmount := big.NewInt(testvalues.TransferAmount * int64(numOfTransfers))
 	if totalTransferAmount.Int64() > testvalues.InitialBalance {
@@ -163,28 +162,14 @@ func (s *ProofAPITestSuite) FilteredRecvPacketToEthTest(
 	}))
 
 	s.Require().True(s.Run("Receive packets on Ethereum", func() {
-		var relayTx []byte
-		s.Require().True(s.Run("Retrieve relay tx", func() {
-			resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
-				SrcChain:           simd.Config().ChainID,
-				DstChain:           eth.ChainID.String(),
-				SourceTxIds:        sendTxHashes,
-				SrcClientId:        testvalues.FirstWasmClientID,
-				DstClientId:        testvalues.CustomClientID,
-				SrcPacketSequences: recvFilter,
-			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
-			s.Require().Equal(resp.Address, ics26Address.String())
-
-			relayTx = resp.Tx
-		}))
-
-		s.Require().True(s.Run("Submit relay tx", func() {
-			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ics26Address, relayTx)
-			s.Require().NoError(err)
-			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status, fmt.Sprintf("Tx failed: %+v", receipt))
-		}))
+		e2esuite.RelayToEVM(ctx, s.T(), s.ProofApiClient, eth, s.EthRelayerSubmitter, &proofapitypes.RelayByTxRequest{
+			SrcChain:           simd.Config().ChainID,
+			DstChain:           eth.ChainID.String(),
+			SourceTxIds:        sendTxHashes,
+			SrcClientId:        testvalues.FirstWasmClientID,
+			DstClientId:        testvalues.CustomClientID,
+			SrcPacketSequences: recvFilter,
+		})
 
 		s.Require().True(s.Run("Verify balances on Ethereum", func() {
 			denomOnEthereum := transfertypes.NewDenom(transferCoin.Denom, transfertypes.NewHop(transfertypes.PortID, testvalues.CustomClientID))
@@ -362,7 +347,6 @@ func (s *ProofAPITestSuite) ICS20TransferERC20TokenBatchedAckToEthTest(
 
 	eth, simd := s.Eth.Chains[0], s.Cosmos.Chains[0]
 
-	ics26Address := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
 	ics20Address := ethcommon.HexToAddress(s.contractAddresses.Ics20Transfer)
 	erc20Address := ethcommon.HexToAddress(s.contractAddresses.Erc20)
 
@@ -438,29 +422,17 @@ func (s *ProofAPITestSuite) ICS20TransferERC20TokenBatchedAckToEthTest(
 
 	var ackTxHash []byte
 	s.Require().True(s.Run("Receive packets on Cosmos chain", func() {
-		var relayTxBodyBz []byte
-		s.Require().True(s.Run("Retrieve relay tx", func() {
-			resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
-				SrcChain:    eth.ChainID.String(),
-				DstChain:    simd.Config().ChainID,
-				SourceTxIds: sendTxHashes,
-				SrcClientId: testvalues.CustomClientID,
-				DstClientId: testvalues.FirstWasmClientID,
-			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
-			s.Require().Empty(resp.Address)
+		resp := s.RelayToCosmos(ctx, s.ProofApiClient, simd, s.SimdRelayerSubmitter, 5_000_000, &proofapitypes.RelayByTxRequest{
+			SrcChain:    eth.ChainID.String(),
+			DstChain:    simd.Config().ChainID,
+			SourceTxIds: sendTxHashes,
+			SrcClientId: testvalues.CustomClientID,
+			DstClientId: testvalues.FirstWasmClientID,
+		})
 
-			relayTxBodyBz = resp.Tx
-		}))
-
-		s.Require().True(s.Run("Broadcast relay tx", func() {
-			resp := s.MustBroadcastSdkTxBody(ctx, simd, s.SimdRelayerSubmitter, 5_000_000, relayTxBodyBz)
-
-			ackTxHash, err = hex.DecodeString(resp.TxHash)
-			s.Require().NoError(err)
-			s.Require().NotEmpty(ackTxHash)
-		}))
+		ackTxHash, err = hex.DecodeString(resp.TxHash)
+		s.Require().NoError(err)
+		s.Require().NotEmpty(ackTxHash)
 
 		s.Require().True(s.Run("Verify balances on Cosmos chain", func() {
 			denomOnCosmos := transfertypes.NewDenom(s.contractAddresses.Erc20, transfertypes.NewHop(transfertypes.PortID, testvalues.FirstWasmClientID))
@@ -491,32 +463,18 @@ func (s *ProofAPITestSuite) ICS20TransferERC20TokenBatchedAckToEthTest(
 			}
 		}))
 
-		var relayTx []byte
-		s.Require().True(s.Run("Retrieve relay tx", func() {
-			resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
-				SrcChain:           simd.Config().ChainID,
-				DstChain:           s.Eth.Chains[0].ChainID.String(),
-				SourceTxIds:        [][]byte{ackTxHash},
-				SrcClientId:        testvalues.FirstWasmClientID,
-				DstClientId:        testvalues.CustomClientID,
-				DstPacketSequences: ackFilter,
-			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
-			s.Require().Equal(resp.Address, ics26Address.String())
+		receipt := e2esuite.RelayToEVM(ctx, s.T(), s.ProofApiClient, eth, s.EthRelayerSubmitter, &proofapitypes.RelayByTxRequest{
+			SrcChain:           simd.Config().ChainID,
+			DstChain:           s.Eth.Chains[0].ChainID.String(),
+			SourceTxIds:        [][]byte{ackTxHash},
+			SrcClientId:        testvalues.FirstWasmClientID,
+			DstClientId:        testvalues.CustomClientID,
+			DstPacketSequences: ackFilter,
+		})
 
-			relayTx = resp.Tx
-		}))
-
-		s.Require().True(s.Run("Submit relay tx", func() {
-			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ics26Address, relayTx)
-			s.Require().NoError(err)
-			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
-
-			// Verify the ack packet event exists
-			_, err = e2esuite.GetEvmEvent(receipt, s.ics26Contract.ParseAckPacket)
-			s.Require().NoError(err)
-		}))
+		// Verify the ack packet event exists
+		_, err = e2esuite.GetEvmEvent(receipt, s.ics26Contract.ParseAckPacket)
+		s.Require().NoError(err)
 
 		s.Require().True(s.Run("Verify commitment removed", func() {
 			for _, seq := range ackFilter {
@@ -1021,7 +979,6 @@ func (s *ProofAPITestSuite) ICS20TransferERC20TokenBatchedFilteredAckToCosmosTes
 
 	eth, simd := s.Eth.Chains[0], s.Cosmos.Chains[0]
 
-	ics26Address := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
 	transferAmount := big.NewInt(testvalues.TransferAmount)
 	totalTransferAmount := big.NewInt(testvalues.TransferAmount * int64(numOfTransfers))
 	if totalTransferAmount.Int64() > testvalues.InitialBalance {
@@ -1091,29 +1048,14 @@ func (s *ProofAPITestSuite) ICS20TransferERC20TokenBatchedFilteredAckToCosmosTes
 
 	var ackTxHash []byte
 	s.Require().True(s.Run("Receive packets on Ethereum", func() {
-		var multicallTx []byte
-		s.Require().True(s.Run("Retrieve relay tx", func() {
-			resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
-				SrcChain:    simd.Config().ChainID,
-				DstChain:    s.Eth.Chains[0].ChainID.String(),
-				SourceTxIds: sendTxHashes,
-				SrcClientId: testvalues.FirstWasmClientID,
-				DstClientId: testvalues.CustomClientID,
-			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
-			s.Require().Equal(resp.Address, ics26Address.String())
-
-			multicallTx = resp.Tx
-		}))
-
-		s.Require().True(s.Run("Submit relay tx", func() {
-			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ics26Address, multicallTx)
-			s.Require().NoError(err)
-			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status, fmt.Sprintf("Tx failed: %+v", receipt))
-
-			ackTxHash = receipt.TxHash.Bytes()
-		}))
+		receipt := e2esuite.RelayToEVM(ctx, s.T(), s.ProofApiClient, eth, s.EthRelayerSubmitter, &proofapitypes.RelayByTxRequest{
+			SrcChain:    simd.Config().ChainID,
+			DstChain:    s.Eth.Chains[0].ChainID.String(),
+			SourceTxIds: sendTxHashes,
+			SrcClientId: testvalues.FirstWasmClientID,
+			DstClientId: testvalues.CustomClientID,
+		})
+		ackTxHash = receipt.TxHash.Bytes()
 	}))
 
 	s.Require().True(s.Run("Acknowledge packets on Cosmos", func() {
@@ -1128,26 +1070,14 @@ func (s *ProofAPITestSuite) ICS20TransferERC20TokenBatchedFilteredAckToCosmosTes
 			}
 		}))
 
-		var relayTxBodyBz []byte
-		s.Require().True(s.Run("Retrieve relay tx", func() {
-			resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
-				SrcChain:           s.Eth.Chains[0].ChainID.String(),
-				DstChain:           simd.Config().ChainID,
-				SourceTxIds:        [][]byte{ackTxHash},
-				SrcClientId:        testvalues.CustomClientID,
-				DstClientId:        testvalues.FirstWasmClientID,
-				DstPacketSequences: ackFilter,
-			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
-			s.Require().Empty(resp.Address)
-
-			relayTxBodyBz = resp.Tx
-		}))
-
-		s.Require().True(s.Run("Broadcast relay tx", func() {
-			_ = s.MustBroadcastSdkTxBody(ctx, simd, s.SimdRelayerSubmitter, 2_000_000, relayTxBodyBz)
-		}))
+		s.RelayToCosmos(ctx, s.ProofApiClient, simd, s.SimdRelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
+			SrcChain:           s.Eth.Chains[0].ChainID.String(),
+			DstChain:           simd.Config().ChainID,
+			SourceTxIds:        [][]byte{ackTxHash},
+			SrcClientId:        testvalues.CustomClientID,
+			DstClientId:        testvalues.FirstWasmClientID,
+			DstPacketSequences: ackFilter,
+		})
 
 		s.Require().True(s.Run("Verify commitments removed", func() {
 			for i := range numOfTransfers {
@@ -1633,20 +1563,13 @@ func (s *ProofAPITestSuite) ConcurrentRecvPacketToCosmos(
 	}))
 
 	s.Require().True(s.Run("Relay the last packet", func() {
-		relayResp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
+		s.RelayToCosmos(ctx, s.ProofApiClient, simd, s.SimdRelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
 			SrcChain:    eth.ChainID.String(),
 			DstChain:    simd.Config().ChainID,
 			SourceTxIds: [][]byte{sendTxHashes[len(sendTxHashes)-1]},
 			SrcClientId: testvalues.CustomClientID,
 			DstClientId: testvalues.FirstWasmClientID,
 		})
-		s.Require().NoError(err)
-		s.Require().NotEmpty(relayResp.Tx)
-		s.Require().Empty(relayResp.Address)
-
-		relayTxBodyBz := relayResp.Tx
-
-		_ = s.MustBroadcastSdkTxBody(ctx, simd, s.SimdRelayerSubmitter, 2_000_000, relayTxBodyBz)
 
 		// Remove the last txHash from the list
 		sendTxHashes = sendTxHashes[:len(sendTxHashes)-1]
