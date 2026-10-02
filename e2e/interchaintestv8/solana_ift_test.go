@@ -277,7 +277,7 @@ func (s *IbcEurekaSolanaIFTTestSuite) Test_IFT_ExistingToken_SolanaToCosmosRound
 		}))
 
 		s.Require().True(s.Run("Cosmos → Solana: Relay ack to Cosmos", func() {
-			_ = s.RelayToCosmos(ctx, s.ProofApiClient, s.Wfchain, s.CosmosUser, 2_000_000, &proofapitypes.RelayByTxRequest{
+			s.RelayToCosmos(ctx, s.ProofApiClient, s.Wfchain, s.CosmosUser, 2_000_000, &proofapitypes.RelayByTxRequest{
 				SrcChain:    testvalues.SolanaChainID,
 				DstChain:    s.Wfchain.Config().ChainID,
 				SourceTxIds: [][]byte{[]byte(solanaRecvTxSig.String())},
@@ -375,7 +375,7 @@ func (s *IbcEurekaSolanaIFTTestSuite) Test_IFT_NewToken_CosmosToSolanaRoundtrip(
 		}))
 
 		s.Require().True(s.Run("Cosmos → Solana: Relay ack to Cosmos", func() {
-			_ = s.RelayToCosmos(ctx, s.ProofApiClient, s.Wfchain, s.CosmosUser, 2_000_000, &proofapitypes.RelayByTxRequest{
+			s.RelayToCosmos(ctx, s.ProofApiClient, s.Wfchain, s.CosmosUser, 2_000_000, &proofapitypes.RelayByTxRequest{
 				SrcChain:    testvalues.SolanaChainID,
 				DstChain:    s.Wfchain.Config().ChainID,
 				SourceTxIds: [][]byte{[]byte(solanaRecvTxSig.String())},
@@ -838,7 +838,7 @@ func (s *IbcEurekaSolanaIFTTestSuite) Test_IFT_CosmosToSolanaRoundtrip() {
 	}))
 
 	s.Require().True(s.Run("Relay ack to Cosmos", func() {
-		_ = s.RelayToCosmos(ctx, s.ProofApiClient, s.Wfchain, s.CosmosUser, 2_000_000, &proofapitypes.RelayByTxRequest{
+		s.RelayToCosmos(ctx, s.ProofApiClient, s.Wfchain, s.CosmosUser, 2_000_000, &proofapitypes.RelayByTxRequest{
 			SrcChain:    testvalues.SolanaChainID,
 			DstChain:    s.Wfchain.Config().ChainID,
 			SourceTxIds: [][]byte{[]byte(solanaRecvTxSig.String())},

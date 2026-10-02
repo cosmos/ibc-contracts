@@ -347,7 +347,7 @@ func (s *CosmosProofAPITestSuite) FilteredICS20RecvAndAckPacketTest(ctx context.
 			}
 		}))
 
-		_ = s.RelayToCosmos(ctx, s.ProofApiClient, s.SimdA, s.SimdASubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
+		s.RelayToCosmos(ctx, s.ProofApiClient, s.SimdA, s.SimdASubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
 			SrcChain:           s.SimdB.Config().ChainID,
 			DstChain:           s.SimdA.Config().ChainID,
 			SourceTxIds:        [][]byte{ackTxHash},
@@ -471,7 +471,7 @@ func (s *CosmosProofAPITestSuite) FilteredICS20TimeoutPacketTest(ctx context.Con
 	time.Sleep(30 * time.Second)
 
 	s.Require().True(s.Run("Timeout packet on Chain A", func() {
-		_ = s.RelayToCosmos(ctx, s.ProofApiClient, s.SimdA, s.SimdASubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
+		s.RelayToCosmos(ctx, s.ProofApiClient, s.SimdA, s.SimdASubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
 			SrcChain:           s.SimdB.Config().ChainID,
 			DstChain:           s.SimdA.Config().ChainID,
 			TimeoutTxIds:       txHashes,

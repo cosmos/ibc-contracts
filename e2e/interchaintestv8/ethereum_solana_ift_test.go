@@ -908,7 +908,7 @@ func (s *EthereumSolanaIFTTestSuite) Test_EthSolana_IFT_Roundtrip() {
 		}))
 
 		s.Require().True(s.Run("Relay ack to Ethereum", func() {
-			_ = e2esuite.RelayToEVM(ctx, s.T(), s.ProofApiClient, eth, s.ethUser, &proofapitypes.RelayByTxRequest{
+			e2esuite.RelayToEVM(ctx, s.T(), s.ProofApiClient, eth, s.ethUser, &proofapitypes.RelayByTxRequest{
 				SrcChain:    testvalues.SolanaChainID,
 				DstChain:    eth.ChainID.String(),
 				SourceTxIds: [][]byte{[]byte(recvSig.String())},
@@ -1002,7 +1002,7 @@ func (s *EthereumSolanaIFTTestSuite) Test_EthSolana_IFT_Roundtrip() {
 		}))
 
 		s.Require().True(s.Run("Relay ack to Solana", func() {
-			_ = e2esuite.RelayToSolana(ctx, s.T(), s.ProofApiClient, &s.Solana.Chain, s.SolanaRelayer, &proofapitypes.RelayByTxRequest{
+			e2esuite.RelayToSolana(ctx, s.T(), s.ProofApiClient, &s.Solana.Chain, s.SolanaRelayer, &proofapitypes.RelayByTxRequest{
 				SrcChain:    eth.ChainID.String(),
 				DstChain:    testvalues.SolanaChainID,
 				SourceTxIds: [][]byte{ethRecvTxHash},
@@ -1373,7 +1373,7 @@ func (s *EthereumSolanaIFTTestSuite) Test_EthSolana_IFT_TimeoutFromEth() {
 	}))
 
 	s.Require().True(s.Run("Relay timeout packet to Ethereum", func() {
-		_ = e2esuite.RelayToEVM(ctx, s.T(), s.ProofApiClient, eth, s.ethUser, &proofapitypes.RelayByTxRequest{
+		e2esuite.RelayToEVM(ctx, s.T(), s.ProofApiClient, eth, s.ethUser, &proofapitypes.RelayByTxRequest{
 			SrcChain:     testvalues.SolanaChainID,
 			DstChain:     eth.ChainID.String(),
 			TimeoutTxIds: [][]byte{ethSendTxHash},

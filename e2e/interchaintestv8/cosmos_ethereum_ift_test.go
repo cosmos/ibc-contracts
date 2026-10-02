@@ -550,7 +550,7 @@ func (s *CosmosEthereumIFTTestSuite) Test_IFTTransfer_Roundtrip() {
 		}))
 
 		s.Require().True(s.Run("Relay ack to Cosmos", func() {
-			_ = s.RelayToCosmos(ctx, s.ProofApiClient, s.Wfchain, s.CosmosRelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
+			s.RelayToCosmos(ctx, s.ProofApiClient, s.Wfchain, s.CosmosRelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
 				SrcChain:    eth.ChainID.String(),
 				DstChain:    s.Wfchain.Config().ChainID,
 				SourceTxIds: [][]byte{cosmosRecvTxHash},
@@ -615,7 +615,7 @@ func (s *CosmosEthereumIFTTestSuite) Test_IFTTransfer_Roundtrip() {
 			cosmosRecvTxHashBytes, err := hex.DecodeString(cosmosRecvTxResponse.TxHash)
 			s.Require().NoError(err)
 
-			_ = e2esuite.RelayToEVM(ctx, s.T(), s.ProofApiClient, eth, s.EthRelayerSubmitter, &proofapitypes.RelayByTxRequest{
+			e2esuite.RelayToEVM(ctx, s.T(), s.ProofApiClient, eth, s.EthRelayerSubmitter, &proofapitypes.RelayByTxRequest{
 				SrcChain:    s.Wfchain.Config().ChainID,
 				DstChain:    eth.ChainID.String(),
 				SourceTxIds: [][]byte{cosmosRecvTxHashBytes},
@@ -706,7 +706,7 @@ func (s *CosmosEthereumIFTTestSuite) Test_IFTTransfer_TimeoutCosmosToEthereum() 
 		sendTxHashBytes, err := hex.DecodeString(sendTxHash)
 		s.Require().NoError(err)
 
-		_ = s.RelayToCosmos(ctx, s.ProofApiClient, s.Wfchain, s.CosmosRelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
+		s.RelayToCosmos(ctx, s.ProofApiClient, s.Wfchain, s.CosmosRelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
 			SrcChain:     eth.ChainID.String(),
 			DstChain:     s.Wfchain.Config().ChainID,
 			TimeoutTxIds: [][]byte{sendTxHashBytes},
@@ -809,7 +809,7 @@ func (s *CosmosEthereumIFTTestSuite) Test_IFTTransfer_TimeoutEthereumToCosmos() 
 	}))
 
 	s.Require().True(s.Run("Relay timeout packet to Ethereum", func() {
-		_ = e2esuite.RelayToEVM(ctx, s.T(), s.ProofApiClient, eth, s.EthRelayerSubmitter, &proofapitypes.RelayByTxRequest{
+		e2esuite.RelayToEVM(ctx, s.T(), s.ProofApiClient, eth, s.EthRelayerSubmitter, &proofapitypes.RelayByTxRequest{
 			SrcChain:     s.Wfchain.Config().ChainID,
 			DstChain:     eth.ChainID.String(),
 			TimeoutTxIds: [][]byte{sendTxHash},
@@ -930,7 +930,7 @@ func (s *CosmosEthereumIFTTestSuite) Test_IFTTransfer_FailedReceiveOnCosmos() {
 		recvTxHashBytes, err := hex.DecodeString(recvTxHash)
 		s.Require().NoError(err)
 
-		_ = e2esuite.RelayToEVM(ctx, s.T(), s.ProofApiClient, eth, s.EthRelayerSubmitter, &proofapitypes.RelayByTxRequest{
+		e2esuite.RelayToEVM(ctx, s.T(), s.ProofApiClient, eth, s.EthRelayerSubmitter, &proofapitypes.RelayByTxRequest{
 			SrcChain:    s.Wfchain.Config().ChainID,
 			DstChain:    eth.ChainID.String(),
 			SourceTxIds: [][]byte{recvTxHashBytes},
@@ -1143,7 +1143,7 @@ func (s *CosmosEthereumIFTTestSuite) Test_IFTTransfer_FailedReceiveOnEthereum() 
 	}))
 
 	s.Require().True(s.Run("Relay error ack to Cosmos", func() {
-		_ = s.RelayToCosmos(ctx, s.ProofApiClient, s.Wfchain, s.CosmosRelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
+		s.RelayToCosmos(ctx, s.ProofApiClient, s.Wfchain, s.CosmosRelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
 			SrcChain:    eth.ChainID.String(),
 			DstChain:    s.Wfchain.Config().ChainID,
 			SourceTxIds: [][]byte{recvTxHash},

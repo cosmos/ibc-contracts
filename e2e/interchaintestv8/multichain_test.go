@@ -874,7 +874,7 @@ func (s *MultichainTestSuite) Test_TransferCosmosToEthToCosmosAndBack() {
 
 	var finalDenom transfertypes.Denom
 	s.Require().True(s.Run("Receive packet on SimdB", func() {
-		_ = s.RelayToCosmos(ctx, s.ProofApiClient, simdB, s.SimdBRelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
+		s.RelayToCosmos(ctx, s.ProofApiClient, simdB, s.SimdBRelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
 			SrcChain:    eth.ChainID.String(),
 			DstChain:    simdB.Config().ChainID,
 			SourceTxIds: [][]byte{ethSendTxHash},
@@ -1009,7 +1009,7 @@ func (s *MultichainTestSuite) Test_TransferCosmosToEthToCosmosAndBack() {
 	}))
 
 	s.Require().True(s.Run("Receive packet on SimdA", func() {
-		_ = s.RelayToCosmos(ctx, s.ProofApiClient, simdA, s.SimdARelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
+		s.RelayToCosmos(ctx, s.ProofApiClient, simdA, s.SimdARelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
 			SrcChain:    eth.ChainID.String(),
 			DstChain:    simdA.Config().ChainID,
 			SourceTxIds: [][]byte{ethSendTxHash},
@@ -1101,7 +1101,7 @@ func (s *MultichainTestSuite) Test_TransferEthToCosmosToCosmosAndBack() {
 
 	s.Require().True(s.Run("Receive packets on SimdA", func() {
 		// NOTE: We don't need to check the response since we don't need to acknowledge the packet
-		_ = s.RelayToCosmos(ctx, s.ProofApiClient, simdA, s.SimdARelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
+		s.RelayToCosmos(ctx, s.ProofApiClient, simdA, s.SimdARelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
 			SrcChain:    eth.ChainID.String(),
 			DstChain:    simdA.Config().ChainID,
 			SourceTxIds: [][]byte{ethSendTxHash},
@@ -1165,7 +1165,7 @@ func (s *MultichainTestSuite) Test_TransferEthToCosmosToCosmosAndBack() {
 	var finalDenom transfertypes.Denom
 	s.Require().True(s.Run("Receive packet on SimdB", func() {
 		// NOTE: We don't need to check the response since we don't need to acknowledge the packet
-		_ = s.RelayToCosmos(ctx, s.ProofApiClient, simdB, s.SimdBRelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
+		s.RelayToCosmos(ctx, s.ProofApiClient, simdB, s.SimdBRelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
 			SrcChain:    simdA.Config().ChainID,
 			DstChain:    simdB.Config().ChainID,
 			SourceTxIds: [][]byte{simdASendTxHash},
@@ -1228,7 +1228,7 @@ func (s *MultichainTestSuite) Test_TransferEthToCosmosToCosmosAndBack() {
 	}))
 
 	s.Require().True(s.Run("Receive packet on SimdA", func() {
-		_ = s.RelayToCosmos(ctx, s.ProofApiClient, simdA, s.SimdARelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
+		s.RelayToCosmos(ctx, s.ProofApiClient, simdA, s.SimdARelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
 			SrcChain:    simdB.Config().ChainID,
 			DstChain:    simdA.Config().ChainID,
 			SourceTxIds: [][]byte{simdBTransferTxHash},
@@ -1373,7 +1373,7 @@ func (s *MultichainTestSuite) Test_TransferCosmosToCosmosToEth() {
 		transfertypes.NewHop(transfertypes.PortID, ibctesting.SecondClientID),
 	)
 	s.Require().True(s.Run("Receive packet on SimdB", func() {
-		_ = s.RelayToCosmos(ctx, s.ProofApiClient, simdB, s.SimdBRelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
+		s.RelayToCosmos(ctx, s.ProofApiClient, simdB, s.SimdBRelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
 			SrcChain:    simdA.Config().ChainID,
 			DstChain:    simdB.Config().ChainID,
 			SourceTxIds: [][]byte{simdASendTxHash},
@@ -1514,7 +1514,7 @@ func (s *MultichainTestSuite) Test_TransferCosmosToCosmosToEth() {
 		}))
 
 		s.Require().True(s.Run("Receive packet on SimdB", func() {
-			_ = s.RelayToCosmos(ctx, s.ProofApiClient, simdB, s.SimdBRelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
+			s.RelayToCosmos(ctx, s.ProofApiClient, simdB, s.SimdBRelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
 				SrcChain:    eth.ChainID.String(),
 				DstChain:    simdB.Config().ChainID,
 				SourceTxIds: [][]byte{ethReturnSendTxHash},
@@ -1573,7 +1573,7 @@ func (s *MultichainTestSuite) Test_TransferCosmosToCosmosToEth() {
 		}))
 
 		s.Require().True(s.Run("Receive packet on SimdA", func() {
-			_ = s.RelayToCosmos(ctx, s.ProofApiClient, simdA, s.SimdARelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
+			s.RelayToCosmos(ctx, s.ProofApiClient, simdA, s.SimdARelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
 				SrcChain:    simdB.Config().ChainID,
 				DstChain:    simdA.Config().ChainID,
 				SourceTxIds: [][]byte{simdBTransferTxHash},
