@@ -51,7 +51,7 @@ pub struct SP1ICS07MembershipFixture {
 /// Writes the proof data for the given trusted and target blocks to the given fixture path.
 #[allow(clippy::missing_errors_doc, clippy::missing_panics_doc)]
 pub async fn run(args: MembershipCmd) -> anyhow::Result<()> {
-    assert!(!args.membership.key_paths.is_empty());
+    assert_ne!(args.membership.key_paths, [] as [String; 0]);
 
     let update_client_elf = std::fs::read(args.elf_paths.update_client_path)?;
     let membership_elf = std::fs::read(args.elf_paths.membership_path)?;
