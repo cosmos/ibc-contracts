@@ -706,7 +706,6 @@ func (s *MultichainTestSuite) Test_TransferCosmosToEthToCosmosAndBack() {
 
 	eth, simdA, simdB := s.Eth.Chains[0], s.Cosmos.Chains[0], s.Cosmos.Chains[1]
 
-	ics26Address := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
 	ics20Address := ethcommon.HexToAddress(s.contractAddresses.Ics20Transfer)
 	transferAmount := big.NewInt(testvalues.TransferAmount)
 	ethereumUserAddress := crypto.PubkeyToAddress(s.key.PublicKey)
@@ -767,41 +766,25 @@ func (s *MultichainTestSuite) Test_TransferCosmosToEthToCosmosAndBack() {
 		ibcERC20Address ethcommon.Address
 	)
 	s.Require().True(s.Run("Receive packet on Ethereum", func() {
-		var recvRelayTx []byte
-		s.Require().True(s.Run("Retrieve relay tx", func() {
-			resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
-				SrcChain:    simdA.Config().ChainID,
-				DstChain:    eth.ChainID.String(),
-				SourceTxIds: [][]byte{simdASendTxHash},
-				SrcClientId: testvalues.FirstWasmClientID,
-				DstClientId: testvalues.FirstUniversalClientID,
-			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
-			s.Require().Equal(resp.Address, ics26Address.String())
+		receipt := e2esuite.RelayToEVM(ctx, s.T(), s.ProofApiClient, eth, s.EthRelayerSubmitter, &proofapitypes.RelayByTxRequest{
+			SrcChain:    simdA.Config().ChainID,
+			DstChain:    eth.ChainID.String(),
+			SourceTxIds: [][]byte{simdASendTxHash},
+			SrcClientId: testvalues.FirstWasmClientID,
+			DstClientId: testvalues.FirstUniversalClientID,
+		})
 
-			recvRelayTx = resp.Tx
-		}))
+		ethReceiveAckEvent, err := e2esuite.GetEvmEvent(receipt, s.ics26Contract.ParseWriteAcknowledgement)
+		s.Require().NoError(err)
 
-		var packet ics26router.IICS26RouterMsgsPacket
-		s.Require().True(s.Run("Submit relay tx", func() {
-			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ics26Address, recvRelayTx)
-			s.Require().NoError(err)
-			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status, fmt.Sprintf("Tx failed: %+v", receipt))
-
-			ethReceiveAckEvent, err := e2esuite.GetEvmEvent(receipt, s.ics26Contract.ParseWriteAcknowledgement)
-			s.Require().NoError(err)
-
-			packet = ethReceiveAckEvent.Packet
-			// ackTxHash = receipt.TxHash.Bytes()
-			// NOTE: ackTxHash is not used in the test since acking the packet is not necessary
-		}))
+		packet := ethReceiveAckEvent.Packet
+		// ackTxHash = receipt.TxHash.Bytes()
+		// NOTE: ackTxHash is not used in the test since acking the packet is not necessary
 
 		// Recreate the full denom path
 		transferCoin := sdk.NewCoin(simdA.Config().Denom, sdkmath.NewIntFromBigInt(transferAmount))
 		denomOnEthereum := transfertypes.NewDenom(transferCoin.Denom, transfertypes.NewHop(packet.Payloads[0].DestPort, packet.DestClient))
 
-		var err error
 		ibcERC20Address, err = s.ics20Contract.IbcERC20Contract(nil, denomOnEthereum.Path())
 		s.Require().NoError(err)
 
@@ -938,27 +921,13 @@ func (s *MultichainTestSuite) Test_TransferCosmosToEthToCosmosAndBack() {
 		s.Require().NoError(err)
 
 		s.Require().True(s.Run("Receive packet on Ethereum", func() {
-			var relayTxBodyBz []byte
-			s.Require().True(s.Run("Retrieve relay tx", func() {
-				resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
-					SrcChain:    simdB.Config().ChainID,
-					DstChain:    eth.ChainID.String(),
-					SourceTxIds: [][]byte{simdBSendTxHash},
-					SrcClientId: testvalues.FirstWasmClientID,
-					DstClientId: testvalues.SecondUniversalClientID,
-				})
-				s.Require().NoError(err)
-				s.Require().NotEmpty(resp.Tx)
-				s.Require().Equal(ics26Address.String(), resp.Address)
-
-				relayTxBodyBz = resp.Tx
-			}))
-
-			s.Require().True(s.Run("Submit relay tx", func() {
-				receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ics26Address, relayTxBodyBz)
-				s.Require().NoError(err)
-				s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status, fmt.Sprintf("Tx failed: %+v", receipt))
-			}))
+			e2esuite.RelayToEVM(ctx, s.T(), s.ProofApiClient, eth, s.EthRelayerSubmitter, &proofapitypes.RelayByTxRequest{
+				SrcChain:    simdB.Config().ChainID,
+				DstChain:    eth.ChainID.String(),
+				SourceTxIds: [][]byte{simdBSendTxHash},
+				SrcClientId: testvalues.FirstWasmClientID,
+				DstClientId: testvalues.SecondUniversalClientID,
+			})
 
 			s.True(s.Run("Verify balances on Ethereum", func() {
 				userBalance, err := ibcERC20.BalanceOf(nil, ethereumUserAddress)
@@ -1283,29 +1252,14 @@ func (s *MultichainTestSuite) Test_TransferEthToCosmosToCosmosAndBack() {
 		s.Require().NoError(err)
 
 		s.Require().True(s.Run("Receive packet on Ethereum", func() {
-			ics26Address := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
 
-			var relayTxBodyBz []byte
-			s.Require().True(s.Run("Retrieve relay tx", func() {
-				resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
-					SrcChain:    simdA.Config().ChainID,
-					DstChain:    eth.ChainID.String(),
-					SourceTxIds: [][]byte{simdASendTxHash},
-					SrcClientId: testvalues.FirstWasmClientID,
-					DstClientId: testvalues.FirstUniversalClientID,
-				})
-				s.Require().NoError(err)
-				s.Require().NotEmpty(resp.Tx)
-				s.Require().Equal(ics26Address.String(), resp.Address)
-
-				relayTxBodyBz = resp.Tx
-			}))
-
-			s.Require().True(s.Run("Submit relay tx", func() {
-				receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ics26Address, relayTxBodyBz)
-				s.Require().NoError(err)
-				s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status, fmt.Sprintf("Tx failed: %+v", receipt))
-			}))
+			e2esuite.RelayToEVM(ctx, s.T(), s.ProofApiClient, eth, s.EthRelayerSubmitter, &proofapitypes.RelayByTxRequest{
+				SrcChain:    simdA.Config().ChainID,
+				DstChain:    eth.ChainID.String(),
+				SourceTxIds: [][]byte{simdASendTxHash},
+				SrcClientId: testvalues.FirstWasmClientID,
+				DstClientId: testvalues.FirstUniversalClientID,
+			})
 
 			s.True(s.Run("Verify balances on Ethereum", func() {
 				userBalance, err := s.erc20Contract.BalanceOf(nil, ethereumUserAddress)
@@ -1432,34 +1386,19 @@ func (s *MultichainTestSuite) Test_TransferCosmosToCosmosToEth() {
 	var denomOnEthereum transfertypes.Denom
 	var ibcERC20 *ibcerc20.Contract
 	s.Require().True(s.Run("Receive packet on Ethereum", func() {
-		ics26Address := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
 
-		var relayTxBodyBz []byte
-		s.Require().True(s.Run("Retrieve relay tx", func() {
-			resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
-				SrcChain:    simdB.Config().ChainID,
-				DstChain:    eth.ChainID.String(),
-				SourceTxIds: [][]byte{simdBTransferTxHash},
-				SrcClientId: testvalues.FirstWasmClientID,
-				DstClientId: testvalues.SecondUniversalClientID,
-			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
-			s.Require().Equal(ics26Address.String(), resp.Address)
-
-			relayTxBodyBz = resp.Tx
-		}))
-
-		s.Require().True(s.Run("Submit relay tx", func() {
-			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ics26Address, relayTxBodyBz)
-			s.Require().NoError(err)
-			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status, fmt.Sprintf("Tx failed: %+v", receipt))
-			denomOnEthereum = transfertypes.NewDenom(
-				simdA.Config().Denom,
-				transfertypes.NewHop(transfertypes.PortID, testvalues.SecondUniversalClientID),
-				transfertypes.NewHop(transfertypes.PortID, ibctesting.SecondClientID),
-			)
-		}))
+		e2esuite.RelayToEVM(ctx, s.T(), s.ProofApiClient, eth, s.EthRelayerSubmitter, &proofapitypes.RelayByTxRequest{
+			SrcChain:    simdB.Config().ChainID,
+			DstChain:    eth.ChainID.String(),
+			SourceTxIds: [][]byte{simdBTransferTxHash},
+			SrcClientId: testvalues.FirstWasmClientID,
+			DstClientId: testvalues.SecondUniversalClientID,
+		})
+		denomOnEthereum = transfertypes.NewDenom(
+			simdA.Config().Denom,
+			transfertypes.NewHop(transfertypes.PortID, testvalues.SecondUniversalClientID),
+			transfertypes.NewHop(transfertypes.PortID, ibctesting.SecondClientID),
+		)
 
 		s.True(s.Run("Verify balances on Ethereum", func() {
 			ibcERC20Address, err := s.ics20Contract.IbcERC20Contract(nil, denomOnEthereum.Path())
