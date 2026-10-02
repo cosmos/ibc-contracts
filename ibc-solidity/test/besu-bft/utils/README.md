@@ -7,8 +7,8 @@ commitments that `BesuQBFTLightClient` and `BesuIBFT2LightClient` verify.
 
 This directory was AI generated and reviewed for correctness. Its behaviour is pinned by
 `SimHeader.t.sol` (byte-exact round trips of live Besu headers), `MerklePatriciaTrie.t.sol`
-(OpenZeppelin trie vectors and round trips through `TrieProof`), `../QBFTSimSuite.t.sol`
-(scenarios run against the production light clients), and `../QBFTSimInvariant.t.sol` (random honest relaying).
+(OpenZeppelin trie vectors and round trips through `TrieProof`), and `../QBFTSimSuite.t.sol`
+(scenarios run against the production light clients).
 
 | File | Role |
 | --- | --- |
