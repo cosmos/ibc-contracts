@@ -104,6 +104,27 @@ services:
       qbft_testnet:
         ipv4_address: 10.42.0.5
 
+  # Not a genesis validator. Only started on demand, to be voted into the validator set.
+  validator5:
+    image: hyperledger/besu:26.4.0
+    profiles: ["spare"]
+    environment:
+      BESU_OPTS: -Xms128m -Xmx512m -XX:ActiveProcessorCount=2
+    command:
+      - --config-file=/opt/besu/config.toml
+      - --identity=validator5
+      - --p2p-host=10.42.0.6
+      - --p2p-port=30307
+    volumes:
+      - ./config.toml:/opt/besu/config.toml:ro
+      - ./genesis.json:/opt/besu/genesis.json:ro
+      - ./keys/validator5/key:/opt/besu/key:ro
+      - ./static-nodes/validator5.json:/opt/besu/static-nodes.json:ro
+      - validator5-data:/opt/besu/data
+    networks:
+      qbft_testnet:
+        ipv4_address: 10.42.0.6
+
 networks:
   qbft_testnet:
     driver: bridge
@@ -120,3 +141,4 @@ volumes:
   validator2-data:
   validator3-data:
   validator4-data:
+  validator5-data:
