@@ -20,14 +20,16 @@ import (
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 
+	"github.com/cosmos/solidity-ibc-eureka/packages/go-abigen/ibcerc20"
+	"github.com/cosmos/solidity-ibc-eureka/packages/go-abigen/ics20transfer"
 	"github.com/cosmos/solidity-ibc-eureka/packages/go-abigen/ics26router"
 
 	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/attestor"
 	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/e2esuite"
 	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/ethereum"
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/ibcflow"
 	proofapi "github.com/srdtrk/solidity-ibc-eureka/e2e/v8/proofapi"
 	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/testvalues"
+	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/types/erc20"
 	proofapitypes "github.com/srdtrk/solidity-ibc-eureka/e2e/v8/types/proofapi"
 )
 
@@ -49,11 +51,25 @@ const (
 type EthToEthAttestedTestSuite struct {
 	e2esuite.TestSuite
 
-	// Chain A (source) and Chain B (destination)
-	chainA    *ibcflow.EVMEndpoint
-	chainB    *ibcflow.EVMEndpoint
-	deployerA *ecdsa.PrivateKey
-	deployerB *ecdsa.PrivateKey
+	// Chain A (source) - contracts and keys
+	contractAddressesA ethereum.DeployedContracts
+	ics26ContractA     *ics26router.Contract
+	ics20ContractA     *ics20transfer.Contract
+	erc20ContractA     *erc20.Contract
+	deployerA          *ecdsa.PrivateKey
+	userKeyA           *ecdsa.PrivateKey
+
+	// Chain B (destination) - contracts and keys
+	contractAddressesB ethereum.DeployedContracts
+	ics26ContractB     *ics26router.Contract
+	ics20ContractB     *ics20transfer.Contract
+	erc20ContractB     *erc20.Contract
+	deployerB          *ecdsa.PrivateKey
+	userKeyB           *ecdsa.PrivateKey
+
+	// Relayer submitters
+	EthRelayerSubmitterA *ecdsa.PrivateKey
+	EthRelayerSubmitterB *ecdsa.PrivateKey
 
 	ProofApiClient proofapitypes.ProofApiServiceClient
 }
@@ -93,21 +109,20 @@ func (s *EthToEthAttestedTestSuite) SetupSuite(ctx context.Context) {
 	s.T().Logf("Chain B RPC: %s, Chain ID: %s", s.EthChainB().RPC, s.EthChainB().ChainID.String())
 
 	// Create and fund users on both chains
-	var userKeyA, userKeyB, relayerSubmitterA, relayerSubmitterB *ecdsa.PrivateKey
 	s.Require().True(s.Run("Create and fund users", func() {
 		var err error
-		userKeyA, err = s.EthChainA().CreateAndFundUser()
+		s.userKeyA, err = s.EthChainA().CreateAndFundUser()
 		s.Require().NoError(err)
 		s.deployerA, err = s.EthChainA().CreateAndFundUser()
 		s.Require().NoError(err)
-		relayerSubmitterA, err = s.EthChainA().CreateAndFundUser()
+		s.EthRelayerSubmitterA, err = s.EthChainA().CreateAndFundUser()
 		s.Require().NoError(err)
 
-		userKeyB, err = s.EthChainB().CreateAndFundUser()
+		s.userKeyB, err = s.EthChainB().CreateAndFundUser()
 		s.Require().NoError(err)
 		s.deployerB, err = s.EthChainB().CreateAndFundUser()
 		s.Require().NoError(err)
-		relayerSubmitterB, err = s.EthChainB().CreateAndFundUser()
+		s.EthRelayerSubmitterB, err = s.EthChainB().CreateAndFundUser()
 		s.Require().NoError(err)
 
 		// For operator
@@ -122,10 +137,15 @@ func (s *EthToEthAttestedTestSuite) SetupSuite(ctx context.Context) {
 		stdout, err := s.EthChainA().ForgeScript(s.deployerA, testvalues.E2EDeployScriptPath)
 		s.Require().NoError(err)
 
-		contracts, err := ethereum.GetEthContractsFromDeployOutput(string(stdout))
+		s.contractAddressesA, err = ethereum.GetEthContractsFromDeployOutput(string(stdout))
 		s.Require().NoError(err)
 
-		s.chainA = ibcflow.NewEVMEndpoint(s.T(), s.EthChainA(), contracts, ClientA, userKeyA, relayerSubmitterA)
+		s.ics26ContractA, err = ics26router.NewContract(ethcommon.HexToAddress(s.contractAddressesA.Ics26Router), s.EthChainA().RPCClient)
+		s.Require().NoError(err)
+		s.ics20ContractA, err = ics20transfer.NewContract(ethcommon.HexToAddress(s.contractAddressesA.Ics20Transfer), s.EthChainA().RPCClient)
+		s.Require().NoError(err)
+		s.erc20ContractA, err = erc20.NewContract(ethcommon.HexToAddress(s.contractAddressesA.Erc20), s.EthChainA().RPCClient)
+		s.Require().NoError(err)
 	}))
 
 	// Deploy contracts on Chain B
@@ -134,10 +154,15 @@ func (s *EthToEthAttestedTestSuite) SetupSuite(ctx context.Context) {
 		stdout, err := s.EthChainB().ForgeScript(s.deployerB, testvalues.E2EDeployScriptPath)
 		s.Require().NoError(err)
 
-		contracts, err := ethereum.GetEthContractsFromDeployOutput(string(stdout))
+		s.contractAddressesB, err = ethereum.GetEthContractsFromDeployOutput(string(stdout))
 		s.Require().NoError(err)
 
-		s.chainB = ibcflow.NewEVMEndpoint(s.T(), s.EthChainB(), contracts, ClientB, userKeyB, relayerSubmitterB)
+		s.ics26ContractB, err = ics26router.NewContract(ethcommon.HexToAddress(s.contractAddressesB.Ics26Router), s.EthChainB().RPCClient)
+		s.Require().NoError(err)
+		s.ics20ContractB, err = ics20transfer.NewContract(ethcommon.HexToAddress(s.contractAddressesB.Ics20Transfer), s.EthChainB().RPCClient)
+		s.Require().NoError(err)
+		s.erc20ContractB, err = erc20.NewContract(ethcommon.HexToAddress(s.contractAddressesB.Erc20), s.EthChainB().RPCClient)
+		s.Require().NoError(err)
 	}))
 
 	// Start attestor for Chain A (reads Chain A state)
@@ -149,7 +174,7 @@ func (s *EthToEthAttestedTestSuite) SetupSuite(ctx context.Context) {
 		KeystorePathTemplate: ethToEthKeystoreAPathTemplate,
 		ChainType:            attestor.ChainTypeEvm,
 		AdapterURL:           s.EthChainA().DockerRPC, // Use Docker internal RPC for container-to-container communication
-		RouterAddress:        s.chainA.Contracts.Ics26Router,
+		RouterAddress:        s.contractAddressesA.Ics26Router,
 		DockerClient:         s.GetDockerClient(),
 		NetworkID:            s.GetNetworkID(),
 	})
@@ -168,7 +193,7 @@ func (s *EthToEthAttestedTestSuite) SetupSuite(ctx context.Context) {
 		KeystorePathTemplate: ethToEthKeystoreBPathTemplate,
 		ChainType:            attestor.ChainTypeEvm,
 		AdapterURL:           s.EthChainB().DockerRPC, // Use Docker internal RPC for container-to-container communication
-		RouterAddress:        s.chainB.Contracts.Ics26Router,
+		RouterAddress:        s.contractAddressesB.Ics26Router,
 		DockerClient:         s.GetDockerClient(),
 		NetworkID:            s.GetNetworkID(),
 	})
@@ -205,8 +230,8 @@ func (s *EthToEthAttestedTestSuite) SetupSuite(ctx context.Context) {
 				DstChainID:        s.EthChainB().ChainID.String(),
 				SrcRPC:            s.EthChainA().RPC,
 				DstRPC:            s.EthChainB().RPC,
-				SrcICS26:          s.chainA.Contracts.Ics26Router,
-				DstICS26:          s.chainB.Contracts.Ics26Router,
+				SrcICS26:          s.contractAddressesA.Ics26Router,
+				DstICS26:          s.contractAddressesB.Ics26Router,
 				AttestorEndpoints: []string{attestorAEndpoint},
 				AttestorTimeout:   30000,
 			}).
@@ -215,8 +240,8 @@ func (s *EthToEthAttestedTestSuite) SetupSuite(ctx context.Context) {
 				DstChainID:        s.EthChainA().ChainID.String(),
 				SrcRPC:            s.EthChainB().RPC,
 				DstRPC:            s.EthChainA().RPC,
-				SrcICS26:          s.chainB.Contracts.Ics26Router,
-				DstICS26:          s.chainA.Contracts.Ics26Router,
+				SrcICS26:          s.contractAddressesB.Ics26Router,
+				DstICS26:          s.contractAddressesA.Ics26Router,
 				AttestorEndpoints: []string{attestorBEndpoint},
 				AttestorTimeout:   30000,
 			}).
@@ -302,7 +327,7 @@ func (s *EthToEthAttestedTestSuite) SetupSuite(ctx context.Context) {
 		}))
 
 		s.Require().True(s.Run("Broadcast create client tx on Chain A", func() {
-			receipt, err := s.EthChainA().BroadcastTx(ctx, s.chainA.RelayerSubmitterKey, 15_000_000, nil, createClientTxBz)
+			receipt, err := s.EthChainA().BroadcastTx(ctx, s.EthRelayerSubmitterA, 15_000_000, nil, createClientTxBz)
 			s.Require().NoError(err)
 			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status, fmt.Sprintf("Tx failed: %+v", receipt))
 
@@ -315,7 +340,7 @@ func (s *EthToEthAttestedTestSuite) SetupSuite(ctx context.Context) {
 				ClientId:     ClientB,
 				MerklePrefix: [][]byte{[]byte("")}, // EVM chains don't use store key prefix
 			}
-			tx, err := s.chainA.ICS26.AddClient(s.GetTransactOpts(s.deployerA, s.EthChainA()), ClientA, counterpartyInfo, lightClientAddress)
+			tx, err := s.ics26ContractA.AddClient(s.GetTransactOpts(s.deployerA, s.EthChainA()), ClientA, counterpartyInfo, lightClientAddress)
 			s.Require().NoError(err)
 
 			_, err = s.EthChainA().GetTxReciept(ctx, tx.Hash())
@@ -348,7 +373,7 @@ func (s *EthToEthAttestedTestSuite) SetupSuite(ctx context.Context) {
 		}))
 
 		s.Require().True(s.Run("Broadcast create client tx on Chain B", func() {
-			receipt, err := s.EthChainB().BroadcastTx(ctx, s.chainB.RelayerSubmitterKey, 15_000_000, nil, createClientTxBz)
+			receipt, err := s.EthChainB().BroadcastTx(ctx, s.EthRelayerSubmitterB, 15_000_000, nil, createClientTxBz)
 			s.Require().NoError(err)
 			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status, fmt.Sprintf("Tx failed: %+v", receipt))
 
@@ -361,7 +386,7 @@ func (s *EthToEthAttestedTestSuite) SetupSuite(ctx context.Context) {
 				ClientId:     ClientA,
 				MerklePrefix: [][]byte{[]byte("")}, // EVM chains don't use store key prefix
 			}
-			tx, err := s.chainB.ICS26.AddClient(s.GetTransactOpts(s.deployerB, s.EthChainB()), ClientB, counterpartyInfo, lightClientAddress)
+			tx, err := s.ics26ContractB.AddClient(s.GetTransactOpts(s.deployerB, s.EthChainB()), ClientB, counterpartyInfo, lightClientAddress)
 			s.Require().NoError(err)
 
 			_, err = s.EthChainB().GetTxReciept(ctx, tx.Hash())
@@ -371,12 +396,14 @@ func (s *EthToEthAttestedTestSuite) SetupSuite(ctx context.Context) {
 
 	// Fund users with ERC20 tokens
 	s.Require().True(s.Run("Fund users with ERC20 tokens", func() {
-		tx, err := s.chainA.ERC20.Transfer(s.GetTransactOpts(s.EthChainA().Faucet, s.EthChainA()), s.chainA.UserAddress(), testvalues.StartingERC20Balance)
+		userAddressA := crypto.PubkeyToAddress(s.userKeyA.PublicKey)
+		tx, err := s.erc20ContractA.Transfer(s.GetTransactOpts(s.EthChainA().Faucet, s.EthChainA()), userAddressA, testvalues.StartingERC20Balance)
 		s.Require().NoError(err)
 		_, err = s.EthChainA().GetTxReciept(ctx, tx.Hash())
 		s.Require().NoError(err)
 
-		tx, err = s.chainB.ERC20.Transfer(s.GetTransactOpts(s.EthChainB().Faucet, s.EthChainB()), s.chainB.UserAddress(), testvalues.StartingERC20Balance)
+		userAddressB := crypto.PubkeyToAddress(s.userKeyB.PublicKey)
+		tx, err = s.erc20ContractB.Transfer(s.GetTransactOpts(s.EthChainB().Faucet, s.EthChainB()), userAddressB, testvalues.StartingERC20Balance)
 		s.Require().NoError(err)
 		_, err = s.EthChainB().GetTxReciept(ctx, tx.Hash())
 		s.Require().NoError(err)
@@ -388,15 +415,15 @@ func (s *EthToEthAttestedTestSuite) Test_Deploy() {
 	s.SetupSuite(ctx)
 
 	s.Require().True(s.Run("Verify ICS26 on Chain A", func() {
-		transferAddress, err := s.chainA.ICS26.GetIBCApp(nil, "transfer")
+		transferAddress, err := s.ics26ContractA.GetIBCApp(nil, "transfer")
 		s.Require().NoError(err)
-		s.Require().Equal(strings.ToLower(s.chainA.Contracts.Ics20Transfer), strings.ToLower(transferAddress.Hex()))
+		s.Require().Equal(strings.ToLower(s.contractAddressesA.Ics20Transfer), strings.ToLower(transferAddress.Hex()))
 	}))
 
 	s.Require().True(s.Run("Verify ICS26 on Chain B", func() {
-		transferAddress, err := s.chainB.ICS26.GetIBCApp(nil, "transfer")
+		transferAddress, err := s.ics26ContractB.GetIBCApp(nil, "transfer")
 		s.Require().NoError(err)
-		s.Require().Equal(strings.ToLower(s.chainB.Contracts.Ics20Transfer), strings.ToLower(transferAddress.Hex()))
+		s.Require().Equal(strings.ToLower(s.contractAddressesB.Ics20Transfer), strings.ToLower(transferAddress.Hex()))
 	}))
 
 	s.Require().True(s.Run("Verify Proof API Info A->B", func() {
@@ -426,14 +453,291 @@ func (s *EthToEthAttestedTestSuite) Test_TransferERC20FromChainAToChainBAndBack(
 	ctx := context.Background()
 	s.SetupSuite(ctx)
 
-	ibcflow.Roundtrip(ctx, s.T(), s.ProofApiClient, s.chainA, s.chainB, big.NewInt(testvalues.TransferAmount), 1)
+	transferAmount := big.NewInt(testvalues.TransferAmount)
+	userAddressA := crypto.PubkeyToAddress(s.userKeyA.PublicKey)
+	userAddressB := crypto.PubkeyToAddress(s.userKeyB.PublicKey)
+	ics20AddressA := ethcommon.HexToAddress(s.contractAddressesA.Ics20Transfer)
+	ics20AddressB := ethcommon.HexToAddress(s.contractAddressesB.Ics20Transfer)
+	erc20AddressA := ethcommon.HexToAddress(s.contractAddressesA.Erc20)
+
+	// Store initial balance
+	initialBalanceA := new(big.Int).Set(testvalues.StartingERC20Balance)
+
+	// Variables to track IBC denom and contract on Chain B
+	var ibcDenomOnB string
+	var ibcERC20OnB *ibcerc20.Contract
+	var ibcERC20AddressOnB ethcommon.Address
+
+	// ========== PHASE 1: Transfer from Chain A to Chain B ==========
+
+	s.Require().True(s.Run("(A -> B): Approve ICS20 on Chain A", func() {
+		tx, err := s.erc20ContractA.Approve(s.GetTransactOpts(s.userKeyA, s.EthChainA()), ics20AddressA, transferAmount)
+		s.Require().NoError(err)
+
+		receipt, err := s.EthChainA().GetTxReciept(ctx, tx.Hash())
+		s.Require().NoError(err)
+		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
+	}))
+
+	var sendTxHashAtoB []byte
+	s.Require().True(s.Run("(A -> B): Send transfer from Chain A to Chain B", func() {
+		timeout := uint64(time.Now().Add(30 * time.Minute).Unix())
+		msgSendPacket := ics20transfer.IICS20TransferMsgsSendTransferMsg{
+			Denom:            erc20AddressA,
+			Amount:           transferAmount,
+			Receiver:         strings.ToLower(userAddressB.Hex()),
+			TimeoutTimestamp: timeout,
+			SourceClient:     ClientA,
+			DestPort:         "transfer",
+			Memo:             "",
+		}
+
+		tx, err := s.ics20ContractA.SendTransfer(s.GetTransactOpts(s.userKeyA, s.EthChainA()), msgSendPacket)
+		s.Require().NoError(err)
+
+		receipt, err := s.EthChainA().GetTxReciept(ctx, tx.Hash())
+		s.Require().NoError(err)
+		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
+
+		sendTxHashAtoB = tx.Hash().Bytes()
+		s.T().Logf("Send tx hash A->B: %s", tx.Hash().Hex())
+	}))
+
+	s.Require().True(s.Run("(A -> B): Verify balances after send on Chain A", func() {
+		// Verify escrow balance on Chain A
+		escrowAddress, err := s.ics20ContractA.GetEscrow(nil, ClientA)
+		s.Require().NoError(err)
+
+		escrowBalance, err := s.erc20ContractA.BalanceOf(nil, escrowAddress)
+		s.Require().NoError(err)
+		s.Require().Equal(0, transferAmount.Cmp(escrowBalance), "Escrow should hold transfer amount")
+
+		// Verify user balance decreased
+		userBalance, err := s.erc20ContractA.BalanceOf(nil, userAddressA)
+		s.Require().NoError(err)
+		expectedBalance := new(big.Int).Sub(initialBalanceA, transferAmount)
+		s.Require().Equal(0, expectedBalance.Cmp(userBalance), "User A balance should decrease by transfer amount")
+	}))
+
+	var recvTxHashOnB []byte
+	s.Require().True(s.Run("(A -> B): Relay packet to Chain B and receive", func() {
+		receipt := e2esuite.RelayToEVM(ctx, s.T(), s.ProofApiClient, s.EthChainB(), s.EthRelayerSubmitterB, &proofapitypes.RelayByTxRequest{
+			SrcChain:    s.EthChainA().ChainID.String(),
+			DstChain:    s.EthChainB().ChainID.String(),
+			SourceTxIds: [][]byte{sendTxHashAtoB},
+			SrcClientId: ClientA,
+			DstClientId: ClientB,
+		})
+		recvTxHashOnB = receipt.TxHash.Bytes()
+
+		ackEvent, err := e2esuite.GetEvmEvent(receipt, s.ics26ContractB.ParseWriteAcknowledgement)
+		s.Require().NoError(err)
+
+		// Store the IBC denom for later use
+		ibcDenomOnB = fmt.Sprintf("%s/%s/%s", ackEvent.Packet.Payloads[0].DestPort, ackEvent.Packet.DestClient, strings.ToLower(erc20AddressA.Hex()))
+		ibcERC20AddressOnB, err = s.ics20ContractB.IbcERC20Contract(nil, ibcDenomOnB)
+		s.Require().NoError(err)
+		ibcERC20OnB, err = ibcerc20.NewContract(ibcERC20AddressOnB, s.EthChainB().RPCClient)
+		s.Require().NoError(err)
+	}))
+
+	s.Require().True(s.Run("(A -> B): Verify balances on Chain B after receive", func() {
+		// Verify user balance on Chain B
+		userBalanceB, err := ibcERC20OnB.BalanceOf(nil, userAddressB)
+		s.Require().NoError(err)
+		s.Require().Equal(0, transferAmount.Cmp(userBalanceB), "User B should have received tokens")
+		s.T().Logf("User B balance on Chain B: %s", userBalanceB.String())
+	}))
+
+	s.Require().True(s.Run("(A -> B): Relay acknowledgement to Chain A", func() {
+		receipt := e2esuite.RelayToEVM(ctx, s.T(), s.ProofApiClient, s.EthChainA(), s.EthRelayerSubmitterA, &proofapitypes.RelayByTxRequest{
+			SrcChain:    s.EthChainB().ChainID.String(),
+			DstChain:    s.EthChainA().ChainID.String(),
+			SourceTxIds: [][]byte{recvTxHashOnB},
+			SrcClientId: ClientB,
+			DstClientId: ClientA,
+		})
+
+		_, err := e2esuite.GetEvmEvent(receipt, s.ics26ContractA.ParseAckPacket)
+		s.Require().NoError(err)
+	}))
+
+	// ========== PHASE 2: Transfer back from Chain B to Chain A ==========
+
+	s.Require().True(s.Run("(B -> A): Approve ICS20 on Chain B", func() {
+		tx, err := ibcERC20OnB.Approve(s.GetTransactOpts(s.userKeyB, s.EthChainB()), ics20AddressB, transferAmount)
+		s.Require().NoError(err)
+
+		receipt, err := s.EthChainB().GetTxReciept(ctx, tx.Hash())
+		s.Require().NoError(err)
+		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
+	}))
+
+	var sendTxHashBtoA []byte
+	s.Require().True(s.Run("(B -> A): Send transfer from Chain B to Chain A", func() {
+		timeout := uint64(time.Now().Add(30 * time.Minute).Unix())
+		msgSendPacket := ics20transfer.IICS20TransferMsgsSendTransferMsg{
+			Denom:            ibcERC20AddressOnB,
+			Amount:           transferAmount,
+			Receiver:         strings.ToLower(userAddressA.Hex()),
+			TimeoutTimestamp: timeout,
+			SourceClient:     ClientB,
+			DestPort:         "transfer",
+			Memo:             "",
+		}
+
+		tx, err := s.ics20ContractB.SendTransfer(s.GetTransactOpts(s.userKeyB, s.EthChainB()), msgSendPacket)
+		s.Require().NoError(err)
+
+		receipt, err := s.EthChainB().GetTxReciept(ctx, tx.Hash())
+		s.Require().NoError(err)
+		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
+
+		sendTxHashBtoA = tx.Hash().Bytes()
+		s.T().Logf("Send tx hash B->A: %s", tx.Hash().Hex())
+	}))
+
+	s.Require().True(s.Run("(B -> A): Verify balances after send on Chain B", func() {
+		// User B balance should be zero (tokens burned for unwind)
+		userBalanceB, err := ibcERC20OnB.BalanceOf(nil, userAddressB)
+		s.Require().NoError(err)
+		s.Require().Zero(userBalanceB.Int64(), "User B balance should be zero after sending back")
+	}))
+
+	var recvTxHashOnA []byte
+	s.Require().True(s.Run("(B -> A): Relay packet to Chain A and receive", func() {
+		receipt := e2esuite.RelayToEVM(ctx, s.T(), s.ProofApiClient, s.EthChainA(), s.EthRelayerSubmitterA, &proofapitypes.RelayByTxRequest{
+			SrcChain:    s.EthChainB().ChainID.String(),
+			DstChain:    s.EthChainA().ChainID.String(),
+			SourceTxIds: [][]byte{sendTxHashBtoA},
+			SrcClientId: ClientB,
+			DstClientId: ClientA,
+		})
+		recvTxHashOnA = receipt.TxHash.Bytes()
+
+		_, err := e2esuite.GetEvmEvent(receipt, s.ics26ContractA.ParseWriteAcknowledgement)
+		s.Require().NoError(err)
+	}))
+
+	s.Require().True(s.Run("(B -> A): Verify balances on Chain A after receive", func() {
+		// User A should have their tokens back
+		userBalanceA, err := s.erc20ContractA.BalanceOf(nil, userAddressA)
+		s.Require().NoError(err)
+		s.Require().Equal(0, initialBalanceA.Cmp(userBalanceA), "User A should have original balance restored")
+		s.T().Logf("User A balance restored: %s", userBalanceA.String())
+
+		// Escrow should be empty
+		escrowAddress, err := s.ics20ContractA.GetEscrow(nil, ClientA)
+		s.Require().NoError(err)
+
+		escrowBalance, err := s.erc20ContractA.BalanceOf(nil, escrowAddress)
+		s.Require().NoError(err)
+		s.Require().Zero(escrowBalance.Int64(), "Escrow should be empty after unwind")
+	}))
+
+	s.Require().True(s.Run("(B -> A): Relay final acknowledgement to Chain B", func() {
+		receipt := e2esuite.RelayToEVM(ctx, s.T(), s.ProofApiClient, s.EthChainB(), s.EthRelayerSubmitterB, &proofapitypes.RelayByTxRequest{
+			SrcChain:    s.EthChainA().ChainID.String(),
+			DstChain:    s.EthChainB().ChainID.String(),
+			SourceTxIds: [][]byte{recvTxHashOnA},
+			SrcClientId: ClientA,
+			DstClientId: ClientB,
+		})
+
+		_, err := e2esuite.GetEvmEvent(receipt, s.ics26ContractB.ParseAckPacket)
+		s.Require().NoError(err)
+	}))
 }
 
 func (s *EthToEthAttestedTestSuite) Test_TimeoutPacketFromChainA() {
 	ctx := context.Background()
 	s.SetupSuite(ctx)
 
-	ibcflow.TimeoutFromA(ctx, s.T(), s.ProofApiClient, s.chainA, s.chainB, big.NewInt(testvalues.TransferAmount))
+	transferAmount := big.NewInt(testvalues.TransferAmount)
+	userAddressA := crypto.PubkeyToAddress(s.userKeyA.PublicKey)
+	userAddressB := crypto.PubkeyToAddress(s.userKeyB.PublicKey)
+	ics20AddressA := ethcommon.HexToAddress(s.contractAddressesA.Ics20Transfer)
+	erc20AddressA := ethcommon.HexToAddress(s.contractAddressesA.Erc20)
+
+	var originalBalanceA *big.Int
+	s.Require().True(s.Run("Get initial balances", func() {
+		var err error
+		originalBalanceA, err = s.erc20ContractA.BalanceOf(nil, userAddressA)
+		s.Require().NoError(err)
+		s.T().Logf("User A initial balance: %s", originalBalanceA.String())
+	}))
+
+	s.Require().True(s.Run("Approve ICS20 on Chain A", func() {
+		tx, err := s.erc20ContractA.Approve(s.GetTransactOpts(s.userKeyA, s.EthChainA()), ics20AddressA, transferAmount)
+		s.Require().NoError(err)
+
+		receipt, err := s.EthChainA().GetTxReciept(ctx, tx.Hash())
+		s.Require().NoError(err)
+		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
+	}))
+
+	var sendTxHash []byte
+	var packetTimeout uint64
+	s.Require().True(s.Run("Send transfer with short timeout", func() {
+		// Set timeout to 30 seconds from now
+		packetTimeout = uint64(time.Now().Add(30 * time.Second).Unix())
+		msgSendPacket := ics20transfer.IICS20TransferMsgsSendTransferMsg{
+			Denom:            erc20AddressA,
+			Amount:           transferAmount,
+			Receiver:         strings.ToLower(userAddressB.Hex()),
+			TimeoutTimestamp: packetTimeout,
+			SourceClient:     ClientA,
+			DestPort:         "transfer",
+			Memo:             "",
+		}
+
+		tx, err := s.ics20ContractA.SendTransfer(s.GetTransactOpts(s.userKeyA, s.EthChainA()), msgSendPacket)
+		s.Require().NoError(err)
+
+		receipt, err := s.EthChainA().GetTxReciept(ctx, tx.Hash())
+		s.Require().NoError(err)
+		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
+
+		sendTxHash = tx.Hash().Bytes()
+		s.T().Logf("Send tx hash: %s", tx.Hash().Hex())
+
+		// Verify user balance decreased
+		userBalance, err := s.erc20ContractA.BalanceOf(nil, userAddressA)
+		s.Require().NoError(err)
+		expectedBalance := new(big.Int).Sub(originalBalanceA, transferAmount)
+		s.Require().Equal(expectedBalance, userBalance)
+	}))
+
+	s.Require().True(s.Run("Wait for timeout to elapse on Chain B", func() {
+		s.Require().NoError(e2esuite.WaitForBlockTime(ctx, s.T(), s.EthChainB(), packetTimeout))
+	}))
+
+	s.Require().True(s.Run("Relay timeout to Chain A", func() {
+		e2esuite.RelayToEVM(ctx, s.T(), s.ProofApiClient, s.EthChainA(), s.EthRelayerSubmitterA, &proofapitypes.RelayByTxRequest{
+			SrcChain:     s.EthChainB().ChainID.String(),
+			DstChain:     s.EthChainA().ChainID.String(),
+			TimeoutTxIds: [][]byte{sendTxHash},
+			SrcClientId:  ClientB,
+			DstClientId:  ClientA,
+		})
+	}))
+
+	s.Require().True(s.Run("Verify tokens refunded to user", func() {
+		// After successful timeout, tokens should be refunded from escrow
+		escrowAddress, err := s.ics20ContractA.GetEscrow(nil, ClientA)
+		s.Require().NoError(err)
+
+		escrowBalance, err := s.erc20ContractA.BalanceOf(nil, escrowAddress)
+		s.Require().NoError(err)
+		s.Require().Zero(escrowBalance.Int64(), "Escrow should be empty after timeout refund")
+
+		// User balance should be restored
+		userBalance, err := s.erc20ContractA.BalanceOf(nil, userAddressA)
+		s.Require().NoError(err)
+		s.Require().Equal(0, originalBalanceA.Cmp(userBalance), "User balance should be restored after timeout")
+	}))
+
+	s.T().Log("Timeout packet from Chain A completed successfully")
 }
 
 func (s *EthToEthAttestedTestSuite) Test_UpdateClient() {
@@ -450,8 +754,8 @@ func (s *EthToEthAttestedTestSuite) Test_UpdateClient() {
 		s.Require().NotEmpty(resp.Tx)
 
 		// Broadcast the update client tx
-		ics26AddressB := ethcommon.HexToAddress(s.chainB.Contracts.Ics26Router)
-		receipt, err := s.EthChainB().BroadcastTx(ctx, s.chainB.RelayerSubmitterKey, 15_000_000, &ics26AddressB, resp.Tx)
+		ics26AddressB := ethcommon.HexToAddress(s.contractAddressesB.Ics26Router)
+		receipt, err := s.EthChainB().BroadcastTx(ctx, s.EthRelayerSubmitterB, 15_000_000, &ics26AddressB, resp.Tx)
 		s.Require().NoError(err)
 		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
 	}))
@@ -468,18 +772,62 @@ func (s *EthToEthAttestedTestSuite) Test_TimeoutPacket_AsymmetricHeight() {
 	// Number of extra blocks to mine on Chain A to create height asymmetry
 	const extraBlocksOnChainA = 50
 
+	transferAmount := big.NewInt(testvalues.TransferAmount)
+	userAddressB := crypto.PubkeyToAddress(s.userKeyB.PublicKey)
+	ics20AddressA := ethcommon.HexToAddress(s.contractAddressesA.Ics20Transfer)
+	erc20AddressA := ethcommon.HexToAddress(s.contractAddressesA.Erc20)
+
+	s.Require().True(s.Run("Approve ICS20 on Chain A", func() {
+		tx, err := s.erc20ContractA.Approve(s.GetTransactOpts(s.userKeyA, s.EthChainA()), ics20AddressA, transferAmount)
+		s.Require().NoError(err)
+
+		receipt, err := s.EthChainA().GetTxReciept(ctx, tx.Hash())
+		s.Require().NoError(err)
+		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
+	}))
+
 	packetTimeout := uint64(time.Now().Unix()) + timeoutOffsetSeconds
 
 	var sendTxHash []byte
 	s.Require().True(s.Run("Send transfer with short timeout", func() {
-		erc20AddressA := ethcommon.HexToAddress(s.chainA.Contracts.Erc20)
-		receipt, _ := ibcflow.SendTransfer(ctx, s.T(), s.chainA, erc20AddressA, big.NewInt(testvalues.TransferAmount), s.chainB.UserAddress().Hex(), packetTimeout)
-		sendTxHash = receipt.TxHash.Bytes()
+		msgSendPacket := ics20transfer.IICS20TransferMsgsSendTransferMsg{
+			Denom:            erc20AddressA,
+			Amount:           transferAmount,
+			Receiver:         strings.ToLower(userAddressB.Hex()),
+			TimeoutTimestamp: packetTimeout,
+			SourceClient:     ClientA,
+			DestPort:         "transfer",
+			Memo:             "",
+		}
+
+		tx, err := s.ics20ContractA.SendTransfer(s.GetTransactOpts(s.userKeyA, s.EthChainA()), msgSendPacket)
+		s.Require().NoError(err)
+
+		receipt, err := s.EthChainA().GetTxReciept(ctx, tx.Hash())
+		s.Require().NoError(err)
+		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
+
+		sendTxHash = tx.Hash().Bytes()
+		s.T().Logf("Send tx hash: %s, packet timeout: %d (%d seconds from chain time)",
+			tx.Hash().Hex(), packetTimeout, timeoutOffsetSeconds)
 	}))
 
 	s.Require().True(s.Run("Wait for timeout to pass on both chains", func() {
-		s.Require().NoError(e2esuite.WaitForBlockTime(ctx, s.T(), s.EthChainA(), packetTimeout))
-		s.Require().NoError(e2esuite.WaitForBlockTime(ctx, s.T(), s.EthChainB(), packetTimeout))
+		// Wait for both chains to naturally pass the timeout timestamp
+		// This ensures the packet is actually timed out
+		s.T().Logf("Waiting for timeout to pass naturally...")
+		time.Sleep(time.Duration(timeoutOffsetSeconds+5) * time.Second)
+
+		// Verify both chains are past timeout
+		headerA, err := s.EthChainA().RPCClient.HeaderByNumber(ctx, nil)
+		s.Require().NoError(err)
+		s.T().Logf("Chain A timestamp: %d (should be > timeout %d)", headerA.Time, packetTimeout)
+		s.Require().Greater(headerA.Time, packetTimeout, "Chain A should be past timeout")
+
+		headerB, err := s.EthChainB().RPCClient.HeaderByNumber(ctx, nil)
+		s.Require().NoError(err)
+		s.T().Logf("Chain B timestamp: %d (should be > timeout %d)", headerB.Time, packetTimeout)
+		s.Require().Greater(headerB.Time, packetTimeout, "Chain B should be past timeout")
 	}))
 
 	// First, demonstrate that RelayByTx works when chains are in sync
