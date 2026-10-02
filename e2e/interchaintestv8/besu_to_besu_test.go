@@ -634,6 +634,7 @@ func (s *BesuToBesuTestSuite) Test_ValidatorSetChanges() {
 
 	const (
 		removedValidator     = "validator4"
+		addedValidator       = "validator5"
 		lowTrustClientID     = "besu-validator-change-low-trust"
 		defaultTrustClientID = "besu-validator-change-default-trust"
 	)
@@ -664,7 +665,7 @@ func (s *BesuToBesuTestSuite) Test_ValidatorSetChanges() {
 
 	s.Require().True(s.Run("Remove a validator from Chain A", func() {
 		var err error
-		removalHeight, err = s.chainA.network.UpdateValidatorSet(ctx, removedValidator, false)
+		removalHeight, err = s.chainA.network.RemoveValidator(ctx, removedValidator)
 		s.Require().NoError(err)
 
 		state, err := e2etypes.FetchQBFTConsensusState(ctx, &s.chainA.eth, removalHeight)
@@ -689,9 +690,8 @@ func (s *BesuToBesuTestSuite) Test_ValidatorSetChanges() {
 	}))
 
 	s.Require().True(s.Run("Add a new validator to Chain A", func() {
-		newService, err := s.chainA.network.StartSpareValidator(ctx)
-		s.Require().NoError(err)
-		additionHeight, err = s.chainA.network.UpdateValidatorSet(ctx, newService, true)
+		var err error
+		additionHeight, err = s.chainA.network.AddValidator(ctx, addedValidator)
 		s.Require().NoError(err)
 
 		state, err := e2etypes.FetchQBFTConsensusState(ctx, &s.chainA.eth, additionHeight)

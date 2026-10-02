@@ -50,7 +50,7 @@ var besuQBFTAssets embed.FS
 
 var besuQBFTServices = []string{"validator1", "validator2", "validator3", "validator4"}
 
-// besuQBFTSpareService is not in the genesis validator set and only runs once StartSpareValidator is called.
+// besuQBFTSpareService is not in the genesis validator set and only runs once AddValidator is called for it.
 const (
 	besuQBFTSpareService = "validator5"
 	besuQBFTSpareProfile = "spare"
@@ -216,19 +216,24 @@ func (c BesuQBFTChain) DumpLogs(ctx context.Context) error {
 	return err
 }
 
-// StartSpareValidator starts the spare validator node, which syncs as a non-validator until it is voted in with
-// UpdateValidatorSet.
-func (c BesuQBFTChain) StartSpareValidator(ctx context.Context) (string, error) {
-	if _, err := c.runCompose(ctx, "up", "--detach", besuQBFTSpareService); err != nil {
-		return "", fmt.Errorf("start spare validator: %w", err)
+// AddValidator starts the node run by service if it is not running, votes it into the validator set, and returns the
+// first observed height whose validator set includes it.
+func (c BesuQBFTChain) AddValidator(ctx context.Context, service string) (uint64, error) {
+	if _, err := c.runCompose(ctx, "up", "--detach", service); err != nil {
+		return 0, fmt.Errorf("start %s: %w", service, err)
 	}
-	return besuQBFTSpareService, nil
+	return c.voteValidator(ctx, service, true)
 }
 
-// UpdateValidatorSet has every current validator vote to add or remove the validator run by service, and returns the
-// first observed height whose validator set includes the change. The votes are discarded afterwards so that later
-// changes start from a clean slate.
-func (c BesuQBFTChain) UpdateValidatorSet(ctx context.Context, service string, add bool) (uint64, error) {
+// RemoveValidator votes the validator run by service out of the validator set, and returns the first observed height
+// whose validator set excludes it. The node keeps running as a non-validator.
+func (c BesuQBFTChain) RemoveValidator(ctx context.Context, service string) (uint64, error) {
+	return c.voteValidator(ctx, service, false)
+}
+
+// voteValidator has every current validator vote to add or remove the validator run by service, and waits until the
+// change applies. The votes are discarded afterwards so that later changes start from a clean slate.
+func (c BesuQBFTChain) voteValidator(ctx context.Context, service string, add bool) (uint64, error) {
 	validator, err := besuQBFTValidatorAddress(service)
 	if err != nil {
 		return 0, err
