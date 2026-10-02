@@ -890,18 +890,13 @@ func (s *EthereumSolanaIFTTestSuite) Test_EthSolana_IFT_Roundtrip() {
 
 		var recvSig solanago.Signature
 		s.Require().True(s.Run("Relay packet to Solana", func() {
-			resp, err := s.ProofApiClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+			sig := e2esuite.RelayToSolana(ctx, s.T(), s.ProofApiClient, &s.Solana.Chain, s.SolanaRelayer, &proofapitypes.RelayByTxRequest{
 				SrcChain:    eth.ChainID.String(),
 				DstChain:    testvalues.SolanaChainID,
 				SourceTxIds: [][]byte{ethSendTxHash},
 				SrcClientId: SolanaClientIDOnEth,
 				DstClientId: EthClientIDOnSolana,
 			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
-
-			sig, err := s.Solana.Chain.SubmitChunkedRelayPackets(ctx, s.T(), resp, s.SolanaRelayer)
-			s.Require().NoError(err)
 			recvSig = sig
 			s.T().Logf("Solana recv tx: %s", sig)
 		}))
@@ -913,20 +908,13 @@ func (s *EthereumSolanaIFTTestSuite) Test_EthSolana_IFT_Roundtrip() {
 		}))
 
 		s.Require().True(s.Run("Relay ack to Ethereum", func() {
-			ics26Address := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
-
-			ackResp, err := s.ProofApiClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+			_ = e2esuite.RelayToEVM(ctx, s.T(), s.ProofApiClient, eth, s.ethUser, &proofapitypes.RelayByTxRequest{
 				SrcChain:    testvalues.SolanaChainID,
 				DstChain:    eth.ChainID.String(),
 				SourceTxIds: [][]byte{[]byte(recvSig.String())},
 				SrcClientId: EthClientIDOnSolana,
 				DstClientId: SolanaClientIDOnEth,
 			})
-			s.Require().NoError(err)
-
-			receipt, err := eth.BroadcastTx(ctx, s.ethUser, 15_000_000, &ics26Address, ackResp.Tx)
-			s.Require().NoError(err)
-			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
 		}))
 
 		s.Require().True(s.Run("Verify pending transfer cleared on Ethereum", func() {
@@ -993,21 +981,13 @@ func (s *EthereumSolanaIFTTestSuite) Test_EthSolana_IFT_Roundtrip() {
 
 		var ethRecvTxHash []byte
 		s.Require().True(s.Run("Relay packet to Ethereum", func() {
-			ics26Address := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
-
-			resp, err := s.ProofApiClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+			receipt := e2esuite.RelayToEVM(ctx, s.T(), s.ProofApiClient, eth, s.ethUser, &proofapitypes.RelayByTxRequest{
 				SrcChain:    testvalues.SolanaChainID,
 				DstChain:    eth.ChainID.String(),
 				SourceTxIds: [][]byte{[]byte(solanaTransferTxSig.String())},
 				SrcClientId: EthClientIDOnSolana,
 				DstClientId: SolanaClientIDOnEth,
 			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
-
-			receipt, err := eth.BroadcastTx(ctx, s.ethUser, 15_000_000, &ics26Address, resp.Tx)
-			s.Require().NoError(err)
-			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
 			ethRecvTxHash = receipt.TxHash.Bytes()
 			s.T().Logf("Ethereum recv tx: %s", receipt.TxHash.Hex())
 		}))
@@ -1022,17 +1002,13 @@ func (s *EthereumSolanaIFTTestSuite) Test_EthSolana_IFT_Roundtrip() {
 		}))
 
 		s.Require().True(s.Run("Relay ack to Solana", func() {
-			ackResp, err := s.ProofApiClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+			_ = e2esuite.RelayToSolana(ctx, s.T(), s.ProofApiClient, &s.Solana.Chain, s.SolanaRelayer, &proofapitypes.RelayByTxRequest{
 				SrcChain:    eth.ChainID.String(),
 				DstChain:    testvalues.SolanaChainID,
 				SourceTxIds: [][]byte{ethRecvTxHash},
 				SrcClientId: SolanaClientIDOnEth,
 				DstClientId: EthClientIDOnSolana,
 			})
-			s.Require().NoError(err)
-
-			_, err = s.Solana.Chain.SubmitChunkedRelayPackets(ctx, s.T(), ackResp, s.SolanaRelayer)
-			s.Require().NoError(err)
 		}))
 
 		s.Require().True(s.Run("Verify pending transfer closed on Solana", func() {
@@ -1227,17 +1203,13 @@ func (s *EthereumSolanaIFTTestSuite) Test_EthSolana_IFT_TwoTokens() {
 		}))
 
 		s.Require().True(s.Run("Relay to Solana", func() {
-			resp, err := s.ProofApiClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+			sig := e2esuite.RelayToSolana(ctx, s.T(), s.ProofApiClient, &s.Solana.Chain, s.SolanaRelayer, &proofapitypes.RelayByTxRequest{
 				SrcChain:    eth.ChainID.String(),
 				DstChain:    testvalues.SolanaChainID,
 				SourceTxIds: [][]byte{txHash},
 				SrcClientId: SolanaClientIDOnEth,
 				DstClientId: EthClientIDOnSolana,
 			})
-			s.Require().NoError(err)
-
-			sig, err := s.Solana.Chain.SubmitChunkedRelayPackets(ctx, s.T(), resp, s.SolanaRelayer)
-			s.Require().NoError(err)
 			s.T().Logf("Token A recv tx: %s", sig)
 		}))
 
@@ -1272,17 +1244,13 @@ func (s *EthereumSolanaIFTTestSuite) Test_EthSolana_IFT_TwoTokens() {
 		}))
 
 		s.Require().True(s.Run("Relay to Solana", func() {
-			resp, err := s.ProofApiClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+			sig := e2esuite.RelayToSolana(ctx, s.T(), s.ProofApiClient, &s.Solana.Chain, s.SolanaRelayer, &proofapitypes.RelayByTxRequest{
 				SrcChain:    eth.ChainID.String(),
 				DstChain:    testvalues.SolanaChainID,
 				SourceTxIds: [][]byte{txHash},
 				SrcClientId: SolanaClientIDOnEth,
 				DstClientId: EthClientIDOnSolana,
 			})
-			s.Require().NoError(err)
-
-			sig, err := s.Solana.Chain.SubmitChunkedRelayPackets(ctx, s.T(), resp, s.SolanaRelayer)
-			s.Require().NoError(err)
 			s.T().Logf("Token B recv tx: %s", sig)
 		}))
 
@@ -1349,8 +1317,6 @@ func (s *EthereumSolanaIFTTestSuite) Test_EthSolana_IFT_TimeoutFromEth() {
 
 	eth := s.Eth.Chains[0]
 	ethIFTAddress := ethcommon.HexToAddress(s.contractAddresses.Ift)
-	ics26Address := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
-
 	ethUserAddr := crypto.PubkeyToAddress(s.ethUser.PublicKey)
 	transferAmount := big.NewInt(int64(EthSolanaIFTTransferAmount))
 
@@ -1407,19 +1373,13 @@ func (s *EthereumSolanaIFTTestSuite) Test_EthSolana_IFT_TimeoutFromEth() {
 	}))
 
 	s.Require().True(s.Run("Relay timeout packet to Ethereum", func() {
-		resp, err := s.ProofApiClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+		_ = e2esuite.RelayToEVM(ctx, s.T(), s.ProofApiClient, eth, s.ethUser, &proofapitypes.RelayByTxRequest{
 			SrcChain:     testvalues.SolanaChainID,
 			DstChain:     eth.ChainID.String(),
 			TimeoutTxIds: [][]byte{ethSendTxHash},
 			SrcClientId:  EthClientIDOnSolana,
 			DstClientId:  SolanaClientIDOnEth,
 		})
-		s.Require().NoError(err)
-		s.Require().NotEmpty(resp.Tx)
-
-		receipt, err := eth.BroadcastTx(ctx, s.ethUser, 15_000_000, &ics26Address, resp.Tx)
-		s.Require().NoError(err)
-		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
 	}))
 
 	s.Require().True(s.Run("Verify tokens refunded on Ethereum", func() {
@@ -1526,18 +1486,13 @@ func (s *EthereumSolanaIFTTestSuite) Test_EthSolana_IFT_TimeoutFromSolana() {
 	}))
 
 	s.Require().True(s.Run("Relay timeout back to Solana", func() {
-		resp, err := s.ProofApiClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+		sig := e2esuite.RelayToSolana(ctx, s.T(), s.ProofApiClient, &s.Solana.Chain, s.SolanaRelayer, &proofapitypes.RelayByTxRequest{
 			SrcChain:     eth.ChainID.String(),
 			DstChain:     testvalues.SolanaChainID,
 			TimeoutTxIds: [][]byte{solanaPacketTxHash},
 			SrcClientId:  SolanaClientIDOnEth,
 			DstClientId:  EthClientIDOnSolana,
 		})
-		s.Require().NoError(err)
-		s.Require().NotEmpty(resp.Tx, "Relay should return transaction")
-
-		sig, err := s.Solana.Chain.SubmitChunkedRelayPackets(ctx, s.T(), resp, s.SolanaRelayer)
-		s.Require().NoError(err)
 		s.T().Logf("Timeout transaction: %s", sig)
 	}))
 
@@ -1577,8 +1532,6 @@ func (s *EthereumSolanaIFTTestSuite) Test_EthSolana_IFT_FailedReceiveOnEth() {
 
 	eth := s.Eth.Chains[0]
 	ethIFTAddress := ethcommon.HexToAddress(s.contractAddresses.Ift)
-	ics26Address := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
-
 	s.Require().True(s.Run("Admin mint tokens to sender on Solana", func() {
 		s.adminMintIFTTokens(ctx, s.SolanaUser.PublicKey(), EthSolanaIFTMintAmount)
 	}))
@@ -1640,19 +1593,13 @@ func (s *EthereumSolanaIFTTestSuite) Test_EthSolana_IFT_FailedReceiveOnEth() {
 
 	var ethRecvTxHash []byte
 	s.Require().True(s.Run("Relay packet to Ethereum (execution fails)", func() {
-		resp, err := s.ProofApiClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+		receipt := e2esuite.RelayToEVM(ctx, s.T(), s.ProofApiClient, eth, s.ethUser, &proofapitypes.RelayByTxRequest{
 			SrcChain:    testvalues.SolanaChainID,
 			DstChain:    eth.ChainID.String(),
 			SourceTxIds: [][]byte{[]byte(solanaTransferTxSig.String())},
 			SrcClientId: EthClientIDOnSolana,
 			DstClientId: SolanaClientIDOnEth,
 		})
-		s.Require().NoError(err)
-		s.Require().NotEmpty(resp.Tx)
-
-		receipt, err := eth.BroadcastTx(ctx, s.ethUser, 15_000_000, &ics26Address, resp.Tx)
-		s.Require().NoError(err)
-		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
 		ethRecvTxHash = receipt.TxHash.Bytes()
 	}))
 
@@ -1666,18 +1613,13 @@ func (s *EthereumSolanaIFTTestSuite) Test_EthSolana_IFT_FailedReceiveOnEth() {
 	}))
 
 	s.Require().True(s.Run("Relay error ack to Solana", func() {
-		resp, err := s.ProofApiClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+		sig := e2esuite.RelayToSolana(ctx, s.T(), s.ProofApiClient, &s.Solana.Chain, s.SolanaRelayer, &proofapitypes.RelayByTxRequest{
 			SrcChain:    eth.ChainID.String(),
 			DstChain:    testvalues.SolanaChainID,
 			SourceTxIds: [][]byte{ethRecvTxHash},
 			SrcClientId: SolanaClientIDOnEth,
 			DstClientId: EthClientIDOnSolana,
 		})
-		s.Require().NoError(err)
-		s.Require().NotEmpty(resp.Tx)
-
-		sig, err := s.Solana.Chain.SubmitChunkedRelayPackets(ctx, s.T(), resp, s.SolanaRelayer)
-		s.Require().NoError(err)
 		s.T().Logf("Error ack relayed: %s", sig)
 	}))
 

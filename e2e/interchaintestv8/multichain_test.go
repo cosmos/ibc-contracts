@@ -874,25 +874,13 @@ func (s *MultichainTestSuite) Test_TransferCosmosToEthToCosmosAndBack() {
 
 	var finalDenom transfertypes.Denom
 	s.Require().True(s.Run("Receive packet on SimdB", func() {
-		var relayTxBodyBz []byte
-		s.Require().True(s.Run("Retrieve relay tx", func() {
-			resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
-				SrcChain:    eth.ChainID.String(),
-				DstChain:    simdB.Config().ChainID,
-				SourceTxIds: [][]byte{ethSendTxHash},
-				SrcClientId: testvalues.SecondUniversalClientID,
-				DstClientId: testvalues.FirstWasmClientID,
-			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
-			s.Require().Empty(resp.Address)
-
-			relayTxBodyBz = resp.Tx
-		}))
-
-		s.Require().True(s.Run("Broadcast relay tx", func() {
-			_ = s.MustBroadcastSdkTxBody(ctx, simdB, s.SimdBRelayerSubmitter, 2_000_000, relayTxBodyBz)
-		}))
+		_ = s.RelayToCosmos(ctx, s.ProofApiClient, simdB, s.SimdBRelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
+			SrcChain:    eth.ChainID.String(),
+			DstChain:    simdB.Config().ChainID,
+			SourceTxIds: [][]byte{ethSendTxHash},
+			SrcClientId: testvalues.SecondUniversalClientID,
+			DstClientId: testvalues.FirstWasmClientID,
+		})
 
 		s.Require().True(s.Run("Verify balances on Cosmos chain", func() {
 			finalDenom = transfertypes.NewDenom(
@@ -1021,25 +1009,13 @@ func (s *MultichainTestSuite) Test_TransferCosmosToEthToCosmosAndBack() {
 	}))
 
 	s.Require().True(s.Run("Receive packet on SimdA", func() {
-		var relayTxBodyBz []byte
-		s.Require().True(s.Run("Retrieve relay tx", func() {
-			resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
-				SrcChain:    eth.ChainID.String(),
-				DstChain:    simdA.Config().ChainID,
-				SourceTxIds: [][]byte{ethSendTxHash},
-				SrcClientId: testvalues.FirstUniversalClientID,
-				DstClientId: testvalues.FirstWasmClientID,
-			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
-			s.Require().Empty(resp.Address)
-
-			relayTxBodyBz = resp.Tx
-		}))
-
-		s.Require().True(s.Run("Broadcast relay tx", func() {
-			_ = s.MustBroadcastSdkTxBody(ctx, simdA, s.SimdARelayerSubmitter, 2_000_000, relayTxBodyBz)
-		}))
+		_ = s.RelayToCosmos(ctx, s.ProofApiClient, simdA, s.SimdARelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
+			SrcChain:    eth.ChainID.String(),
+			DstChain:    simdA.Config().ChainID,
+			SourceTxIds: [][]byte{ethSendTxHash},
+			SrcClientId: testvalues.FirstUniversalClientID,
+			DstClientId: testvalues.FirstWasmClientID,
+		})
 
 		s.Require().True(s.Run("Verify balances on Cosmos chain", func() {
 			resp, err := e2esuite.GRPCQuery[banktypes.QueryBalanceResponse](ctx, simdA, &banktypes.QueryBalanceRequest{
@@ -1124,26 +1100,14 @@ func (s *MultichainTestSuite) Test_TransferEthToCosmosToCosmosAndBack() {
 	}))
 
 	s.Require().True(s.Run("Receive packets on SimdA", func() {
-		var relayTxBodyBz []byte
-		s.Require().True(s.Run("Retrieve relay tx", func() {
-			resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
-				SrcChain:    eth.ChainID.String(),
-				DstChain:    simdA.Config().ChainID,
-				SourceTxIds: [][]byte{ethSendTxHash},
-				SrcClientId: testvalues.FirstUniversalClientID,
-				DstClientId: testvalues.FirstWasmClientID,
-			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
-			s.Require().Empty(resp.Address)
-
-			relayTxBodyBz = resp.Tx
-		}))
-
-		s.Require().True(s.Run("Broadcast relay tx", func() {
-			_ = s.MustBroadcastSdkTxBody(ctx, simdA, s.SimdARelayerSubmitter, 2_000_000, relayTxBodyBz)
-			// NOTE: We don't need to check the response since we don't need to acknowledge the packet
-		}))
+		// NOTE: We don't need to check the response since we don't need to acknowledge the packet
+		_ = s.RelayToCosmos(ctx, s.ProofApiClient, simdA, s.SimdARelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
+			SrcChain:    eth.ChainID.String(),
+			DstChain:    simdA.Config().ChainID,
+			SourceTxIds: [][]byte{ethSendTxHash},
+			SrcClientId: testvalues.FirstUniversalClientID,
+			DstClientId: testvalues.FirstWasmClientID,
+		})
 
 		s.Require().True(s.Run("Verify balances on Cosmos chain", func() {
 			denomOnSimdA := transfertypes.NewDenom(s.contractAddresses.Erc20, transfertypes.NewHop(transfertypes.PortID, testvalues.FirstWasmClientID))
@@ -1200,26 +1164,14 @@ func (s *MultichainTestSuite) Test_TransferEthToCosmosToCosmosAndBack() {
 
 	var finalDenom transfertypes.Denom
 	s.Require().True(s.Run("Receive packet on SimdB", func() {
-		var txBodyBz []byte
-		s.Require().True(s.Run("Retrieve relay tx to SimdB", func() {
-			resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
-				SrcChain:    simdA.Config().ChainID,
-				DstChain:    simdB.Config().ChainID,
-				SourceTxIds: [][]byte{simdASendTxHash},
-				SrcClientId: ibctesting.SecondClientID,
-				DstClientId: ibctesting.SecondClientID,
-			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
-			s.Require().Empty(resp.Address)
-
-			txBodyBz = resp.Tx
-		}))
-
-		s.Require().True(s.Run("Broadcast relay tx on SimdB", func() {
-			_ = s.MustBroadcastSdkTxBody(ctx, simdB, s.SimdBRelayerSubmitter, 2_000_000, txBodyBz)
-			// NOTE: We don't need to check the response since we don't need to acknowledge the packet
-		}))
+		// NOTE: We don't need to check the response since we don't need to acknowledge the packet
+		_ = s.RelayToCosmos(ctx, s.ProofApiClient, simdB, s.SimdBRelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
+			SrcChain:    simdA.Config().ChainID,
+			DstChain:    simdB.Config().ChainID,
+			SourceTxIds: [][]byte{simdASendTxHash},
+			SrcClientId: ibctesting.SecondClientID,
+			DstClientId: ibctesting.SecondClientID,
+		})
 
 		s.Require().True(s.Run("Verify balances on Cosmos chain", func() {
 			finalDenom = transfertypes.NewDenom(
@@ -1276,25 +1228,13 @@ func (s *MultichainTestSuite) Test_TransferEthToCosmosToCosmosAndBack() {
 	}))
 
 	s.Require().True(s.Run("Receive packet on SimdA", func() {
-		var relayTxBodyBz []byte
-		s.Require().True(s.Run("Retrieve relay tx", func() {
-			resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
-				SrcChain:    simdB.Config().ChainID,
-				DstChain:    simdA.Config().ChainID,
-				SourceTxIds: [][]byte{simdBTransferTxHash},
-				SrcClientId: ibctesting.SecondClientID,
-				DstClientId: ibctesting.SecondClientID,
-			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
-			s.Require().Empty(resp.Address)
-
-			relayTxBodyBz = resp.Tx
-		}))
-
-		s.Require().True(s.Run("Broadcast relay tx on SimdA", func() {
-			_ = s.MustBroadcastSdkTxBody(ctx, simdA, s.SimdARelayerSubmitter, 2_000_000, relayTxBodyBz)
-		}))
+		_ = s.RelayToCosmos(ctx, s.ProofApiClient, simdA, s.SimdARelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
+			SrcChain:    simdB.Config().ChainID,
+			DstChain:    simdA.Config().ChainID,
+			SourceTxIds: [][]byte{simdBTransferTxHash},
+			SrcClientId: ibctesting.SecondClientID,
+			DstClientId: ibctesting.SecondClientID,
+		})
 
 		s.Require().True(s.Run("Verify balances on SimdA", func() {
 			denomOnSimdA := transfertypes.NewDenom(s.contractAddresses.Erc20, transfertypes.NewHop(transfertypes.PortID, testvalues.FirstWasmClientID))
@@ -1433,25 +1373,13 @@ func (s *MultichainTestSuite) Test_TransferCosmosToCosmosToEth() {
 		transfertypes.NewHop(transfertypes.PortID, ibctesting.SecondClientID),
 	)
 	s.Require().True(s.Run("Receive packet on SimdB", func() {
-		var txBodyBz []byte
-		s.Require().True(s.Run("Retrieve relay tx to SimdB", func() {
-			resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
-				SrcChain:    simdA.Config().ChainID,
-				DstChain:    simdB.Config().ChainID,
-				SourceTxIds: [][]byte{simdASendTxHash},
-				SrcClientId: ibctesting.SecondClientID,
-				DstClientId: ibctesting.SecondClientID,
-			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
-			s.Require().Empty(resp.Address)
-
-			txBodyBz = resp.Tx
-		}))
-
-		s.Require().True(s.Run("Broadcast relay tx on SimdB", func() {
-			_ = s.MustBroadcastSdkTxBody(ctx, simdB, s.SimdBRelayerSubmitter, 2_000_000, txBodyBz)
-		}))
+		_ = s.RelayToCosmos(ctx, s.ProofApiClient, simdB, s.SimdBRelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
+			SrcChain:    simdA.Config().ChainID,
+			DstChain:    simdB.Config().ChainID,
+			SourceTxIds: [][]byte{simdASendTxHash},
+			SrcClientId: ibctesting.SecondClientID,
+			DstClientId: ibctesting.SecondClientID,
+		})
 
 		s.Require().True(s.Run("Verify balances on SimdB", func() {
 			resp, err := e2esuite.GRPCQuery[banktypes.QueryBalanceResponse](ctx, simdB, &banktypes.QueryBalanceRequest{
@@ -1586,25 +1514,13 @@ func (s *MultichainTestSuite) Test_TransferCosmosToCosmosToEth() {
 		}))
 
 		s.Require().True(s.Run("Receive packet on SimdB", func() {
-			var returnRelayTxBodyBz []byte
-			s.Require().True(s.Run("Retrieve relay tx", func() {
-				resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
-					SrcChain:    eth.ChainID.String(),
-					DstChain:    simdB.Config().ChainID,
-					SourceTxIds: [][]byte{ethReturnSendTxHash},
-					SrcClientId: testvalues.SecondUniversalClientID,
-					DstClientId: testvalues.FirstWasmClientID,
-				})
-				s.Require().NoError(err)
-				s.Require().NotEmpty(resp.Tx)
-				s.Require().Empty(resp.Address)
-
-				returnRelayTxBodyBz = resp.Tx
-			}))
-
-			s.Require().True(s.Run("Broadcast relay tx on SimdB", func() {
-				_ = s.MustBroadcastSdkTxBody(ctx, simdB, s.SimdBRelayerSubmitter, 2_000_000, returnRelayTxBodyBz)
-			}))
+			_ = s.RelayToCosmos(ctx, s.ProofApiClient, simdB, s.SimdBRelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
+				SrcChain:    eth.ChainID.String(),
+				DstChain:    simdB.Config().ChainID,
+				SourceTxIds: [][]byte{ethReturnSendTxHash},
+				SrcClientId: testvalues.SecondUniversalClientID,
+				DstClientId: testvalues.FirstWasmClientID,
+			})
 
 			s.Require().True(s.Run("Verify balances on SimdB", func() {
 				resp, err := e2esuite.GRPCQuery[banktypes.QueryBalanceResponse](ctx, simdB, &banktypes.QueryBalanceRequest{
@@ -1657,25 +1573,13 @@ func (s *MultichainTestSuite) Test_TransferCosmosToCosmosToEth() {
 		}))
 
 		s.Require().True(s.Run("Receive packet on SimdA", func() {
-			var returnRelayTxBodyBz []byte
-			s.Require().True(s.Run("Retrieve relay tx", func() {
-				resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
-					SrcChain:    simdB.Config().ChainID,
-					DstChain:    simdA.Config().ChainID,
-					SourceTxIds: [][]byte{simdBTransferTxHash},
-					SrcClientId: ibctesting.SecondClientID,
-					DstClientId: ibctesting.SecondClientID,
-				})
-				s.Require().NoError(err)
-				s.Require().NotEmpty(resp.Tx)
-				s.Require().Empty(resp.Address)
-
-				returnRelayTxBodyBz = resp.Tx
-			}))
-
-			s.Require().True(s.Run("Broadcast relay tx on SimdA", func() {
-				_ = s.MustBroadcastSdkTxBody(ctx, simdA, s.SimdARelayerSubmitter, 2_000_000, returnRelayTxBodyBz)
-			}))
+			_ = s.RelayToCosmos(ctx, s.ProofApiClient, simdA, s.SimdARelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
+				SrcChain:    simdB.Config().ChainID,
+				DstChain:    simdA.Config().ChainID,
+				SourceTxIds: [][]byte{simdBTransferTxHash},
+				SrcClientId: ibctesting.SecondClientID,
+				DstClientId: ibctesting.SecondClientID,
+			})
 
 			s.Require().True(s.Run("Verify balances on SimdA", func() {
 				resp, err := e2esuite.GRPCQuery[banktypes.QueryBalanceResponse](ctx, simdA, &banktypes.QueryBalanceRequest{

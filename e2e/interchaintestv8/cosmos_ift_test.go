@@ -331,17 +331,13 @@ func (s *CosmosIFTTestSuite) Test_IFTTransfer() {
 			sendTxHashBytes, err := hex.DecodeString(sendTxHash)
 			s.Require().NoError(err)
 
-			resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
+			broadcastResp := s.RelayToCosmos(ctx, s.ProofApiClient, s.ChainB, s.ChainBSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
 				SrcChain:    s.ChainA.Config().ChainID,
 				DstChain:    s.ChainB.Config().ChainID,
 				SourceTxIds: [][]byte{sendTxHashBytes},
 				SrcClientId: ibctesting.FirstClientID,
 				DstClientId: ibctesting.FirstClientID,
 			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
-
-			broadcastResp := s.MustBroadcastSdkTxBody(ctx, s.ChainB, s.ChainBSubmitter, 2_000_000, resp.Tx)
 			ackTxHash, err = hex.DecodeString(broadcastResp.TxHash)
 			s.Require().NoError(err)
 		}))
@@ -361,17 +357,13 @@ func (s *CosmosIFTTestSuite) Test_IFTTransfer() {
 		}))
 
 		s.Require().True(s.Run("Relay acknowledgement to Chain A", func() {
-			resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
+			_ = s.RelayToCosmos(ctx, s.ProofApiClient, s.ChainA, s.ChainASubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
 				SrcChain:    s.ChainB.Config().ChainID,
 				DstChain:    s.ChainA.Config().ChainID,
 				SourceTxIds: [][]byte{ackTxHash},
 				SrcClientId: ibctesting.FirstClientID,
 				DstClientId: ibctesting.FirstClientID,
 			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
-
-			_ = s.MustBroadcastSdkTxBody(ctx, s.ChainA, s.ChainASubmitter, 2_000_000, resp.Tx)
 		}))
 
 		s.Require().True(s.Run("Verify pending transfer removed after ack", func() {
@@ -412,17 +404,13 @@ func (s *CosmosIFTTestSuite) Test_IFTTransfer() {
 			sendTxHashBytes, err := hex.DecodeString(sendTxHash)
 			s.Require().NoError(err)
 
-			resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
+			broadcastResp := s.RelayToCosmos(ctx, s.ProofApiClient, s.ChainA, s.ChainASubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
 				SrcChain:    s.ChainB.Config().ChainID,
 				DstChain:    s.ChainA.Config().ChainID,
 				SourceTxIds: [][]byte{sendTxHashBytes},
 				SrcClientId: ibctesting.FirstClientID,
 				DstClientId: ibctesting.FirstClientID,
 			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
-
-			broadcastResp := s.MustBroadcastSdkTxBody(ctx, s.ChainA, s.ChainASubmitter, 2_000_000, resp.Tx)
 			ackTxHashB, err = hex.DecodeString(broadcastResp.TxHash)
 			s.Require().NoError(err)
 		}))
@@ -442,17 +430,13 @@ func (s *CosmosIFTTestSuite) Test_IFTTransfer() {
 		}))
 
 		s.Require().True(s.Run("Relay acknowledgement to Chain B", func() {
-			resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
+			_ = s.RelayToCosmos(ctx, s.ProofApiClient, s.ChainB, s.ChainBSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
 				SrcChain:    s.ChainA.Config().ChainID,
 				DstChain:    s.ChainB.Config().ChainID,
 				SourceTxIds: [][]byte{ackTxHashB},
 				SrcClientId: ibctesting.FirstClientID,
 				DstClientId: ibctesting.FirstClientID,
 			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
-
-			_ = s.MustBroadcastSdkTxBody(ctx, s.ChainB, s.ChainBSubmitter, 2_000_000, resp.Tx)
 		}))
 
 		s.Require().True(s.Run("Verify pending transfer removed after ack", func() {
@@ -571,17 +555,13 @@ func (s *CosmosIFTTestSuite) Test_IFTTransferTimeout() {
 		sendTxHashBytes, err := hex.DecodeString(sendTxHash)
 		s.Require().NoError(err)
 
-		resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
+		_ = s.RelayToCosmos(ctx, s.ProofApiClient, s.ChainA, s.ChainASubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
 			SrcChain:     s.ChainB.Config().ChainID,
 			DstChain:     s.ChainA.Config().ChainID,
 			TimeoutTxIds: [][]byte{sendTxHashBytes},
 			SrcClientId:  ibctesting.FirstClientID,
 			DstClientId:  ibctesting.FirstClientID,
 		})
-		s.Require().NoError(err)
-		s.Require().NotEmpty(resp.Tx, "relayer should generate timeout tx")
-
-		_ = s.MustBroadcastSdkTxBody(ctx, s.ChainA, s.ChainASubmitter, 2_000_000, resp.Tx)
 	}))
 
 	s.Require().True(s.Run("Verify tokens refunded on Chain A", func() {
@@ -695,17 +675,13 @@ func (s *CosmosIFTTestSuite) Test_IFTTransferFailedReceive() {
 		sendTxHashBytes, err := hex.DecodeString(sendTxHash)
 		s.Require().NoError(err)
 
-		resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
+		broadcastResp := s.RelayToCosmos(ctx, s.ProofApiClient, s.ChainB, s.ChainBSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
 			SrcChain:    s.ChainA.Config().ChainID,
 			DstChain:    s.ChainB.Config().ChainID,
 			SourceTxIds: [][]byte{sendTxHashBytes},
 			SrcClientId: ibctesting.FirstClientID,
 			DstClientId: ibctesting.FirstClientID,
 		})
-		s.Require().NoError(err)
-		s.Require().NotEmpty(resp.Tx)
-
-		broadcastResp := s.MustBroadcastSdkTxBody(ctx, s.ChainB, s.ChainBSubmitter, 2_000_000, resp.Tx)
 		ackTxHash, err = hex.DecodeString(broadcastResp.TxHash)
 		s.Require().NoError(err)
 	}))
@@ -714,17 +690,13 @@ func (s *CosmosIFTTestSuite) Test_IFTTransferFailedReceive() {
 	// We verify the error ack refunds tokens to the sender.
 
 	s.Require().True(s.Run("Relay error ack to Chain A", func() {
-		resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
+		_ = s.RelayToCosmos(ctx, s.ProofApiClient, s.ChainA, s.ChainASubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
 			SrcChain:    s.ChainB.Config().ChainID,
 			DstChain:    s.ChainA.Config().ChainID,
 			SourceTxIds: [][]byte{ackTxHash},
 			SrcClientId: ibctesting.FirstClientID,
 			DstClientId: ibctesting.FirstClientID,
 		})
-		s.Require().NoError(err)
-		s.Require().NotEmpty(resp.Tx)
-
-		_ = s.MustBroadcastSdkTxBody(ctx, s.ChainA, s.ChainASubmitter, 2_000_000, resp.Tx)
 	}))
 
 	s.Require().True(s.Run("Verify tokens refunded on Chain A", func() {
@@ -820,17 +792,13 @@ func (s *CosmosIFTTestSuite) Test_IFTTransferMultipleSequential() {
 					sendTxHashBytes, err := hex.DecodeString(sendTxHashes[i])
 					s.Require().NoError(err)
 
-					resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
+					broadcastResp := s.RelayToCosmos(ctx, s.ProofApiClient, s.ChainB, s.ChainBSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
 						SrcChain:    s.ChainA.Config().ChainID,
 						DstChain:    s.ChainB.Config().ChainID,
 						SourceTxIds: [][]byte{sendTxHashBytes},
 						SrcClientId: ibctesting.FirstClientID,
 						DstClientId: ibctesting.FirstClientID,
 					})
-					s.Require().NoError(err)
-					s.Require().NotEmpty(resp.Tx)
-
-					broadcastResp := s.MustBroadcastSdkTxBody(ctx, s.ChainB, s.ChainBSubmitter, 2_000_000, resp.Tx)
 					ackTxHashes[i], err = hex.DecodeString(broadcastResp.TxHash)
 					s.Require().NoError(err)
 				}))
@@ -846,17 +814,13 @@ func (s *CosmosIFTTestSuite) Test_IFTTransferMultipleSequential() {
 		s.Require().True(s.Run("Relay all acks to Chain A", func() {
 			for i := 0; i < 3; i++ {
 				s.Require().True(s.Run(fmt.Sprintf("Relay ack %d", i+1), func() {
-					resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
+					_ = s.RelayToCosmos(ctx, s.ProofApiClient, s.ChainA, s.ChainASubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
 						SrcChain:    s.ChainB.Config().ChainID,
 						DstChain:    s.ChainA.Config().ChainID,
 						SourceTxIds: [][]byte{ackTxHashes[i]},
 						SrcClientId: ibctesting.FirstClientID,
 						DstClientId: ibctesting.FirstClientID,
 					})
-					s.Require().NoError(err)
-					s.Require().NotEmpty(resp.Tx)
-
-					_ = s.MustBroadcastSdkTxBody(ctx, s.ChainA, s.ChainASubmitter, 2_000_000, resp.Tx)
 				}))
 			}
 		}))
@@ -919,17 +883,13 @@ func (s *CosmosIFTTestSuite) Test_IFTTransferMultipleSequential() {
 					sendTxHashBytes, err := hex.DecodeString(sendTxHashesBA[i])
 					s.Require().NoError(err)
 
-					resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
+					broadcastResp := s.RelayToCosmos(ctx, s.ProofApiClient, s.ChainA, s.ChainASubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
 						SrcChain:    s.ChainB.Config().ChainID,
 						DstChain:    s.ChainA.Config().ChainID,
 						SourceTxIds: [][]byte{sendTxHashBytes},
 						SrcClientId: ibctesting.FirstClientID,
 						DstClientId: ibctesting.FirstClientID,
 					})
-					s.Require().NoError(err)
-					s.Require().NotEmpty(resp.Tx)
-
-					broadcastResp := s.MustBroadcastSdkTxBody(ctx, s.ChainA, s.ChainASubmitter, 2_000_000, resp.Tx)
 					ackTxHashesBA[i], err = hex.DecodeString(broadcastResp.TxHash)
 					s.Require().NoError(err)
 				}))
@@ -945,17 +905,13 @@ func (s *CosmosIFTTestSuite) Test_IFTTransferMultipleSequential() {
 		s.Require().True(s.Run("Relay all acks to Chain B", func() {
 			for i := 0; i < 3; i++ {
 				s.Require().True(s.Run(fmt.Sprintf("Relay ack %d", i+1), func() {
-					resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
+					_ = s.RelayToCosmos(ctx, s.ProofApiClient, s.ChainB, s.ChainBSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
 						SrcChain:    s.ChainA.Config().ChainID,
 						DstChain:    s.ChainB.Config().ChainID,
 						SourceTxIds: [][]byte{ackTxHashesBA[i]},
 						SrcClientId: ibctesting.FirstClientID,
 						DstClientId: ibctesting.FirstClientID,
 					})
-					s.Require().NoError(err)
-					s.Require().NotEmpty(resp.Tx)
-
-					_ = s.MustBroadcastSdkTxBody(ctx, s.ChainB, s.ChainBSubmitter, 2_000_000, resp.Tx)
 				}))
 			}
 		}))
@@ -1016,19 +972,15 @@ func (s *CosmosIFTTestSuite) Test_GMPPacketNotBlockedByIFT() {
 		sendTxHashBytes, err := hex.DecodeString(sendTxHash)
 		s.Require().NoError(err)
 
-		resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
+		// Broadcast to Chain B - this will likely produce an error ack
+		// since the receiver doesn't exist, but that's expected
+		broadcastResp := s.RelayToCosmos(ctx, s.ProofApiClient, s.ChainB, s.ChainBSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
 			SrcChain:    s.ChainA.Config().ChainID,
 			DstChain:    s.ChainB.Config().ChainID,
 			SourceTxIds: [][]byte{sendTxHashBytes},
 			SrcClientId: ibctesting.FirstClientID,
 			DstClientId: ibctesting.FirstClientID,
 		})
-		s.Require().NoError(err)
-		s.Require().NotEmpty(resp.Tx)
-
-		// Broadcast to Chain B - this will likely produce an error ack
-		// since the receiver doesn't exist, but that's expected
-		broadcastResp := s.MustBroadcastSdkTxBody(ctx, s.ChainB, s.ChainBSubmitter, 2_000_000, resp.Tx)
 		recvTxHash, err = hex.DecodeString(broadcastResp.TxHash)
 		s.Require().NoError(err)
 	}))
@@ -1039,19 +991,15 @@ func (s *CosmosIFTTestSuite) Test_GMPPacketNotBlockedByIFT() {
 		// (since IFT is the ContractKeeper for GMP).
 		// IFT should gracefully ignore this packet (return nil, not error)
 		// because packetSender != IFT module address.
-		resp, err := s.ProofApiClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
+		// If IFT returned an error for non-IFT packets, this broadcast would fail.
+		// The fact that it succeeds proves IFT gracefully ignores non-IFT packets.
+		_ = s.RelayToCosmos(ctx, s.ProofApiClient, s.ChainA, s.ChainASubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
 			SrcChain:    s.ChainB.Config().ChainID,
 			DstChain:    s.ChainA.Config().ChainID,
 			SourceTxIds: [][]byte{recvTxHash},
 			SrcClientId: ibctesting.FirstClientID,
 			DstClientId: ibctesting.FirstClientID,
 		})
-		s.Require().NoError(err)
-		s.Require().NotEmpty(resp.Tx)
-
-		// If IFT returned an error for non-IFT packets, this broadcast would fail.
-		// The fact that it succeeds proves IFT gracefully ignores non-IFT packets.
-		_ = s.MustBroadcastSdkTxBody(ctx, s.ChainA, s.ChainASubmitter, 2_000_000, resp.Tx)
 	}))
 }
 

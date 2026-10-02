@@ -530,19 +530,13 @@ func (s *CosmosEthereumIFTTestSuite) Test_IFTTransfer_Roundtrip() {
 			sendTxHashBytes, err := hex.DecodeString(cosmosSendTxHash)
 			s.Require().NoError(err)
 
-			resp, err := s.ProofApiClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+			receipt := e2esuite.RelayToEVM(ctx, s.T(), s.ProofApiClient, eth, s.EthRelayerSubmitter, &proofapitypes.RelayByTxRequest{
 				SrcChain:    s.Wfchain.Config().ChainID,
 				DstChain:    eth.ChainID.String(),
 				SourceTxIds: [][]byte{sendTxHashBytes},
 				SrcClientId: tc.ethClientIDOnCosmos,
 				DstClientId: tc.tmClientID,
 			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
-
-			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 15_000_000, &tc.ics26Address, resp.Tx)
-			s.Require().NoError(err)
-			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
 			cosmosRecvTxHash = receipt.TxHash.Bytes()
 		}))
 
@@ -556,17 +550,13 @@ func (s *CosmosEthereumIFTTestSuite) Test_IFTTransfer_Roundtrip() {
 		}))
 
 		s.Require().True(s.Run("Relay ack to Cosmos", func() {
-			resp, err := s.ProofApiClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+			_ = s.RelayToCosmos(ctx, s.ProofApiClient, s.Wfchain, s.CosmosRelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
 				SrcChain:    eth.ChainID.String(),
 				DstChain:    s.Wfchain.Config().ChainID,
 				SourceTxIds: [][]byte{cosmosRecvTxHash},
 				SrcClientId: tc.tmClientID,
 				DstClientId: tc.ethClientIDOnCosmos,
 			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
-
-			_ = s.MustBroadcastSdkTxBody(ctx, s.Wfchain, s.CosmosRelayerSubmitter, 2_000_000, resp.Tx)
 		}))
 
 		s.Require().True(s.Run("Verify pending transfer cleared on Cosmos", func() {
@@ -606,17 +596,13 @@ func (s *CosmosEthereumIFTTestSuite) Test_IFTTransfer_Roundtrip() {
 		}))
 
 		s.Require().True(s.Run("Relay packet to Cosmos", func() {
-			resp, err := s.ProofApiClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+			cosmosRecvTxResponse = s.RelayToCosmos(ctx, s.ProofApiClient, s.Wfchain, s.CosmosRelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
 				SrcChain:    eth.ChainID.String(),
 				DstChain:    s.Wfchain.Config().ChainID,
 				SourceTxIds: [][]byte{ethSendTxHash},
 				SrcClientId: tc.tmClientID,
 				DstClientId: tc.ethClientIDOnCosmos,
 			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
-
-			cosmosRecvTxResponse = s.MustBroadcastSdkTxBody(ctx, s.Wfchain, s.CosmosRelayerSubmitter, 2_000_000, resp.Tx)
 		}))
 
 		s.Require().True(s.Run("Verify balance on Cosmos", func() {
@@ -629,19 +615,13 @@ func (s *CosmosEthereumIFTTestSuite) Test_IFTTransfer_Roundtrip() {
 			cosmosRecvTxHashBytes, err := hex.DecodeString(cosmosRecvTxResponse.TxHash)
 			s.Require().NoError(err)
 
-			resp, err := s.ProofApiClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+			_ = e2esuite.RelayToEVM(ctx, s.T(), s.ProofApiClient, eth, s.EthRelayerSubmitter, &proofapitypes.RelayByTxRequest{
 				SrcChain:    s.Wfchain.Config().ChainID,
 				DstChain:    eth.ChainID.String(),
 				SourceTxIds: [][]byte{cosmosRecvTxHashBytes},
 				SrcClientId: tc.ethClientIDOnCosmos,
 				DstClientId: tc.tmClientID,
 			})
-			s.Require().NoError(err)
-			s.Require().NotEmpty(resp.Tx)
-
-			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 15_000_000, &tc.ics26Address, resp.Tx)
-			s.Require().NoError(err)
-			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
 		}))
 
 		s.Require().True(s.Run("Verify pending transfer cleared on Ethereum", func() {
@@ -726,17 +706,13 @@ func (s *CosmosEthereumIFTTestSuite) Test_IFTTransfer_TimeoutCosmosToEthereum() 
 		sendTxHashBytes, err := hex.DecodeString(sendTxHash)
 		s.Require().NoError(err)
 
-		resp, err := s.ProofApiClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+		_ = s.RelayToCosmos(ctx, s.ProofApiClient, s.Wfchain, s.CosmosRelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
 			SrcChain:     eth.ChainID.String(),
 			DstChain:     s.Wfchain.Config().ChainID,
 			TimeoutTxIds: [][]byte{sendTxHashBytes},
 			SrcClientId:  tc.tmClientID,
 			DstClientId:  tc.ethClientIDOnCosmos,
 		})
-		s.Require().NoError(err)
-		s.Require().NotEmpty(resp.Tx)
-
-		_ = s.MustBroadcastSdkTxBody(ctx, s.Wfchain, s.CosmosRelayerSubmitter, 2_000_000, resp.Tx)
 	}))
 
 	s.Require().True(s.Run("Verify tokens refunded on Cosmos", func() {
@@ -833,19 +809,13 @@ func (s *CosmosEthereumIFTTestSuite) Test_IFTTransfer_TimeoutEthereumToCosmos() 
 	}))
 
 	s.Require().True(s.Run("Relay timeout packet to Ethereum", func() {
-		resp, err := s.ProofApiClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+		_ = e2esuite.RelayToEVM(ctx, s.T(), s.ProofApiClient, eth, s.EthRelayerSubmitter, &proofapitypes.RelayByTxRequest{
 			SrcChain:     s.Wfchain.Config().ChainID,
 			DstChain:     eth.ChainID.String(),
 			TimeoutTxIds: [][]byte{sendTxHash},
 			SrcClientId:  tc.ethClientIDOnCosmos,
 			DstClientId:  tc.tmClientID,
 		})
-		s.Require().NoError(err)
-		s.Require().NotEmpty(resp.Tx)
-
-		receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 15_000_000, &tc.ics26Address, resp.Tx)
-		s.Require().NoError(err)
-		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
 	}))
 
 	s.Require().True(s.Run("Verify tokens refunded on Ethereum", func() {
@@ -940,17 +910,13 @@ func (s *CosmosEthereumIFTTestSuite) Test_IFTTransfer_FailedReceiveOnCosmos() {
 
 	var recvTxHash string
 	s.Require().True(s.Run("Relay packet to Cosmos (execution fails)", func() {
-		resp, err := s.ProofApiClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+		cosmosRecvTxResponse := s.RelayToCosmos(ctx, s.ProofApiClient, s.Wfchain, s.CosmosRelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
 			SrcChain:    eth.ChainID.String(),
 			DstChain:    s.Wfchain.Config().ChainID,
 			SourceTxIds: [][]byte{sendTxHash},
 			SrcClientId: tc.tmClientID,
 			DstClientId: tc.ethClientIDOnCosmos,
 		})
-		s.Require().NoError(err)
-		s.Require().NotEmpty(resp.Tx)
-
-		cosmosRecvTxResponse := s.MustBroadcastSdkTxBody(ctx, s.Wfchain, s.CosmosRelayerSubmitter, 2_000_000, resp.Tx)
 		recvTxHash = cosmosRecvTxResponse.TxHash
 	}))
 
@@ -964,19 +930,13 @@ func (s *CosmosEthereumIFTTestSuite) Test_IFTTransfer_FailedReceiveOnCosmos() {
 		recvTxHashBytes, err := hex.DecodeString(recvTxHash)
 		s.Require().NoError(err)
 
-		resp, err := s.ProofApiClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+		_ = e2esuite.RelayToEVM(ctx, s.T(), s.ProofApiClient, eth, s.EthRelayerSubmitter, &proofapitypes.RelayByTxRequest{
 			SrcChain:    s.Wfchain.Config().ChainID,
 			DstChain:    eth.ChainID.String(),
 			SourceTxIds: [][]byte{recvTxHashBytes},
 			SrcClientId: tc.ethClientIDOnCosmos,
 			DstClientId: tc.tmClientID,
 		})
-		s.Require().NoError(err)
-		s.Require().NotEmpty(resp.Tx)
-
-		receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 15_000_000, &tc.ics26Address, resp.Tx)
-		s.Require().NoError(err)
-		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
 	}))
 
 	s.Require().True(s.Run("Verify tokens refunded on Ethereum", func() {
@@ -1163,19 +1123,13 @@ func (s *CosmosEthereumIFTTestSuite) Test_IFTTransfer_FailedReceiveOnEthereum() 
 		sendTxHashBytes, err := hex.DecodeString(sendTxHash)
 		s.Require().NoError(err)
 
-		resp, err := s.ProofApiClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+		receipt := e2esuite.RelayToEVM(ctx, s.T(), s.ProofApiClient, eth, s.EthRelayerSubmitter, &proofapitypes.RelayByTxRequest{
 			SrcChain:    s.Wfchain.Config().ChainID,
 			DstChain:    eth.ChainID.String(),
 			SourceTxIds: [][]byte{sendTxHashBytes},
 			SrcClientId: ethClientIDOnCosmos,
 			DstClientId: tmClientID,
 		})
-		s.Require().NoError(err)
-		s.Require().NotEmpty(resp.Tx)
-
-		receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 15_000_000, &ics26Address, resp.Tx)
-		s.Require().NoError(err)
-		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
 		recvTxHash = receipt.TxHash.Bytes()
 	}))
 
@@ -1189,17 +1143,13 @@ func (s *CosmosEthereumIFTTestSuite) Test_IFTTransfer_FailedReceiveOnEthereum() 
 	}))
 
 	s.Require().True(s.Run("Relay error ack to Cosmos", func() {
-		resp, err := s.ProofApiClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+		_ = s.RelayToCosmos(ctx, s.ProofApiClient, s.Wfchain, s.CosmosRelayerSubmitter, 2_000_000, &proofapitypes.RelayByTxRequest{
 			SrcChain:    eth.ChainID.String(),
 			DstChain:    s.Wfchain.Config().ChainID,
 			SourceTxIds: [][]byte{recvTxHash},
 			SrcClientId: tmClientID,
 			DstClientId: ethClientIDOnCosmos,
 		})
-		s.Require().NoError(err)
-		s.Require().NotEmpty(resp.Tx)
-
-		_ = s.MustBroadcastSdkTxBody(ctx, s.Wfchain, s.CosmosRelayerSubmitter, 2_000_000, resp.Tx)
 	}))
 
 	s.Require().True(s.Run("Verify tokens refunded on Cosmos", func() {
