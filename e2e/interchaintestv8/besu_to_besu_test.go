@@ -9,6 +9,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -55,7 +56,7 @@ const (
 	besuToBesuDefaultTrustLevel = "2/3"
 )
 
-var besuToBesuChainBIPs = [4]string{"10.43.0.2", "10.43.0.3", "10.43.0.4", "10.43.0.5"}
+var besuToBesuChainBIPs = [5]string{"10.43.0.2", "10.43.0.3", "10.43.0.4", "10.43.0.5", "10.43.0.6"}
 
 type besuToBesuChainState struct {
 	network           chainconfig.BesuQBFTChain
@@ -623,26 +624,32 @@ func (s *BesuToBesuTestSuite) Test_TimeNonMonotonicityFreezesClient() {
 	}))
 }
 
-// Test_ValidatorSetChanges removes and then re-adds a Chain A validator through live QBFT votes while dedicated
-// clients on Chain B follow the chain. While 3 validators remain, Besu seals each block with only 2 commit seals, so a
-// client trusting the original 4 validators at the default 2/3 trust level cannot update past the removal, while a
-// client at 1/3 can. Once the validator rejoins, blocks carry 3 seals from the original set and both clients catch up.
+// Test_ValidatorSetChanges removes a Chain A validator and then votes in a new one through live QBFT votes, while
+// dedicated clients on Chain B follow the chain. Besu seals each block with exactly ceil(2n / 3) commit seals. With 3
+// validators that is 2 seals, so a client trusting the original 4 validators at the default 2/3 trust level cannot
+// update past the removal, while a client at 1/3 can. Once the new validator joins, the default client can only catch
+// up through a header that the new validator did not sign.
 func (s *BesuToBesuTestSuite) Test_ValidatorSetChanges() {
 	ctx := context.Background()
 
 	const (
-		changedValidator     = "validator4"
+		removedValidator     = "validator4"
 		lowTrustClientID     = "besu-validator-change-low-trust"
 		defaultTrustClientID = "besu-validator-change-default-trust"
 	)
 	var (
-		lowTrustClient     *besuqbft.Contract
-		defaultTrustClient *besuqbft.Contract
-		defaultTrustHeight uint64
-		initialValidators  []ethcommon.Address
-		removalHeight      uint64
-		rejoinHeight       uint64
+		lowTrustClient      *besuqbft.Contract
+		defaultTrustClient  *besuqbft.Contract
+		defaultTrustHeight  uint64
+		initialValidators   []ethcommon.Address
+		remainingValidators []ethcommon.Address
+		newValidator        ethcommon.Address
+		removalHeight       uint64
+		additionHeight      uint64
+		newSignerHeight     uint64
 	)
+	// 2 of the 3 original validators sign, but ceil(4 * 2/3) = 3 trusted validators are required.
+	overlapErr := s.besuClientErr("InsufficientTrustedValidatorOverlap", big.NewInt(2), big.NewInt(3))
 
 	s.Require().True(s.Run("Create dedicated clients on Chain B", func() {
 		lowTrustClient = s.createDedicatedBesuClient(lowTrustClientID, "1/3")
@@ -657,13 +664,14 @@ func (s *BesuToBesuTestSuite) Test_ValidatorSetChanges() {
 
 	s.Require().True(s.Run("Remove a validator from Chain A", func() {
 		var err error
-		removalHeight, err = s.chainA.network.UpdateValidatorSet(ctx, changedValidator, false)
+		removalHeight, err = s.chainA.network.UpdateValidatorSet(ctx, removedValidator, false)
 		s.Require().NoError(err)
 
 		state, err := e2etypes.FetchQBFTConsensusState(ctx, &s.chainA.eth, removalHeight)
 		s.Require().NoError(err)
-		s.Require().Len(state.Validators, 3)
-		s.Require().Subset(initialValidators, state.Validators)
+		remainingValidators = state.Validators
+		s.Require().Len(remainingValidators, 3)
+		s.Require().Subset(initialValidators, remainingValidators)
 	}))
 
 	s.Require().True(s.Run("Low trust client follows the removal", func() {
@@ -677,34 +685,74 @@ func (s *BesuToBesuTestSuite) Test_ValidatorSetChanges() {
 	s.Require().True(s.Run("Default trust client cannot update past the removal", func() {
 		updateMsg, err := e2etypes.BuildQBFTUpdate(ctx, &s.chainA.eth, defaultTrustHeight, removalHeight)
 		s.Require().NoError(err)
-		// 2 of the 3 remaining validators sign, but ceil(4 * 2/3) = 3 trusted validators are required.
-		overlapErr := s.besuClientErr("InsufficientTrustedValidatorOverlap", big.NewInt(2), big.NewInt(3))
 		s.requireICS26Revert(ctx, overlapErr, "updateClient", defaultTrustClientID, updateMsg)
 	}))
 
-	s.Require().True(s.Run("Re-add the validator to Chain A", func() {
-		var err error
-		rejoinHeight, err = s.chainA.network.UpdateValidatorSet(ctx, changedValidator, true)
+	s.Require().True(s.Run("Add a new validator to Chain A", func() {
+		newService, err := s.chainA.network.StartSpareValidator(ctx)
+		s.Require().NoError(err)
+		additionHeight, err = s.chainA.network.UpdateValidatorSet(ctx, newService, true)
 		s.Require().NoError(err)
 
-		state, err := e2etypes.FetchQBFTConsensusState(ctx, &s.chainA.eth, rejoinHeight)
+		state, err := e2etypes.FetchQBFTConsensusState(ctx, &s.chainA.eth, additionHeight)
 		s.Require().NoError(err)
-		s.Require().Equal(initialValidators, state.Validators)
+		s.Require().Len(state.Validators, 4)
+		s.Require().Subset(state.Validators, remainingValidators)
+		for _, validator := range state.Validators {
+			if !slices.Contains(remainingValidators, validator) {
+				newValidator = validator
+			}
+		}
+		s.Require().NotContains(initialValidators, newValidator)
 	}))
 
-	s.Require().True(s.Run("Low trust client follows the re-addition", func() {
-		updateMsg, err := e2etypes.BuildQBFTUpdate(ctx, &s.chainA.eth, removalHeight, rejoinHeight)
+	s.Require().True(s.Run("Low trust client follows a header signed by the new validator", func() {
+		newSignerHeight = s.waitForChainAHeader(ctx, additionHeight, func(signers []ethcommon.Address) bool {
+			return slices.Contains(signers, newValidator)
+		})
+		updateMsg, err := e2etypes.BuildQBFTUpdate(ctx, &s.chainA.eth, removalHeight, newSignerHeight)
 		s.Require().NoError(err)
 		s.requireUpdateResult(s.updateClient(ctx, lowTrustClientID, updateMsg), 0) // Update
-		s.Require().Equal(rejoinHeight, s.besuClientState(lowTrustClient).LatestHeight.RevisionHeight)
+		s.Require().Equal(newSignerHeight, s.besuClientState(lowTrustClient).LatestHeight.RevisionHeight)
 	}))
 
-	s.Require().True(s.Run("Default trust client catches up after the re-addition", func() {
-		updateMsg, err := e2etypes.BuildQBFTUpdate(ctx, &s.chainA.eth, defaultTrustHeight, rejoinHeight)
+	s.Require().True(s.Run("Default trust client rejects a header signed by the new validator", func() {
+		updateMsg, err := e2etypes.BuildQBFTUpdate(ctx, &s.chainA.eth, defaultTrustHeight, newSignerHeight)
+		s.Require().NoError(err)
+		s.requireICS26Revert(ctx, overlapErr, "updateClient", defaultTrustClientID, updateMsg)
+	}))
+
+	s.Require().True(s.Run("Default trust client catches up through a header not signed by the new validator", func() {
+		height := s.waitForChainAHeader(ctx, additionHeight, func(signers []ethcommon.Address) bool {
+			return !slices.Contains(signers, newValidator)
+		})
+		updateMsg, err := e2etypes.BuildQBFTUpdate(ctx, &s.chainA.eth, defaultTrustHeight, height)
 		s.Require().NoError(err)
 		s.requireUpdateResult(s.updateClient(ctx, defaultTrustClientID, updateMsg), 0) // Update
-		s.Require().Equal(rejoinHeight, s.besuClientState(defaultTrustClient).LatestHeight.RevisionHeight)
+		s.Require().Equal(height, s.besuClientState(defaultTrustClient).LatestHeight.RevisionHeight)
 	}))
+}
+
+// waitForChainAHeader returns the first Chain A height from start whose commit seal signers satisfy match.
+func (s *BesuToBesuTestSuite) waitForChainAHeader(ctx context.Context, start uint64, match func([]ethcommon.Address) bool) uint64 {
+	height := start
+	s.Require().NoError(testutil.WaitForCondition(2*time.Minute, time.Second, func() (bool, error) {
+		latest, err := s.chainA.eth.RPCClient.BlockNumber(ctx)
+		if err != nil {
+			return false, err
+		}
+		for ; height <= latest; height++ {
+			signers, err := e2etypes.FetchQBFTCommitSealSigners(ctx, &s.chainA.eth, height)
+			if err != nil {
+				return false, err
+			}
+			if match(signers) {
+				return true, nil
+			}
+		}
+		return false, nil
+	}))
+	return height
 }
 
 // createDedicatedBesuClient registers a Chain A client on Chain B that the relayer does not use.

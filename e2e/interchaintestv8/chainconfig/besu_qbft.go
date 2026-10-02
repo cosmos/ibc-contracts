@@ -43,18 +43,25 @@ const (
 	besuQBFTTxProbeReceiptTimeout = 30 * time.Second
 )
 
-var defaultBesuQBFTValidatorIPs = [4]string{"10.42.0.2", "10.42.0.3", "10.42.0.4", "10.42.0.5"}
+var defaultBesuQBFTValidatorIPs = [5]string{"10.42.0.2", "10.42.0.3", "10.42.0.4", "10.42.0.5", "10.42.0.6"}
 
 //go:embed testdata/besu/qbft
 var besuQBFTAssets embed.FS
 
 var besuQBFTServices = []string{"validator1", "validator2", "validator3", "validator4"}
 
+// besuQBFTSpareService is not in the genesis validator set and only runs once StartSpareValidator is called.
+const (
+	besuQBFTSpareService = "validator5"
+	besuQBFTSpareProfile = "spare"
+)
+
 type BesuQBFTParams struct {
-	ChainID             uint64
-	Subnet              string
-	Gateway             string
-	ValidatorIPs        [4]string
+	ChainID uint64
+	Subnet  string
+	Gateway string
+	// ValidatorIPs are the IPs of the genesis validators followed by the spare validator.
+	ValidatorIPs        [5]string
 	DockerRPCAlias      string
 	InterchainNetworkID string
 }
@@ -183,7 +190,7 @@ func SpinUpBesuQBFT(ctx context.Context, params BesuQBFTParams) (chain BesuQBFTC
 
 func (c BesuQBFTChain) Destroy(ctx context.Context) {
 	if c.projectName != "" && c.projectDir != "" {
-		if _, err := c.runCompose(ctx, "down", "--volumes", "--remove-orphans"); err != nil {
+		if _, err := c.runCompose(ctx, "--profile", besuQBFTSpareProfile, "down", "--volumes", "--remove-orphans"); err != nil {
 			fmt.Printf("failed to tear down besu qbft stack: %v\n", err)
 		}
 	}
@@ -200,7 +207,8 @@ func (c BesuQBFTChain) DumpLogs(ctx context.Context) error {
 		return nil
 	}
 
-	args := append([]string{"logs", "--no-color"}, besuQBFTServices...)
+	args := append([]string{"--profile", besuQBFTSpareProfile, "logs", "--no-color"}, besuQBFTServices...)
+	args = append(args, besuQBFTSpareService)
 	logs, err := c.runCompose(ctx, args...)
 	if len(logs) > 0 {
 		fmt.Print(string(logs))
@@ -208,25 +216,22 @@ func (c BesuQBFTChain) DumpLogs(ctx context.Context) error {
 	return err
 }
 
-// UpdateValidatorSet votes on every validator node to add or remove the validator run by service, and returns the
+// StartSpareValidator starts the spare validator node, which syncs as a non-validator until it is voted in with
+// UpdateValidatorSet.
+func (c BesuQBFTChain) StartSpareValidator(ctx context.Context) (string, error) {
+	if _, err := c.runCompose(ctx, "up", "--detach", besuQBFTSpareService); err != nil {
+		return "", fmt.Errorf("start spare validator: %w", err)
+	}
+	return besuQBFTSpareService, nil
+}
+
+// UpdateValidatorSet has every current validator vote to add or remove the validator run by service, and returns the
 // first observed height whose validator set includes the change. The votes are discarded afterwards so that later
 // changes start from a clean slate.
 func (c BesuQBFTChain) UpdateValidatorSet(ctx context.Context, service string, add bool) (uint64, error) {
-	keyHex, err := besuQBFTAssets.ReadFile(fmt.Sprintf("testdata/besu/qbft/keys/%s/key", service))
+	validator, err := besuQBFTValidatorAddress(service)
 	if err != nil {
-		return 0, fmt.Errorf("read %s key: %w", service, err)
-	}
-	key, err := crypto.HexToECDSA(strings.TrimPrefix(strings.TrimSpace(string(keyHex)), "0x"))
-	if err != nil {
-		return 0, fmt.Errorf("parse %s key: %w", service, err)
-	}
-	validator := crypto.PubkeyToAddress(key.PublicKey)
-
-	// Besu only proposes votes that change the validator set, so the removed validator's own vote is ignored.
-	for _, voter := range besuQBFTServices {
-		if err := c.validatorRPC(ctx, voter, "qbft_proposeValidatorVote", validator, add); err != nil {
-			return 0, err
-		}
+		return 0, err
 	}
 
 	client, err := ethclient.DialContext(ctx, c.RPC)
@@ -235,14 +240,42 @@ func (c BesuQBFTChain) UpdateValidatorSet(ctx context.Context, service string, a
 	}
 	defer client.Close()
 
+	validatorsAt := func(height string) ([]common.Address, error) {
+		var validators []common.Address
+		err := client.Client().CallContext(ctx, &validators, "qbft_getValidatorsByBlockNumber", height)
+		return validators, err
+	}
+
+	validators, err := validatorsAt("latest")
+	if err != nil {
+		return 0, fmt.Errorf("get validators: %w", err)
+	}
+	// Only validators propose blocks, so only their votes count.
+	var voters []string
+	for _, voter := range append(slices.Clone(besuQBFTServices), besuQBFTSpareService) {
+		address, err := besuQBFTValidatorAddress(voter)
+		if err != nil {
+			return 0, err
+		}
+		if slices.Contains(validators, address) {
+			voters = append(voters, voter)
+		}
+	}
+
+	for _, voter := range voters {
+		if err := c.validatorRPC(ctx, voter, "qbft_proposeValidatorVote", validator, add); err != nil {
+			return 0, err
+		}
+	}
+
 	var height uint64
 	err = testutil.WaitForCondition(2*time.Minute, time.Second, func() (bool, error) {
 		latest, err := client.BlockNumber(ctx)
 		if err != nil {
 			return false, err
 		}
-		var validators []common.Address
-		if err := client.Client().CallContext(ctx, &validators, "qbft_getValidatorsByBlockNumber", hexutil.EncodeUint64(latest)); err != nil {
+		validators, err := validatorsAt(hexutil.EncodeUint64(latest))
+		if err != nil {
 			return false, err
 		}
 		height = latest
@@ -252,13 +285,25 @@ func (c BesuQBFTChain) UpdateValidatorSet(ctx context.Context, service string, a
 		return 0, fmt.Errorf("wait for validator set change: %w", err)
 	}
 
-	for _, voter := range besuQBFTServices {
+	for _, voter := range voters {
 		if err := c.validatorRPC(ctx, voter, "qbft_discardValidatorVote", validator); err != nil {
 			return 0, err
 		}
 	}
 
 	return height, nil
+}
+
+func besuQBFTValidatorAddress(service string) (common.Address, error) {
+	keyHex, err := besuQBFTAssets.ReadFile(fmt.Sprintf("testdata/besu/qbft/keys/%s/key", service))
+	if err != nil {
+		return common.Address{}, fmt.Errorf("read %s key: %w", service, err)
+	}
+	key, err := crypto.HexToECDSA(strings.TrimPrefix(strings.TrimSpace(string(keyHex)), "0x"))
+	if err != nil {
+		return common.Address{}, fmt.Errorf("parse %s key: %w", service, err)
+	}
+	return crypto.PubkeyToAddress(key.PublicKey), nil
 }
 
 // validatorRPC calls method on the RPC endpoint of service from inside its container, since only validator1 publishes
@@ -354,10 +399,11 @@ func patchBesuQBFTTopology(projectDir string, params BesuQBFTParams) error {
 		defaultBesuQBFTValidatorIPs[1], params.ValidatorIPs[1],
 		defaultBesuQBFTValidatorIPs[2], params.ValidatorIPs[2],
 		defaultBesuQBFTValidatorIPs[3], params.ValidatorIPs[3],
+		defaultBesuQBFTValidatorIPs[4], params.ValidatorIPs[4],
 	)
 
 	paths := []string{filepath.Join(projectDir, besuQBFTComposeFile)}
-	for _, service := range besuQBFTServices {
+	for _, service := range append(slices.Clone(besuQBFTServices), besuQBFTSpareService) {
 		paths = append(paths, filepath.Join(projectDir, "static-nodes", service+".json"))
 	}
 	for _, path := range paths {
