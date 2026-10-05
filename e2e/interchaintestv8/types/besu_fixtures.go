@@ -299,6 +299,32 @@ func FetchQBFTConsensusState(ctx context.Context, chain *ethereum.Ethereum, heig
 	return header.consensusState(), nil
 }
 
+// FetchQBFTCommitSealSigners returns the signers of the commit seals in the live header at height.
+func FetchQBFTCommitSealSigners(ctx context.Context, chain *ethereum.Ethereum, height uint64) ([]ethcommon.Address, error) {
+	header, err := fetchLiveHeader(ctx, chain, height)
+	if err != nil {
+		return nil, err
+	}
+	mutable, err := decodeMutableQBFTHeader(header.HeaderRLP)
+	if err != nil {
+		return nil, err
+	}
+	seals, err := mutable.commitSeals()
+	if err != nil {
+		return nil, err
+	}
+	digest := mutable.commitSealDigest()
+	signers := make([]ethcommon.Address, len(seals))
+	for i, seal := range seals {
+		pubkey, err := crypto.SigToPub(digest.Bytes(), seal)
+		if err != nil {
+			return nil, err
+		}
+		signers[i] = crypto.PubkeyToAddress(*pubkey)
+	}
+	return signers, nil
+}
+
 // buildQBFTUpdate applies mutate, if non-nil, to the live header at height and re-seals it with a quorum of the local
 // QBFT validator keys, read relative to the repository root.
 func buildQBFTUpdate(

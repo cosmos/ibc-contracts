@@ -7,6 +7,10 @@ updates:
     target-branch: main
     schedule:
       interval: weekly
+    groups:
+      codeql-action:
+        patterns:
+          - "github/codeql-action*"
 
   - package-ecosystem: gomod
     directories:

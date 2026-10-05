@@ -5,10 +5,12 @@ package main
 import (
 	"context"
 	"crypto/ecdsa"
+	"crypto/sha256"
 	"fmt"
 	"math/big"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -51,9 +53,11 @@ const (
 	besuToBesuClientOnB = "besu-chain-a"
 
 	besuToBesuConsensusTypeQBFT = "qbft"
+
+	besuToBesuDefaultTrustLevel = "2/3"
 )
 
-var besuToBesuChainBIPs = [4]string{"10.43.0.2", "10.43.0.3", "10.43.0.4", "10.43.0.5"}
+var besuToBesuChainBIPs = [5]string{"10.43.0.2", "10.43.0.3", "10.43.0.4", "10.43.0.5", "10.43.0.6"}
 
 type besuToBesuChainState struct {
 	network           chainconfig.BesuQBFTChain
@@ -140,8 +144,8 @@ func (s *BesuToBesuTestSuite) SetupSuite() {
 	s.startRelayer()
 	s.connectRelayer()
 
-	s.chainA.clientAddress = s.createAndRegisterBesuClient(&s.chainB, &s.chainA, besuToBesuClientOnA, besuToBesuClientOnB)
-	s.chainB.clientAddress = s.createAndRegisterBesuClient(&s.chainA, &s.chainB, besuToBesuClientOnB, besuToBesuClientOnA)
+	s.chainA.clientAddress = s.createAndRegisterBesuClient(&s.chainB, &s.chainA, besuToBesuClientOnA, besuToBesuClientOnB, besuToBesuDefaultTrustLevel)
+	s.chainB.clientAddress = s.createAndRegisterBesuClient(&s.chainA, &s.chainB, besuToBesuClientOnB, besuToBesuClientOnA, besuToBesuDefaultTrustLevel)
 }
 
 func (s *BesuToBesuTestSuite) Test_Deploy() {
@@ -201,12 +205,13 @@ func (s *BesuToBesuTestSuite) Test_ICS20TransferERC20FromChainAToChainB() {
 	erc20AddressA := ethcommon.HexToAddress(s.chainA.contractAddresses.Erc20)
 
 	var (
-		sendTxHash  []byte
-		sendReceipt *ethtypes.Receipt
-		sendPacket  ics26router.IICS26RouterMsgsPacket
-		recvReceipt *ethtypes.Receipt
-		ibcERC20OnB *ibcerc20.Contract
-		ackReceipt  *ethtypes.Receipt
+		initialUserBalanceA *big.Int
+		sendTxHash          []byte
+		sendReceipt         *ethtypes.Receipt
+		sendPacket          ics26router.IICS26RouterMsgsPacket
+		recvReceipt         *ethtypes.Receipt
+		ibcERC20OnB         *ibcerc20.Contract
+		ackReceipt          *ethtypes.Receipt
 	)
 
 	s.Require().True(s.Run("Fund user on Chain A", func() {
@@ -216,6 +221,9 @@ func (s *BesuToBesuTestSuite) Test_ICS20TransferERC20FromChainAToChainB() {
 		fundReceipt, err := s.chainA.eth.GetTxReciept(ctx, fundTx.Hash())
 		s.Require().NoError(err)
 		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, fundReceipt.Status)
+
+		initialUserBalanceA, err = s.chainA.erc20.BalanceOf(nil, userAddressA)
+		s.Require().NoError(err)
 	}))
 
 	s.Require().True(s.Run("Approve ICS20 on Chain A", func() {
@@ -260,7 +268,7 @@ func (s *BesuToBesuTestSuite) Test_ICS20TransferERC20FromChainAToChainB() {
 
 		userBalanceA, err := s.chainA.erc20.BalanceOf(nil, userAddressA)
 		s.Require().NoError(err)
-		expectedBalanceA := new(big.Int).Sub(new(big.Int).Set(testvalues.StartingERC20Balance), transferAmount)
+		expectedBalanceA := new(big.Int).Sub(new(big.Int).Set(initialUserBalanceA), transferAmount)
 		s.Require().Equal(0, expectedBalanceA.Cmp(userBalanceA))
 	}))
 
@@ -483,6 +491,162 @@ func (s *BesuToBesuTestSuite) Test_TimeoutICS20TransferERC20FromChainAToChainB()
 	}))
 }
 
+// Test_ErrorAckICS20TransferERC20FromChainAToChainB sends a transfer to a receiver that is not a hex address, so
+// ICS20 on Chain B fails to receive it and ICS26 writes the universal error acknowledgement. Relaying that
+// acknowledgement back to Chain A refunds the sender.
+func (s *BesuToBesuTestSuite) Test_ErrorAckICS20TransferERC20FromChainAToChainB() {
+	ctx := context.Background()
+	transferAmount := big.NewInt(testvalues.TransferAmount)
+	userAddressA := crypto.PubkeyToAddress(s.chainA.user.PublicKey)
+	ics20AddressA := ethcommon.HexToAddress(s.chainA.contractAddresses.Ics20Transfer)
+	ics26AddressA := ethcommon.HexToAddress(s.chainA.contractAddresses.Ics26Router)
+	ics26AddressB := ethcommon.HexToAddress(s.chainB.contractAddresses.Ics26Router)
+	erc20AddressA := ethcommon.HexToAddress(s.chainA.contractAddresses.Erc20)
+	universalErrorAck := sha256.Sum256([]byte("UNIVERSAL_ERROR_ACKNOWLEDGEMENT"))
+
+	var (
+		initialUserBalanceA   *big.Int
+		initialEscrowBalanceA *big.Int
+		escrowAddressA        ethcommon.Address
+		sendTxHash            []byte
+		sendPacket            ics26router.IICS26RouterMsgsPacket
+		recvReceipt           *ethtypes.Receipt
+	)
+
+	s.Require().True(s.Run("Fund user on Chain A", func() {
+		fundTx, err := s.chainA.erc20.Transfer(s.mustTransactOpts(&s.chainA, s.chainA.eth.Faucet), userAddressA, transferAmount)
+		s.Require().NoError(err)
+
+		fundReceipt, err := s.chainA.eth.GetTxReciept(ctx, fundTx.Hash())
+		s.Require().NoError(err)
+		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, fundReceipt.Status)
+
+		initialUserBalanceA, err = s.chainA.erc20.BalanceOf(nil, userAddressA)
+		s.Require().NoError(err)
+		escrowAddressA, err = s.chainA.ics20.GetEscrow(nil, besuToBesuClientOnA)
+		s.Require().NoError(err)
+		initialEscrowBalanceA, err = s.chainA.erc20.BalanceOf(nil, escrowAddressA)
+		s.Require().NoError(err)
+	}))
+
+	s.Require().True(s.Run("Approve ICS20 on Chain A", func() {
+		approveTx, err := s.chainA.erc20.Approve(s.mustTransactOpts(&s.chainA, s.chainA.user), ics20AddressA, transferAmount)
+		s.Require().NoError(err)
+
+		approveReceipt, err := s.chainA.eth.GetTxReciept(ctx, approveTx.Hash())
+		s.Require().NoError(err)
+		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, approveReceipt.Status)
+	}))
+
+	s.Require().True(s.Run("Send transfer to invalid receiver from Chain A", func() {
+		timeout := uint64(time.Now().Add(30 * time.Minute).Unix())
+		sendTx, err := s.chainA.ics20.SendTransfer(s.mustTransactOpts(&s.chainA, s.chainA.user), ics20transfer.IICS20TransferMsgsSendTransferMsg{
+			Denom:            erc20AddressA,
+			Amount:           transferAmount,
+			Receiver:         "invalid-receiver",
+			TimeoutTimestamp: timeout,
+			SourceClient:     besuToBesuClientOnA,
+			DestPort:         transfertypes.PortID,
+			Memo:             "",
+		})
+		s.Require().NoError(err)
+
+		sendReceipt, err := s.chainA.eth.GetTxReciept(ctx, sendTx.Hash())
+		s.Require().NoError(err)
+		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, sendReceipt.Status)
+		sendTxHash = sendTx.Hash().Bytes()
+
+		sendEvent, err := e2esuite.GetEvmEvent(sendReceipt, s.chainA.ics26.ParseSendPacket)
+		s.Require().NoError(err)
+		sendPacket = sendEvent.Packet
+	}))
+
+	s.Require().True(s.Run("Verify balances on Chain A after send", func() {
+		userBalanceA, err := s.chainA.erc20.BalanceOf(nil, userAddressA)
+		s.Require().NoError(err)
+		expectedUserBalanceA := new(big.Int).Sub(new(big.Int).Set(initialUserBalanceA), transferAmount)
+		s.Require().Equal(0, expectedUserBalanceA.Cmp(userBalanceA))
+
+		escrowAddressA, err = s.chainA.ics20.GetEscrow(nil, besuToBesuClientOnA)
+		s.Require().NoError(err)
+		s.Require().NotEqual(ethcommon.Address{}, escrowAddressA)
+		escrowBalanceA, err := s.chainA.erc20.BalanceOf(nil, escrowAddressA)
+		s.Require().NoError(err)
+		expectedEscrowBalanceA := new(big.Int).Add(new(big.Int).Set(initialEscrowBalanceA), transferAmount)
+		s.Require().Equal(0, expectedEscrowBalanceA.Cmp(escrowBalanceA))
+	}))
+
+	s.Require().True(s.Run("Relay packet to Chain B", func() {
+		var relayTx []byte
+		s.Require().True(s.Run("Retrieve relay tx", func() {
+			relayAB, err := s.relayerClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+				SrcChain:    s.chainA.eth.ChainID.String(),
+				DstChain:    s.chainB.eth.ChainID.String(),
+				SourceTxIds: [][]byte{sendTxHash},
+				SrcClientId: besuToBesuClientOnA,
+				DstClientId: besuToBesuClientOnB,
+			})
+			s.Require().NoError(err)
+			s.Require().NotEmpty(relayAB.Tx)
+			s.Require().Equal(strings.ToLower(s.chainB.contractAddresses.Ics26Router), strings.ToLower(relayAB.Address))
+			relayTx = relayAB.Tx
+		}))
+
+		s.Require().True(s.Run("Broadcast relay tx on Chain B", func() {
+			var err error
+			recvReceipt, err = s.chainB.eth.BroadcastTx(ctx, s.chainB.relayerSubmitter, 15_000_000, &ics26AddressB, relayTx)
+			s.Require().NoError(err)
+			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, recvReceipt.Status)
+
+			_, err = e2esuite.GetEvmEvent(recvReceipt, s.chainB.ics26.ParseIBCAppRecvPacketCallbackError)
+			s.Require().NoError(err)
+
+			writeAckEvent, err := e2esuite.GetEvmEvent(recvReceipt, s.chainB.ics26.ParseWriteAcknowledgement)
+			s.Require().NoError(err)
+			s.Require().Equal(sendPacket, writeAckEvent.Packet)
+			s.Require().Equal([][]byte{universalErrorAck[:]}, writeAckEvent.Acknowledgements)
+		}))
+	}))
+
+	s.Require().True(s.Run("Relay error acknowledgement to Chain A", func() {
+		var relayTx []byte
+		s.Require().True(s.Run("Retrieve acknowledgement relay tx", func() {
+			ackRelay, err := s.relayerClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+				SrcChain:    s.chainB.eth.ChainID.String(),
+				DstChain:    s.chainA.eth.ChainID.String(),
+				SourceTxIds: [][]byte{recvReceipt.TxHash.Bytes()},
+				SrcClientId: besuToBesuClientOnB,
+				DstClientId: besuToBesuClientOnA,
+			})
+			s.Require().NoError(err)
+			s.Require().NotEmpty(ackRelay.Tx)
+			s.Require().Equal(strings.ToLower(s.chainA.contractAddresses.Ics26Router), strings.ToLower(ackRelay.Address))
+			relayTx = ackRelay.Tx
+		}))
+
+		s.Require().True(s.Run("Broadcast acknowledgement relay tx on Chain A", func() {
+			ackReceipt, err := s.chainA.eth.BroadcastTx(ctx, s.chainA.relayerSubmitter, 15_000_000, &ics26AddressA, relayTx)
+			s.Require().NoError(err)
+			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, ackReceipt.Status)
+
+			ackEvent, err := e2esuite.GetEvmEvent(ackReceipt, s.chainA.ics26.ParseAckPacket)
+			s.Require().NoError(err)
+			s.Require().Equal(sendPacket, ackEvent.Packet)
+			s.Require().Equal(universalErrorAck[:], ackEvent.Acknowledgement)
+		}))
+	}))
+
+	s.Require().True(s.Run("Verify tokens refunded on Chain A", func() {
+		userBalanceA, err := s.chainA.erc20.BalanceOf(nil, userAddressA)
+		s.Require().NoError(err)
+		s.Require().Equal(0, initialUserBalanceA.Cmp(userBalanceA))
+
+		escrowBalanceA, err := s.chainA.erc20.BalanceOf(nil, escrowAddressA)
+		s.Require().NoError(err)
+		s.Require().Equal(0, initialEscrowBalanceA.Cmp(escrowBalanceA))
+	}))
+}
+
 // Test_DoubleSignFreezesClient freezes a dedicated client on Chain B so the shared clients stay usable.
 func (s *BesuToBesuTestSuite) Test_DoubleSignFreezesClient() {
 	ctx := context.Background()
@@ -497,7 +661,7 @@ func (s *BesuToBesuTestSuite) Test_DoubleSignFreezesClient() {
 	)
 
 	s.Require().True(s.Run("Create dedicated client on Chain B", func() {
-		client = s.createDedicatedBesuClient(doubleSignClientID)
+		client = s.createDedicatedBesuClient(doubleSignClientID, besuToBesuDefaultTrustLevel)
 		trustedHeight = s.besuClientState(client).LatestHeight.RevisionHeight
 		height = trustedHeight + 1
 	}))
@@ -535,7 +699,7 @@ func (s *BesuToBesuTestSuite) Test_DoubleSignFreezesClient() {
 	}))
 
 	s.Require().True(s.Run("Frozen client rejects further updates", func() {
-		s.requireFrozenClientRevert(ctx, "updateClient", doubleSignClientID, updateMsg)
+		s.requireICS26Revert(ctx, s.besuClientErr("FrozenClientState"), "updateClient", doubleSignClientID, updateMsg)
 	}))
 }
 
@@ -556,7 +720,7 @@ func (s *BesuToBesuTestSuite) Test_TimeNonMonotonicityFreezesClient() {
 	)
 
 	s.Require().True(s.Run("Create dedicated client on Chain B", func() {
-		client = s.createDedicatedBesuClient(timeMisbehaviourClientID)
+		client = s.createDedicatedBesuClient(timeMisbehaviourClientID, besuToBesuDefaultTrustLevel)
 		trustedHeight = s.besuClientState(client).LatestHeight.RevisionHeight
 		height1, height2 = trustedHeight+1, trustedHeight+2
 	}))
@@ -622,7 +786,7 @@ func (s *BesuToBesuTestSuite) Test_TimeNonMonotonicityFreezesClient() {
 	}))
 
 	s.Require().True(s.Run("Frozen client rejects further misbehaviour", func() {
-		s.requireFrozenClientRevert(ctx, "submitMisbehaviour", timeMisbehaviourClientID, misbehaviourMsg)
+		s.requireICS26Revert(ctx, s.besuClientErr("FrozenClientState"), "submitMisbehaviour", timeMisbehaviourClientID, misbehaviourMsg)
 	}))
 }
 
@@ -640,7 +804,7 @@ func (s *BesuToBesuTestSuite) Test_HeadersDoubleSignMisbehaviourIsPermissionless
 	)
 
 	s.Require().True(s.Run("Build conflicting headers at the same height", func() {
-		client = s.createDedicatedBesuClient(clientID)
+		client = s.createDedicatedBesuClient(clientID, besuToBesuDefaultTrustLevel)
 		trustedHeight := s.besuClientState(client).LatestHeight.RevisionHeight
 		height = trustedHeight + 1
 		s.waitForBlock(ctx, &s.chainA, height)
@@ -657,8 +821,12 @@ func (s *BesuToBesuTestSuite) Test_HeadersDoubleSignMisbehaviourIsPermissionless
 		clientAddress, err := s.chainB.ics26.GetClient(nil, clientID)
 		s.Require().NoError(err)
 		updateCalldata := s.besuClientCalldata("updateClient", honestUpdate)
-		errorData := s.requireCallRevert(ctx, s.chainB.user, clientAddress, updateCalldata)
-		s.Require().True(strings.HasPrefix(errorData, s.errorSelector("AccessControlUnauthorizedAccount(address,bytes32)")))
+		unauthorizedErr := s.besuClientErr(
+			"AccessControlUnauthorizedAccount",
+			crypto.PubkeyToAddress(s.chainB.user.PublicKey),
+			crypto.Keccak256Hash([]byte("PROOF_SUBMITTER_ROLE")),
+		)
+		s.requireCallRevert(ctx, s.chainB.user, clientAddress, updateCalldata, unauthorizedErr)
 	}))
 
 	s.Require().True(s.Run("Account without role submits misbehaviour and freezes the client", func() {
@@ -675,7 +843,7 @@ func (s *BesuToBesuTestSuite) Test_HeadersDoubleSignMisbehaviourIsPermissionless
 	}))
 
 	s.Require().True(s.Run("Frozen client rejects further misbehaviour", func() {
-		s.requireFrozenClientRevert(ctx, "submitMisbehaviour", clientID, misbehaviourMsg)
+		s.requireICS26Revert(ctx, s.besuClientErr("FrozenClientState"), "submitMisbehaviour", clientID, misbehaviourMsg)
 	}))
 }
 
@@ -694,7 +862,7 @@ func (s *BesuToBesuTestSuite) Test_HeadersTimeNonMonotonicityMisbehaviourIsPermi
 	)
 
 	s.Require().True(s.Run("Build headers with non-monotonic timestamps", func() {
-		client = s.createDedicatedBesuClient(clientID)
+		client = s.createDedicatedBesuClient(clientID, besuToBesuDefaultTrustLevel)
 		trustedHeight := s.besuClientState(client).LatestHeight.RevisionHeight
 		height1, height2 = trustedHeight+1, trustedHeight+2
 		s.waitForBlock(ctx, &s.chainA, height2)
@@ -725,9 +893,140 @@ func (s *BesuToBesuTestSuite) Test_HeadersTimeNonMonotonicityMisbehaviourIsPermi
 	}))
 }
 
+// Test_ValidatorSetChanges removes a Chain A validator and then votes in a new one through live QBFT votes, while
+// dedicated clients on Chain B follow the chain. Besu seals each block with exactly ceil(2n / 3) commit seals. With 3
+// validators that is 2 seals, so a client trusting the original 4 validators at the default 2/3 trust level cannot
+// update past the removal, while a client at 1/3 can. Once the new validator joins, the default client can only catch
+// up through a header that the new validator did not sign.
+func (s *BesuToBesuTestSuite) Test_ValidatorSetChanges() {
+	ctx := context.Background()
+
+	const (
+		removedValidator     = "validator4"
+		addedValidator       = "validator5"
+		lowTrustClientID     = "besu-validator-change-low-trust"
+		defaultTrustClientID = "besu-validator-change-default-trust"
+	)
+	var (
+		lowTrustClient      *besuqbft.Contract
+		defaultTrustClient  *besuqbft.Contract
+		defaultTrustHeight  uint64
+		initialValidators   []ethcommon.Address
+		remainingValidators []ethcommon.Address
+		newValidator        ethcommon.Address
+		removalHeight       uint64
+		additionHeight      uint64
+		newSignerHeight     uint64
+	)
+	// 2 of the 3 original validators sign, but ceil(4 * 2/3) = 3 trusted validators are required.
+	overlapErr := s.besuClientErr("InsufficientTrustedValidatorOverlap", big.NewInt(2), big.NewInt(3))
+
+	s.Require().True(s.Run("Create dedicated clients on Chain B", func() {
+		lowTrustClient = s.createDedicatedBesuClient(lowTrustClientID, "1/3")
+		defaultTrustClient = s.createDedicatedBesuClient(defaultTrustClientID, besuToBesuDefaultTrustLevel)
+		defaultTrustHeight = s.besuClientState(defaultTrustClient).LatestHeight.RevisionHeight
+
+		initialState, err := e2etypes.FetchQBFTConsensusState(ctx, &s.chainA.eth, defaultTrustHeight)
+		s.Require().NoError(err)
+		initialValidators = initialState.Validators
+		s.Require().Len(initialValidators, 4)
+	}))
+
+	s.Require().True(s.Run("Remove a validator from Chain A", func() {
+		var err error
+		removalHeight, err = s.chainA.network.RemoveValidator(ctx, removedValidator)
+		s.Require().NoError(err)
+
+		state, err := e2etypes.FetchQBFTConsensusState(ctx, &s.chainA.eth, removalHeight)
+		s.Require().NoError(err)
+		remainingValidators = state.Validators
+		s.Require().Len(remainingValidators, 3)
+		s.Require().Subset(initialValidators, remainingValidators)
+	}))
+
+	s.Require().True(s.Run("Low trust client follows the removal", func() {
+		trustedHeight := s.besuClientState(lowTrustClient).LatestHeight.RevisionHeight
+		updateMsg, err := e2etypes.BuildQBFTUpdate(ctx, &s.chainA.eth, trustedHeight, removalHeight)
+		s.Require().NoError(err)
+		s.requireUpdateResult(s.updateClient(ctx, lowTrustClientID, updateMsg), 0) // Update
+		s.Require().Equal(removalHeight, s.besuClientState(lowTrustClient).LatestHeight.RevisionHeight)
+	}))
+
+	s.Require().True(s.Run("Default trust client cannot update past the removal", func() {
+		updateMsg, err := e2etypes.BuildQBFTUpdate(ctx, &s.chainA.eth, defaultTrustHeight, removalHeight)
+		s.Require().NoError(err)
+		s.requireICS26Revert(ctx, overlapErr, "updateClient", defaultTrustClientID, updateMsg)
+	}))
+
+	s.Require().True(s.Run("Add a new validator to Chain A", func() {
+		var err error
+		additionHeight, err = s.chainA.network.AddValidator(ctx, addedValidator)
+		s.Require().NoError(err)
+
+		state, err := e2etypes.FetchQBFTConsensusState(ctx, &s.chainA.eth, additionHeight)
+		s.Require().NoError(err)
+		s.Require().Len(state.Validators, 4)
+		s.Require().Subset(state.Validators, remainingValidators)
+		for _, validator := range state.Validators {
+			if !slices.Contains(remainingValidators, validator) {
+				newValidator = validator
+			}
+		}
+		s.Require().NotContains(initialValidators, newValidator)
+	}))
+
+	s.Require().True(s.Run("Low trust client follows a header signed by the new validator", func() {
+		newSignerHeight = s.waitForChainAHeader(ctx, additionHeight, func(signers []ethcommon.Address) bool {
+			return slices.Contains(signers, newValidator)
+		})
+		updateMsg, err := e2etypes.BuildQBFTUpdate(ctx, &s.chainA.eth, removalHeight, newSignerHeight)
+		s.Require().NoError(err)
+		s.requireUpdateResult(s.updateClient(ctx, lowTrustClientID, updateMsg), 0) // Update
+		s.Require().Equal(newSignerHeight, s.besuClientState(lowTrustClient).LatestHeight.RevisionHeight)
+	}))
+
+	s.Require().True(s.Run("Default trust client rejects a header signed by the new validator", func() {
+		updateMsg, err := e2etypes.BuildQBFTUpdate(ctx, &s.chainA.eth, defaultTrustHeight, newSignerHeight)
+		s.Require().NoError(err)
+		s.requireICS26Revert(ctx, overlapErr, "updateClient", defaultTrustClientID, updateMsg)
+	}))
+
+	s.Require().True(s.Run("Default trust client catches up through a header not signed by the new validator", func() {
+		height := s.waitForChainAHeader(ctx, additionHeight, func(signers []ethcommon.Address) bool {
+			return !slices.Contains(signers, newValidator)
+		})
+		updateMsg, err := e2etypes.BuildQBFTUpdate(ctx, &s.chainA.eth, defaultTrustHeight, height)
+		s.Require().NoError(err)
+		s.requireUpdateResult(s.updateClient(ctx, defaultTrustClientID, updateMsg), 0) // Update
+		s.Require().Equal(height, s.besuClientState(defaultTrustClient).LatestHeight.RevisionHeight)
+	}))
+}
+
+// waitForChainAHeader returns the first Chain A height from start whose commit seal signers satisfy match.
+func (s *BesuToBesuTestSuite) waitForChainAHeader(ctx context.Context, start uint64, match func([]ethcommon.Address) bool) uint64 {
+	height := start
+	s.Require().NoError(testutil.WaitForCondition(2*time.Minute, time.Second, func() (bool, error) {
+		latest, err := s.chainA.eth.RPCClient.BlockNumber(ctx)
+		if err != nil {
+			return false, err
+		}
+		for ; height <= latest; height++ {
+			signers, err := e2etypes.FetchQBFTCommitSealSigners(ctx, &s.chainA.eth, height)
+			if err != nil {
+				return false, err
+			}
+			if match(signers) {
+				return true, nil
+			}
+		}
+		return false, nil
+	}))
+	return height
+}
+
 // createDedicatedBesuClient registers a Chain A client on Chain B that the relayer does not use.
-func (s *BesuToBesuTestSuite) createDedicatedBesuClient(clientID string) *besuqbft.Contract {
-	clientAddress := s.createAndRegisterBesuClient(&s.chainA, &s.chainB, clientID, besuToBesuClientOnA)
+func (s *BesuToBesuTestSuite) createDedicatedBesuClient(clientID, trustLevel string) *besuqbft.Contract {
+	clientAddress := s.createAndRegisterBesuClient(&s.chainA, &s.chainB, clientID, besuToBesuClientOnA, trustLevel)
 	client, err := besuqbft.NewContract(clientAddress, s.chainB.eth.RPCClient)
 	s.Require().NoError(err)
 	s.Require().False(s.besuClientState(client).IsFrozen)
@@ -758,20 +1057,19 @@ func (s *BesuToBesuTestSuite) requireUpdateResult(receipt *ethtypes.Receipt, res
 	s.Require().Equal(result, updatedEvent.Result)
 }
 
-// requireFrozenClientRevert asserts that calling the ICS26 method on Chain B reverts with FrozenClientState.
-func (s *BesuToBesuTestSuite) requireFrozenClientRevert(ctx context.Context, method string, args ...any) {
+// requireICS26Revert asserts that calling the ICS26 method on Chain B reverts with errData.
+func (s *BesuToBesuTestSuite) requireICS26Revert(ctx context.Context, errData []byte, method string, args ...any) {
 	ics26ABI, err := ics26router.ContractMetaData.GetAbi()
 	s.Require().NoError(err)
 	calldata, err := ics26ABI.Pack(method, args...)
 	s.Require().NoError(err)
 
 	ics26Address := ethcommon.HexToAddress(s.chainB.contractAddresses.Ics26Router)
-	errorData := s.requireCallRevert(ctx, s.chainB.relayerSubmitter, ics26Address, calldata)
-	s.Require().Equal(s.errorSelector("FrozenClientState()"), errorData)
+	s.requireCallRevert(ctx, s.chainB.relayerSubmitter, ics26Address, calldata, errData)
 }
 
-// requireCallRevert simulates a call on Chain B from the key's address and returns the hex-encoded revert data.
-func (s *BesuToBesuTestSuite) requireCallRevert(ctx context.Context, from *ecdsa.PrivateKey, to ethcommon.Address, calldata []byte) string {
+// requireCallRevert asserts that calling to with calldata from the key's address on Chain B reverts with errData.
+func (s *BesuToBesuTestSuite) requireCallRevert(ctx context.Context, from *ecdsa.PrivateKey, to ethcommon.Address, calldata, errData []byte) {
 	_, err := s.chainB.eth.RPCClient.CallContract(ctx, goethereum.CallMsg{
 		From: crypto.PubkeyToAddress(from.PublicKey),
 		To:   &to,
@@ -779,13 +1077,18 @@ func (s *BesuToBesuTestSuite) requireCallRevert(ctx context.Context, from *ecdsa
 	}, nil)
 	var dataErr rpc.DataError
 	s.Require().ErrorAs(err, &dataErr)
-	errorData, ok := dataErr.ErrorData().(string)
-	s.Require().True(ok)
-	return errorData
+	s.Require().Equal(hexutil.Encode(errData), dataErr.ErrorData())
 }
 
-func (s *BesuToBesuTestSuite) errorSelector(signature string) string {
-	return hexutil.Encode(crypto.Keccak256([]byte(signature))[:4])
+// besuClientErr returns the revert data of the Besu light client custom error name with args.
+func (s *BesuToBesuTestSuite) besuClientErr(name string, args ...any) []byte {
+	clientABI, err := besuqbft.ContractMetaData.GetAbi()
+	s.Require().NoError(err)
+	customErr, ok := clientABI.Errors[name]
+	s.Require().True(ok, "unknown error %s", name)
+	argsData, err := customErr.Inputs.Pack(args...)
+	s.Require().NoError(err)
+	return append(customErr.ID.Bytes()[:4], argsData...)
 }
 
 // besuClientCalldata packs a call to a Besu light client method.
@@ -943,6 +1246,7 @@ func (s *BesuToBesuTestSuite) createAndRegisterBesuClient(
 	dstChain *besuToBesuChainState,
 	dstClientID string,
 	counterpartyClientID string,
+	trustLevel string,
 ) ethcommon.Address {
 	resp, err := s.relayerClient.CreateClient(context.Background(), &proofapitypes.CreateClientRequest{
 		SrcChain: srcChain.eth.ChainID.String(),
@@ -950,7 +1254,7 @@ func (s *BesuToBesuTestSuite) createAndRegisterBesuClient(
 		Parameters: map[string]string{
 			testvalues.ParameterKey_TrustingPeriod: strconv.Itoa(testvalues.DefaultTrustPeriod),
 			testvalues.ParameterKey_MaxClockDrift:  strconv.Itoa(testvalues.DefaultMaxClockDrift),
-			testvalues.ParameterKey_TrustLevel:     "2/3",
+			testvalues.ParameterKey_TrustLevel:     trustLevel,
 			testvalues.ParameterKey_RoleManager:    dstChain.contractAddresses.Ics26Router,
 		},
 	})

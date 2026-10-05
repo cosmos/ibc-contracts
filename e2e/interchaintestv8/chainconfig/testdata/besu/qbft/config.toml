@@ -11,3 +11,8 @@ rpc-http-cors-origins=["all"]
 min-gas-price=0
 sync-min-peers=1
 tx-pool="legacy"
+# Peers come only from the static nodes file. Each validator dials only the validators listed before it, so every pair
+# has a single connection. With discovery or two-way dialing, Besu ends up with duplicate connections and its
+# deduplication can close both, which isolates a validator long enough to drop its pending transactions.
+discovery-enabled=false
+static-nodes-file="/opt/besu/static-nodes.json"

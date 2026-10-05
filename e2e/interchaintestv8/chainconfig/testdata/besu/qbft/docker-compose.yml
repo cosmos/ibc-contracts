@@ -10,10 +10,15 @@ services:
       - --identity=validator1
       - --p2p-host=10.42.0.2
       - --p2p-port=30303
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/127.0.0.1/30303"]
+      interval: 1s
+      retries: 120
     volumes:
       - ./config.toml:/opt/besu/config.toml:ro
       - ./genesis.json:/opt/besu/genesis.json:ro
       - ./keys/validator1/key:/opt/besu/key:ro
+      - ./static-nodes/validator1.json:/opt/besu/static-nodes.json:ro
       - validator1-data:/opt/besu/data
     ports:
       - "8545"
@@ -28,13 +33,20 @@ services:
     command:
       - --config-file=/opt/besu/config.toml
       - --identity=validator2
-      - --bootnodes=enode://ad83ac93fcc30a30f3e1bb6467623e45719167be50d13dccd8361cbca478cb540069869d1bae16de0f8b17a28f26f1c6c4dc12e71f240b366c6ff6f02f3fb93e@10.42.0.2:30303
       - --p2p-host=10.42.0.3
       - --p2p-port=30304
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/127.0.0.1/30304"]
+      interval: 1s
+      retries: 120
+    depends_on:
+      validator1:
+        condition: service_healthy
     volumes:
       - ./config.toml:/opt/besu/config.toml:ro
       - ./genesis.json:/opt/besu/genesis.json:ro
       - ./keys/validator2/key:/opt/besu/key:ro
+      - ./static-nodes/validator2.json:/opt/besu/static-nodes.json:ro
       - validator2-data:/opt/besu/data
     networks:
       qbft_testnet:
@@ -47,13 +59,20 @@ services:
     command:
       - --config-file=/opt/besu/config.toml
       - --identity=validator3
-      - --bootnodes=enode://ad83ac93fcc30a30f3e1bb6467623e45719167be50d13dccd8361cbca478cb540069869d1bae16de0f8b17a28f26f1c6c4dc12e71f240b366c6ff6f02f3fb93e@10.42.0.2:30303
       - --p2p-host=10.42.0.4
       - --p2p-port=30305
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/127.0.0.1/30305"]
+      interval: 1s
+      retries: 120
+    depends_on:
+      validator2:
+        condition: service_healthy
     volumes:
       - ./config.toml:/opt/besu/config.toml:ro
       - ./genesis.json:/opt/besu/genesis.json:ro
       - ./keys/validator3/key:/opt/besu/key:ro
+      - ./static-nodes/validator3.json:/opt/besu/static-nodes.json:ro
       - validator3-data:/opt/besu/data
     networks:
       qbft_testnet:
@@ -66,17 +85,45 @@ services:
     command:
       - --config-file=/opt/besu/config.toml
       - --identity=validator4
-      - --bootnodes=enode://ad83ac93fcc30a30f3e1bb6467623e45719167be50d13dccd8361cbca478cb540069869d1bae16de0f8b17a28f26f1c6c4dc12e71f240b366c6ff6f02f3fb93e@10.42.0.2:30303
       - --p2p-host=10.42.0.5
       - --p2p-port=30306
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/127.0.0.1/30306"]
+      interval: 1s
+      retries: 120
+    depends_on:
+      validator3:
+        condition: service_healthy
     volumes:
       - ./config.toml:/opt/besu/config.toml:ro
       - ./genesis.json:/opt/besu/genesis.json:ro
       - ./keys/validator4/key:/opt/besu/key:ro
+      - ./static-nodes/validator4.json:/opt/besu/static-nodes.json:ro
       - validator4-data:/opt/besu/data
     networks:
       qbft_testnet:
         ipv4_address: 10.42.0.5
+
+  # Not a genesis validator. Only started on demand, to be voted into the validator set.
+  validator5:
+    image: hyperledger/besu:26.4.0
+    profiles: ["spare"]
+    environment:
+      BESU_OPTS: -Xms128m -Xmx512m -XX:ActiveProcessorCount=2
+    command:
+      - --config-file=/opt/besu/config.toml
+      - --identity=validator5
+      - --p2p-host=10.42.0.6
+      - --p2p-port=30307
+    volumes:
+      - ./config.toml:/opt/besu/config.toml:ro
+      - ./genesis.json:/opt/besu/genesis.json:ro
+      - ./keys/validator5/key:/opt/besu/key:ro
+      - ./static-nodes/validator5.json:/opt/besu/static-nodes.json:ro
+      - validator5-data:/opt/besu/data
+    networks:
+      qbft_testnet:
+        ipv4_address: 10.42.0.6
 
 networks:
   qbft_testnet:
@@ -94,3 +141,4 @@ volumes:
   validator2-data:
   validator3-data:
   validator4-data:
+  validator5-data:
