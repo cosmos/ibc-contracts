@@ -302,23 +302,11 @@ abstract contract QBFTSimSuiteTest is Test {
         sim.produceBlocks(2);
         bytes memory update3 = sim.updateMsg(2, 3);
         bytes memory update4 = sim.updateMsg(2, 4);
-        IBesuLightClientMsgs.ConsensusState memory state3 = sim.consensusState(3);
-        IBesuLightClientMsgs.ConsensusState memory state4 = sim.consensusState(4);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IBesuLightClientErrors.InvalidDoubleSignMisbehaviour.selector, 3, keccak256(abi.encode(state3))
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.NoMisbehaviourDetected.selector));
         client.misbehaviour(_headersMisbehaviour(update3, update3));
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IBesuLightClientErrors.InvalidTimeNonMonotonicityMisbehaviour.selector,
-                state3.timestamp,
-                state4.timestamp
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.NoMisbehaviourDetected.selector));
         client.misbehaviour(_headersMisbehaviour(update4, update3));
 
         vm.expectRevert(

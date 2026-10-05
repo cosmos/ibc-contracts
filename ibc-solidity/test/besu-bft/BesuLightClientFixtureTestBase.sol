@@ -1155,29 +1155,19 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             name: "failure: monotonic timestamps",
             timestamp: timestamp,
             misbehaviour: _encodeMisbehaviour(_misbehaviourMsg(height1, state1, height2, state2)),
-            expectedRevert: abi.encodeWithSelector(
-                    IBesuLightClientErrors.InvalidTimeNonMonotonicityMisbehaviour.selector,
-                    state1.timestamp,
-                    state2.timestamp
-                )
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.NoMisbehaviourDetected.selector)
         });
         testCases[1] = BesuMisbehaviourTestCase({
             name: "failure: equal heights",
             timestamp: timestamp,
             misbehaviour: _encodeMisbehaviour(_misbehaviourMsg(height2, state2, height2, state2)),
-            expectedRevert: abi.encodeWithSelector(
-                    IBesuLightClientErrors.InvalidDoubleSignMisbehaviour.selector, height2, _consensusStateHash(state2)
-                )
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.NoMisbehaviourDetected.selector)
         });
         testCases[2] = BesuMisbehaviourTestCase({
             name: "failure: monotonic timestamps in descending height order",
             timestamp: timestamp,
             misbehaviour: _encodeMisbehaviour(_misbehaviourMsg(height2, state2, height1, state1)),
-            expectedRevert: abi.encodeWithSelector(
-                    IBesuLightClientErrors.InvalidTimeNonMonotonicityMisbehaviour.selector,
-                    state1.timestamp,
-                    state2.timestamp
-                )
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.NoMisbehaviourDetected.selector)
         });
 
         IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour memory wrongRevision =
@@ -1223,11 +1213,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             name: "failure: monotonic timestamps past trusting period",
             timestamp: state2.timestamp + fixture.trustingPeriod,
             misbehaviour: _encodeMisbehaviour(_misbehaviourMsg(height1, state1, height2, state2)),
-            expectedRevert: abi.encodeWithSelector(
-                IBesuLightClientErrors.InvalidTimeNonMonotonicityMisbehaviour.selector,
-                state1.timestamp,
-                state2.timestamp
-            )
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.NoMisbehaviourDetected.selector)
         });
     }
 

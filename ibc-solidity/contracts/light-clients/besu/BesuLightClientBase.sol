@@ -110,6 +110,12 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             HeaderFromFuture(block.timestamp, newConsensusState.timestamp, clientState.maxClockDrift)
         );
 
+        if (_freezeOnConflict(
+                msg_.trustedHeight.revisionHeight, msg_.consensusStatePreimage, height, newConsensusState
+            )) {
+            return ILightClientMsgs.UpdateResult.Misbehaviour;
+        }
+
         bytes32 newHash = keccak256(abi.encode(newConsensusState));
         bytes32 existingHash = consensusStateHashes[height];
         if (existingHash != bytes32(0)) {
@@ -119,17 +125,6 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
             clientState.isFrozen = true;
             emit DoubleSign(height, existingHash, newHash);
-            return ILightClientMsgs.UpdateResult.Misbehaviour;
-        }
-
-        if (msg_.consensusStatePreimage.timestamp >= newConsensusState.timestamp) {
-            clientState.isFrozen = true;
-            emit TimeNonMonotonicity(
-                height,
-                msg_.trustedHeight.revisionHeight,
-                newConsensusState.timestamp,
-                msg_.consensusStatePreimage.timestamp
-            );
             return ILightClientMsgs.UpdateResult.Misbehaviour;
         }
 
@@ -232,43 +227,47 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         _requireStoredConsensusState(msg_.height1.revisionHeight, msg_.consensusStatePreimage1);
         _requireStoredConsensusState(msg_.height2.revisionHeight, msg_.consensusStatePreimage2);
 
-        _freezeOnConflict(
-            msg_.height1.revisionHeight,
-            msg_.consensusStatePreimage1,
-            msg_.height2.revisionHeight,
-            msg_.consensusStatePreimage2
+        require(
+            _freezeOnConflict(
+                msg_.height1.revisionHeight,
+                msg_.consensusStatePreimage1,
+                msg_.height2.revisionHeight,
+                msg_.consensusStatePreimage2
+            ),
+            NoMisbehaviourDetected()
         );
     }
 
     /// @notice Freezes the client if two validly signed headers prove a double sign or time non-monotonicity.
     /// @dev Each header is first checked against its own trusted consensus state, as in `updateClient`, and only then
-    /// against the other header.
+    /// against the other header. If the first header is misbehaviour on its own, the second header is not verified.
     /// @param msg_ The headers misbehaviour message.
     function _headersMisbehaviour(IBesuLightClientMsgs.MsgHeadersMisbehaviour memory msg_) private {
         (uint64 height1, IBesuLightClientMsgs.ConsensusState memory consensusState1) = _verifyHeader(msg_.update1);
-        (uint64 height2, IBesuLightClientMsgs.ConsensusState memory consensusState2) = _verifyHeader(msg_.update2);
-
-        // A header that is not newer than its own trusted consensus state is misbehaviour on its own.
-        if (consensusState1.timestamp <= msg_.update1.consensusStatePreimage.timestamp) {
-            _freezeOnConflict(
+        if (_freezeOnConflict(
                 msg_.update1.trustedHeight.revisionHeight, msg_.update1.consensusStatePreimage, height1, consensusState1
-            );
-        } else if (consensusState2.timestamp <= msg_.update2.consensusStatePreimage.timestamp) {
-            _freezeOnConflict(
-                msg_.update2.trustedHeight.revisionHeight, msg_.update2.consensusStatePreimage, height2, consensusState2
-            );
-        } else {
-            _freezeOnConflict(height1, consensusState1, height2, consensusState2);
+            )) {
+            return;
         }
+
+        (uint64 height2, IBesuLightClientMsgs.ConsensusState memory consensusState2) = _verifyHeader(msg_.update2);
+        if (_freezeOnConflict(
+                msg_.update2.trustedHeight.revisionHeight, msg_.update2.consensusStatePreimage, height2, consensusState2
+            )) {
+            return;
+        }
+
+        require(_freezeOnConflict(height1, consensusState1, height2, consensusState2), NoMisbehaviourDetected());
     }
 
-    /// @notice Freezes the client if two consensus states conflict, reverting otherwise.
-    /// @dev At the same height, the consensus states must differ (double sign). At different heights, the lower
-    /// consensus state's timestamp must not be less than the higher one's (time non-monotonicity).
+    /// @notice Freezes the client if two consensus states conflict.
+    /// @dev At the same height, differing consensus states are a double sign. At different heights, a lower consensus
+    /// state whose timestamp is not less than the higher one's is time non-monotonicity.
     /// @param heightA The height of the first consensus state.
     /// @param a The first consensus state.
     /// @param heightB The height of the second consensus state.
     /// @param b The second consensus state.
+    /// @return frozen True if the consensus states conflict and the client was frozen.
     function _freezeOnConflict(
         uint64 heightA,
         IBesuLightClientMsgs.ConsensusState memory a,
@@ -276,25 +275,31 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         IBesuLightClientMsgs.ConsensusState memory b
     )
         private
+        returns (bool frozen)
     {
         if (heightA == heightB) {
             bytes32 hashA = keccak256(abi.encode(a));
             bytes32 hashB = keccak256(abi.encode(b));
-            require(hashA != hashB, InvalidDoubleSignMisbehaviour(heightA, hashA));
+            if (hashA == hashB) {
+                return false;
+            }
 
             clientState.isFrozen = true;
             emit DoubleSign(heightA, hashA, hashB);
-            return;
+            return true;
         }
 
         // Order by height so that heightA < heightB.
         if (heightA > heightB) {
             (heightA, a, heightB, b) = (heightB, b, heightA, a);
         }
-        require(a.timestamp >= b.timestamp, InvalidTimeNonMonotonicityMisbehaviour(a.timestamp, b.timestamp));
+        if (a.timestamp < b.timestamp) {
+            return false;
+        }
 
         clientState.isFrozen = true;
         emit TimeNonMonotonicity(heightB, heightA, b.timestamp, a.timestamp);
+        return true;
     }
 
     /// @notice Verifies a header against its trusted consensus state and derives its consensus state.
