@@ -125,49 +125,58 @@ contract QBFTSimSuiteTest is Test {
     }
 
     /// @dev Two validly signed headers at the same height prove a double sign, whether or not either is stored.
+    /// Covers both QBFT and IBFT2 commit-seal digests.
     function test_headersDoubleSign() public {
-        SimHeader.Data memory a = sim.seal(sim.nextBlock());
-        SimHeader.Data memory b = sim.nextBlock();
-        b.stateRoot = keccak256("equivocation");
-        b = sim.seal(b);
-        bytes memory misbehaviour = _headersMisbehaviour(sim.updateMsg(2, a), sim.updateMsg(2, b));
+        SimHeader.Mode[2] memory modes = [SimHeader.Mode.QBFT, SimHeader.Mode.IBFT2];
+        for (uint256 m = 0; m < modes.length; ++m) {
+            sim = _setUp(modes[m], 4);
+            SimHeader.Data memory a = sim.seal(sim.nextBlock());
+            SimHeader.Data memory b = sim.nextBlock();
+            b.stateRoot = keccak256("equivocation");
+            b = sim.seal(b);
+            bytes memory misbehaviour = _headersMisbehaviour(sim.updateMsg(2, a), sim.updateMsg(2, b));
 
-        uint256 snapshot = vm.snapshotState();
-        for (uint256 stored = 0; stored < 2; ++stored) {
-            vm.revertToState(snapshot);
-            if (stored == 1) {
-                client.updateClient(sim.updateMsg(2, a));
+            uint256 snapshot = vm.snapshotState();
+            for (uint256 stored = 0; stored < 2; ++stored) {
+                vm.revertToState(snapshot);
+                if (stored == 1) {
+                    client.updateClient(sim.updateMsg(2, a));
+                }
+
+                vm.expectEmit(address(client));
+                emit IBesuLightClient.DoubleSign(
+                    3, keccak256(abi.encode(_consensusState(a))), keccak256(abi.encode(_consensusState(b)))
+                );
+                client.misbehaviour(misbehaviour);
+                assertTrue(_isFrozen(client));
             }
-
-            vm.expectEmit(address(client));
-            emit IBesuLightClient.DoubleSign(
-                3, keccak256(abi.encode(_consensusState(a))), keccak256(abi.encode(_consensusState(b)))
-            );
-            client.misbehaviour(misbehaviour);
-            assertTrue(_isFrozen(client));
         }
     }
 
     /// @dev Two validly signed headers whose timestamps do not increase with height freeze the client in either
-    /// order, even though neither is stored and the forged header is ahead of the clock.
+    /// order, even though neither is stored and the forged header is ahead of the clock. Covers both QBFT and IBFT2.
     function test_headersTimeNonMonotonicity() public {
-        SimHeader.Data memory forged = sim.nextBlock();
-        sim.produceBlocks(2);
-        forged.timestamp = uint64(vm.getBlockTimestamp()) + MAX_CLOCK_DRIFT + 1;
-        forged = sim.seal(forged);
-        bytes memory forgedUpdate = sim.updateMsg(2, forged);
-        bytes memory honestUpdate = sim.updateMsg(2, 4);
-        uint64 honestTimestamp = sim.blockAt(4).timestamp;
+        SimHeader.Mode[2] memory modes = [SimHeader.Mode.QBFT, SimHeader.Mode.IBFT2];
+        for (uint256 m = 0; m < modes.length; ++m) {
+            sim = _setUp(modes[m], 4);
+            SimHeader.Data memory forged = sim.nextBlock();
+            sim.produceBlocks(2);
+            forged.timestamp = uint64(vm.getBlockTimestamp()) + MAX_CLOCK_DRIFT + 1;
+            forged = sim.seal(forged);
+            bytes memory forgedUpdate = sim.updateMsg(2, forged);
+            bytes memory honestUpdate = sim.updateMsg(2, 4);
+            uint64 honestTimestamp = sim.blockAt(4).timestamp;
 
-        uint256 snapshot = vm.snapshotState();
-        bytes[2] memory misbehaviours =
-            [_headersMisbehaviour(forgedUpdate, honestUpdate), _headersMisbehaviour(honestUpdate, forgedUpdate)];
-        for (uint256 i = 0; i < misbehaviours.length; ++i) {
-            vm.revertToState(snapshot);
-            vm.expectEmit(address(client));
-            emit IBesuLightClient.TimeNonMonotonicity(4, 3, honestTimestamp, forged.timestamp);
-            client.misbehaviour(misbehaviours[i]);
-            assertTrue(_isFrozen(client));
+            uint256 snapshot = vm.snapshotState();
+            bytes[2] memory misbehaviours =
+                [_headersMisbehaviour(forgedUpdate, honestUpdate), _headersMisbehaviour(honestUpdate, forgedUpdate)];
+            for (uint256 i = 0; i < misbehaviours.length; ++i) {
+                vm.revertToState(snapshot);
+                vm.expectEmit(address(client));
+                emit IBesuLightClient.TimeNonMonotonicity(4, 3, honestTimestamp, forged.timestamp);
+                client.misbehaviour(misbehaviours[i]);
+                assertTrue(_isFrozen(client));
+            }
         }
     }
 
