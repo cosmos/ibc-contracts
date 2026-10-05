@@ -180,6 +180,36 @@ contract QBFTSimSuiteTest is Test {
         }
     }
 
+    /// @dev A header not newer than its own trusted consensus state is evidence on its own, as in `updateClient`,
+    /// even when paired with a valid later header or with itself. Covers both QBFT and IBFT2.
+    function test_headersTimeNonMonotonicityAgainstTrustedState() public {
+        SimHeader.Mode[2] memory modes = [SimHeader.Mode.QBFT, SimHeader.Mode.IBFT2];
+        for (uint256 m = 0; m < modes.length; ++m) {
+            sim = _setUp(modes[m], 4);
+            uint64 trustedTimestamp = sim.blockAt(2).timestamp;
+            SimHeader.Data memory forged = sim.nextBlock();
+            forged.timestamp = trustedTimestamp;
+            forged = sim.seal(forged);
+            sim.produceBlocks(2);
+            bytes memory forgedUpdate = sim.updateMsg(2, forged);
+            bytes memory honestUpdate = sim.updateMsg(2, 4);
+
+            uint256 snapshot = vm.snapshotState();
+            bytes[3] memory misbehaviours = [
+                _headersMisbehaviour(forgedUpdate, honestUpdate),
+                _headersMisbehaviour(honestUpdate, forgedUpdate),
+                _headersMisbehaviour(forgedUpdate, forgedUpdate)
+            ];
+            for (uint256 i = 0; i < misbehaviours.length; ++i) {
+                vm.revertToState(snapshot);
+                vm.expectEmit(address(client));
+                emit IBesuLightClient.TimeNonMonotonicity(3, 2, trustedTimestamp, trustedTimestamp);
+                client.misbehaviour(misbehaviours[i]);
+                assertTrue(_isFrozen(client));
+            }
+        }
+    }
+
     function test_headersMisbehaviourRejections() public {
         address[] memory two = new address[](2);
         (two[0], two[1]) = (sim.validators()[0], sim.validators()[1]);

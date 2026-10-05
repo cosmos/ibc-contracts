@@ -241,11 +241,25 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     }
 
     /// @notice Freezes the client if two validly signed headers prove a double sign or time non-monotonicity.
+    /// @dev Each header is first checked against its own trusted consensus state, as in `updateClient`, and only then
+    /// against the other header.
     /// @param msg_ The headers misbehaviour message.
     function _headersMisbehaviour(IBesuLightClientMsgs.MsgHeadersMisbehaviour memory msg_) private {
         (uint64 height1, IBesuLightClientMsgs.ConsensusState memory consensusState1) = _verifyHeader(msg_.update1);
         (uint64 height2, IBesuLightClientMsgs.ConsensusState memory consensusState2) = _verifyHeader(msg_.update2);
-        _freezeOnConflict(height1, consensusState1, height2, consensusState2);
+
+        // A header that is not newer than its own trusted consensus state is misbehaviour on its own.
+        if (consensusState1.timestamp <= msg_.update1.consensusStatePreimage.timestamp) {
+            _freezeOnConflict(
+                msg_.update1.trustedHeight.revisionHeight, msg_.update1.consensusStatePreimage, height1, consensusState1
+            );
+        } else if (consensusState2.timestamp <= msg_.update2.consensusStatePreimage.timestamp) {
+            _freezeOnConflict(
+                msg_.update2.trustedHeight.revisionHeight, msg_.update2.consensusStatePreimage, height2, consensusState2
+            );
+        } else {
+            _freezeOnConflict(height1, consensusState1, height2, consensusState2);
+        }
     }
 
     /// @notice Freezes the client if two consensus states conflict, reverting otherwise.

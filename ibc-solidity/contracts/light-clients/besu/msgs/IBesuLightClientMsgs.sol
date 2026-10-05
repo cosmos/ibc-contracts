@@ -78,8 +78,10 @@ interface IBesuLightClientMsgs {
 
     /// @notice Misbehaviour message containing two validly signed headers that conflict with each other.
     /// @dev Each header is verified against its own trusted consensus state exactly as in `updateClient`, except that
-    /// the clock drift check is skipped. Headers at the same height with different consensus states prove a double
-    /// sign. Headers at different heights where the lower header's timestamp is not less than the higher header's
+    /// the clock drift check is skipped. A header whose timestamp is not greater than its trusted consensus state's
+    /// timestamp proves time non-monotonicity on its own; the other header may then be any valid header, including
+    /// the same one. Otherwise, headers at the same height with different consensus states prove a double sign, and
+    /// headers at different heights where the lower header's timestamp is not less than the higher header's
     /// timestamp prove time non-monotonicity. The headers may be in either order and need not be stored.
     /// @param update1 The first header with its trusted consensus state.
     /// @param update2 The second header with its trusted consensus state.
