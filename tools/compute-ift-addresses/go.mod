@@ -4,7 +4,7 @@ go 1.26.5
 
 require (
 	github.com/cosmos/cosmos-sdk v0.55.0
-	github.com/ethereum/go-ethereum v1.17.6
+	github.com/ethereum/go-ethereum v1.17.7
 )
 
 require (
