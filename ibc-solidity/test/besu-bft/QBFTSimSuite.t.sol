@@ -3,6 +3,10 @@ pragma solidity ^0.8.28;
 
 import { Test } from "forge-std/Test.sol";
 import { Strings } from "@openzeppelin-contracts/utils/Strings.sol";
+import { IAccessControl } from "@openzeppelin-contracts/access/IAccessControl.sol";
+import { Math } from "@openzeppelin-contracts/utils/math/Math.sol";
+import { Memory } from "@openzeppelin-contracts/utils/Memory.sol";
+import { RLP } from "@openzeppelin-contracts/utils/RLP.sol";
 
 import { IICS02ClientMsgs } from "../../contracts/msgs/IICS02ClientMsgs.sol";
 import { IICS26RouterMsgs } from "../../contracts/msgs/IICS26RouterMsgs.sol";
@@ -10,6 +14,7 @@ import { ILightClientMsgs } from "../../contracts/msgs/ILightClientMsgs.sol";
 import { IBesuLightClient } from "../../contracts/light-clients/besu/interfaces/IBesuLightClient.sol";
 import { IBesuLightClientMsgs } from "../../contracts/light-clients/besu/msgs/IBesuLightClientMsgs.sol";
 import { IBesuLightClientErrors } from "../../contracts/light-clients/besu/errors/IBesuLightClientErrors.sol";
+import { BesuLightClientBase } from "../../contracts/light-clients/besu/BesuLightClientBase.sol";
 import { ICS24Host } from "../../contracts/utils/ICS24Host.sol";
 
 import { IbcImpl } from "../solidity-ibc/utils/IbcImpl.sol";
@@ -18,36 +23,132 @@ import { TestHelper } from "../solidity-ibc/utils/TestHelper.sol";
 import { QBFTSimSuite } from "./utils/QBFTSimSuite.sol";
 import { SimHeader } from "./utils/SimHeader.sol";
 
-contract QBFTSimSuiteTest is Test {
+/// @dev Every scenario runs once per consensus mode through `QBFTSimSuiteQBFTTest` and `QBFTSimSuiteIBFT2Test`.
+abstract contract QBFTSimSuiteTest is Test {
     uint64 internal constant TRUSTING_PERIOD = 1 days;
     uint64 internal constant MAX_CLOCK_DRIFT = 10;
 
     QBFTSimSuite internal sim;
     IBesuLightClient internal client;
 
+    function _mode() internal pure virtual returns (SimHeader.Mode);
+
     function setUp() public {
-        sim = _setUp(SimHeader.Mode.QBFT, 4);
+        sim = _setUp(4);
     }
 
-    function _setUp(SimHeader.Mode mode, uint256 validatorCount) internal returns (QBFTSimSuite s) {
-        s = new QBFTSimSuite(mode);
+    function _setUp(uint256 validatorCount) internal returns (QBFTSimSuite s) {
+        s = new QBFTSimSuite(_mode());
         s.addValidators(validatorCount);
         s.produceBlocks(2);
         client = s.deployLightClient(TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(2, 3));
     }
 
     function test_honestChain() public {
-        SimHeader.Mode[2] memory modes = [SimHeader.Mode.QBFT, SimHeader.Mode.IBFT2];
         uint256[3] memory counts = [uint256(1), 4, 16];
-        for (uint256 m = 0; m < modes.length; ++m) {
-            for (uint256 c = 0; c < counts.length; ++c) {
-                QBFTSimSuite s = _setUp(modes[m], counts[c]);
-                s.produceBlocks(2);
-                assertEq(uint8(client.updateClient(s.updateMsg(2, 3))), uint8(ILightClientMsgs.UpdateResult.Update));
-                assertEq(uint8(client.updateClient(s.updateMsg(3, 4))), uint8(ILightClientMsgs.UpdateResult.Update));
-                assertEq(uint8(client.updateClient(s.updateMsg(2, 4))), uint8(ILightClientMsgs.UpdateResult.NoOp));
-            }
+        for (uint256 c = 0; c < counts.length; ++c) {
+            QBFTSimSuite s = _setUp(counts[c]);
+            s.produceBlocks(2);
+            assertEq(uint8(client.updateClient(s.updateMsg(2, 3))), uint8(ILightClientMsgs.UpdateResult.Update));
+            assertEq(uint8(client.updateClient(s.updateMsg(3, 4))), uint8(ILightClientMsgs.UpdateResult.Update));
+            assertEq(uint8(client.updateClient(s.updateMsg(2, 4))), uint8(ILightClientMsgs.UpdateResult.NoOp));
         }
+    }
+
+    /// @dev Filling in an older height after a newer one stores it without moving `latestHeight` back.
+    function test_backfillKeepsLatestHeight() public {
+        sim.produceBlocks(2);
+        client.updateClient(sim.updateMsg(2, 4));
+        assertEq(uint8(client.updateClient(sim.updateMsg(2, 3))), uint8(ILightClientMsgs.UpdateResult.Update));
+
+        IBesuLightClientMsgs.ClientState memory state =
+            abi.decode(client.getClientState(), (IBesuLightClientMsgs.ClientState));
+        assertEq(state.latestHeight.revisionHeight, 4);
+        assertEq(client.getConsensusStateHash(3), keccak256(abi.encode(sim.consensusState(3))));
+    }
+
+    function test_updateClient_revertMalformedHeader() public {
+        SimHeader.Data memory h = sim.nextBlock();
+        bytes memory headerRlp = SimHeader.encode(h);
+
+        _expectUpdateRevert(
+            _rewriteHeader(headerRlp, 14, type(uint256).max, ""),
+            abi.encodeWithSelector(IBesuLightClientErrors.InvalidHeaderFormat.selector, 14)
+        );
+        _expectUpdateRevert(
+            _rewriteHeader(headerRlp, 20, 12, RLP.encode(bytes(hex"c0"))),
+            abi.encodeWithSelector(IBesuLightClientErrors.InvalidExtraDataFormat.selector, 0)
+        );
+    }
+
+    function test_accessControl() public {
+        address manager = makeAddr("manager");
+        address relayer = makeAddr("relayer");
+        IBesuLightClient restricted = sim.deployLightClient(
+            TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(2, 3), manager
+        );
+        IAccessControl acl = IAccessControl(address(restricted));
+        bytes32 role = BesuLightClientBase(address(restricted)).PROOF_SUBMITTER_ROLE();
+        assertTrue(acl.hasRole(acl.getRoleAdmin(role), manager));
+        assertTrue(acl.hasRole(role, manager));
+        assertFalse(acl.hasRole(role, address(0)));
+
+        sim.produceBlock();
+        bytes memory update = sim.updateMsg(2, 3);
+        bytes memory unauthorized =
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, relayer, role);
+        ILightClientMsgs.MsgVerifyMembership memory membership;
+        ILightClientMsgs.MsgVerifyNonMembership memory nonMembership;
+
+        vm.startPrank(relayer);
+        vm.expectRevert(unauthorized);
+        restricted.updateClient(update);
+        vm.expectRevert(unauthorized);
+        restricted.verifyMembership(membership);
+        vm.expectRevert(unauthorized);
+        restricted.verifyNonMembership(nonMembership);
+        vm.expectRevert(unauthorized);
+        restricted.misbehaviour("");
+        vm.stopPrank();
+
+        vm.prank(manager);
+        acl.grantRole(role, relayer);
+        vm.prank(relayer);
+        assertEq(uint8(restricted.updateClient(update)), uint8(ILightClientMsgs.UpdateResult.Update));
+
+        // Without a role manager, anyone may submit and no one administers the role.
+        IAccessControl open = IAccessControl(address(client));
+        assertTrue(open.hasRole(role, address(0)));
+        assertFalse(open.hasRole(open.getRoleAdmin(role), manager));
+        vm.prank(relayer);
+        assertEq(uint8(client.updateClient(update)), uint8(ILightClientMsgs.UpdateResult.Update));
+    }
+
+    function _expectUpdateRevert(bytes memory headerRlp, bytes memory revertData) internal {
+        bytes memory update = abi.encode(
+            IBesuLightClientMsgs.MsgUpdateClient(headerRlp, IICS02ClientMsgs.Height(0, 2), sim.consensusState(2))
+        );
+        vm.expectRevert(revertData);
+        client.updateClient(update);
+    }
+
+    /// @dev Re-encodes the first `length` items of a header RLP, replacing item `index` with an encoded `item`.
+    function _rewriteHeader(
+        bytes memory headerRlp,
+        uint256 length,
+        uint256 index,
+        bytes memory item
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
+        Memory.Slice[] memory items = RLP.decodeList(headerRlp);
+        bytes[] memory out = new bytes[](length);
+        for (uint256 i = 0; i < length; ++i) {
+            out[i] = i == index ? item : Memory.toBytes(items[i]);
+        }
+        return RLP.encode(out);
     }
 
     function test_doubleSign() public {
@@ -272,5 +373,86 @@ contract QBFTSimSuiteTest is Test {
         ILightClientMsgs.MsgVerifyMembership memory msg_ = sim.membershipMsg(3, path);
         assertEq(msg_.value, abi.encodePacked(ICS24Host.packetCommitmentBytes32(packet)));
         client.verifyMembership(msg_);
+    }
+
+    /// @dev Rotates a random part of the trusted set and signs with a random subset of the new set: the update must
+    /// succeed iff the signers reach the trust level of the trusted set and a BFT quorum of the new set.
+    function testFuzz_updateClient_signerSubset(
+        uint256 trustedCount,
+        uint256 removed,
+        uint256 added,
+        uint256 signerMask
+    )
+        public
+    {
+        trustedCount = bound(trustedCount, 1, 7);
+        removed = bound(removed, 0, trustedCount - 1);
+        added = bound(added, 0, 3);
+        sim = _setUp(trustedCount);
+        for (uint256 i = 0; i < removed; ++i) {
+            sim.removeValidator(sim.validators()[0]);
+        }
+        sim.addValidators(added);
+
+        address[] memory trusted = sim.consensusState(2).validators;
+        address[] memory current = sim.validators();
+        uint256 signerCount = 0;
+        for (uint256 i = 0; i < current.length; ++i) {
+            signerCount += (signerMask >> i) & 1;
+        }
+        address[] memory signers = new address[](signerCount);
+        uint256 overlap = 0;
+        uint256 k = 0;
+        for (uint256 i = 0; i < current.length; ++i) {
+            if ((signerMask >> i) & 1 == 1) {
+                signers[k] = current[i];
+                ++k;
+                if (_contains(trusted, current[i])) {
+                    ++overlap;
+                }
+            }
+        }
+        bytes memory update = sim.updateMsg(2, sim.seal(sim.nextBlock(), signers));
+
+        uint256 requiredOverlap = Math.ceilDiv(2 * trusted.length, 3);
+        uint256 requiredQuorum = Math.ceilDiv(2 * current.length, 3);
+        if (overlap < requiredOverlap) {
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, overlap, requiredOverlap
+                )
+            );
+        } else if (signerCount < requiredQuorum) {
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    IBesuLightClientErrors.InsufficientValidatorQuorum.selector, signerCount, requiredQuorum
+                )
+            );
+        } else {
+            assertEq(uint8(client.updateClient(update)), uint8(ILightClientMsgs.UpdateResult.Update));
+            return;
+        }
+        client.updateClient(update);
+    }
+
+    function _contains(address[] memory set, address value) internal pure returns (bool) {
+        for (uint256 i = 0; i < set.length; ++i) {
+            if (set[i] == value) {
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
+contract QBFTSimSuiteQBFTTest is QBFTSimSuiteTest {
+    function _mode() internal pure override returns (SimHeader.Mode) {
+        return SimHeader.Mode.QBFT;
+    }
+}
+
+contract QBFTSimSuiteIBFT2Test is QBFTSimSuiteTest {
+    function _mode() internal pure override returns (SimHeader.Mode) {
+        return SimHeader.Mode.IBFT2;
     }
 }

@@ -218,6 +218,19 @@ contract QBFTSimSuite is Test, SimWorldState {
         external
         returns (IBesuLightClient)
     {
+        return deployLightClient(trustingPeriod, maxClockDrift, trustLevel, address(0));
+    }
+
+    /// @notice Deploys the light client for `MODE`, trusting the current tip, with `roleManager` gating submission.
+    function deployLightClient(
+        uint64 trustingPeriod,
+        uint64 maxClockDrift,
+        IBesuLightClientMsgs.TrustThreshold memory trustLevel,
+        address roleManager
+    )
+        public
+        returns (IBesuLightClient)
+    {
         uint64 height = tipHeight();
         IBesuLightClientMsgs.ClientState memory clientState = IBesuLightClientMsgs.ClientState({
             ibcRouter: IBC_ROUTER,
@@ -228,9 +241,9 @@ contract QBFTSimSuite is Test, SimWorldState {
             trustLevel: trustLevel
         });
         if (MODE == SimHeader.Mode.QBFT) {
-            return new BesuQBFTLightClient(clientState, consensusState(height), address(0));
+            return new BesuQBFTLightClient(clientState, consensusState(height), roleManager);
         }
-        return new BesuIBFT2LightClient(clientState, consensusState(height), address(0));
+        return new BesuIBFT2LightClient(clientState, consensusState(height), roleManager);
     }
 
     function consensusState(uint64 height) public view returns (IBesuLightClientMsgs.ConsensusState memory) {
