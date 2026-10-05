@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"crypto/ecdsa"
+	"crypto/sha256"
 	"fmt"
 	"math/big"
 	"os"
@@ -204,12 +205,13 @@ func (s *BesuToBesuTestSuite) Test_ICS20TransferERC20FromChainAToChainB() {
 	erc20AddressA := ethcommon.HexToAddress(s.chainA.contractAddresses.Erc20)
 
 	var (
-		sendTxHash  []byte
-		sendReceipt *ethtypes.Receipt
-		sendPacket  ics26router.IICS26RouterMsgsPacket
-		recvReceipt *ethtypes.Receipt
-		ibcERC20OnB *ibcerc20.Contract
-		ackReceipt  *ethtypes.Receipt
+		initialUserBalanceA *big.Int
+		sendTxHash          []byte
+		sendReceipt         *ethtypes.Receipt
+		sendPacket          ics26router.IICS26RouterMsgsPacket
+		recvReceipt         *ethtypes.Receipt
+		ibcERC20OnB         *ibcerc20.Contract
+		ackReceipt          *ethtypes.Receipt
 	)
 
 	s.Require().True(s.Run("Fund user on Chain A", func() {
@@ -219,6 +221,9 @@ func (s *BesuToBesuTestSuite) Test_ICS20TransferERC20FromChainAToChainB() {
 		fundReceipt, err := s.chainA.eth.GetTxReciept(ctx, fundTx.Hash())
 		s.Require().NoError(err)
 		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, fundReceipt.Status)
+
+		initialUserBalanceA, err = s.chainA.erc20.BalanceOf(nil, userAddressA)
+		s.Require().NoError(err)
 	}))
 
 	s.Require().True(s.Run("Approve ICS20 on Chain A", func() {
@@ -263,7 +268,7 @@ func (s *BesuToBesuTestSuite) Test_ICS20TransferERC20FromChainAToChainB() {
 
 		userBalanceA, err := s.chainA.erc20.BalanceOf(nil, userAddressA)
 		s.Require().NoError(err)
-		expectedBalanceA := new(big.Int).Sub(new(big.Int).Set(testvalues.StartingERC20Balance), transferAmount)
+		expectedBalanceA := new(big.Int).Sub(new(big.Int).Set(initialUserBalanceA), transferAmount)
 		s.Require().Equal(0, expectedBalanceA.Cmp(userBalanceA))
 	}))
 
@@ -472,6 +477,162 @@ func (s *BesuToBesuTestSuite) Test_TimeoutICS20TransferERC20FromChainAToChainB()
 			timeoutEvent, err := e2esuite.GetEvmEvent(timeoutReceipt, s.chainA.ics26.ParseTimeoutPacket)
 			s.Require().NoError(err)
 			s.Require().Equal(sendPacket, timeoutEvent.Packet)
+		}))
+	}))
+
+	s.Require().True(s.Run("Verify tokens refunded on Chain A", func() {
+		userBalanceA, err := s.chainA.erc20.BalanceOf(nil, userAddressA)
+		s.Require().NoError(err)
+		s.Require().Equal(0, initialUserBalanceA.Cmp(userBalanceA))
+
+		escrowBalanceA, err := s.chainA.erc20.BalanceOf(nil, escrowAddressA)
+		s.Require().NoError(err)
+		s.Require().Equal(0, initialEscrowBalanceA.Cmp(escrowBalanceA))
+	}))
+}
+
+// Test_ErrorAckICS20TransferERC20FromChainAToChainB sends a transfer to a receiver that is not a hex address, so
+// ICS20 on Chain B fails to receive it and ICS26 writes the universal error acknowledgement. Relaying that
+// acknowledgement back to Chain A refunds the sender.
+func (s *BesuToBesuTestSuite) Test_ErrorAckICS20TransferERC20FromChainAToChainB() {
+	ctx := context.Background()
+	transferAmount := big.NewInt(testvalues.TransferAmount)
+	userAddressA := crypto.PubkeyToAddress(s.chainA.user.PublicKey)
+	ics20AddressA := ethcommon.HexToAddress(s.chainA.contractAddresses.Ics20Transfer)
+	ics26AddressA := ethcommon.HexToAddress(s.chainA.contractAddresses.Ics26Router)
+	ics26AddressB := ethcommon.HexToAddress(s.chainB.contractAddresses.Ics26Router)
+	erc20AddressA := ethcommon.HexToAddress(s.chainA.contractAddresses.Erc20)
+	universalErrorAck := sha256.Sum256([]byte("UNIVERSAL_ERROR_ACKNOWLEDGEMENT"))
+
+	var (
+		initialUserBalanceA   *big.Int
+		initialEscrowBalanceA *big.Int
+		escrowAddressA        ethcommon.Address
+		sendTxHash            []byte
+		sendPacket            ics26router.IICS26RouterMsgsPacket
+		recvReceipt           *ethtypes.Receipt
+	)
+
+	s.Require().True(s.Run("Fund user on Chain A", func() {
+		fundTx, err := s.chainA.erc20.Transfer(s.mustTransactOpts(&s.chainA, s.chainA.eth.Faucet), userAddressA, transferAmount)
+		s.Require().NoError(err)
+
+		fundReceipt, err := s.chainA.eth.GetTxReciept(ctx, fundTx.Hash())
+		s.Require().NoError(err)
+		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, fundReceipt.Status)
+
+		initialUserBalanceA, err = s.chainA.erc20.BalanceOf(nil, userAddressA)
+		s.Require().NoError(err)
+		escrowAddressA, err = s.chainA.ics20.GetEscrow(nil, besuToBesuClientOnA)
+		s.Require().NoError(err)
+		initialEscrowBalanceA, err = s.chainA.erc20.BalanceOf(nil, escrowAddressA)
+		s.Require().NoError(err)
+	}))
+
+	s.Require().True(s.Run("Approve ICS20 on Chain A", func() {
+		approveTx, err := s.chainA.erc20.Approve(s.mustTransactOpts(&s.chainA, s.chainA.user), ics20AddressA, transferAmount)
+		s.Require().NoError(err)
+
+		approveReceipt, err := s.chainA.eth.GetTxReciept(ctx, approveTx.Hash())
+		s.Require().NoError(err)
+		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, approveReceipt.Status)
+	}))
+
+	s.Require().True(s.Run("Send transfer to invalid receiver from Chain A", func() {
+		timeout := uint64(time.Now().Add(30 * time.Minute).Unix())
+		sendTx, err := s.chainA.ics20.SendTransfer(s.mustTransactOpts(&s.chainA, s.chainA.user), ics20transfer.IICS20TransferMsgsSendTransferMsg{
+			Denom:            erc20AddressA,
+			Amount:           transferAmount,
+			Receiver:         "invalid-receiver",
+			TimeoutTimestamp: timeout,
+			SourceClient:     besuToBesuClientOnA,
+			DestPort:         transfertypes.PortID,
+			Memo:             "",
+		})
+		s.Require().NoError(err)
+
+		sendReceipt, err := s.chainA.eth.GetTxReciept(ctx, sendTx.Hash())
+		s.Require().NoError(err)
+		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, sendReceipt.Status)
+		sendTxHash = sendTx.Hash().Bytes()
+
+		sendEvent, err := e2esuite.GetEvmEvent(sendReceipt, s.chainA.ics26.ParseSendPacket)
+		s.Require().NoError(err)
+		sendPacket = sendEvent.Packet
+	}))
+
+	s.Require().True(s.Run("Verify balances on Chain A after send", func() {
+		userBalanceA, err := s.chainA.erc20.BalanceOf(nil, userAddressA)
+		s.Require().NoError(err)
+		expectedUserBalanceA := new(big.Int).Sub(new(big.Int).Set(initialUserBalanceA), transferAmount)
+		s.Require().Equal(0, expectedUserBalanceA.Cmp(userBalanceA))
+
+		escrowAddressA, err = s.chainA.ics20.GetEscrow(nil, besuToBesuClientOnA)
+		s.Require().NoError(err)
+		s.Require().NotEqual(ethcommon.Address{}, escrowAddressA)
+		escrowBalanceA, err := s.chainA.erc20.BalanceOf(nil, escrowAddressA)
+		s.Require().NoError(err)
+		expectedEscrowBalanceA := new(big.Int).Add(new(big.Int).Set(initialEscrowBalanceA), transferAmount)
+		s.Require().Equal(0, expectedEscrowBalanceA.Cmp(escrowBalanceA))
+	}))
+
+	s.Require().True(s.Run("Relay packet to Chain B", func() {
+		var relayTx []byte
+		s.Require().True(s.Run("Retrieve relay tx", func() {
+			relayAB, err := s.relayerClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+				SrcChain:    s.chainA.eth.ChainID.String(),
+				DstChain:    s.chainB.eth.ChainID.String(),
+				SourceTxIds: [][]byte{sendTxHash},
+				SrcClientId: besuToBesuClientOnA,
+				DstClientId: besuToBesuClientOnB,
+			})
+			s.Require().NoError(err)
+			s.Require().NotEmpty(relayAB.Tx)
+			s.Require().Equal(strings.ToLower(s.chainB.contractAddresses.Ics26Router), strings.ToLower(relayAB.Address))
+			relayTx = relayAB.Tx
+		}))
+
+		s.Require().True(s.Run("Broadcast relay tx on Chain B", func() {
+			var err error
+			recvReceipt, err = s.chainB.eth.BroadcastTx(ctx, s.chainB.relayerSubmitter, 15_000_000, &ics26AddressB, relayTx)
+			s.Require().NoError(err)
+			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, recvReceipt.Status)
+
+			_, err = e2esuite.GetEvmEvent(recvReceipt, s.chainB.ics26.ParseIBCAppRecvPacketCallbackError)
+			s.Require().NoError(err)
+
+			writeAckEvent, err := e2esuite.GetEvmEvent(recvReceipt, s.chainB.ics26.ParseWriteAcknowledgement)
+			s.Require().NoError(err)
+			s.Require().Equal(sendPacket, writeAckEvent.Packet)
+			s.Require().Equal([][]byte{universalErrorAck[:]}, writeAckEvent.Acknowledgements)
+		}))
+	}))
+
+	s.Require().True(s.Run("Relay error acknowledgement to Chain A", func() {
+		var relayTx []byte
+		s.Require().True(s.Run("Retrieve acknowledgement relay tx", func() {
+			ackRelay, err := s.relayerClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+				SrcChain:    s.chainB.eth.ChainID.String(),
+				DstChain:    s.chainA.eth.ChainID.String(),
+				SourceTxIds: [][]byte{recvReceipt.TxHash.Bytes()},
+				SrcClientId: besuToBesuClientOnB,
+				DstClientId: besuToBesuClientOnA,
+			})
+			s.Require().NoError(err)
+			s.Require().NotEmpty(ackRelay.Tx)
+			s.Require().Equal(strings.ToLower(s.chainA.contractAddresses.Ics26Router), strings.ToLower(ackRelay.Address))
+			relayTx = ackRelay.Tx
+		}))
+
+		s.Require().True(s.Run("Broadcast acknowledgement relay tx on Chain A", func() {
+			ackReceipt, err := s.chainA.eth.BroadcastTx(ctx, s.chainA.relayerSubmitter, 15_000_000, &ics26AddressA, relayTx)
+			s.Require().NoError(err)
+			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, ackReceipt.Status)
+
+			ackEvent, err := e2esuite.GetEvmEvent(ackReceipt, s.chainA.ics26.ParseAckPacket)
+			s.Require().NoError(err)
+			s.Require().Equal(sendPacket, ackEvent.Packet)
+			s.Require().Equal(universalErrorAck[:], ackEvent.Acknowledgement)
 		}))
 	}))
 
