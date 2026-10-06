@@ -197,22 +197,6 @@
   },
   {
     "type": "error",
-    "name": "InvalidMisbehaviourHeightOrder",
-    "inputs": [
-      {
-        "name": "height1",
-        "type": "uint64",
-        "internalType": "uint64"
-      },
-      {
-        "name": "height2",
-        "type": "uint64",
-        "internalType": "uint64"
-      }
-    ]
-  },
-  {
-    "type": "error",
     "name": "InvalidMixHash",
     "inputs": [
       {
@@ -268,22 +252,6 @@
         "name": "providedRevisionNumber",
         "type": "uint64",
         "internalType": "uint64"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "InvalidTimeNonMonotonicityMisbehaviour",
-    "inputs": [
-      {
-        "name": "timestamp1",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "timestamp2",
-        "type": "uint256",
-        "internalType": "uint256"
       }
     ]
   },
@@ -350,6 +318,11 @@
         "internalType": "uint256"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "NoMisbehaviourDetected",
+    "inputs": []
   },
   {
     "type": "error",
