@@ -411,13 +411,13 @@
         "internalType": "uint64"
       },
       {
-        "name": "trustedConsensusStateHash",
+        "name": "consensusStateHash1",
         "type": "bytes32",
         "indexed": false,
         "internalType": "bytes32"
       },
       {
-        "name": "conflictingConsensusStateHash",
+        "name": "consensusStateHash2",
         "type": "bytes32",
         "indexed": false,
         "internalType": "bytes32"

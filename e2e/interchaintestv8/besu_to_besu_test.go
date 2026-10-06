@@ -689,8 +689,8 @@ func (s *BesuToBesuTestSuite) Test_DoubleSignFreezesClient() {
 		doubleSignEvent, err := e2esuite.GetEvmEvent(receipt, client.ParseDoubleSign)
 		s.Require().NoError(err)
 		s.Require().Equal(height, doubleSignEvent.RevisionHeight)
-		s.Require().Equal(trustedHash, doubleSignEvent.TrustedConsensusStateHash)
-		s.Require().NotEqual(trustedHash, doubleSignEvent.ConflictingConsensusStateHash)
+		s.Require().Equal(trustedHash, doubleSignEvent.ConsensusStateHash1)
+		s.Require().NotEqual(trustedHash, doubleSignEvent.ConsensusStateHash2)
 
 		s.Require().True(s.besuClientState(client).IsFrozen)
 		storedHash, err := client.GetConsensusStateHash(nil, height)
@@ -835,7 +835,7 @@ func (s *BesuToBesuTestSuite) Test_HeadersDoubleSignMisbehaviourIsPermissionless
 		doubleSignEvent, err := e2esuite.GetEvmEvent(receipt, client.ParseDoubleSign)
 		s.Require().NoError(err)
 		s.Require().Equal(height, doubleSignEvent.RevisionHeight)
-		s.Require().NotEqual(doubleSignEvent.TrustedConsensusStateHash, doubleSignEvent.ConflictingConsensusStateHash)
+		s.Require().NotEqual(doubleSignEvent.ConsensusStateHash1, doubleSignEvent.ConsensusStateHash2)
 
 		s.Require().True(s.besuClientState(client).IsFrozen)
 		_, err = client.GetConsensusStateHash(nil, height)
