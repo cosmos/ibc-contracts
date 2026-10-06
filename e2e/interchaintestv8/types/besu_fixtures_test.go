@@ -7,10 +7,8 @@ import (
 	"crypto/ecdsa"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -76,105 +74,29 @@ func TestBesuConsensusStateEncoding(t *testing.T) {
 	require.Equal(t, want, got)
 }
 
-func TestBesuIBFT2Fixture(t *testing.T) {
+func TestBesuLowOverlapFixture(t *testing.T) {
 	t.Chdir("../../..")
-	fixturePath := filepath.Join(testvalues.BesuBFTFixturesDir, "ibft2.json")
-	fixtureJSON, err := os.ReadFile(fixturePath)
-	require.NoError(t, err)
-	var fixture map[string]json.RawMessage
-	require.NoError(t, json.Unmarshal(fixtureJSON, &fixture))
-
-	// Public test keys 1 through 7 make the intended signer overlaps reproducible.
-	keys := make([]*ecdsa.PrivateKey, 8)
-	for i := 1; i < len(keys); i++ {
-		keys[i], err = crypto.HexToECDSA(fmt.Sprintf("%064x", i))
-		require.NoError(t, err)
-	}
-	validatorsFor := func(ids []int) []ethcommon.Address {
-		validators := make([]ethcommon.Address, len(ids))
-		for i, id := range ids {
-			validators[i] = crypto.PubkeyToAddress(keys[id].PublicKey)
-		}
-		slices.SortFunc(validators, func(a, b ethcommon.Address) int {
-			return bytes.Compare(a[:], b[:])
+	for _, consensus := range []string{testvalues.BesuConsensusQBFT, testvalues.BesuConsensusIBFT2} {
+		t.Run(consensus, func(t *testing.T) {
+			testBesuLowOverlapFixture(t, consensus)
 		})
-		return validators
-	}
-
-	var initialValidators []string
-	require.NoError(t, json.Unmarshal(fixture["initialTrustedValidators"], &initialValidators))
-	expectedInitialValidators := addressesToHex(validatorsFor([]int{1, 2, 3, 4}))
-	changed := !slices.Equal(initialValidators, expectedInitialValidators)
-	if !*updateBesuSynthetic {
-		require.Equal(t, expectedInitialValidators, initialValidators)
-	}
-	fixture["initialTrustedValidators"], err = json.Marshal(expectedInitialValidators)
-	require.NoError(t, err)
-
-	for _, tc := range []struct {
-		name       string
-		validators []int
-		signers    []int
-	}{
-		{name: "adjacentUpdate", validators: []int{1, 2, 3, 4}, signers: []int{1, 2, 3}},
-		{name: "nonAdjacentUpdate", validators: []int{1, 2, 3, 5}, signers: []int{1, 2, 3}},
-		{name: "lowQuorumUpdate", validators: []int{1, 2, 3, 5}, signers: []int{1, 2}},
-		{name: "conflictingUpdate", validators: []int{1, 2, 3, 5}, signers: []int{1, 2, 3}},
-		{name: "lowOverlapUpdate", validators: []int{1, 5, 6, 7}, signers: []int{1, 5, 6}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			var update besuUpdateFixture
-			require.NoError(t, json.Unmarshal(fixture[tc.name], &update))
-			header, err := decodeMutableQBFTHeader(ethcommon.FromHex(update.HeaderRlp))
-			require.NoError(t, err)
-			validators := validatorsFor(tc.validators)
-			header.setValidators(validators)
-			// Both protocols share the header encoding, but IBFT2 omits the seal field
-			// entirely when signing, whereas QBFT encodes an empty seal list.
-			signingHeader := *header
-			signingHeader.extraItems = header.extraItems[:4]
-			signingRLP, err := signingHeader.encode()
-			require.NoError(t, err)
-			signerKeys := make([]*ecdsa.PrivateKey, len(tc.signers))
-			for i, id := range tc.signers {
-				signerKeys[i] = keys[id]
-			}
-			header.setCommitSeals(signCommitSeals(crypto.Keccak256Hash(signingRLP), signerKeys))
-			headerRLP, err := header.encode()
-			require.NoError(t, err)
-			expectedHeader := encodeHex(headerRLP)
-			expectedValidators := addressesToHex(validators)
-			changed = changed || update.HeaderRlp != expectedHeader || !slices.Equal(update.ExpectedValidators, expectedValidators)
-			if !*updateBesuSynthetic {
-				require.Equal(t, expectedHeader, update.HeaderRlp)
-				require.Equal(t, expectedValidators, update.ExpectedValidators)
-			}
-			update.HeaderRlp = expectedHeader
-			update.ExpectedValidators = expectedValidators
-			fixture[tc.name], err = json.Marshal(update)
-			require.NoError(t, err)
-		})
-	}
-	if *updateBesuSynthetic && changed {
-		fixtureJSON, err = json.MarshalIndent(fixture, "", "  ")
-		require.NoError(t, err)
-		require.NoError(t, os.WriteFile(fixturePath, append(fixtureJSON, '\n'), 0o644)) //nolint:gosec // Shared test fixture.
 	}
 }
 
-func TestBesuQBFTLowOverlapFixture(t *testing.T) {
-	t.Chdir("../../..")
-	fixturePath := filepath.Join(testvalues.BesuBFTFixturesDir, "qbft.json")
+func testBesuLowOverlapFixture(t *testing.T, consensus string) {
+	t.Helper()
+	fixturePath := filepath.Join(testvalues.BesuBFTFixturesDir, consensus+".json")
 	fixtureJSON, err := os.ReadFile(fixturePath)
 	require.NoError(t, err)
 	var fixture besuFixture
 	require.NoError(t, json.Unmarshal(fixtureJSON, &fixture))
-	validatorKeys, err := loadQBFTValidatorKeys()
+	validatorKeys, err := loadBesuValidatorKeys()
 	require.NoError(t, err)
 
 	// The conflicting case retains the live source header's fields other than height.
 	// Reusing it lets us regenerate only the synthetic low-overlap case offline.
 	update, err := buildLowOverlapFixture(
+		consensus,
 		fixture.InitialTrustedHeight,
 		fixture.LowOverlapUpdate.Height,
 		liveHeader{HeaderRLP: ethcommon.FromHex(fixture.ConflictingUpdate.HeaderRlp)},
@@ -206,14 +128,14 @@ func TestBesuQBFTLowOverlapFixture(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			trusted := crypto.PubkeyToAddress(tc.key.PublicKey)
-			base, err := decodeMutableQBFTHeader(ethcommon.FromHex(fixture.ConflictingUpdate.HeaderRlp))
+			base, err := decodeMutableBesuHeader(ethcommon.FromHex(fixture.ConflictingUpdate.HeaderRlp), consensus)
 			require.NoError(t, err)
 			base.setValidators([]ethcommon.Address{trusted})
 			baseRLP, err := base.encode()
 			require.NoError(t, err)
-			update, err := buildLowOverlapFixture(1, 3, liveHeader{HeaderRLP: baseRLP}, toKeyMap([]*ecdsa.PrivateKey{tc.key}))
+			update, err := buildLowOverlapFixture(consensus, 1, 3, liveHeader{HeaderRLP: baseRLP}, toKeyMap([]*ecdsa.PrivateKey{tc.key}))
 			require.NoError(t, err)
-			header, err := decodeMutableQBFTHeader(ethcommon.FromHex(update.HeaderRlp))
+			header, err := decodeMutableBesuHeader(ethcommon.FromHex(update.HeaderRlp), consensus)
 			require.NoError(t, err)
 			validators, err := header.validators()
 			require.NoError(t, err)
@@ -246,9 +168,18 @@ func TestBesuQBFTLowOverlapFixture(t *testing.T) {
 	}
 }
 
-func TestBesuQBFTSortedCommitSeals(t *testing.T) {
+func TestBesuSortedCommitSeals(t *testing.T) {
 	t.Chdir("../../..")
-	fixturePath := filepath.Join(testvalues.BesuBFTFixturesDir, "qbft.json")
+	for _, consensus := range []string{testvalues.BesuConsensusQBFT, testvalues.BesuConsensusIBFT2} {
+		t.Run(consensus, func(t *testing.T) {
+			testBesuSortedCommitSeals(t, consensus)
+		})
+	}
+}
+
+func testBesuSortedCommitSeals(t *testing.T, consensus string) {
+	t.Helper()
+	fixturePath := filepath.Join(testvalues.BesuBFTFixturesDir, consensus+".json")
 	fixtureJSON, err := os.ReadFile(fixturePath)
 	require.NoError(t, err)
 	var fixture besuFixture
@@ -262,7 +193,7 @@ func TestBesuQBFTSortedCommitSeals(t *testing.T) {
 		&fixture.ConflictingUpdate.HeaderRlp,
 		&fixture.LowOverlapUpdate.HeaderRlp,
 	} {
-		header, err := decodeMutableQBFTHeader(ethcommon.FromHex(*headerRlp))
+		header, err := decodeMutableBesuHeader(ethcommon.FromHex(*headerRlp), consensus)
 		require.NoError(t, err)
 		require.NoError(t, header.sortCommitSeals())
 		sortedRLP, err := header.encode()

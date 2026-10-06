@@ -132,7 +132,7 @@ func (s *TestSuite) setupChainsInParallel(
 	interchainRes := <-interchainCh
 	s.Require().NoError(interchainRes.err, "Interchain setup failed")
 
-	var ethBesuQBFTChain *chainconfig.BesuQBFTChain
+	var ethBesuQBFTChain *chainconfig.BesuChain
 	var ethBesuQBFTErr error
 	if cfg.ethereum.isBesuQBFT() {
 		ethBesuQBFTChain, ethBesuQBFTErr = s.setupEthereumBesuQBFT(ctx, interchainRes.network)

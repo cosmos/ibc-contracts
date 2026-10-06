@@ -52,15 +52,13 @@ const (
 	besuToBesuClientOnA = "besu-chain-b"
 	besuToBesuClientOnB = "besu-chain-a"
 
-	besuToBesuConsensusTypeQBFT = "qbft"
-
 	besuToBesuDefaultTrustLevel = "2/3"
 )
 
 var besuToBesuChainBIPs = [5]string{"10.43.0.2", "10.43.0.3", "10.43.0.4", "10.43.0.5", "10.43.0.6"}
 
 type besuToBesuChainState struct {
-	network           chainconfig.BesuQBFTChain
+	network           chainconfig.BesuChain
 	eth               ethereum.Ethereum
 	contractAddresses ethereum.DeployedContracts
 	ics26             *ics26router.Contract
@@ -75,6 +73,7 @@ type besuToBesuChainState struct {
 type BesuToBesuTestSuite struct {
 	suite.Suite
 
+	consensus            string
 	cwd                  string
 	relayerConfigPath    string
 	relayerProcess       *os.Process
@@ -89,11 +88,16 @@ func TestWithBesuToBesuTestSuite(t *testing.T) {
 	suite.Run(t, new(BesuToBesuTestSuite))
 }
 
-func (s *BesuToBesuTestSuite) SetupSuite() {
-	s.T().Cleanup(func() {
+// SetupSuite starts two Besu networks running consensus, deploys Eureka on both, and connects them through the relayer.
+// Every test calls it, so each test runs against its own networks.
+func (s *BesuToBesuTestSuite) SetupSuite(ctx context.Context, consensus string) {
+	s.consensus = consensus
+	// The cleanup runs after testify restores the parent T, so it checks this test's T.
+	t := s.T()
+	t.Cleanup(func() {
 		ctx := context.Background()
 
-		if s.T() != nil && s.T().Failed() {
+		if t.Failed() {
 			_ = s.chainA.network.DumpLogs(ctx)
 			_ = s.chainB.network.DumpLogs(ctx)
 		}
@@ -111,8 +115,10 @@ func (s *BesuToBesuTestSuite) SetupSuite() {
 		if s.cwd != "" {
 			_ = os.Chdir(s.cwd)
 		}
+
+		s.relayerProcess, s.relayerConfigPath = nil, ""
+		s.chainA, s.chainB = besuToBesuChainState{}, besuToBesuChainState{}
 	})
-	ctx := context.Background()
 
 	if os.Getenv(testvalues.EnvKeyRustLog) == "" {
 		os.Setenv(testvalues.EnvKeyRustLog, testvalues.EnvValueRustLog_Info)
@@ -123,9 +129,10 @@ func (s *BesuToBesuTestSuite) SetupSuite() {
 	s.Require().NoError(err)
 	s.Require().NoError(os.Chdir("../.."))
 
-	s.chainA = s.spinUpChain(ctx, chainconfig.DefaultBesuQBFTParams())
+	s.chainA = s.spinUpChain(ctx, chainconfig.DefaultBesuParams(consensus))
 
-	s.chainB = s.spinUpChain(ctx, chainconfig.BesuQBFTParams{
+	s.chainB = s.spinUpChain(ctx, chainconfig.BesuParams{
+		Consensus:    consensus,
 		ChainID:      besuToBesuChainBID,
 		Subnet:       "10.43.0.0/16",
 		Gateway:      "10.43.0.1",
@@ -148,7 +155,17 @@ func (s *BesuToBesuTestSuite) SetupSuite() {
 	s.chainB.clientAddress = s.createAndRegisterBesuClient(&s.chainA, &s.chainB, besuToBesuClientOnB, besuToBesuClientOnA, besuToBesuDefaultTrustLevel)
 }
 
-func (s *BesuToBesuTestSuite) Test_Deploy() {
+func (s *BesuToBesuTestSuite) Test_Deploy_QBFT() {
+	s.DeployTest(testvalues.BesuConsensusQBFT)
+}
+
+func (s *BesuToBesuTestSuite) Test_Deploy_IBFT2() {
+	s.DeployTest(testvalues.BesuConsensusIBFT2)
+}
+
+func (s *BesuToBesuTestSuite) DeployTest(consensus string) {
+	s.SetupSuite(context.Background(), consensus)
+
 	s.Require().True(s.Run("Verify ICS26 on Chain A", func() {
 		transferOnA, err := s.chainA.ics26.GetIBCApp(nil, transfertypes.PortID)
 		s.Require().NoError(err)
@@ -194,8 +211,18 @@ func (s *BesuToBesuTestSuite) Test_Deploy() {
 	}))
 }
 
-func (s *BesuToBesuTestSuite) Test_ICS20TransferERC20FromChainAToChainB() {
+func (s *BesuToBesuTestSuite) Test_ICS20TransferERC20FromChainAToChainB_QBFT() {
+	s.ICS20TransferERC20FromChainAToChainBTest(testvalues.BesuConsensusQBFT)
+}
+
+func (s *BesuToBesuTestSuite) Test_ICS20TransferERC20FromChainAToChainB_IBFT2() {
+	s.ICS20TransferERC20FromChainAToChainBTest(testvalues.BesuConsensusIBFT2)
+}
+
+func (s *BesuToBesuTestSuite) ICS20TransferERC20FromChainAToChainBTest(consensus string) {
 	ctx := context.Background()
+	s.SetupSuite(ctx, consensus)
+
 	transferAmount := big.NewInt(testvalues.TransferAmount)
 	userAddressA := crypto.PubkeyToAddress(s.chainA.user.PublicKey)
 	userAddressB := crypto.PubkeyToAddress(s.chainB.user.PublicKey)
@@ -344,11 +371,12 @@ func (s *BesuToBesuTestSuite) Test_ICS20TransferERC20FromChainAToChainB() {
 	}))
 
 	if s.besuFixtureGenerator.Enabled {
-		s.Require().True(s.Run("Generate QBFT fixture", func() {
+		s.Require().True(s.Run(fmt.Sprintf("Generate %s fixture", s.consensus), func() {
 			sendHeight := sendReceipt.BlockNumber.Uint64()
 			s.Require().Greater(sendHeight, uint64(2))
 			s.Require().Greater(ackReceipt.BlockNumber.Uint64(), sendHeight)
-			s.Require().NoError(s.besuFixtureGenerator.GenerateAndSaveQBFTFixture(ctx, e2etypes.GenerateQBFTFixtureParams{
+			s.Require().NoError(s.besuFixtureGenerator.GenerateAndSaveFixture(ctx, e2etypes.GenerateBesuFixtureParams{
+				Consensus:               s.consensus,
 				SourceChain:             &s.chainA.eth,
 				RouterAddress:           ics26AddressA,
 				Packet:                  sendPacket,
@@ -363,8 +391,18 @@ func (s *BesuToBesuTestSuite) Test_ICS20TransferERC20FromChainAToChainB() {
 	}
 }
 
-func (s *BesuToBesuTestSuite) Test_TimeoutICS20TransferERC20FromChainAToChainB() {
+func (s *BesuToBesuTestSuite) Test_TimeoutICS20TransferERC20FromChainAToChainB_QBFT() {
+	s.TimeoutICS20TransferERC20FromChainAToChainBTest(testvalues.BesuConsensusQBFT)
+}
+
+func (s *BesuToBesuTestSuite) Test_TimeoutICS20TransferERC20FromChainAToChainB_IBFT2() {
+	s.TimeoutICS20TransferERC20FromChainAToChainBTest(testvalues.BesuConsensusIBFT2)
+}
+
+func (s *BesuToBesuTestSuite) TimeoutICS20TransferERC20FromChainAToChainBTest(consensus string) {
 	ctx := context.Background()
+	s.SetupSuite(ctx, consensus)
+
 	transferAmount := big.NewInt(testvalues.TransferAmount)
 	userAddressA := crypto.PubkeyToAddress(s.chainA.user.PublicKey)
 	userAddressB := crypto.PubkeyToAddress(s.chainB.user.PublicKey)
@@ -491,11 +529,21 @@ func (s *BesuToBesuTestSuite) Test_TimeoutICS20TransferERC20FromChainAToChainB()
 	}))
 }
 
-// Test_ErrorAckICS20TransferERC20FromChainAToChainB sends a transfer to a receiver that is not a hex address, so
+func (s *BesuToBesuTestSuite) Test_ErrorAckICS20TransferERC20FromChainAToChainB_QBFT() {
+	s.ErrorAckICS20TransferERC20FromChainAToChainBTest(testvalues.BesuConsensusQBFT)
+}
+
+func (s *BesuToBesuTestSuite) Test_ErrorAckICS20TransferERC20FromChainAToChainB_IBFT2() {
+	s.ErrorAckICS20TransferERC20FromChainAToChainBTest(testvalues.BesuConsensusIBFT2)
+}
+
+// ErrorAckICS20TransferERC20FromChainAToChainBTest sends a transfer to a receiver that is not a hex address, so
 // ICS20 on Chain B fails to receive it and ICS26 writes the universal error acknowledgement. Relaying that
 // acknowledgement back to Chain A refunds the sender.
-func (s *BesuToBesuTestSuite) Test_ErrorAckICS20TransferERC20FromChainAToChainB() {
+func (s *BesuToBesuTestSuite) ErrorAckICS20TransferERC20FromChainAToChainBTest(consensus string) {
 	ctx := context.Background()
+	s.SetupSuite(ctx, consensus)
+
 	transferAmount := big.NewInt(testvalues.TransferAmount)
 	userAddressA := crypto.PubkeyToAddress(s.chainA.user.PublicKey)
 	ics20AddressA := ethcommon.HexToAddress(s.chainA.contractAddresses.Ics20Transfer)
@@ -647,9 +695,18 @@ func (s *BesuToBesuTestSuite) Test_ErrorAckICS20TransferERC20FromChainAToChainB(
 	}))
 }
 
-// Test_DoubleSignFreezesClient freezes a dedicated client on Chain B so the shared clients stay usable.
-func (s *BesuToBesuTestSuite) Test_DoubleSignFreezesClient() {
+func (s *BesuToBesuTestSuite) Test_DoubleSignFreezesClient_QBFT() {
+	s.DoubleSignFreezesClientTest(testvalues.BesuConsensusQBFT)
+}
+
+func (s *BesuToBesuTestSuite) Test_DoubleSignFreezesClient_IBFT2() {
+	s.DoubleSignFreezesClientTest(testvalues.BesuConsensusIBFT2)
+}
+
+// DoubleSignFreezesClientTest freezes a dedicated client on Chain B so the shared clients stay usable.
+func (s *BesuToBesuTestSuite) DoubleSignFreezesClientTest(consensus string) {
 	ctx := context.Background()
+	s.SetupSuite(ctx, consensus)
 
 	const doubleSignClientID = "besu-double-sign"
 	var (
@@ -668,7 +725,7 @@ func (s *BesuToBesuTestSuite) Test_DoubleSignFreezesClient() {
 
 	s.Require().True(s.Run("Update the client to the next height", func() {
 		s.waitForBlock(ctx, &s.chainA, height)
-		honestUpdate, err := e2etypes.BuildQBFTUpdate(ctx, &s.chainA.eth, trustedHeight, height)
+		honestUpdate, err := e2etypes.BuildBesuUpdate(ctx, &s.chainA.eth, s.consensus, trustedHeight, height)
 		s.Require().NoError(err)
 		s.requireUpdateResult(s.updateClient(ctx, doubleSignClientID, honestUpdate), 0) // Update
 
@@ -678,7 +735,7 @@ func (s *BesuToBesuTestSuite) Test_DoubleSignFreezesClient() {
 
 	s.Require().True(s.Run("Build conflicting header at the stored height", func() {
 		var err error
-		updateMsg, err = e2etypes.BuildQBFTDoubleSignUpdate(ctx, &s.chainA.eth, trustedHeight, height)
+		updateMsg, err = e2etypes.BuildBesuDoubleSignUpdate(ctx, &s.chainA.eth, s.consensus, trustedHeight, height)
 		s.Require().NoError(err)
 	}))
 
@@ -703,11 +760,20 @@ func (s *BesuToBesuTestSuite) Test_DoubleSignFreezesClient() {
 	}))
 }
 
-// Test_TimeNonMonotonicityFreezesClient stores two consensus states whose timestamps do not increase with height on
+func (s *BesuToBesuTestSuite) Test_TimeNonMonotonicityFreezesClient_QBFT() {
+	s.TimeNonMonotonicityFreezesClientTest(testvalues.BesuConsensusQBFT)
+}
+
+func (s *BesuToBesuTestSuite) Test_TimeNonMonotonicityFreezesClient_IBFT2() {
+	s.TimeNonMonotonicityFreezesClientTest(testvalues.BesuConsensusIBFT2)
+}
+
+// TimeNonMonotonicityFreezesClientTest stores two consensus states whose timestamps do not increase with height on
 // a dedicated client on Chain B, then submits them as misbehaviour. Each update is only checked against its own
 // trusted height, so both updates are accepted.
-func (s *BesuToBesuTestSuite) Test_TimeNonMonotonicityFreezesClient() {
+func (s *BesuToBesuTestSuite) TimeNonMonotonicityFreezesClientTest(consensus string) {
 	ctx := context.Background()
+	s.SetupSuite(ctx, consensus)
 
 	const timeMisbehaviourClientID = "besu-time-non-monotonicity"
 	var (
@@ -728,20 +794,20 @@ func (s *BesuToBesuTestSuite) Test_TimeNonMonotonicityFreezesClient() {
 	s.Require().True(s.Run("Store consensus states with non-monotonic timestamps", func() {
 		s.waitForBlock(ctx, &s.chainA, height2)
 
-		state2, err := e2etypes.FetchQBFTConsensusState(ctx, &s.chainA.eth, height2)
+		state2, err := e2etypes.FetchBesuConsensusState(ctx, &s.chainA.eth, s.consensus, height2)
 		s.Require().NoError(err)
 		timestamp = state2.Timestamp
 
-		honestUpdate, err := e2etypes.BuildQBFTUpdate(ctx, &s.chainA.eth, trustedHeight, height2)
+		honestUpdate, err := e2etypes.BuildBesuUpdate(ctx, &s.chainA.eth, s.consensus, trustedHeight, height2)
 		s.Require().NoError(err)
 		s.requireUpdateResult(s.updateClient(ctx, timeMisbehaviourClientID, honestUpdate), 0) // Update
 
 		// Height1 is re-sealed with the timestamp of height2.
-		forgedUpdate, err := e2etypes.BuildQBFTTimestampUpdate(ctx, &s.chainA.eth, trustedHeight, height1, timestamp)
+		forgedUpdate, err := e2etypes.BuildBesuTimestampUpdate(ctx, &s.chainA.eth, s.consensus, trustedHeight, height1, timestamp)
 		s.Require().NoError(err)
 		s.requireUpdateResult(s.updateClient(ctx, timeMisbehaviourClientID, forgedUpdate), 0) // Update
 
-		state1, err := e2etypes.FetchQBFTConsensusState(ctx, &s.chainA.eth, height1)
+		state1, err := e2etypes.FetchBesuConsensusState(ctx, &s.chainA.eth, s.consensus, height1)
 		s.Require().NoError(err)
 		state1.Timestamp = timestamp
 
@@ -790,10 +856,19 @@ func (s *BesuToBesuTestSuite) Test_TimeNonMonotonicityFreezesClient() {
 	}))
 }
 
-// Test_HeadersDoubleSignMisbehaviourIsPermissionless submits two conflicting headers at the same height directly to a
+func (s *BesuToBesuTestSuite) Test_HeadersDoubleSignMisbehaviourIsPermissionless_QBFT() {
+	s.HeadersDoubleSignMisbehaviourIsPermissionlessTest(testvalues.BesuConsensusQBFT)
+}
+
+func (s *BesuToBesuTestSuite) Test_HeadersDoubleSignMisbehaviourIsPermissionless_IBFT2() {
+	s.HeadersDoubleSignMisbehaviourIsPermissionlessTest(testvalues.BesuConsensusIBFT2)
+}
+
+// HeadersDoubleSignMisbehaviourIsPermissionlessTest submits two conflicting headers at the same height directly to a
 // dedicated client on Chain B from an account without PROOF_SUBMITTER_ROLE. Neither header is stored.
-func (s *BesuToBesuTestSuite) Test_HeadersDoubleSignMisbehaviourIsPermissionless() {
+func (s *BesuToBesuTestSuite) HeadersDoubleSignMisbehaviourIsPermissionlessTest(consensus string) {
 	ctx := context.Background()
+	s.SetupSuite(ctx, consensus)
 
 	const clientID = "besu-headers-double-sign"
 	var (
@@ -810,9 +885,9 @@ func (s *BesuToBesuTestSuite) Test_HeadersDoubleSignMisbehaviourIsPermissionless
 		s.waitForBlock(ctx, &s.chainA, height)
 
 		var err error
-		honestUpdate, err = e2etypes.BuildQBFTUpdate(ctx, &s.chainA.eth, trustedHeight, height)
+		honestUpdate, err = e2etypes.BuildBesuUpdate(ctx, &s.chainA.eth, s.consensus, trustedHeight, height)
 		s.Require().NoError(err)
-		conflictingUpdate, err := e2etypes.BuildQBFTDoubleSignUpdate(ctx, &s.chainA.eth, trustedHeight, height)
+		conflictingUpdate, err := e2etypes.BuildBesuDoubleSignUpdate(ctx, &s.chainA.eth, s.consensus, trustedHeight, height)
 		s.Require().NoError(err)
 		misbehaviourMsg = s.headersMisbehaviourMsg(honestUpdate, conflictingUpdate)
 	}))
@@ -847,11 +922,20 @@ func (s *BesuToBesuTestSuite) Test_HeadersDoubleSignMisbehaviourIsPermissionless
 	}))
 }
 
-// Test_HeadersTimeNonMonotonicityMisbehaviourIsPermissionless submits two headers whose timestamps do not increase
+func (s *BesuToBesuTestSuite) Test_HeadersTimeNonMonotonicityMisbehaviourIsPermissionless_QBFT() {
+	s.HeadersTimeNonMonotonicityMisbehaviourIsPermissionlessTest(testvalues.BesuConsensusQBFT)
+}
+
+func (s *BesuToBesuTestSuite) Test_HeadersTimeNonMonotonicityMisbehaviourIsPermissionless_IBFT2() {
+	s.HeadersTimeNonMonotonicityMisbehaviourIsPermissionlessTest(testvalues.BesuConsensusIBFT2)
+}
+
+// HeadersTimeNonMonotonicityMisbehaviourIsPermissionlessTest submits two headers whose timestamps do not increase
 // with height directly to a dedicated client on Chain B from an account without PROOF_SUBMITTER_ROLE. Neither header
 // is stored.
-func (s *BesuToBesuTestSuite) Test_HeadersTimeNonMonotonicityMisbehaviourIsPermissionless() {
+func (s *BesuToBesuTestSuite) HeadersTimeNonMonotonicityMisbehaviourIsPermissionlessTest(consensus string) {
 	ctx := context.Background()
+	s.SetupSuite(ctx, consensus)
 
 	const clientID = "besu-headers-time-non-monotonicity"
 	var (
@@ -867,14 +951,14 @@ func (s *BesuToBesuTestSuite) Test_HeadersTimeNonMonotonicityMisbehaviourIsPermi
 		height1, height2 = trustedHeight+1, trustedHeight+2
 		s.waitForBlock(ctx, &s.chainA, height2)
 
-		state2, err := e2etypes.FetchQBFTConsensusState(ctx, &s.chainA.eth, height2)
+		state2, err := e2etypes.FetchBesuConsensusState(ctx, &s.chainA.eth, s.consensus, height2)
 		s.Require().NoError(err)
 		timestamp = state2.Timestamp
 
-		honestUpdate, err := e2etypes.BuildQBFTUpdate(ctx, &s.chainA.eth, trustedHeight, height2)
+		honestUpdate, err := e2etypes.BuildBesuUpdate(ctx, &s.chainA.eth, s.consensus, trustedHeight, height2)
 		s.Require().NoError(err)
 		// Height1 is re-sealed with the timestamp of height2.
-		forgedUpdate, err := e2etypes.BuildQBFTTimestampUpdate(ctx, &s.chainA.eth, trustedHeight, height1, timestamp)
+		forgedUpdate, err := e2etypes.BuildBesuTimestampUpdate(ctx, &s.chainA.eth, s.consensus, trustedHeight, height1, timestamp)
 		s.Require().NoError(err)
 		misbehaviourMsg = s.headersMisbehaviourMsg(honestUpdate, forgedUpdate)
 	}))
@@ -893,13 +977,22 @@ func (s *BesuToBesuTestSuite) Test_HeadersTimeNonMonotonicityMisbehaviourIsPermi
 	}))
 }
 
-// Test_ValidatorSetChanges removes a Chain A validator and then votes in a new one through live QBFT votes, while
+func (s *BesuToBesuTestSuite) Test_ValidatorSetChanges_QBFT() {
+	s.ValidatorSetChangesTest(testvalues.BesuConsensusQBFT)
+}
+
+func (s *BesuToBesuTestSuite) Test_ValidatorSetChanges_IBFT2() {
+	s.ValidatorSetChangesTest(testvalues.BesuConsensusIBFT2)
+}
+
+// ValidatorSetChangesTest removes a Chain A validator and then votes in a new one through live validator votes, while
 // dedicated clients on Chain B follow the chain. Besu seals each block with exactly ceil(2n / 3) commit seals. With 3
 // validators that is 2 seals, so a client trusting the original 4 validators at the default 2/3 trust level cannot
 // update past the removal, while a client at 1/3 can. Once the new validator joins, the default client can only catch
 // up through a header that the new validator did not sign.
-func (s *BesuToBesuTestSuite) Test_ValidatorSetChanges() {
+func (s *BesuToBesuTestSuite) ValidatorSetChangesTest(consensus string) {
 	ctx := context.Background()
+	s.SetupSuite(ctx, consensus)
 
 	const (
 		removedValidator     = "validator4"
@@ -926,7 +1019,7 @@ func (s *BesuToBesuTestSuite) Test_ValidatorSetChanges() {
 		defaultTrustClient = s.createDedicatedBesuClient(defaultTrustClientID, besuToBesuDefaultTrustLevel)
 		defaultTrustHeight = s.besuClientState(defaultTrustClient).LatestHeight.RevisionHeight
 
-		initialState, err := e2etypes.FetchQBFTConsensusState(ctx, &s.chainA.eth, defaultTrustHeight)
+		initialState, err := e2etypes.FetchBesuConsensusState(ctx, &s.chainA.eth, s.consensus, defaultTrustHeight)
 		s.Require().NoError(err)
 		initialValidators = initialState.Validators
 		s.Require().Len(initialValidators, 4)
@@ -937,7 +1030,7 @@ func (s *BesuToBesuTestSuite) Test_ValidatorSetChanges() {
 		removalHeight, err = s.chainA.network.RemoveValidator(ctx, removedValidator)
 		s.Require().NoError(err)
 
-		state, err := e2etypes.FetchQBFTConsensusState(ctx, &s.chainA.eth, removalHeight)
+		state, err := e2etypes.FetchBesuConsensusState(ctx, &s.chainA.eth, s.consensus, removalHeight)
 		s.Require().NoError(err)
 		remainingValidators = state.Validators
 		s.Require().Len(remainingValidators, 3)
@@ -946,14 +1039,14 @@ func (s *BesuToBesuTestSuite) Test_ValidatorSetChanges() {
 
 	s.Require().True(s.Run("Low trust client follows the removal", func() {
 		trustedHeight := s.besuClientState(lowTrustClient).LatestHeight.RevisionHeight
-		updateMsg, err := e2etypes.BuildQBFTUpdate(ctx, &s.chainA.eth, trustedHeight, removalHeight)
+		updateMsg, err := e2etypes.BuildBesuUpdate(ctx, &s.chainA.eth, s.consensus, trustedHeight, removalHeight)
 		s.Require().NoError(err)
 		s.requireUpdateResult(s.updateClient(ctx, lowTrustClientID, updateMsg), 0) // Update
 		s.Require().Equal(removalHeight, s.besuClientState(lowTrustClient).LatestHeight.RevisionHeight)
 	}))
 
 	s.Require().True(s.Run("Default trust client cannot update past the removal", func() {
-		updateMsg, err := e2etypes.BuildQBFTUpdate(ctx, &s.chainA.eth, defaultTrustHeight, removalHeight)
+		updateMsg, err := e2etypes.BuildBesuUpdate(ctx, &s.chainA.eth, s.consensus, defaultTrustHeight, removalHeight)
 		s.Require().NoError(err)
 		s.requireICS26Revert(ctx, overlapErr, "updateClient", defaultTrustClientID, updateMsg)
 	}))
@@ -963,7 +1056,7 @@ func (s *BesuToBesuTestSuite) Test_ValidatorSetChanges() {
 		additionHeight, err = s.chainA.network.AddValidator(ctx, addedValidator)
 		s.Require().NoError(err)
 
-		state, err := e2etypes.FetchQBFTConsensusState(ctx, &s.chainA.eth, additionHeight)
+		state, err := e2etypes.FetchBesuConsensusState(ctx, &s.chainA.eth, s.consensus, additionHeight)
 		s.Require().NoError(err)
 		s.Require().Len(state.Validators, 4)
 		s.Require().Subset(state.Validators, remainingValidators)
@@ -979,14 +1072,14 @@ func (s *BesuToBesuTestSuite) Test_ValidatorSetChanges() {
 		newSignerHeight = s.waitForChainAHeader(ctx, additionHeight, func(signers []ethcommon.Address) bool {
 			return slices.Contains(signers, newValidator)
 		})
-		updateMsg, err := e2etypes.BuildQBFTUpdate(ctx, &s.chainA.eth, removalHeight, newSignerHeight)
+		updateMsg, err := e2etypes.BuildBesuUpdate(ctx, &s.chainA.eth, s.consensus, removalHeight, newSignerHeight)
 		s.Require().NoError(err)
 		s.requireUpdateResult(s.updateClient(ctx, lowTrustClientID, updateMsg), 0) // Update
 		s.Require().Equal(newSignerHeight, s.besuClientState(lowTrustClient).LatestHeight.RevisionHeight)
 	}))
 
 	s.Require().True(s.Run("Default trust client rejects a header signed by the new validator", func() {
-		updateMsg, err := e2etypes.BuildQBFTUpdate(ctx, &s.chainA.eth, defaultTrustHeight, newSignerHeight)
+		updateMsg, err := e2etypes.BuildBesuUpdate(ctx, &s.chainA.eth, s.consensus, defaultTrustHeight, newSignerHeight)
 		s.Require().NoError(err)
 		s.requireICS26Revert(ctx, overlapErr, "updateClient", defaultTrustClientID, updateMsg)
 	}))
@@ -995,7 +1088,7 @@ func (s *BesuToBesuTestSuite) Test_ValidatorSetChanges() {
 		height := s.waitForChainAHeader(ctx, additionHeight, func(signers []ethcommon.Address) bool {
 			return !slices.Contains(signers, newValidator)
 		})
-		updateMsg, err := e2etypes.BuildQBFTUpdate(ctx, &s.chainA.eth, defaultTrustHeight, height)
+		updateMsg, err := e2etypes.BuildBesuUpdate(ctx, &s.chainA.eth, s.consensus, defaultTrustHeight, height)
 		s.Require().NoError(err)
 		s.requireUpdateResult(s.updateClient(ctx, defaultTrustClientID, updateMsg), 0) // Update
 		s.Require().Equal(height, s.besuClientState(defaultTrustClient).LatestHeight.RevisionHeight)
@@ -1011,7 +1104,7 @@ func (s *BesuToBesuTestSuite) waitForChainAHeader(ctx context.Context, start uin
 			return false, err
 		}
 		for ; height <= latest; height++ {
-			signers, err := e2etypes.FetchQBFTCommitSealSigners(ctx, &s.chainA.eth, height)
+			signers, err := e2etypes.FetchBesuCommitSealSigners(ctx, &s.chainA.eth, s.consensus, height)
 			if err != nil {
 				return false, err
 			}
@@ -1024,7 +1117,8 @@ func (s *BesuToBesuTestSuite) waitForChainAHeader(ctx context.Context, start uin
 	return height
 }
 
-// createDedicatedBesuClient registers a Chain A client on Chain B that the relayer does not use.
+// createDedicatedBesuClient registers a Chain A client on Chain B that the relayer does not use. The QBFT and IBFT2
+// light clients share an ABI, so the besuqbft bindings serve both.
 func (s *BesuToBesuTestSuite) createDedicatedBesuClient(clientID, trustLevel string) *besuqbft.Contract {
 	clientAddress := s.createAndRegisterBesuClient(&s.chainA, &s.chainB, clientID, besuToBesuClientOnA, trustLevel)
 	client, err := besuqbft.NewContract(clientAddress, s.chainB.eth.RPCClient)
@@ -1136,8 +1230,8 @@ func (s *BesuToBesuTestSuite) besuClientState(client *besuqbft.Contract) besumsg
 	return clientState
 }
 
-func (s *BesuToBesuTestSuite) spinUpChain(ctx context.Context, params chainconfig.BesuQBFTParams) besuToBesuChainState {
-	network, err := chainconfig.SpinUpBesuQBFT(ctx, params)
+func (s *BesuToBesuTestSuite) spinUpChain(ctx context.Context, params chainconfig.BesuParams) besuToBesuChainState {
+	network, err := chainconfig.SpinUpBesu(ctx, params)
 	s.Require().NoError(err)
 
 	ethChain, err := ethereum.NewEthereum(ctx, network.RPC, nil, network.Faucet)
@@ -1185,7 +1279,7 @@ func (s *BesuToBesuTestSuite) startRelayer() {
 			DstRPC:        s.chainB.eth.RPC,
 			SrcICS26:      s.chainA.contractAddresses.Ics26Router,
 			DstICS26:      s.chainB.contractAddresses.Ics26Router,
-			ConsensusType: besuToBesuConsensusTypeQBFT,
+			ConsensusType: s.consensus,
 		}).
 		BesuToEth(proofapi.BesuToEthParams{
 			SrcChainID:    s.chainB.eth.ChainID.String(),
@@ -1194,7 +1288,7 @@ func (s *BesuToBesuTestSuite) startRelayer() {
 			DstRPC:        s.chainA.eth.RPC,
 			SrcICS26:      s.chainB.contractAddresses.Ics26Router,
 			DstICS26:      s.chainA.contractAddresses.Ics26Router,
-			ConsensusType: besuToBesuConsensusTypeQBFT,
+			ConsensusType: s.consensus,
 		}).
 		Build()
 

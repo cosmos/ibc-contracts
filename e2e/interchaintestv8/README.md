@@ -72,7 +72,9 @@ just test-e2e TestWithIbcEurekaTestSuite/Test_ICS20TransferERC20TokenfromEthereu
 
 ## Focused Besu ↔ Besu e2e
 
-This focused suite starts two independent Besu QBFT networks, deploys Eureka contracts on both, starts the Rust relayer with `besu_to_eth` in both directions, deploys and registers Besu light clients on both chains, and verifies a one-way A → B ICS20 transfer plus the B → A acknowledgement relay using real Besu proofs.
+This focused suite starts two independent Besu networks, deploys Eureka contracts on both, starts the Rust relayer with `besu_to_eth` in both directions, deploys and registers Besu light clients on both chains, and verifies a one-way A → B ICS20 transfer plus the B → A acknowledgement relay using real Besu proofs.
+
+Every test runs once per consensus protocol: the `_QBFT` variant starts QBFT networks and the `_IBFT2` variant starts IBFT 2.0 networks. Each test starts its own networks and relayer.
 
 ### Focused local test commands
 
@@ -80,19 +82,21 @@ From the repo root, run:
 
 ```shell
 # Dual-Besu deploy / client-registration path
-just test-e2e TestWithBesuToBesuTestSuite/Test_Deploy
+just test-e2e TestWithBesuToBesuTestSuite/Test_Deploy_QBFT
+just test-e2e TestWithBesuToBesuTestSuite/Test_Deploy_IBFT2
 
 # One-way Besu A -> Besu B ICS20 transfer with acknowledgement relay back to A
-just test-e2e TestWithBesuToBesuTestSuite/Test_ICS20TransferERC20FromChainAToChainB
+just test-e2e TestWithBesuToBesuTestSuite/Test_ICS20TransferERC20FromChainAToChainB_QBFT
 
 # Besu A -> Besu B ICS20 timeout with a packet-receipt non-membership proof
-just test-e2e TestWithBesuToBesuTestSuite/Test_TimeoutICS20TransferERC20FromChainAToChainB
+just test-e2e TestWithBesuToBesuTestSuite/Test_TimeoutICS20TransferERC20FromChainAToChainB_IBFT2
 
-# Regenerate the QBFT light-client fixture used by test/besu-bft/*
+# Regenerate the QBFT and IBFT2 light-client fixtures used by test/besu-bft/*
 just solidity::generate-fixtures-besu
 ```
 
-The fixture command runs the focused Besu↔Besu transfer test with
+The fixture command runs the focused Besu↔Besu transfer tests with
 `GENERATE_BESU_LIGHT_CLIENT_FIXTURES=true` and writes:
 
 - `ibc-solidity/test/besu-bft/fixtures/qbft.json`
+- `ibc-solidity/test/besu-bft/fixtures/ibft2.json`
