@@ -36,7 +36,7 @@ import { DeployAccessManagerWithRoles } from "../../scripts/deployments/DeployAc
 import { AccessManager } from "@openzeppelin-contracts/access/manager/AccessManager.sol";
 import { IBCRolesLib } from "../../contracts/utils/IBCRolesLib.sol";
 
-contract IntegrationTest is Test, DeployPermit2, PermitSignature, DeployAccessManagerWithRoles {
+contract DummyLightClientIntegrationTest is Test, DeployPermit2, PermitSignature, DeployAccessManagerWithRoles {
     using Strings for string;
 
     AccessManager public accessManager;
