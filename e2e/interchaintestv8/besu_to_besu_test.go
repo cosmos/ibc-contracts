@@ -399,28 +399,34 @@ func (s *BesuToBesuTestSuite) Test_TimeoutICS20TransferERC20FromChainAToChainB_I
 	s.TimeoutICS20TransferERC20FromChainAToChainBTest(testvalues.BesuConsensusIBFT2)
 }
 
+// TimeoutICS20TransferERC20FromChainAToChainBTest sends two transfers with a short timeout from Chain A. The first is
+// received on Chain B before it times out, so relaying its timeout must fail. The second is never received, so its
+// timeout is relayed back to Chain A and refunds the sender.
 func (s *BesuToBesuTestSuite) TimeoutICS20TransferERC20FromChainAToChainBTest(consensus string) {
 	ctx := context.Background()
 	s.SetupSuite(ctx, consensus)
 
 	transferAmount := big.NewInt(testvalues.TransferAmount)
+	totalTransferAmount := new(big.Int).Mul(transferAmount, big.NewInt(2))
 	userAddressA := crypto.PubkeyToAddress(s.chainA.user.PublicKey)
 	userAddressB := crypto.PubkeyToAddress(s.chainB.user.PublicKey)
 	ics20AddressA := ethcommon.HexToAddress(s.chainA.contractAddresses.Ics20Transfer)
 	ics26AddressA := ethcommon.HexToAddress(s.chainA.contractAddresses.Ics26Router)
+	ics26AddressB := ethcommon.HexToAddress(s.chainB.contractAddresses.Ics26Router)
 	erc20AddressA := ethcommon.HexToAddress(s.chainA.contractAddresses.Erc20)
 
 	var (
 		initialUserBalanceA   *big.Int
 		initialEscrowBalanceA *big.Int
 		escrowAddressA        ethcommon.Address
+		receivedSendTxHash    []byte
 		sendTxHash            []byte
 		sendPacket            ics26router.IICS26RouterMsgsPacket
 		packetTimeout         uint64
 	)
 
 	s.Require().True(s.Run("Fund user on Chain A", func() {
-		fundTx, err := s.chainA.erc20.Transfer(s.mustTransactOpts(&s.chainA, s.chainA.eth.Faucet), userAddressA, transferAmount)
+		fundTx, err := s.chainA.erc20.Transfer(s.mustTransactOpts(&s.chainA, s.chainA.eth.Faucet), userAddressA, totalTransferAmount)
 		s.Require().NoError(err)
 
 		fundReceipt, err := s.chainA.eth.GetTxReciept(ctx, fundTx.Hash())
@@ -436,7 +442,7 @@ func (s *BesuToBesuTestSuite) TimeoutICS20TransferERC20FromChainAToChainBTest(co
 	}))
 
 	s.Require().True(s.Run("Approve ICS20 on Chain A", func() {
-		approveTx, err := s.chainA.erc20.Approve(s.mustTransactOpts(&s.chainA, s.chainA.user), ics20AddressA, transferAmount)
+		approveTx, err := s.chainA.erc20.Approve(s.mustTransactOpts(&s.chainA, s.chainA.user), ics20AddressA, totalTransferAmount)
 		s.Require().NoError(err)
 
 		approveReceipt, err := s.chainA.eth.GetTxReciept(ctx, approveTx.Hash())
@@ -444,14 +450,15 @@ func (s *BesuToBesuTestSuite) TimeoutICS20TransferERC20FromChainAToChainBTest(co
 		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, approveReceipt.Status)
 	}))
 
-	s.Require().True(s.Run("Send transfer with short timeout from Chain A", func() {
+	s.Require().True(s.Run("Send transfers with short timeout from Chain A", func() {
 		chainATime, err := s.chainA.eth.GetBlockTime(ctx)
 		s.Require().NoError(err)
 		chainBTime, err := s.chainB.eth.GetBlockTime(ctx)
 		s.Require().NoError(err)
-		packetTimeout = uint64(max(chainATime, chainBTime)) + 15
+		// Leaves enough time to receive the first packet on Chain B before it times out.
+		packetTimeout = uint64(max(chainATime, chainBTime)) + 30
 
-		sendTx, err := s.chainA.ics20.SendTransfer(s.mustTransactOpts(&s.chainA, s.chainA.user), ics20transfer.IICS20TransferMsgsSendTransferMsg{
+		msg := ics20transfer.IICS20TransferMsgsSendTransferMsg{
 			Denom:            erc20AddressA,
 			Amount:           transferAmount,
 			Receiver:         strings.ToLower(userAddressB.Hex()),
@@ -459,7 +466,16 @@ func (s *BesuToBesuTestSuite) TimeoutICS20TransferERC20FromChainAToChainBTest(co
 			SourceClient:     besuToBesuClientOnA,
 			DestPort:         transfertypes.PortID,
 			Memo:             "",
-		})
+		}
+
+		receivedSendTx, err := s.chainA.ics20.SendTransfer(s.mustTransactOpts(&s.chainA, s.chainA.user), msg)
+		s.Require().NoError(err)
+		receivedSendReceipt, err := s.chainA.eth.GetTxReciept(ctx, receivedSendTx.Hash())
+		s.Require().NoError(err)
+		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receivedSendReceipt.Status)
+		receivedSendTxHash = receivedSendTx.Hash().Bytes()
+
+		sendTx, err := s.chainA.ics20.SendTransfer(s.mustTransactOpts(&s.chainA, s.chainA.user), msg)
 		s.Require().NoError(err)
 
 		sendReceipt, err := s.chainA.eth.GetTxReciept(ctx, sendTx.Hash())
@@ -475,7 +491,7 @@ func (s *BesuToBesuTestSuite) TimeoutICS20TransferERC20FromChainAToChainBTest(co
 	s.Require().True(s.Run("Verify balances on Chain A after send", func() {
 		userBalanceA, err := s.chainA.erc20.BalanceOf(nil, userAddressA)
 		s.Require().NoError(err)
-		expectedUserBalanceA := new(big.Int).Sub(new(big.Int).Set(initialUserBalanceA), transferAmount)
+		expectedUserBalanceA := new(big.Int).Sub(new(big.Int).Set(initialUserBalanceA), totalTransferAmount)
 		s.Require().Equal(0, expectedUserBalanceA.Cmp(userBalanceA))
 
 		escrowAddressA, err = s.chainA.ics20.GetEscrow(nil, besuToBesuClientOnA)
@@ -483,12 +499,41 @@ func (s *BesuToBesuTestSuite) TimeoutICS20TransferERC20FromChainAToChainBTest(co
 		s.Require().NotEqual(ethcommon.Address{}, escrowAddressA)
 		escrowBalanceA, err := s.chainA.erc20.BalanceOf(nil, escrowAddressA)
 		s.Require().NoError(err)
-		expectedEscrowBalanceA := new(big.Int).Add(new(big.Int).Set(initialEscrowBalanceA), transferAmount)
+		expectedEscrowBalanceA := new(big.Int).Add(new(big.Int).Set(initialEscrowBalanceA), totalTransferAmount)
 		s.Require().Equal(0, expectedEscrowBalanceA.Cmp(escrowBalanceA))
+	}))
+
+	s.Require().True(s.Run("Relay first packet to Chain B before timeout", func() {
+		relayAB, err := s.relayerClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+			SrcChain:    s.chainA.eth.ChainID.String(),
+			DstChain:    s.chainB.eth.ChainID.String(),
+			SourceTxIds: [][]byte{receivedSendTxHash},
+			SrcClientId: besuToBesuClientOnA,
+			DstClientId: besuToBesuClientOnB,
+		})
+		s.Require().NoError(err)
+		s.Require().NotEmpty(relayAB.Tx)
+
+		recvReceipt, err := s.chainB.eth.BroadcastTx(ctx, s.chainB.relayerSubmitter, 15_000_000, &ics26AddressB, relayAB.Tx)
+		s.Require().NoError(err)
+		_, err = e2esuite.GetEvmEvent(recvReceipt, s.chainB.ics26.ParseWriteAcknowledgement)
+		s.Require().NoError(err)
 	}))
 
 	s.Require().True(s.Run("Wait for timeout on Chain B", func() {
 		s.Require().NoError(e2esuite.WaitForBlockTime(ctx, s.T(), &s.chainB.eth, packetTimeout))
+	}))
+
+	s.Require().True(s.Run("Relaying timeout of received packet should fail", func() {
+		_, err := s.relayerClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+			SrcChain:     s.chainB.eth.ChainID.String(),
+			DstChain:     s.chainA.eth.ChainID.String(),
+			TimeoutTxIds: [][]byte{receivedSendTxHash},
+			SrcClientId:  besuToBesuClientOnB,
+			DstClientId:  besuToBesuClientOnA,
+		})
+		// The proof API drops timeout calls whose packet receipt exists on Chain B, leaving nothing to relay.
+		s.Require().Error(err)
 	}))
 
 	s.Require().True(s.Run("Relay timeout to Chain A", func() {
@@ -518,14 +563,16 @@ func (s *BesuToBesuTestSuite) TimeoutICS20TransferERC20FromChainAToChainBTest(co
 		}))
 	}))
 
-	s.Require().True(s.Run("Verify tokens refunded on Chain A", func() {
+	s.Require().True(s.Run("Verify only timed out tokens refunded on Chain A", func() {
 		userBalanceA, err := s.chainA.erc20.BalanceOf(nil, userAddressA)
 		s.Require().NoError(err)
-		s.Require().Equal(0, initialUserBalanceA.Cmp(userBalanceA))
+		expectedUserBalanceA := new(big.Int).Sub(new(big.Int).Set(initialUserBalanceA), transferAmount)
+		s.Require().Equal(0, expectedUserBalanceA.Cmp(userBalanceA))
 
 		escrowBalanceA, err := s.chainA.erc20.BalanceOf(nil, escrowAddressA)
 		s.Require().NoError(err)
-		s.Require().Equal(0, initialEscrowBalanceA.Cmp(escrowBalanceA))
+		expectedEscrowBalanceA := new(big.Int).Add(new(big.Int).Set(initialEscrowBalanceA), transferAmount)
+		s.Require().Equal(0, expectedEscrowBalanceA.Cmp(escrowBalanceA))
 	}))
 }
 
