@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.28;
 
-// solhint-disable custom-errors,max-line-length,max-states-count
-
-import { Test } from "forge-std/Test.sol";
+// solhint-disable custom-errors,max-line-length,max-states-count,no-empty-blocks
 
 import { IICS26RouterMsgs } from "../../contracts/msgs/IICS26RouterMsgs.sol";
 
 import { IERC20 } from "@openzeppelin-contracts/token/ERC20/IERC20.sol";
 
 import { IbcImpl } from "./utils/IbcImpl.sol";
+import { LightClientDriverTest } from "./utils/lc/LightClientDriverTest.sol";
+import { WithSolidityLightClient } from "./utils/lc/SolidityLightClientDriver.sol";
 import { TestHelper } from "./utils/TestHelper.sol";
 import { IntegrationEnv } from "./utils/IntegrationEnv.sol";
 import { Strings } from "@openzeppelin-contracts/utils/Strings.sol";
 import { ICS20Lib } from "../../contracts/utils/ICS20Lib.sol";
 
-contract Integration3Test is Test {
+abstract contract Integration3TestBase is LightClientDriverTest {
     IbcImpl public ibcImplA;
     IbcImpl public ibcImplB;
     IbcImpl public ibcImplC;
@@ -35,37 +35,30 @@ contract Integration3Test is Test {
 
         // Add the counterparty implementations
         string memory clientId;
-        clientId = ibcImplA.addCounterpartyImpl(ibcImplB, th.FIRST_CLIENT_ID());
+        clientId = ibcImplA.addClient(th.FIRST_CLIENT_ID(), _newDriver(ibcImplB.ics26Router()));
         assertEq(clientId, th.FIRST_CLIENT_ID());
 
-        clientId = ibcImplB.addCounterpartyImpl(ibcImplA, th.FIRST_CLIENT_ID());
+        clientId = ibcImplB.addClient(th.FIRST_CLIENT_ID(), _newDriver(ibcImplA.ics26Router()));
         assertEq(clientId, th.FIRST_CLIENT_ID());
 
-        clientId = ibcImplB.addCounterpartyImpl(ibcImplC, th.FIRST_CLIENT_ID());
+        clientId = ibcImplB.addClient(th.FIRST_CLIENT_ID(), _newDriver(ibcImplC.ics26Router()));
         assertEq(clientId, th.SECOND_CLIENT_ID());
 
-        clientId = ibcImplC.addCounterpartyImpl(ibcImplB, th.SECOND_CLIENT_ID());
+        clientId = ibcImplC.addClient(th.SECOND_CLIENT_ID(), _newDriver(ibcImplB.ics26Router()));
         assertEq(clientId, th.FIRST_CLIENT_ID());
     }
 
     function test_deployment() public view {
         // Check that the counterparty implementations are set correctly
-        assertEq(
-            ibcImplA.ics26Router().getClient(th.FIRST_CLIENT_ID()).getClientState(),
-            abi.encodePacked(address(ibcImplB.ics26Router()))
-        );
-        assertEq(
-            ibcImplB.ics26Router().getClient(th.FIRST_CLIENT_ID()).getClientState(),
-            abi.encodePacked(address(ibcImplA.ics26Router()))
-        );
-        assertEq(
-            ibcImplB.ics26Router().getClient(th.SECOND_CLIENT_ID()).getClientState(),
-            abi.encodePacked(address(ibcImplC.ics26Router()))
-        );
-        assertEq(
-            ibcImplC.ics26Router().getClient(th.FIRST_CLIENT_ID()).getClientState(),
-            abi.encodePacked(address(ibcImplB.ics26Router()))
-        );
+        _assertClient(ibcImplA, th.FIRST_CLIENT_ID(), ibcImplB);
+        _assertClient(ibcImplB, th.FIRST_CLIENT_ID(), ibcImplA);
+        _assertClient(ibcImplB, th.SECOND_CLIENT_ID(), ibcImplC);
+        _assertClient(ibcImplC, th.FIRST_CLIENT_ID(), ibcImplB);
+    }
+
+    function _assertClient(IbcImpl ibcImpl, string memory clientId, IbcImpl counterparty) internal view {
+        assertEq(address(ibcImpl.ics26Router().getClient(clientId)), address(ibcImpl.drivers(clientId).lightClient()));
+        assertEq(address(ibcImpl.drivers(clientId).counterpartyRouter()), address(counterparty.ics26Router()));
     }
 
     // solhint-disable-next-line function-max-lines
@@ -181,3 +174,5 @@ contract Integration3Test is Test {
         assertEq(tokenOnC.totalSupply(), 0, "totalSupply mismatch");
     }
 }
+
+contract Integration3Test is Integration3TestBase, WithSolidityLightClient { }

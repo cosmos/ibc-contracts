@@ -20,6 +20,7 @@ import { ICS24Host } from "../../contracts/utils/ICS24Host.sol";
 import { IbcImpl } from "../solidity-ibc/utils/IbcImpl.sol";
 import { IntegrationEnv } from "../solidity-ibc/utils/IntegrationEnv.sol";
 import { TestHelper } from "../solidity-ibc/utils/TestHelper.sol";
+import { SolidityLightClientDriver } from "../solidity-ibc/utils/lc/SolidityLightClientDriver.sol";
 import { QBFTSimSuite } from "./utils/QBFTSimSuite.sol";
 import { SimHeader } from "./utils/SimHeader.sol";
 
@@ -491,7 +492,7 @@ abstract contract QBFTSimSuiteTest is Test {
         TestHelper th = new TestHelper();
         IntegrationEnv env = new IntegrationEnv();
         IbcImpl ibcImpl = new IbcImpl(env.permit2());
-        ibcImpl.addCounterpartyImpl(ibcImpl, th.FIRST_CLIENT_ID());
+        ibcImpl.addClient(th.FIRST_CLIENT_ID(), new SolidityLightClientDriver(ibcImpl.ics26Router()));
         address user = env.createAndFundUser(100);
 
         IICS26RouterMsgs.Packet memory packet =
