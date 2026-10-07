@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	goethereum "github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -212,18 +213,30 @@ func (s *BesuToBesuTestSuite) DeployTest(consensus string) {
 }
 
 func (s *BesuToBesuTestSuite) Test_ICS20TransferERC20FromChainAToChainB_QBFT() {
-	s.ICS20TransferERC20FromChainAToChainBTest(testvalues.BesuConsensusQBFT)
+	s.ICS20TransferERC20FromChainAToChainBTest(testvalues.BesuConsensusQBFT, 1)
 }
 
 func (s *BesuToBesuTestSuite) Test_ICS20TransferERC20FromChainAToChainB_IBFT2() {
-	s.ICS20TransferERC20FromChainAToChainBTest(testvalues.BesuConsensusIBFT2)
+	s.ICS20TransferERC20FromChainAToChainBTest(testvalues.BesuConsensusIBFT2, 1)
 }
 
-func (s *BesuToBesuTestSuite) ICS20TransferERC20FromChainAToChainBTest(consensus string) {
+func (s *BesuToBesuTestSuite) Test_5_ICS20TransferERC20FromChainAToChainB_QBFT() {
+	s.ICS20TransferERC20FromChainAToChainBTest(testvalues.BesuConsensusQBFT, 5)
+}
+
+func (s *BesuToBesuTestSuite) Test_5_ICS20TransferERC20FromChainAToChainB_IBFT2() {
+	s.ICS20TransferERC20FromChainAToChainBTest(testvalues.BesuConsensusIBFT2, 5)
+}
+
+// ICS20TransferERC20FromChainAToChainBTest sends numOfTransfers transfers from Chain A in one tx, then relays the
+// packets to Chain B and the acknowledgements back to Chain A, each in one batch. Only the first packet in each batch
+// carries the router account proof; the rest verify against the light client's cached storage root.
+func (s *BesuToBesuTestSuite) ICS20TransferERC20FromChainAToChainBTest(consensus string, numOfTransfers int) {
 	ctx := context.Background()
 	s.SetupSuite(ctx, consensus)
 
 	transferAmount := big.NewInt(testvalues.TransferAmount)
+	totalTransferAmount := new(big.Int).Mul(transferAmount, big.NewInt(int64(numOfTransfers)))
 	userAddressA := crypto.PubkeyToAddress(s.chainA.user.PublicKey)
 	userAddressB := crypto.PubkeyToAddress(s.chainB.user.PublicKey)
 	ics20AddressA := ethcommon.HexToAddress(s.chainA.contractAddresses.Ics20Transfer)
@@ -233,9 +246,8 @@ func (s *BesuToBesuTestSuite) ICS20TransferERC20FromChainAToChainBTest(consensus
 
 	var (
 		initialUserBalanceA *big.Int
-		sendTxHash          []byte
 		sendReceipt         *ethtypes.Receipt
-		sendPacket          ics26router.IICS26RouterMsgsPacket
+		sendPackets         []ics26router.IICS26RouterMsgsPacket
 		recvReceipt         *ethtypes.Receipt
 		ibcERC20OnB         *ibcerc20.Contract
 		ackReceipt          *ethtypes.Receipt
@@ -254,7 +266,7 @@ func (s *BesuToBesuTestSuite) ICS20TransferERC20FromChainAToChainBTest(consensus
 	}))
 
 	s.Require().True(s.Run("Approve ICS20 on Chain A", func() {
-		approveTx, err := s.chainA.erc20.Approve(s.mustTransactOpts(&s.chainA, s.chainA.user), ics20AddressA, transferAmount)
+		approveTx, err := s.chainA.erc20.Approve(s.mustTransactOpts(&s.chainA, s.chainA.user), ics20AddressA, totalTransferAmount)
 		s.Require().NoError(err)
 
 		approveReceipt, err := s.chainA.eth.GetTxReciept(ctx, approveTx.Hash())
@@ -262,9 +274,9 @@ func (s *BesuToBesuTestSuite) ICS20TransferERC20FromChainAToChainBTest(consensus
 		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, approveReceipt.Status)
 	}))
 
-	s.Require().True(s.Run("Send transfer from Chain A to Chain B", func() {
+	s.Require().True(s.Run(fmt.Sprintf("Send %d transfers from Chain A to Chain B", numOfTransfers), func() {
 		timeout := uint64(time.Now().Add(30 * time.Minute).Unix())
-		sendTx, err := s.chainA.ics20.SendTransfer(s.mustTransactOpts(&s.chainA, s.chainA.user), ics20transfer.IICS20TransferMsgsSendTransferMsg{
+		sendReceipt = s.sendTransfers(ctx, ics20transfer.IICS20TransferMsgsSendTransferMsg{
 			Denom:            erc20AddressA,
 			Amount:           transferAmount,
 			Receiver:         strings.ToLower(userAddressB.Hex()),
@@ -272,17 +284,12 @@ func (s *BesuToBesuTestSuite) ICS20TransferERC20FromChainAToChainBTest(consensus
 			SourceClient:     besuToBesuClientOnA,
 			DestPort:         transfertypes.PortID,
 			Memo:             "",
-		})
-		s.Require().NoError(err)
+		}, numOfTransfers)
 
-		sendReceipt, err = s.chainA.eth.GetTxReciept(ctx, sendTx.Hash())
-		s.Require().NoError(err)
-		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, sendReceipt.Status)
-		sendTxHash = sendTx.Hash().Bytes()
-
-		sendEvent, err := e2esuite.GetEvmEvent(sendReceipt, s.chainA.ics26.ParseSendPacket)
-		s.Require().NoError(err)
-		sendPacket = sendEvent.Packet
+		for _, sendEvent := range e2esuite.GetEvmEvents(sendReceipt, s.chainA.ics26.ParseSendPacket) {
+			sendPackets = append(sendPackets, sendEvent.Packet)
+		}
+		s.Require().Len(sendPackets, numOfTransfers)
 	}))
 
 	s.Require().True(s.Run("Verify balances on Chain A after send", func() {
@@ -291,27 +298,28 @@ func (s *BesuToBesuTestSuite) ICS20TransferERC20FromChainAToChainBTest(consensus
 
 		escrowBalance, err := s.chainA.erc20.BalanceOf(nil, escrowAddress)
 		s.Require().NoError(err)
-		s.Require().Equal(0, transferAmount.Cmp(escrowBalance))
+		s.Require().Equal(0, totalTransferAmount.Cmp(escrowBalance))
 
 		userBalanceA, err := s.chainA.erc20.BalanceOf(nil, userAddressA)
 		s.Require().NoError(err)
-		expectedBalanceA := new(big.Int).Sub(new(big.Int).Set(initialUserBalanceA), transferAmount)
+		expectedBalanceA := new(big.Int).Sub(new(big.Int).Set(initialUserBalanceA), totalTransferAmount)
 		s.Require().Equal(0, expectedBalanceA.Cmp(userBalanceA))
 	}))
 
-	s.Require().True(s.Run("Relay packet to Chain B", func() {
+	s.Require().True(s.Run("Relay packets to Chain B", func() {
 		var relayTx []byte
 		s.Require().True(s.Run("Retrieve relay tx", func() {
 			relayAB, err := s.relayerClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
 				SrcChain:    s.chainA.eth.ChainID.String(),
 				DstChain:    s.chainB.eth.ChainID.String(),
-				SourceTxIds: [][]byte{sendTxHash},
+				SourceTxIds: [][]byte{sendReceipt.TxHash.Bytes()},
 				SrcClientId: besuToBesuClientOnA,
 				DstClientId: besuToBesuClientOnB,
 			})
 			s.Require().NoError(err)
 			s.Require().NotEmpty(relayAB.Tx)
 			s.Require().Equal(strings.ToLower(s.chainB.contractAddresses.Ics26Router), strings.ToLower(relayAB.Address))
+			s.requireAccountProofOnlyOnFirstPacketCall(relayAB.Tx, numOfTransfers)
 			relayTx = relayAB.Tx
 		}))
 
@@ -320,14 +328,18 @@ func (s *BesuToBesuTestSuite) ICS20TransferERC20FromChainAToChainBTest(consensus
 			recvReceipt, err = s.chainB.eth.BroadcastTx(ctx, s.chainB.relayerSubmitter, 15_000_000, &ics26AddressB, relayTx)
 			s.Require().NoError(err)
 			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, recvReceipt.Status)
+			s.T().Logf("Multicall recv %d packets gas used: %d", numOfTransfers, recvReceipt.GasUsed)
 
-			writeAckEvent, err := e2esuite.GetEvmEvent(recvReceipt, s.chainB.ics26.ParseWriteAcknowledgement)
-			s.Require().NoError(err)
+			writeAckEvents := e2esuite.GetEvmEvents(recvReceipt, s.chainB.ics26.ParseWriteAcknowledgement)
+			s.Require().Len(writeAckEvents, numOfTransfers)
+			for i, writeAckEvent := range writeAckEvents {
+				s.Require().Equal(sendPackets[i], writeAckEvent.Packet)
+			}
 
 			ibcDenomOnB := fmt.Sprintf(
 				"%s/%s/%s",
-				writeAckEvent.Packet.Payloads[0].DestPort,
-				writeAckEvent.Packet.DestClient,
+				writeAckEvents[0].Packet.Payloads[0].DestPort,
+				writeAckEvents[0].Packet.DestClient,
 				strings.ToLower(erc20AddressA.Hex()),
 			)
 			ibcERC20AddressOnB, err := s.chainB.ics20.IbcERC20Contract(nil, ibcDenomOnB)
@@ -340,10 +352,10 @@ func (s *BesuToBesuTestSuite) ICS20TransferERC20FromChainAToChainBTest(consensus
 	s.Require().True(s.Run("Verify balances on Chain B after receive", func() {
 		userBalanceB, err := ibcERC20OnB.BalanceOf(nil, userAddressB)
 		s.Require().NoError(err)
-		s.Require().Equal(0, transferAmount.Cmp(userBalanceB))
+		s.Require().Equal(0, totalTransferAmount.Cmp(userBalanceB))
 	}))
 
-	s.Require().True(s.Run("Relay acknowledgement to Chain A", func() {
+	s.Require().True(s.Run("Relay acknowledgements to Chain A", func() {
 		var relayTx []byte
 		s.Require().True(s.Run("Retrieve acknowledgement relay tx", func() {
 			ackRelay, err := s.relayerClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
@@ -356,6 +368,7 @@ func (s *BesuToBesuTestSuite) ICS20TransferERC20FromChainAToChainBTest(consensus
 			s.Require().NoError(err)
 			s.Require().NotEmpty(ackRelay.Tx)
 			s.Require().Equal(strings.ToLower(s.chainA.contractAddresses.Ics26Router), strings.ToLower(ackRelay.Address))
+			s.requireAccountProofOnlyOnFirstPacketCall(ackRelay.Tx, numOfTransfers)
 			relayTx = ackRelay.Tx
 		}))
 
@@ -364,9 +377,13 @@ func (s *BesuToBesuTestSuite) ICS20TransferERC20FromChainAToChainBTest(consensus
 			ackReceipt, err = s.chainA.eth.BroadcastTx(ctx, s.chainA.relayerSubmitter, 15_000_000, &ics26AddressA, relayTx)
 			s.Require().NoError(err)
 			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, ackReceipt.Status)
+			s.T().Logf("Multicall ack %d packets gas used: %d", numOfTransfers, ackReceipt.GasUsed)
 
-			_, err = e2esuite.GetEvmEvent(ackReceipt, s.chainA.ics26.ParseAckPacket)
-			s.Require().NoError(err)
+			ackEvents := e2esuite.GetEvmEvents(ackReceipt, s.chainA.ics26.ParseAckPacket)
+			s.Require().Len(ackEvents, numOfTransfers)
+			for i, ackEvent := range ackEvents {
+				s.Require().Equal(sendPackets[i], ackEvent.Packet)
+			}
 		}))
 	}))
 
@@ -379,7 +396,7 @@ func (s *BesuToBesuTestSuite) ICS20TransferERC20FromChainAToChainBTest(consensus
 				Consensus:               s.consensus,
 				SourceChain:             &s.chainA.eth,
 				RouterAddress:           ics26AddressA,
-				Packet:                  sendPacket,
+				Packet:                  sendPackets[0],
 				InitialTrustedHeight:    sendHeight - 2,
 				AdjacentUpdateHeight:    sendHeight - 1,
 				NonAdjacentUpdateHeight: sendHeight,
@@ -392,22 +409,33 @@ func (s *BesuToBesuTestSuite) ICS20TransferERC20FromChainAToChainBTest(consensus
 }
 
 func (s *BesuToBesuTestSuite) Test_TimeoutICS20TransferERC20FromChainAToChainB_QBFT() {
-	s.TimeoutICS20TransferERC20FromChainAToChainBTest(testvalues.BesuConsensusQBFT)
+	s.TimeoutICS20TransferERC20FromChainAToChainBTest(testvalues.BesuConsensusQBFT, 1)
 }
 
 func (s *BesuToBesuTestSuite) Test_TimeoutICS20TransferERC20FromChainAToChainB_IBFT2() {
-	s.TimeoutICS20TransferERC20FromChainAToChainBTest(testvalues.BesuConsensusIBFT2)
+	s.TimeoutICS20TransferERC20FromChainAToChainBTest(testvalues.BesuConsensusIBFT2, 1)
 }
 
-// TimeoutICS20TransferERC20FromChainAToChainBTest sends two transfers with a short timeout from Chain A. The first is
-// received on Chain B before it times out, so relaying its timeout must fail. The second is never received, so its
-// timeout is relayed back to Chain A and refunds the sender.
-func (s *BesuToBesuTestSuite) TimeoutICS20TransferERC20FromChainAToChainBTest(consensus string) {
+func (s *BesuToBesuTestSuite) Test_5_TimeoutICS20TransferERC20FromChainAToChainB_QBFT() {
+	s.TimeoutICS20TransferERC20FromChainAToChainBTest(testvalues.BesuConsensusQBFT, 5)
+}
+
+func (s *BesuToBesuTestSuite) Test_5_TimeoutICS20TransferERC20FromChainAToChainB_IBFT2() {
+	s.TimeoutICS20TransferERC20FromChainAToChainBTest(testvalues.BesuConsensusIBFT2, 5)
+}
+
+// TimeoutICS20TransferERC20FromChainAToChainBTest sends a transfer with a short timeout from Chain A, followed by
+// numOfTimeouts more in one tx. The first is received on Chain B before it times out, so relaying its timeout must
+// fail. The rest are never received, so their timeouts are relayed back to Chain A in one batch and refund the sender.
+// Only the first timeout in the batch carries the router account proof; the rest verify against the light client's
+// cached storage root.
+func (s *BesuToBesuTestSuite) TimeoutICS20TransferERC20FromChainAToChainBTest(consensus string, numOfTimeouts int) {
 	ctx := context.Background()
 	s.SetupSuite(ctx, consensus)
 
 	transferAmount := big.NewInt(testvalues.TransferAmount)
-	totalTransferAmount := new(big.Int).Mul(transferAmount, big.NewInt(2))
+	timeoutAmount := new(big.Int).Mul(transferAmount, big.NewInt(int64(numOfTimeouts)))
+	totalTransferAmount := new(big.Int).Add(transferAmount, timeoutAmount)
 	userAddressA := crypto.PubkeyToAddress(s.chainA.user.PublicKey)
 	userAddressB := crypto.PubkeyToAddress(s.chainB.user.PublicKey)
 	ics20AddressA := ethcommon.HexToAddress(s.chainA.contractAddresses.Ics20Transfer)
@@ -421,7 +449,7 @@ func (s *BesuToBesuTestSuite) TimeoutICS20TransferERC20FromChainAToChainBTest(co
 		escrowAddressA        ethcommon.Address
 		receivedSendTxHash    []byte
 		sendTxHash            []byte
-		sendPacket            ics26router.IICS26RouterMsgsPacket
+		sendPackets           []ics26router.IICS26RouterMsgsPacket
 		packetTimeout         uint64
 	)
 
@@ -475,17 +503,13 @@ func (s *BesuToBesuTestSuite) TimeoutICS20TransferERC20FromChainAToChainBTest(co
 		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receivedSendReceipt.Status)
 		receivedSendTxHash = receivedSendTx.Hash().Bytes()
 
-		sendTx, err := s.chainA.ics20.SendTransfer(s.mustTransactOpts(&s.chainA, s.chainA.user), msg)
-		s.Require().NoError(err)
+		sendReceipt := s.sendTransfers(ctx, msg, numOfTimeouts)
+		sendTxHash = sendReceipt.TxHash.Bytes()
 
-		sendReceipt, err := s.chainA.eth.GetTxReciept(ctx, sendTx.Hash())
-		s.Require().NoError(err)
-		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, sendReceipt.Status)
-		sendTxHash = sendTx.Hash().Bytes()
-
-		sendEvent, err := e2esuite.GetEvmEvent(sendReceipt, s.chainA.ics26.ParseSendPacket)
-		s.Require().NoError(err)
-		sendPacket = sendEvent.Packet
+		for _, sendEvent := range e2esuite.GetEvmEvents(sendReceipt, s.chainA.ics26.ParseSendPacket) {
+			sendPackets = append(sendPackets, sendEvent.Packet)
+		}
+		s.Require().Len(sendPackets, numOfTimeouts)
 	}))
 
 	s.Require().True(s.Run("Verify balances on Chain A after send", func() {
@@ -536,7 +560,7 @@ func (s *BesuToBesuTestSuite) TimeoutICS20TransferERC20FromChainAToChainBTest(co
 		s.Require().Error(err)
 	}))
 
-	s.Require().True(s.Run("Relay timeout to Chain A", func() {
+	s.Require().True(s.Run("Relay timeouts to Chain A", func() {
 		var timeoutRelayTx []byte
 		s.Require().True(s.Run("Retrieve timeout relay tx", func() {
 			timeoutRelay, err := s.relayerClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
@@ -549,6 +573,7 @@ func (s *BesuToBesuTestSuite) TimeoutICS20TransferERC20FromChainAToChainBTest(co
 			s.Require().NoError(err)
 			s.Require().NotEmpty(timeoutRelay.Tx)
 			s.Require().Equal(strings.ToLower(s.chainA.contractAddresses.Ics26Router), strings.ToLower(timeoutRelay.Address))
+			s.requireAccountProofOnlyOnFirstPacketCall(timeoutRelay.Tx, numOfTimeouts)
 			timeoutRelayTx = timeoutRelay.Tx
 		}))
 
@@ -556,10 +581,13 @@ func (s *BesuToBesuTestSuite) TimeoutICS20TransferERC20FromChainAToChainBTest(co
 			timeoutReceipt, err := s.chainA.eth.BroadcastTx(ctx, s.chainA.relayerSubmitter, 15_000_000, &ics26AddressA, timeoutRelayTx)
 			s.Require().NoError(err)
 			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, timeoutReceipt.Status)
+			s.T().Logf("Multicall timeout %d packets gas used: %d", numOfTimeouts, timeoutReceipt.GasUsed)
 
-			timeoutEvent, err := e2esuite.GetEvmEvent(timeoutReceipt, s.chainA.ics26.ParseTimeoutPacket)
-			s.Require().NoError(err)
-			s.Require().Equal(sendPacket, timeoutEvent.Packet)
+			timeoutEvents := e2esuite.GetEvmEvents(timeoutReceipt, s.chainA.ics26.ParseTimeoutPacket)
+			s.Require().Len(timeoutEvents, numOfTimeouts)
+			for i, timeoutEvent := range timeoutEvents {
+				s.Require().Equal(sendPackets[i], timeoutEvent.Packet)
+			}
 		}))
 	}))
 
@@ -1209,6 +1237,56 @@ func (s *BesuToBesuTestSuite) requireICS26Revert(ctx context.Context, errData []
 	s.requireCallRevert(ctx, s.chainB.relayerSubmitter, ics26Address, calldata, errData)
 }
 
+// requireAccountProofOnlyOnFirstPacketCall asserts that the relay multicall has numOfPackets packet calls and that
+// only the first one carries the router account proof, so the rest verify against the cached storage root.
+func (s *BesuToBesuTestSuite) requireAccountProofOnlyOnFirstPacketCall(relayTx []byte, numOfPackets int) {
+	ics26ABI, err := ics26router.ContractMetaData.GetAbi()
+	s.Require().NoError(err)
+	multicall := ics26ABI.Methods["multicall"]
+	s.Require().Equal(multicall.ID, relayTx[:4])
+	multicallArgs, err := multicall.Inputs.Unpack(relayTx[4:])
+	s.Require().NoError(err)
+	calls, ok := multicallArgs[0].([][]byte)
+	s.Require().True(ok)
+
+	var proofs [][]byte
+	for _, call := range calls {
+		method, err := ics26ABI.MethodById(call[:4])
+		s.Require().NoError(err)
+		if method.Name == "updateClient" {
+			continue
+		}
+
+		args, err := method.Inputs.Unpack(call[4:])
+		s.Require().NoError(err)
+		switch method.Name {
+		case "recvPacket":
+			msg := abi.ConvertType(args[0], new(ics26router.IICS26RouterMsgsMsgRecvPacket)).(*ics26router.IICS26RouterMsgsMsgRecvPacket)
+			proofs = append(proofs, msg.ProofCommitment)
+		case "ackPacket":
+			msg := abi.ConvertType(args[0], new(ics26router.IICS26RouterMsgsMsgAckPacket)).(*ics26router.IICS26RouterMsgsMsgAckPacket)
+			proofs = append(proofs, msg.ProofAcked)
+		case "timeoutPacket":
+			msg := abi.ConvertType(args[0], new(ics26router.IICS26RouterMsgsMsgTimeoutPacket)).(*ics26router.IICS26RouterMsgsMsgTimeoutPacket)
+			proofs = append(proofs, msg.ProofTimeout)
+		default:
+			s.FailNow("unexpected relay call", method.Name)
+		}
+	}
+	s.Require().Len(proofs, numOfPackets)
+
+	bindings := besumsgs.NewBindings()
+	for i, proof := range proofs {
+		membershipProof, err := bindings.UnpackMembershipProof(proof)
+		s.Require().NoError(err)
+		if i == 0 {
+			s.Require().NotEmpty(membershipProof.AccountProofNodes)
+		} else {
+			s.Require().Empty(membershipProof.AccountProofNodes)
+		}
+	}
+}
+
 // requireCallRevert asserts that calling to with calldata from the key's address on Chain B reverts with errData.
 func (s *BesuToBesuTestSuite) requireCallRevert(ctx context.Context, from *ecdsa.PrivateKey, to ethcommon.Address, calldata, errData []byte) {
 	_, err := s.chainB.eth.RPCClient.CallContract(ctx, goethereum.CallMsg{
@@ -1433,6 +1511,22 @@ func (s *BesuToBesuTestSuite) createAndRegisterBesuClient(
 	s.Require().Equal(createClientReceipt.ContractAddress, registeredClient)
 
 	return createClientReceipt.ContractAddress
+}
+
+// sendTransfers sends numOfTransfers copies of msg from the Chain A user in one ICS20 multicall tx.
+func (s *BesuToBesuTestSuite) sendTransfers(ctx context.Context, msg ics20transfer.IICS20TransferMsgsSendTransferMsg, numOfTransfers int) *ethtypes.Receipt {
+	ics20ABI, err := ics20transfer.ContractMetaData.GetAbi()
+	s.Require().NoError(err)
+	sendTransferCall, err := ics20ABI.Pack("sendTransfer", msg)
+	s.Require().NoError(err)
+
+	tx, err := s.chainA.ics20.Multicall(s.mustTransactOpts(&s.chainA, s.chainA.user), slices.Repeat([][]byte{sendTransferCall}, numOfTransfers))
+	s.Require().NoError(err)
+	receipt, err := s.chainA.eth.GetTxReciept(ctx, tx.Hash())
+	s.Require().NoError(err)
+	s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
+	s.T().Logf("Multicall send %d transfers gas used: %d", numOfTransfers, receipt.GasUsed)
+	return receipt
 }
 
 func (s *BesuToBesuTestSuite) mustTransactOpts(chain *besuToBesuChainState, key *ecdsa.PrivateKey) *bind.TransactOpts {
