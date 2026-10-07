@@ -3,10 +3,10 @@ pragma solidity ^0.8.28;
 
 // solhint-disable no-empty-blocks
 
-import { Integration2Suite } from "./suites/Integration2Suite.sol";
-import { Integration3Suite } from "./suites/Integration3Suite.sol";
-import { IFTIntegrationSuite } from "./suites/IFTIntegrationSuite.sol";
-import { WithSolidityLightClient } from "./drivers/SolidityLightClientDriver.sol";
+import { Integration2Suite } from "./integration/suites/Integration2Suite.sol";
+import { Integration3Suite } from "./integration/suites/Integration3Suite.sol";
+import { IFTIntegrationSuite } from "./integration/suites/IFTIntegrationSuite.sol";
+import { WithSolidityLightClient } from "./integration/drivers/SolidityLightClientDriver.sol";
 
 // The integration suites on `SolidityLightClient`, which reads the counterparty router directly.
 
