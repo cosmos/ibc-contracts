@@ -47,7 +47,7 @@ The Besu light clients are deployed on the **destination** EVM chain, next to th
 - This is not a new requirement relative to the rest of the stack: `ICS26Router`, `ICS20Transfer`, and `ICS27GMP` already use OpenZeppelin's `ReentrancyGuardTransient`, and `SP1ICS07Tendermint` caches proofs in transient storage, so a chain that can run the router can run these clients.
 - All contracts in `ibc-solidity/` are compiled with `evm_version = "cancun"` (`ibc-solidity/foundry.toml`), so the compiled artifacts may also rely on other Shanghai and Cancun opcodes such as `PUSH0` and `MCOPY`. Do not lower `evm_version` to target an older chain; the transient cache has no fallback.
 
-Before deploying to a new destination network, confirm that it reports Cancun as active. A quick check is to `eth_call` a probe that executes `TSTORE`; a pre-Cancun chain returns an invalid-opcode failure. The end-to-end suites exercise this on a Cancun target: Foundry tests run under the `cancun` EVM, and the Besu QBFT e2e genesis enables it with `"cancunTime": 0` (`e2e/interchaintestv8/chainconfig/testdata/besu/qbft/genesis.json`).
+Before deploying to a new destination network, confirm that it reports Cancun as active. A quick check is to `eth_call` a probe that executes `TSTORE`; a pre-Cancun chain returns an invalid-opcode failure. The end-to-end suites exercise this on a Cancun target: Foundry tests run under the `cancun` EVM, and the Besu QBFT e2e genesis enables it with `"cancunTime": 0` (`e2e/interchaintestv8/chainconfig/testdata/besu/genesis.json`).
 
 The **source** Besu chain, whose headers and proofs are being verified, has no hard-fork requirement beyond what `eth_getProof` needs; only the chain hosting the light client contract must support Cancun.
 
@@ -225,16 +225,16 @@ The Foundry fixtures under `test/besu-bft/fixtures/` can be regenerated from the
 just solidity::generate-fixtures-besu
 ```
 
-This writes `test/besu-bft/fixtures/qbft.json` using live Besu QBFT headers, account proofs, and storage proofs captured during the e2e transfer flow. The fixture `proof` and `accountProof` fields hold the raw storage and account proof nodes as `abi.encode(bytes[])`; the Foundry tests wrap them into `MembershipProof` together with the consensus state preimage derived from the fixture's expected update state. The negative cases in that fixture are still derived by deterministic off-chain header mutation so the contract tests can keep explicit overlap / quorum / conflict coverage.
+This writes `test/besu-bft/fixtures/qbft.json` and `test/besu-bft/fixtures/ibft2.json` using live Besu QBFT and IBFT2 headers, account proofs, and storage proofs captured during the e2e transfer flow. The fixture `proof` and `accountProof` fields hold the raw storage and account proof nodes as `abi.encode(bytes[])`; the Foundry tests wrap them into `MembershipProof` together with the consensus state preimage derived from the fixture's expected update state. The negative cases in those fixtures are still derived by deterministic off-chain header mutation so the contract tests can keep explicit overlap / quorum / conflict coverage.
 
-The synthetic IBFT2 validator sets and commit seals, and QBFT's synthetic low-overlap
-case, can be regenerated offline with the existing Go header and signing helpers:
+The synthetic low-overlap case of both fixtures can be regenerated offline with the
+existing Go header and signing helpers:
 
 ```sh
 cd e2e/interchaintestv8
-go test ./types -run '^TestBesu(IBFT2Fixture|QBFTLowOverlapFixture)$' -args -update-besu-synthetic
+go test ./types -run '^TestBesuLowOverlapFixture$' -args -update-besu-synthetic
 ```
 
 Run this in the Nix development shell. Omitting the update flag checks that the
 fixtures match the generators. Regeneration preserves the other header fields and
-trie proofs. `ibft2.json` remains synthetic until an IBFT2-focused e2e fixture path is added.
+trie proofs.

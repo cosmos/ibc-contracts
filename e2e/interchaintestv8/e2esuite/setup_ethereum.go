@@ -85,19 +85,19 @@ func (s *TestSuite) processEthereumPoSResult(ctx context.Context, chain *chainco
 	s.Eth.Chains = append(s.Eth.Chains, &ethChain)
 }
 
-func (s *TestSuite) setupEthereumBesuQBFT(ctx context.Context, networkID string) (*chainconfig.BesuQBFTChain, error) {
-	params := chainconfig.DefaultBesuQBFTParams()
+func (s *TestSuite) setupEthereumBesuQBFT(ctx context.Context, networkID string) (*chainconfig.BesuChain, error) {
+	params := chainconfig.DefaultBesuParams(testvalues.BesuConsensusQBFT)
 	params.DockerRPCAlias = "besu-qbft-rpc"
 	params.InterchainNetworkID = networkID
 
-	chain, err := chainconfig.SpinUpBesuQBFT(ctx, params)
+	chain, err := chainconfig.SpinUpBesu(ctx, params)
 	if err != nil {
 		return nil, err
 	}
 	return &chain, nil
 }
 
-func (s *TestSuite) processEthereumBesuQBFTResult(ctx context.Context, chain *chainconfig.BesuQBFTChain) {
+func (s *TestSuite) processEthereumBesuQBFTResult(ctx context.Context, chain *chainconfig.BesuChain) {
 	if chain == nil {
 		return
 	}

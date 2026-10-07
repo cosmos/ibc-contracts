@@ -99,6 +99,11 @@ const (
 	// EthTestnetTypeBesuQBFT uses a real 4-validator Besu QBFT network
 	EthTestnetTypeBesuQBFT = "besu-qbft"
 
+	// BesuConsensusQBFT runs Besu networks with QBFT consensus.
+	BesuConsensusQBFT = "qbft"
+	// BesuConsensusIBFT2 runs Besu networks with IBFT 2.0 consensus.
+	BesuConsensusIBFT2 = "ibft2"
+
 	// EthTestnetType_None disables Ethereum chain setup
 	EthTestnetType_None = "none"
 
