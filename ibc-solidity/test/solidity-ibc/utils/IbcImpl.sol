@@ -24,7 +24,7 @@ import { ICS27Lib } from "../../../contracts/utils/ICS27Lib.sol";
 import { ICS27GMP } from "../../../contracts/ICS27GMP.sol";
 import { ICS27Account } from "../../../contracts/utils/ICS27Account.sol";
 import { TestHelper } from "./TestHelper.sol";
-import { ILightClientDriver } from "./lc/ILightClientDriver.sol";
+import { ILightClientDriver } from "../integration/drivers/ILightClientDriver.sol";
 import { ICS20Lib } from "../../../contracts/utils/ICS20Lib.sol";
 import { ERC1967Proxy } from "@openzeppelin-contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import { ICS24Host } from "../../../contracts/utils/ICS24Host.sol";

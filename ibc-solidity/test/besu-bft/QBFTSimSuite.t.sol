@@ -20,7 +20,7 @@ import { ICS24Host } from "../../contracts/utils/ICS24Host.sol";
 import { IbcImpl } from "../solidity-ibc/utils/IbcImpl.sol";
 import { IntegrationEnv } from "../solidity-ibc/utils/IntegrationEnv.sol";
 import { TestHelper } from "../solidity-ibc/utils/TestHelper.sol";
-import { SolidityLightClientDriver } from "../solidity-ibc/utils/lc/SolidityLightClientDriver.sol";
+import { SolidityLightClientDriver } from "../solidity-ibc/integration/drivers/SolidityLightClientDriver.sol";
 import { QBFTSimSuite } from "./utils/QBFTSimSuite.sol";
 import { SimHeader } from "./utils/SimHeader.sol";
 

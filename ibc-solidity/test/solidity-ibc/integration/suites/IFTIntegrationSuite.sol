@@ -4,25 +4,24 @@ pragma solidity ^0.8.28;
 // solhint-disable
 // custom-errors,max-line-length,max-states-count,var-name-mixedcase,gas-small-strings
 
-import { IICS26RouterMsgs } from "../../contracts/msgs/IICS26RouterMsgs.sol";
-import { IICS26Router } from "../../contracts/interfaces/IICS26Router.sol";
-import { IIFTMsgs } from "../../contracts/msgs/IIFTMsgs.sol";
+import { IICS26RouterMsgs } from "../../../../contracts/msgs/IICS26RouterMsgs.sol";
+import { IICS26Router } from "../../../../contracts/interfaces/IICS26Router.sol";
+import { IIFTMsgs } from "../../../../contracts/msgs/IIFTMsgs.sol";
 
-import { IIFT } from "../../contracts/interfaces/IIFT.sol";
-import { IIFTRateLimit } from "../../contracts/interfaces/IIFTRateLimit.sol";
-import { IIFTErrors } from "../../contracts/errors/IIFTErrors.sol";
+import { IIFT } from "../../../../contracts/interfaces/IIFT.sol";
+import { IIFTRateLimit } from "../../../../contracts/interfaces/IIFTRateLimit.sol";
+import { IIFTErrors } from "../../../../contracts/errors/IIFTErrors.sol";
 
-import { IbcImpl } from "./utils/IbcImpl.sol";
-import { LightClientDriverTest } from "./utils/lc/LightClientDriverTest.sol";
-import { WithSolidityLightClient } from "./utils/lc/SolidityLightClientDriver.sol";
-import { TestHelper } from "./utils/TestHelper.sol";
-import { IntegrationEnv } from "./utils/IntegrationEnv.sol";
-import { IFTAccessManaged } from "../../contracts/utils/IFTAccessManaged.sol";
-import { EVMIFTSendCallConstructor } from "../../contracts/utils/EVMIFTSendCallConstructor.sol";
+import { IbcImpl } from "../../utils/IbcImpl.sol";
+import { LightClientDriverTest } from "../drivers/LightClientDriverTest.sol";
+import { TestHelper } from "../../utils/TestHelper.sol";
+import { IntegrationEnv } from "../../utils/IntegrationEnv.sol";
+import { IFTAccessManaged } from "../../../../contracts/utils/IFTAccessManaged.sol";
+import { EVMIFTSendCallConstructor } from "../../../../contracts/utils/EVMIFTSendCallConstructor.sol";
 import { Strings } from "@openzeppelin-contracts/utils/Strings.sol";
 import { ERC1967Proxy } from "@openzeppelin-contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-abstract contract IFTIntegrationTestBase is LightClientDriverTest {
+abstract contract IFTIntegrationSuite is LightClientDriverTest {
     IbcImpl public ibcImplA;
     IbcImpl public ibcImplB;
 
@@ -276,5 +275,3 @@ abstract contract IFTIntegrationTestBase is LightClientDriverTest {
         return abi.decode(packetBz, (IICS26RouterMsgs.Packet));
     }
 }
-
-contract IFTIntegrationTest is IFTIntegrationTestBase, WithSolidityLightClient { }

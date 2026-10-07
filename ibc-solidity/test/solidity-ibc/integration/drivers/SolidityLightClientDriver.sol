@@ -8,7 +8,7 @@ import { IICS02ClientMsgs } from "../../../../contracts/msgs/IICS02ClientMsgs.so
 import { ILightClient } from "../../../../contracts/interfaces/ILightClient.sol";
 import { ICS26Router } from "../../../../contracts/ICS26Router.sol";
 import { IBCStoreUpgradeable } from "../../../../contracts/utils/IBCStoreUpgradeable.sol";
-import { SolidityLightClient } from "../SolidityLightClient.sol";
+import { SolidityLightClient } from "../../utils/SolidityLightClient.sol";
 import { ILightClientDriver } from "./ILightClientDriver.sol";
 import { LightClientDriverTest } from "./LightClientDriverTest.sol";
 

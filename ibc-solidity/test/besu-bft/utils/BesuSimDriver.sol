@@ -11,8 +11,8 @@ import { ILightClient } from "../../../contracts/interfaces/ILightClient.sol";
 import { ICS26Router } from "../../../contracts/ICS26Router.sol";
 import { IBCStoreUpgradeable } from "../../../contracts/utils/IBCStoreUpgradeable.sol";
 import { Math } from "@openzeppelin-contracts/utils/math/Math.sol";
-import { ILightClientDriver } from "../../solidity-ibc/utils/lc/ILightClientDriver.sol";
-import { LightClientDriverTest } from "../../solidity-ibc/utils/lc/LightClientDriverTest.sol";
+import { ILightClientDriver } from "../../solidity-ibc/integration/drivers/ILightClientDriver.sol";
+import { LightClientDriverTest } from "../../solidity-ibc/integration/drivers/LightClientDriverTest.sol";
 import { QBFTSimSuite } from "./QBFTSimSuite.sol";
 import { SimHeader } from "./SimHeader.sol";
 

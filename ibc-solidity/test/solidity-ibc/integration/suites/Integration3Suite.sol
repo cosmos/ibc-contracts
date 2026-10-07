@@ -1,21 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.28;
 
-// solhint-disable custom-errors,max-line-length,max-states-count,no-empty-blocks
+// solhint-disable custom-errors,max-line-length,max-states-count
 
-import { IICS26RouterMsgs } from "../../contracts/msgs/IICS26RouterMsgs.sol";
+import { IICS26RouterMsgs } from "../../../../contracts/msgs/IICS26RouterMsgs.sol";
 
 import { IERC20 } from "@openzeppelin-contracts/token/ERC20/IERC20.sol";
 
-import { IbcImpl } from "./utils/IbcImpl.sol";
-import { LightClientDriverTest } from "./utils/lc/LightClientDriverTest.sol";
-import { WithSolidityLightClient } from "./utils/lc/SolidityLightClientDriver.sol";
-import { TestHelper } from "./utils/TestHelper.sol";
-import { IntegrationEnv } from "./utils/IntegrationEnv.sol";
+import { IbcImpl } from "../../utils/IbcImpl.sol";
+import { LightClientDriverTest } from "../drivers/LightClientDriverTest.sol";
+import { TestHelper } from "../../utils/TestHelper.sol";
+import { IntegrationEnv } from "../../utils/IntegrationEnv.sol";
 import { Strings } from "@openzeppelin-contracts/utils/Strings.sol";
-import { ICS20Lib } from "../../contracts/utils/ICS20Lib.sol";
+import { ICS20Lib } from "../../../../contracts/utils/ICS20Lib.sol";
 
-abstract contract Integration3TestBase is LightClientDriverTest {
+abstract contract Integration3Suite is LightClientDriverTest {
     IbcImpl public ibcImplA;
     IbcImpl public ibcImplB;
     IbcImpl public ibcImplC;
@@ -174,5 +173,3 @@ abstract contract Integration3TestBase is LightClientDriverTest {
         assertEq(tokenOnC.totalSupply(), 0, "totalSupply mismatch");
     }
 }
-
-contract Integration3Test is Integration3TestBase, WithSolidityLightClient { }
