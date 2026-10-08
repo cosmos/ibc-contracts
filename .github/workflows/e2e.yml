@@ -118,7 +118,7 @@ jobs:
         uses: ./.github/actions/e2e-matrix
 
   generate-matrix-besu-to-besu:
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     outputs:
@@ -132,7 +132,7 @@ jobs:
         uses: ./.github/actions/e2e-matrix
 
   build-e2e-programs:
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: read
@@ -243,7 +243,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.generate-matrix-besu-to-besu.outputs.matrix) }}
     name: besu-to-besu/${{ matrix.test }}
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: read
