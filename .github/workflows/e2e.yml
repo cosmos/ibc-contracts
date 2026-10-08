@@ -117,23 +117,22 @@ jobs:
           TEST_ENTRYPOINT: TestWithEthToEthAttestedTestSuite
         uses: ./.github/actions/e2e-matrix
 
-  # ---------------------------------------------------------------- mock (was e2e-mock)
-  e2e-mock:
-    needs: [generate-matrix-mock, build-e2e-programs]
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJson(needs.generate-matrix-mock.outputs.matrix) }}
-    name: ${{ matrix.entrypoint }}/${{ matrix.test }}
-    env:
-      SP1_PROVER: mock
-      E2E_PROOF_TYPE: groth16
-      E2E_IBC_GO_DOCKER_TAG: ${{ inputs.ibc-go-docker-tag || 'v11.0.0' }}
-      ETH_TESTNET_TYPE: anvil
-      ETH_LC_ON_COSMOS: dummy
-      COSMOS_LC_ON_ETH: sp1
-      IBC_ATTESTOR_IMAGE: ghcr.io/cosmos/ibc-attestor:v0.3.0
+  generate-matrix-besu-to-besu:
+    runs-on: depot-ubuntu-24.04-4
+    permissions:
+      contents: read
+    outputs:
+      matrix: ${{ steps.get-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Generate Test Matrix
+        id: get-matrix
+        env:
+          TEST_ENTRYPOINT: TestWithBesuToBesuTestSuite
+        uses: ./.github/actions/e2e-matrix
 
-    runs-on: ubuntu-latest
+  build-e2e-programs:
+    runs-on: depot-ubuntu-24.04-4
     permissions:
       contents: read
       packages: read
@@ -239,14 +238,12 @@ jobs:
           go test -v -mod=readonly . -run '^TestWithIbcEurekaTestSuite$/^Test_ICS20TransferERC20TokenfromEthereumToCosmosAndBack$' -timeout 60m
 
   e2e-besu-to-besu:
-    needs: build-e2e-programs
-    name: besu-to-besu
-    env:
-      ETH_TESTNET_TYPE: anvil
-      E2E_WASM_LIGHT_CLIENT_TAG: ""
-      COSMOS_LC_ON_ETH: attestor
-      IBC_ATTESTOR_IMAGE: ghcr.io/cosmos/ibc-attestor:v0.3.0
-    runs-on: ubuntu-latest
+    needs: [generate-matrix-besu-to-besu, build-e2e-programs]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.generate-matrix-besu-to-besu.outputs.matrix) }}
+    name: besu-to-besu/${{ matrix.test }}
+    runs-on: depot-ubuntu-24.04-4
     permissions:
       contents: read
       packages: read
@@ -260,10 +257,10 @@ jobs:
         run: |
           cd e2e/interchaintestv8
           go test ./e2esuite
-      - name: Run Besu to Besu test suite
+      - name: Run Besu to Besu test
         run: |
           cd e2e/interchaintestv8
-          go test -v -mod=readonly . -run '^TestWithBesuToBesuTestSuite$' -timeout 60m
+          go test -v -mod=readonly . -run "^${{ matrix.entrypoint }}$/${{ matrix.test }}$" -timeout 60m
 
   e2e-multi-attestor-native:
     needs: build-e2e-programs

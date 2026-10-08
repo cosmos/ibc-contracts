@@ -217,13 +217,13 @@
     "name": "misbehaviour",
     "inputs": [
       {
-        "name": "",
+        "name": "misbehaviourMsg",
         "type": "bytes",
         "internalType": "bytes"
       }
     ],
     "outputs": [],
-    "stateMutability": "view"
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -411,13 +411,13 @@
         "internalType": "uint64"
       },
       {
-        "name": "trustedConsensusStateHash",
+        "name": "consensusStateHash1",
         "type": "bytes32",
         "indexed": false,
         "internalType": "bytes32"
       },
       {
-        "name": "conflictingConsensusStateHash",
+        "name": "consensusStateHash2",
         "type": "bytes32",
         "indexed": false,
         "internalType": "bytes32"
@@ -496,6 +496,37 @@
         "type": "address",
         "indexed": true,
         "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "TimeNonMonotonicity",
+    "inputs": [
+      {
+        "name": "height2",
+        "type": "uint64",
+        "indexed": true,
+        "internalType": "uint64"
+      },
+      {
+        "name": "height1",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      },
+      {
+        "name": "timestamp2",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      },
+      {
+        "name": "timestamp1",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
       }
     ],
     "anonymous": false
@@ -795,6 +826,22 @@
   },
   {
     "type": "error",
+    "name": "InvalidTrustedHeight",
+    "inputs": [
+      {
+        "name": "trustedHeight",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "headerHeight",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "InvalidTrustingPeriod",
     "inputs": []
   },
@@ -824,6 +871,11 @@
         "internalType": "uint256"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "NoMisbehaviourDetected",
+    "inputs": []
   },
   {
     "type": "error",
@@ -900,10 +952,5 @@
         "internalType": "uint256"
       }
     ]
-  },
-  {
-    "type": "error",
-    "name": "UnsupportedMisbehaviour",
-    "inputs": []
   }
 ]

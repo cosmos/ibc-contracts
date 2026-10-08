@@ -273,6 +273,22 @@
   },
   {
     "type": "error",
+    "name": "InvalidTrustedHeight",
+    "inputs": [
+      {
+        "name": "trustedHeight",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "headerHeight",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "InvalidTrustingPeriod",
     "inputs": []
   },
@@ -302,6 +318,11 @@
         "internalType": "uint256"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "NoMisbehaviourDetected",
+    "inputs": []
   },
   {
     "type": "error",
@@ -346,10 +367,5 @@
         "internalType": "uint256"
       }
     ]
-  },
-  {
-    "type": "error",
-    "name": "UnsupportedMisbehaviour",
-    "inputs": []
   }
 ]

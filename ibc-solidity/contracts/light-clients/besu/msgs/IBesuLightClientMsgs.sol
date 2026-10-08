@@ -59,4 +59,50 @@ interface IBesuLightClientMsgs {
         bytes[] accountProofNodes;
         bytes[] proofNodes;
     }
+
+    /// @notice Misbehaviour message containing two conflicting trusted consensus states at different heights.
+    /// @dev Time monotonicity check is done during updateClient, however, it is possible that the check is bypassed if
+    /// a suitable trusted consensus state is provided. This misbehavior message is used to freeze the client by simply
+    /// providing two consensus states that are trusted but have timestamps that are not monotonic. The states only need
+    /// to match their stored hashes; they may be past their trusting period.
+    /// @param height1 Height of the first trusted consensus state.
+    /// @param height2 Height of the second trusted consensus state. Must differ from `height1`; order is irrelevant.
+    /// @param consensusStatePreimage1 Preimage of the first trusted consensus state.
+    /// @param consensusStatePreimage2 Preimage of the second trusted consensus state.
+    struct MsgTimeNonMonotonicityMisbehaviour {
+        IICS02ClientMsgs.Height height1;
+        IICS02ClientMsgs.Height height2;
+        ConsensusState consensusStatePreimage1;
+        ConsensusState consensusStatePreimage2;
+    }
+
+    /// @notice Misbehaviour message containing two validly signed headers that conflict with each other.
+    /// @dev Each header is verified against its own trusted consensus state exactly as in `updateClient`, except that
+    /// the clock drift check is skipped. A header whose timestamp is not greater than its trusted consensus state's
+    /// timestamp proves time non-monotonicity on its own; the other header may then be any valid header, including
+    /// the same one. Otherwise, headers at the same height with different consensus states prove a double sign, and
+    /// headers at different heights where the lower header's timestamp is not less than the higher header's
+    /// timestamp prove time non-monotonicity. The headers may be in either order and need not be stored.
+    /// @param update1 The first header with its trusted consensus state.
+    /// @param update2 The second header with its trusted consensus state.
+    struct MsgHeadersMisbehaviour {
+        MsgUpdateClient update1;
+        MsgUpdateClient update2;
+    }
+
+    /// @notice The type of misbehaviour evidence in a `MsgSubmitMisbehaviour`.
+    enum MisbehaviourType {
+        /// The evidence is an `abi.encode(MsgTimeNonMonotonicityMisbehaviour)`.
+        TimeNonMonotonicity,
+        /// The evidence is an `abi.encode(MsgHeadersMisbehaviour)`.
+        Headers
+    }
+
+    /// @notice Misbehaviour message accepted by `misbehaviour(bytes)`.
+    /// @param misbehaviourType The type of the encoded evidence.
+    /// @param misbehaviour The ABI-encoded evidence message for `misbehaviourType`.
+    struct MsgSubmitMisbehaviour {
+        MisbehaviourType misbehaviourType;
+        bytes misbehaviour;
+    }
 }

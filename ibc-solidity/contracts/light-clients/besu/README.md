@@ -47,7 +47,7 @@ The Besu light clients are deployed on the **destination** EVM chain, next to th
 - This is not a new requirement relative to the rest of the stack: `ICS26Router`, `ICS20Transfer`, and `ICS27GMP` already use OpenZeppelin's `ReentrancyGuardTransient`, and `SP1ICS07Tendermint` caches proofs in transient storage, so a chain that can run the router can run these clients.
 - All contracts in `ibc-solidity/` are compiled with `evm_version = "cancun"` (`ibc-solidity/foundry.toml`), so the compiled artifacts may also rely on other Shanghai and Cancun opcodes such as `PUSH0` and `MCOPY`. Do not lower `evm_version` to target an older chain; the transient cache has no fallback.
 
-Before deploying to a new destination network, confirm that it reports Cancun as active. A quick check is to `eth_call` a probe that executes `TSTORE`; a pre-Cancun chain returns an invalid-opcode failure. The end-to-end suites exercise this on a Cancun target: Foundry tests run under the `cancun` EVM, and the Besu QBFT e2e genesis enables it with `"cancunTime": 0` (`e2e/interchaintestv8/chainconfig/testdata/besu/qbft/genesis.json`).
+Before deploying to a new destination network, confirm that it reports Cancun as active. A quick check is to `eth_call` a probe that executes `TSTORE`; a pre-Cancun chain returns an invalid-opcode failure. The end-to-end suites exercise this on a Cancun target: Foundry tests run under the `cancun` EVM, and the Besu QBFT e2e genesis enables it with `"cancunTime": 0` (`e2e/interchaintestv8/chainconfig/testdata/besu/genesis.json`).
 
 The **source** Besu chain, whose headers and proofs are being verified, has no hard-fork requirement beyond what `eth_getProof` needs; only the chain hosting the light client contract must support Cancun.
 
@@ -55,7 +55,6 @@ The **source** Besu chain, whose headers and proofs are being verified, has no h
 
 - QBFT validator-contract mode
 - Mode transitions
-- Misbehaviour evidence handling through `misbehaviour(bytes)` (double signs are detected in `updateClient`, see below)
 
 ## Constructor
 
@@ -106,6 +105,26 @@ On update, the contract:
 5. stores `keccak256(abi.encode(ConsensusState))` for the new height, built from the header timestamp, the header `stateRoot`, and the header validator set.
 
 Submitting a header whose derived consensus state hash already matches the stored hash at that height returns `UpdateResult.NoOp`. A validly signed header that derives a different consensus state at an already stored height is a double sign: the client sets `ClientState.isFrozen`, emits `DoubleSign`, and returns `UpdateResult.Misbehaviour` without storing the conflicting consensus state.
+
+The header height must be strictly greater than `trustedHeight`, or the update reverts with `InvalidTrustedHeight`. A validly signed header whose timestamp is not greater than the trusted consensus state's timestamp is time non-monotonicity: the client freezes, emits `TimeNonMonotonicity`, and returns `UpdateResult.Misbehaviour`. Because each update is only compared with its own trusted height, two stored consensus states can still end up with timestamps that do not increase with height.
+
+## Misbehaviour
+
+`misbehaviour(bytes)` is permissionless: anyone can submit evidence, regardless of `PROOF_SUBMITTER_ROLE`. It takes `abi.encode(IBesuLightClientMsgs.MsgSubmitMisbehaviour)`, which wraps one ABI-encoded evidence message tagged with its `MisbehaviourType`:
+
+```solidity
+enum MisbehaviourType { TimeNonMonotonicity, Headers }
+
+struct MsgSubmitMisbehaviour {
+    MisbehaviourType misbehaviourType;
+    bytes misbehaviour;
+}
+```
+
+- `TimeNonMonotonicity`: `abi.encode(MsgTimeNonMonotonicityMisbehaviour)` with two stored heights and their preimages, in either order. The client freezes when the lower height's timestamp is not less than the higher height's timestamp. The preimages must match the stored hashes, but the trusting period does not apply: stored states remain valid evidence after they expire.
+- `Headers`: `abi.encode(MsgHeadersMisbehaviour)` with two `MsgUpdateClient` messages. Each header is verified against its own trusted consensus state exactly as in `updateClient`, including the trusting period, trusted-validator overlap and quorum, except that the clock-drift check is skipped. The headers need not be stored and may be in either order. The client checks, in order: the first header against its own trusted consensus state, the second header against its own trusted consensus state, and the two headers against each other. A header whose timestamp is not greater than its own trusted consensus state's timestamp freezes the client with `TimeNonMonotonicity`, exactly as `updateClient` would; if the first header does, the second is not verified, and it may also be the same header. Otherwise, headers at the same height that derive different consensus states freeze the client with `DoubleSign`; headers at different heights where the lower header's timestamp is not less than the higher header's timestamp freeze it with `TimeNonMonotonicity`.
+
+Evidence that does not prove misbehaviour reverts with `NoMisbehaviourDetected`. Opening submission is safe because the evidence is either consensus states the client already accepted or headers that meet the same signature thresholds as an update, so freezing the client requires genuine validator misbehaviour.
 
 A frozen client is permanent. `updateClient`, `verifyMembership`, `verifyNonMembership`, and `misbehaviour` all revert with `FrozenClientState`, and there is no way to unfreeze it; a new client must be created instead.
 
@@ -206,16 +225,16 @@ The Foundry fixtures under `test/besu-bft/fixtures/` can be regenerated from the
 just solidity::generate-fixtures-besu
 ```
 
-This writes `test/besu-bft/fixtures/qbft.json` using live Besu QBFT headers, account proofs, and storage proofs captured during the e2e transfer flow. The fixture `proof` and `accountProof` fields hold the raw storage and account proof nodes as `abi.encode(bytes[])`; the Foundry tests wrap them into `MembershipProof` together with the consensus state preimage derived from the fixture's expected update state. The negative cases in that fixture are still derived by deterministic off-chain header mutation so the contract tests can keep explicit overlap / quorum / conflict coverage.
+This writes `test/besu-bft/fixtures/qbft.json` and `test/besu-bft/fixtures/ibft2.json` using live Besu QBFT and IBFT2 headers, account proofs, and storage proofs captured during the e2e transfer flow. The fixture `proof` and `accountProof` fields hold the raw storage and account proof nodes as `abi.encode(bytes[])`; the Foundry tests wrap them into `MembershipProof` together with the consensus state preimage derived from the fixture's expected update state. The negative cases in those fixtures are still derived by deterministic off-chain header mutation so the contract tests can keep explicit overlap / quorum / conflict coverage.
 
-The synthetic IBFT2 validator sets and commit seals, and QBFT's synthetic low-overlap
-case, can be regenerated offline with the existing Go header and signing helpers:
+The synthetic low-overlap case of both fixtures can be regenerated offline with the
+existing Go header and signing helpers:
 
 ```sh
 cd e2e/interchaintestv8
-go test ./types -run '^TestBesu(IBFT2Fixture|QBFTLowOverlapFixture)$' -args -update-besu-synthetic
+go test ./types -run '^TestBesuLowOverlapFixture$' -args -update-besu-synthetic
 ```
 
 Run this in the Nix development shell. Omitting the update flag checks that the
 fixtures match the generators. Regeneration preserves the other header fields and
-trie proofs. `ibft2.json` remains synthetic until an IBFT2-focused e2e fixture path is added.
+trie proofs.
