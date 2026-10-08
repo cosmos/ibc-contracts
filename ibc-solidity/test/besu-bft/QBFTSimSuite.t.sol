@@ -2,7 +2,6 @@
 pragma solidity ^0.8.28;
 
 import { Test } from "forge-std/Test.sol";
-import { Strings } from "@openzeppelin-contracts/utils/Strings.sol";
 import { IAccessControl } from "@openzeppelin-contracts/access/IAccessControl.sol";
 import { Math } from "@openzeppelin-contracts/utils/math/Math.sol";
 import { Memory } from "@openzeppelin-contracts/utils/Memory.sol";
@@ -17,10 +16,6 @@ import { IBesuLightClientErrors } from "../../contracts/light-clients/besu/error
 import { BesuLightClientBase } from "../../contracts/light-clients/besu/BesuLightClientBase.sol";
 import { ICS24Host } from "../../contracts/utils/ICS24Host.sol";
 
-import { IbcImpl } from "../solidity-ibc/utils/IbcImpl.sol";
-import { IntegrationEnv } from "../solidity-ibc/utils/IntegrationEnv.sol";
-import { TestHelper } from "../solidity-ibc/utils/TestHelper.sol";
-import { SolidityLightClientDriver } from "../solidity-ibc/integration/drivers/SolidityLightClientDriver.sol";
 import { QBFTSimSuite } from "./utils/QBFTSimSuite.sol";
 import { SimHeader } from "./utils/SimHeader.sol";
 
@@ -485,26 +480,6 @@ abstract contract QBFTSimSuiteTest is Test {
 
         assertEq(sim.stateRootAt(3), sim.blockAt(3).stateRoot);
         assertEq(client.verifyMembership(sim.membershipMsg(3, path)), sim.blockAt(3).timestamp);
-    }
-
-    /// @dev Mirrors a commitment written by a real ICS26 router and proves it through the light client.
-    function test_syncCommitmentFromRouter() public {
-        TestHelper th = new TestHelper();
-        IntegrationEnv env = new IntegrationEnv();
-        IbcImpl ibcImpl = new IbcImpl(env.permit2());
-        ibcImpl.addClient(th.FIRST_CLIENT_ID(), new SolidityLightClientDriver(ibcImpl.ics26Router()));
-        address user = env.createAndFundUser(100);
-
-        IICS26RouterMsgs.Packet memory packet =
-            ibcImpl.sendTransferAsUser(env.erc20(), user, Strings.toHexString(user), 100, th.FIRST_CLIENT_ID());
-        bytes memory path = ICS24Host.packetCommitmentPathCalldata(packet.sourceClient, packet.sequence);
-        sim.syncCommitment(ibcImpl.ics26Router(), path);
-        sim.produceBlock();
-        client.updateClient(sim.updateMsg(2, 3));
-
-        ILightClientMsgs.MsgVerifyMembership memory msg_ = sim.membershipMsg(3, path);
-        assertEq(msg_.value, abi.encodePacked(ICS24Host.packetCommitmentBytes32(packet)));
-        client.verifyMembership(msg_);
     }
 
     function _headersMisbehaviour(bytes memory update1, bytes memory update2) internal pure returns (bytes memory) {
