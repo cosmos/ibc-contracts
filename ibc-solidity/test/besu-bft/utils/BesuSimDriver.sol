@@ -24,12 +24,10 @@ contract BesuSimDriver is ILightClientDriver {
     ILightClient public immutable lightClient;
     IBCStoreUpgradeable private immutable _counterpartyRouter;
 
-    uint64 private _trustedHeight;
-
     constructor(SimHeader.Mode mode, ICS26Router counterparty) {
         sim = new QBFTSimSuite(mode);
         sim.addValidators(4);
-        _trustedHeight = _produceBlock();
+        _produceBlock();
         lightClient = sim.deployLightClient(1 days, 10, IBesuLightClientMsgs.TrustThreshold(2, 3));
         _counterpartyRouter = counterparty;
     }
@@ -41,8 +39,7 @@ contract BesuSimDriver is ILightClientDriver {
     {
         sim.syncCommitment(_counterpartyRouter, path);
         uint64 height = _produceBlock();
-        updateMsg = sim.updateMsg(_trustedHeight, height);
-        _trustedHeight = height;
+        updateMsg = sim.updateMsg(_latestHeight(), height);
 
         if (_counterpartyRouter.getCommitment(keccak256(path)) != 0) {
             ILightClientMsgs.MsgVerifyMembership memory msg_ = sim.membershipMsg(height, path);
@@ -50,6 +47,12 @@ contract BesuSimDriver is ILightClientDriver {
         }
         ILightClientMsgs.MsgVerifyNonMembership memory nonMsg = sim.nonMembershipMsg(height, path);
         return (updateMsg, nonMsg.proof, nonMsg.proofHeight);
+    }
+
+    /// @dev Trusts the client's own latest height, so an update that was never submitted cannot leave the next one
+    /// pointing at a height the client does not store.
+    function _latestHeight() private view returns (uint64) {
+        return abi.decode(lightClient.getClientState(), (IBesuLightClientMsgs.ClientState)).latestHeight.revisionHeight;
     }
 
     /// @dev Stamps the block with the current time, or one second after the tip if that is later, so the sim only
