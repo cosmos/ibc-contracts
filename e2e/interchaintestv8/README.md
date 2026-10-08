@@ -91,6 +91,10 @@ just test-e2e TestWithBesuToBesuTestSuite/Test_ICS20TransferERC20FromChainAToCha
 # Besu A -> Besu B ICS20 timeout with a packet-receipt non-membership proof
 just test-e2e TestWithBesuToBesuTestSuite/Test_TimeoutICS20TransferERC20FromChainAToChainB_IBFT2
 
+# Batched variants: 5 packets per relay tx, only the first carries the account proof (cached storage root)
+just test-e2e TestWithBesuToBesuTestSuite/Test_5_ICS20TransferERC20FromChainAToChainB_QBFT
+just test-e2e TestWithBesuToBesuTestSuite/Test_5_TimeoutICS20TransferERC20FromChainAToChainB_IBFT2
+
 # Regenerate the QBFT and IBFT2 light-client fixtures used by test/besu-bft/*
 just solidity::generate-fixtures-besu
 ```
