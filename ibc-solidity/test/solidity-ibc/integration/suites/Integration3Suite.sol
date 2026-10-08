@@ -48,16 +48,13 @@ abstract contract Integration3Suite is LightClientDriverTest {
     }
 
     function test_deployment() public view {
-        // Check that the counterparty implementations are set correctly
-        _assertClient(ibcImplA, th.FIRST_CLIENT_ID(), ibcImplB);
-        _assertClient(ibcImplB, th.FIRST_CLIENT_ID(), ibcImplA);
-        _assertClient(ibcImplB, th.SECOND_CLIENT_ID(), ibcImplC);
-        _assertClient(ibcImplC, th.FIRST_CLIENT_ID(), ibcImplB);
-    }
+        // ibcImplA (client-0) <--> (client-0) ibcImplB
+        assertEq(ibcImplA.ics26Router().getCounterparty(th.FIRST_CLIENT_ID()).clientId, th.FIRST_CLIENT_ID());
+        assertEq(ibcImplB.ics26Router().getCounterparty(th.FIRST_CLIENT_ID()).clientId, th.FIRST_CLIENT_ID());
 
-    function _assertClient(IbcImpl ibcImpl, string memory clientId, IbcImpl counterparty) internal view {
-        assertEq(address(ibcImpl.ics26Router().getClient(clientId)), address(ibcImpl.drivers(clientId).lightClient()));
-        assertEq(address(ibcImpl.drivers(clientId).counterpartyRouter()), address(counterparty.ics26Router()));
+        // ibcImplB (client-1) <--> (client-0) ibcImplC
+        assertEq(ibcImplB.ics26Router().getCounterparty(th.SECOND_CLIENT_ID()).clientId, th.FIRST_CLIENT_ID());
+        assertEq(ibcImplC.ics26Router().getCounterparty(th.FIRST_CLIENT_ID()).clientId, th.SECOND_CLIENT_ID());
     }
 
     // solhint-disable-next-line function-max-lines

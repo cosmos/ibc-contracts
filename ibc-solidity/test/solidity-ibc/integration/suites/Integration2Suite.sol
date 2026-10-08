@@ -46,14 +46,9 @@ abstract contract Integration2Suite is LightClientDriverTest {
     }
 
     function test_deployment() public view {
-        // Check that the counterparty implementations are set correctly
-        _assertClient(ibcImplA, th.FIRST_CLIENT_ID(), ibcImplB);
-        _assertClient(ibcImplB, th.FIRST_CLIENT_ID(), ibcImplA);
-    }
-
-    function _assertClient(IbcImpl ibcImpl, string memory clientId, IbcImpl counterparty) internal view {
-        assertEq(address(ibcImpl.ics26Router().getClient(clientId)), address(ibcImpl.drivers(clientId).lightClient()));
-        assertEq(address(ibcImpl.drivers(clientId).counterpartyRouter()), address(counterparty.ics26Router()));
+        // ibcImplA (client-0) <--> (client-0) ibcImplB
+        assertEq(ibcImplA.ics26Router().getCounterparty(th.FIRST_CLIENT_ID()).clientId, th.FIRST_CLIENT_ID());
+        assertEq(ibcImplB.ics26Router().getCounterparty(th.FIRST_CLIENT_ID()).clientId, th.FIRST_CLIENT_ID());
     }
 
     function setup_createForeignDenomOnImplA(address receiver, uint256 amount) public returns (IERC20) {

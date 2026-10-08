@@ -4,7 +4,6 @@ pragma solidity ^0.8.28;
 import { IICS02ClientMsgs } from "../../../../contracts/msgs/IICS02ClientMsgs.sol";
 
 import { ILightClient } from "../../../../contracts/interfaces/ILightClient.sol";
-import { IBCStoreUpgradeable } from "../../../../contracts/utils/IBCStoreUpgradeable.sol";
 
 /// @title Light Client Driver
 /// @notice Test-only adapter that owns a light client tracking one counterparty router and makes the router's state
@@ -14,9 +13,6 @@ import { IBCStoreUpgradeable } from "../../../../contracts/utils/IBCStoreUpgrade
 interface ILightClientDriver {
     /// @notice The light client to register for the counterparty.
     function lightClient() external view returns (ILightClient);
-
-    /// @notice The router whose state the light client tracks.
-    function counterpartyRouter() external view returns (IBCStoreUpgradeable);
 
     /// @notice Makes the counterparty's current value at the raw ICS24 `path` provable; zero proves non-membership.
     /// @return updateMsg The `updateClient` message to submit before the proof, or empty if none is needed

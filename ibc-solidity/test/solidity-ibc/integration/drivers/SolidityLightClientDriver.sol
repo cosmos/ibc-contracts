@@ -7,7 +7,6 @@ import { IICS02ClientMsgs } from "../../../../contracts/msgs/IICS02ClientMsgs.so
 
 import { ILightClient } from "../../../../contracts/interfaces/ILightClient.sol";
 import { ICS26Router } from "../../../../contracts/ICS26Router.sol";
-import { IBCStoreUpgradeable } from "../../../../contracts/utils/IBCStoreUpgradeable.sol";
 import { SolidityLightClient } from "../../utils/SolidityLightClient.sol";
 import { ILightClientDriver } from "./ILightClientDriver.sol";
 import { LightClientDriverTest } from "./LightClientDriverTest.sol";
@@ -15,11 +14,9 @@ import { LightClientDriverTest } from "./LightClientDriverTest.sol";
 /// @notice Drives a `SolidityLightClient`, which reads the counterparty router directly and needs no proofs.
 contract SolidityLightClientDriver is ILightClientDriver {
     ILightClient public immutable lightClient;
-    IBCStoreUpgradeable public immutable counterpartyRouter;
 
     constructor(ICS26Router counterparty) {
         lightClient = new SolidityLightClient(counterparty);
-        counterpartyRouter = counterparty;
     }
 
     /// @inheritdoc ILightClientDriver

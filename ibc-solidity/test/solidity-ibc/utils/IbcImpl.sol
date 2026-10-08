@@ -40,7 +40,7 @@ contract IbcImpl is Test, DeployAccessManagerWithRoles {
     ICS27GMP public immutable ics27Gmp;
     RelayerHelper public immutable relayerHelper;
 
-    mapping(string clientId => ILightClientDriver driver) public drivers;
+    mapping(string clientId => ILightClientDriver driver) private _drivers;
 
     TestHelper private _th = new TestHelper();
 
@@ -106,7 +106,7 @@ contract IbcImpl is Test, DeployAccessManagerWithRoles {
         clientId = ics26Router.addClient(
             IICS02ClientMsgs.CounterpartyInfo(counterpartyId, _th.EMPTY_MERKLE_PREFIX()), address(driver.lightClient())
         );
-        drivers[clientId] = driver;
+        _drivers[clientId] = driver;
     }
 
     function sendTransferAsUser(
@@ -378,7 +378,7 @@ contract IbcImpl is Test, DeployAccessManagerWithRoles {
         returns (bytes memory proof, IICS02ClientMsgs.Height memory proofHeight)
     {
         bytes memory updateMsg;
-        (updateMsg, proof, proofHeight) = drivers[clientId].prove(path);
+        (updateMsg, proof, proofHeight) = _drivers[clientId].prove(path);
         if (updateMsg.length != 0) {
             ics26Router.updateClient(clientId, updateMsg);
         }

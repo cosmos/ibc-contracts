@@ -22,7 +22,7 @@ import { SimHeader } from "./SimHeader.sol";
 contract BesuSimDriver is ILightClientDriver {
     QBFTSimSuite public immutable sim;
     ILightClient public immutable lightClient;
-    IBCStoreUpgradeable public immutable counterpartyRouter;
+    IBCStoreUpgradeable private immutable _counterpartyRouter;
 
     uint64 private _trustedHeight;
 
@@ -31,7 +31,7 @@ contract BesuSimDriver is ILightClientDriver {
         sim.addValidators(4);
         _trustedHeight = _produceBlock();
         lightClient = sim.deployLightClient(1 days, 10, IBesuLightClientMsgs.TrustThreshold(2, 3));
-        counterpartyRouter = counterparty;
+        _counterpartyRouter = counterparty;
     }
 
     /// @inheritdoc ILightClientDriver
@@ -39,12 +39,12 @@ contract BesuSimDriver is ILightClientDriver {
         external
         returns (bytes memory updateMsg, bytes memory proof, IICS02ClientMsgs.Height memory proofHeight)
     {
-        sim.syncCommitment(counterpartyRouter, path);
+        sim.syncCommitment(_counterpartyRouter, path);
         uint64 height = _produceBlock();
         updateMsg = sim.updateMsg(_trustedHeight, height);
         _trustedHeight = height;
 
-        if (counterpartyRouter.getCommitment(keccak256(path)) != 0) {
+        if (_counterpartyRouter.getCommitment(keccak256(path)) != 0) {
             ILightClientMsgs.MsgVerifyMembership memory msg_ = sim.membershipMsg(height, path);
             return (updateMsg, msg_.proof, msg_.proofHeight);
         }
