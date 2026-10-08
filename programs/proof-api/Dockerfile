@@ -33,7 +33,7 @@ ARG BUILD_DATE
 ARG VCS_REF
 ARG VERSION
 ARG COMMIT
-ARG VCS_URL
+ARG VCS_URL=https://github.com/cosmos/ibc-contracts
 
 LABEL org.opencontainers.image.title="proof-api" \
       org.opencontainers.image.description="Solidity IBC Eureka Proof API" \

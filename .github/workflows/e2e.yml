@@ -41,6 +41,12 @@ env:
   SP1_VERSION: "6.1.0"
   SOLANA_VERSION: "2.3.13"
   ANCHOR_VERSION: "0.32.1"
+  E2E_IBC_GO_DOCKER_TAG: ${{ inputs.ibc-go-docker-tag || 'v11.0.0' }}
+  IBC_ATTESTOR_IMAGE: ghcr.io/cosmos/ibc-attestor:v0.3.0
+  # Attestor defaults; jobs override what differs.
+  ETH_TESTNET_TYPE: anvil
+  E2E_WASM_LIGHT_CLIENT_TAG: ""
+  COSMOS_LC_ON_ETH: attestor
 
 permissions: {}
 
@@ -64,7 +70,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: 1.26.5
           cache-dependency-path: e2e/interchaintestv8/go.sum
@@ -131,7 +137,19 @@ jobs:
           TEST_ENTRYPOINT: TestWithBesuToBesuTestSuite
         uses: ./.github/actions/e2e-matrix
 
-  build-e2e-programs:
+  # ------------------------------------------------------------ mock (was e2e-mock)
+  e2e-mock:
+    needs: [generate-matrix-mock, build-e2e-programs]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.generate-matrix-mock.outputs.matrix) }}
+    name: mock/${{ matrix.entrypoint }}/${{ matrix.test }}
+    env:
+      ETH_LC_ON_COSMOS: dummy
+      COSMOS_LC_ON_ETH: sp1
+      SP1_PROVER: mock
+      E2E_PROOF_TYPE: groth16
+
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -158,10 +176,6 @@ jobs:
       matrix: ${{ fromJson(needs.generate-matrix-attestor.outputs.matrix) }}
     name: attestor-native/${{ matrix.entrypoint }}/${{ matrix.test }}
     env:
-      ETH_TESTNET_TYPE: anvil
-      E2E_WASM_LIGHT_CLIENT_TAG: ""
-      COSMOS_LC_ON_ETH: attestor
-      IBC_ATTESTOR_IMAGE: ghcr.io/cosmos/ibc-attestor:v0.3.0
       ETH_LC_ON_COSMOS: attestor-native
 
     runs-on: ubuntu-latest
@@ -189,12 +203,6 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.generate-matrix-eth-to-eth.outputs.matrix) }}
     name: attestor-native/${{ matrix.entrypoint }}/${{ matrix.test }}
-    env:
-      ETH_TESTNET_TYPE: anvil
-      E2E_WASM_LIGHT_CLIENT_TAG: ""
-      COSMOS_LC_ON_ETH: attestor
-      IBC_ATTESTOR_IMAGE: ghcr.io/cosmos/ibc-attestor:v0.3.0
-
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -216,10 +224,8 @@ jobs:
     name: besu-qbft/ics20-roundtrip
     env:
       ETH_TESTNET_TYPE: besu-qbft
-      E2E_WASM_LIGHT_CLIENT_TAG: ""
       ETH_LC_ON_COSMOS: attestor-native
       COSMOS_LC_ON_ETH: sp1
-      IBC_ATTESTOR_IMAGE: ghcr.io/cosmos/ibc-attestor:v0.3.0
       SP1_PROVER: mock
       E2E_PROOF_TYPE: groth16
     runs-on: ubuntu-latest
@@ -276,10 +282,6 @@ jobs:
             active_attestors: 7
     name: multi-attestor-native/${{ matrix.active_attestors }}-of-${{ matrix.total_signers }}
     env:
-      ETH_TESTNET_TYPE: anvil
-      E2E_WASM_LIGHT_CLIENT_TAG: ""
-      COSMOS_LC_ON_ETH: attestor
-      IBC_ATTESTOR_IMAGE: ghcr.io/cosmos/ibc-attestor:v0.3.0
       ETH_LC_ON_COSMOS: attestor-native
       MULTI_ATTESTOR_COUNT: ${{ matrix.total_signers }}
       MULTI_ATTESTOR_QUORUM: ${{ matrix.required_signatures }}
@@ -305,10 +307,6 @@ jobs:
     needs: build-e2e-programs
     name: update-client-cosmos-to-eth
     env:
-      ETH_TESTNET_TYPE: anvil
-      E2E_WASM_LIGHT_CLIENT_TAG: ""
-      COSMOS_LC_ON_ETH: attestor
-      IBC_ATTESTOR_IMAGE: ghcr.io/cosmos/ibc-attestor:v0.3.0
       ETH_LC_ON_COSMOS: attestor-native
       MULTI_ATTESTOR_COUNT: 1
       MULTI_ATTESTOR_QUORUM: 1
@@ -348,11 +346,9 @@ jobs:
           - attestor
     name: ${{ matrix.test }}/eth=${{ matrix.eth_lc_on_cosmos }}/cosmos=${{ matrix.cosmos_lc_on_eth }}
     env:
-      ETH_TESTNET_TYPE: anvil
       E2E_WASM_LIGHT_CLIENT_TAG: ${{ inputs.wasm-light-client-tag || 'local' }}
       SP1_PROVER: mock
       E2E_PROOF_TYPE: groth16
-      IBC_ATTESTOR_IMAGE: ghcr.io/cosmos/ibc-attestor:v0.3.0
       ETH_LC_ON_COSMOS: ${{ matrix.eth_lc_on_cosmos }}
       COSMOS_LC_ON_ETH: ${{ matrix.cosmos_lc_on_eth }}
 
