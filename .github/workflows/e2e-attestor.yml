@@ -59,6 +59,20 @@ jobs:
           TEST_ENTRYPOINT: TestWithEthToEthAttestedTestSuite
         uses: ./.github/actions/e2e-matrix
 
+  generate-matrix-besu-to-besu:
+    runs-on: depot-ubuntu-24.04-4
+    permissions:
+      contents: read
+    outputs:
+      matrix: ${{ steps.get-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Generate Test Matrix
+        id: get-matrix
+        env:
+          TEST_ENTRYPOINT: TestWithBesuToBesuTestSuite
+        uses: ./.github/actions/e2e-matrix
+
   build-e2e-programs:
     runs-on: depot-ubuntu-24.04-4
     permissions:
@@ -145,8 +159,11 @@ jobs:
           go test -v -mod=readonly . -run '^TestWithIbcEurekaTestSuite$/^Test_ICS20TransferERC20TokenfromEthereumToCosmosAndBack$' -timeout 60m
 
   e2e-besu-to-besu:
-    needs: build-e2e-programs
-    name: besu-to-besu
+    needs: [generate-matrix-besu-to-besu, build-e2e-programs]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.generate-matrix-besu-to-besu.outputs.matrix) }}
+    name: besu-to-besu/${{ matrix.test }}
     runs-on: depot-ubuntu-24.04-4
     permissions:
       contents: read
@@ -161,10 +178,10 @@ jobs:
         run: |
           cd e2e/interchaintestv8
           go test ./e2esuite
-      - name: Run Besu to Besu test suite
+      - name: Run Besu to Besu test
         run: |
           cd e2e/interchaintestv8
-          go test -v -mod=readonly . -run '^TestWithBesuToBesuTestSuite$' -timeout 60m
+          go test -v -mod=readonly . -run "^${{ matrix.entrypoint }}$/${{ matrix.test }}$" -timeout 60m
 
   e2e-multi-attestor-native:
     needs: build-e2e-programs

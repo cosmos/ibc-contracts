@@ -38,9 +38,9 @@ All contracts are compiled for the **Cancun** EVM (`evm_version = "cancun"` in `
 - Proof surface: Besu block headers, commit seals, Ethereum account proofs, and Ethereum storage proofs.
 - Destination chain requirement: the chain hosting the client must have Cancun (EIP-1153 transient storage) enabled; the proven router storage root is cached in transient storage so a batch of packet proofs at one height pays for a single account proof. See `light-clients/besu/README.md`.
 - Counterparty storage model: Eureka `ICS26Router` / `IBCStoreUpgradeable` commitments mapping.
-- Misbehaviour: a double sign (conflicting consensus state at an already stored height) submitted through `updateClient` permanently freezes the client.
-- Not supported in v1: QBFT validator-contract mode, mode transitions, and `misbehaviour(bytes)` evidence submission.
-- Current fixture status: `test/besu-bft/fixtures/` are synthetic regression fixtures; real Besu-derived golden fixtures remain a follow-up interoperability-confidence improvement.
+- Misbehaviour: a double sign or time non-monotonicity permanently freezes the client. `updateClient` detects both against the trusted and stored consensus states. `misbehaviour(bytes)` is permissionless and accepts either two stored consensus states with non-monotonic timestamps or two validly signed headers proving a double sign or time non-monotonicity. See `light-clients/besu/README.md`.
+- Not supported in v1: QBFT validator-contract mode and mode transitions.
+- Fixture status: `test/besu-bft/fixtures/qbft.json` and `ibft2.json` are captured from live Besu QBFT and IBFT2 networks by the Besu↔Besu e2e suite; only their negative update cases are derived by off-chain header mutation.
 
 ## Interchain Fungible Tokens (IFT)
 - Code reference: find the  `contracts` IFT contract code [here](https://github.com/cosmos/solidity-ibc-eureka/tree/mariuszzak/ift/contracts).

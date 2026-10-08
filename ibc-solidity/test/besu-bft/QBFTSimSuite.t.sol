@@ -107,9 +107,8 @@ abstract contract QBFTSimSuiteTest is Test {
         restricted.verifyMembership(membership);
         vm.expectRevert(unauthorized);
         restricted.verifyNonMembership(nonMembership);
-        vm.expectRevert(unauthorized);
-        restricted.misbehaviour("");
         vm.stopPrank();
+        // misbehaviour is permissionless, see `test_misbehaviourIsPermissionless`.
 
         vm.prank(manager);
         acl.grantRole(role, relayer);
@@ -201,14 +200,17 @@ abstract contract QBFTSimSuiteTest is Test {
 
         IBesuLightClientMsgs.ConsensusState memory honestState = sim.consensusState(4);
         bytes memory misbehaviour = abi.encode(
-            IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour({
-                height1: IICS02ClientMsgs.Height(0, 3),
-                height2: IICS02ClientMsgs.Height(0, 4),
-                consensusStatePreimage1: IBesuLightClientMsgs.ConsensusState(
-                    forged.timestamp, forged.stateRoot, forged.validators
-                ),
-                consensusStatePreimage2: honestState
-            })
+            IBesuLightClientMsgs.MsgSubmitMisbehaviour(
+                IBesuLightClientMsgs.MisbehaviourType.TimeNonMonotonicity,
+                abi.encode(
+                    IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour({
+                        height1: IICS02ClientMsgs.Height(0, 3),
+                        height2: IICS02ClientMsgs.Height(0, 4),
+                        consensusStatePreimage1: _consensusState(forged),
+                        consensusStatePreimage2: honestState
+                    })
+                )
+            )
         );
 
         vm.warp(honestState.timestamp + TRUSTING_PERIOD);
@@ -218,6 +220,135 @@ abstract contract QBFTSimSuiteTest is Test {
 
         vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.FrozenClientState.selector));
         client.misbehaviour(misbehaviour);
+    }
+
+    /// @dev Two validly signed headers at the same height prove a double sign, whether or not either is stored.
+    function test_headersDoubleSign() public {
+        SimHeader.Data memory a = sim.seal(sim.nextBlock());
+        SimHeader.Data memory b = sim.nextBlock();
+        b.stateRoot = keccak256("equivocation");
+        b = sim.seal(b);
+        bytes memory misbehaviour = _headersMisbehaviour(sim.updateMsg(2, a), sim.updateMsg(2, b));
+
+        uint256 snapshot = vm.snapshotState();
+        for (uint256 stored = 0; stored < 2; ++stored) {
+            vm.revertToState(snapshot);
+            if (stored == 1) {
+                client.updateClient(sim.updateMsg(2, a));
+            }
+
+            vm.expectEmit(address(client));
+            emit IBesuLightClient.DoubleSign(
+                3, keccak256(abi.encode(_consensusState(a))), keccak256(abi.encode(_consensusState(b)))
+            );
+            client.misbehaviour(misbehaviour);
+            assertTrue(_isFrozen(client));
+        }
+    }
+
+    /// @dev Two validly signed headers whose timestamps do not increase with height freeze the client in either
+    /// order, even though neither is stored and the forged header is ahead of the clock.
+    function test_headersTimeNonMonotonicity() public {
+        SimHeader.Data memory forged = sim.nextBlock();
+        sim.produceBlocks(2);
+        forged.timestamp = uint64(vm.getBlockTimestamp()) + MAX_CLOCK_DRIFT + 1;
+        forged = sim.seal(forged);
+        bytes memory forgedUpdate = sim.updateMsg(2, forged);
+        bytes memory honestUpdate = sim.updateMsg(2, 4);
+        uint64 honestTimestamp = sim.blockAt(4).timestamp;
+
+        uint256 snapshot = vm.snapshotState();
+        bytes[2] memory misbehaviours =
+            [_headersMisbehaviour(forgedUpdate, honestUpdate), _headersMisbehaviour(honestUpdate, forgedUpdate)];
+        for (uint256 i = 0; i < misbehaviours.length; ++i) {
+            vm.revertToState(snapshot);
+            vm.expectEmit(address(client));
+            emit IBesuLightClient.TimeNonMonotonicity(4, 3, honestTimestamp, forged.timestamp);
+            client.misbehaviour(misbehaviours[i]);
+            assertTrue(_isFrozen(client));
+        }
+    }
+
+    /// @dev A header not newer than its own trusted consensus state is evidence on its own, as in `updateClient`,
+    /// even when paired with a valid later header or with itself.
+    function test_headersTimeNonMonotonicityAgainstTrustedState() public {
+        uint64 trustedTimestamp = sim.blockAt(2).timestamp;
+        SimHeader.Data memory forged = sim.nextBlock();
+        forged.timestamp = trustedTimestamp;
+        forged = sim.seal(forged);
+        sim.produceBlocks(2);
+        bytes memory forgedUpdate = sim.updateMsg(2, forged);
+        bytes memory honestUpdate = sim.updateMsg(2, 4);
+
+        uint256 snapshot = vm.snapshotState();
+        bytes[3] memory misbehaviours = [
+            _headersMisbehaviour(forgedUpdate, honestUpdate),
+            _headersMisbehaviour(honestUpdate, forgedUpdate),
+            _headersMisbehaviour(forgedUpdate, forgedUpdate)
+        ];
+        for (uint256 i = 0; i < misbehaviours.length; ++i) {
+            vm.revertToState(snapshot);
+            vm.expectEmit(address(client));
+            emit IBesuLightClient.TimeNonMonotonicity(3, 2, trustedTimestamp, trustedTimestamp);
+            client.misbehaviour(misbehaviours[i]);
+            assertTrue(_isFrozen(client));
+        }
+    }
+
+    function test_headersMisbehaviourRejections() public {
+        address[] memory two = new address[](2);
+        (two[0], two[1]) = (sim.validators()[0], sim.validators()[1]);
+        bytes memory underSigned = sim.updateMsg(2, sim.seal(sim.nextBlock(), two));
+        sim.produceBlocks(2);
+        bytes memory update3 = sim.updateMsg(2, 3);
+        bytes memory update4 = sim.updateMsg(2, 4);
+
+        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.NoMisbehaviourDetected.selector));
+        client.misbehaviour(_headersMisbehaviour(update3, update3));
+
+        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.NoMisbehaviourDetected.selector));
+        client.misbehaviour(_headersMisbehaviour(update4, update3));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 2, 3)
+        );
+        client.misbehaviour(_headersMisbehaviour(update3, underSigned));
+
+        uint64 trustedTimestamp = sim.blockAt(2).timestamp;
+        vm.warp(trustedTimestamp + TRUSTING_PERIOD);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IBesuLightClientErrors.ConsensusStateExpired.selector,
+                trustedTimestamp,
+                vm.getBlockTimestamp(),
+                TRUSTING_PERIOD
+            )
+        );
+        client.misbehaviour(_headersMisbehaviour(update3, update4));
+
+        assertFalse(_isFrozen(client));
+    }
+
+    /// @dev Proof submission is gated, but anyone can submit misbehaviour.
+    function test_misbehaviourIsPermissionless() public {
+        IBesuLightClient gated = sim.deployLightClient(
+            TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(2, 3), address(this)
+        );
+        SimHeader.Data memory a = sim.seal(sim.nextBlock());
+        SimHeader.Data memory b = sim.nextBlock();
+        b.stateRoot = keccak256("equivocation");
+        b = sim.seal(b);
+        bytes memory update = sim.updateMsg(2, a);
+        bytes memory misbehaviour = _headersMisbehaviour(update, sim.updateMsg(2, b));
+        address anyone = makeAddr("anyone");
+
+        vm.expectPartialRevert(IAccessControl.AccessControlUnauthorizedAccount.selector);
+        vm.prank(anyone);
+        gated.updateClient(update);
+
+        vm.prank(anyone);
+        gated.misbehaviour(misbehaviour);
+        assertTrue(_isFrozen(gated));
     }
 
     function test_timestampFromFuture() public {
@@ -373,6 +504,32 @@ abstract contract QBFTSimSuiteTest is Test {
         ILightClientMsgs.MsgVerifyMembership memory msg_ = sim.membershipMsg(3, path);
         assertEq(msg_.value, abi.encodePacked(ICS24Host.packetCommitmentBytes32(packet)));
         client.verifyMembership(msg_);
+    }
+
+    function _headersMisbehaviour(bytes memory update1, bytes memory update2) internal pure returns (bytes memory) {
+        return abi.encode(
+            IBesuLightClientMsgs.MsgSubmitMisbehaviour(
+                IBesuLightClientMsgs.MisbehaviourType.Headers,
+                abi.encode(
+                    IBesuLightClientMsgs.MsgHeadersMisbehaviour(
+                        abi.decode(update1, (IBesuLightClientMsgs.MsgUpdateClient)),
+                        abi.decode(update2, (IBesuLightClientMsgs.MsgUpdateClient))
+                    )
+                )
+            )
+        );
+    }
+
+    function _consensusState(SimHeader.Data memory h)
+        internal
+        pure
+        returns (IBesuLightClientMsgs.ConsensusState memory)
+    {
+        return IBesuLightClientMsgs.ConsensusState(h.timestamp, h.stateRoot, h.validators);
+    }
+
+    function _isFrozen(IBesuLightClient lc) internal view returns (bool) {
+        return abi.decode(lc.getClientState(), (IBesuLightClientMsgs.ClientState)).isFrozen;
     }
 
     /// @dev Rotates a random part of the trusted set and signs with a random subset of the new set: the update must

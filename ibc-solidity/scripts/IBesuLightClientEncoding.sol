@@ -36,6 +36,20 @@ interface IBesuLightClientEncoding {
         pure
         returns (IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour memory);
 
+    /// @notice Exposes the headers misbehaviour payload encoding.
+    /// @param message The misbehaviour message.
+    function headersMisbehaviour(IBesuLightClientMsgs.MsgHeadersMisbehaviour calldata message)
+        external
+        pure
+        returns (IBesuLightClientMsgs.MsgHeadersMisbehaviour memory);
+
+    /// @notice Exposes the misbehaviour envelope encoding accepted by `misbehaviour(bytes)`.
+    /// @param message The misbehaviour envelope.
+    function submitMisbehaviour(IBesuLightClientMsgs.MsgSubmitMisbehaviour calldata message)
+        external
+        pure
+        returns (IBesuLightClientMsgs.MsgSubmitMisbehaviour memory);
+
     /// @notice Exposes the membership and non-membership proof encoding.
     /// @param proof The proof with its consensus state preimage.
     function membershipProof(IBesuLightClientMsgs.MembershipProof calldata proof)

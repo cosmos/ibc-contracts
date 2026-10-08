@@ -23,7 +23,7 @@ services:
     ports:
       - "8545"
     networks:
-      qbft_testnet:
+      besu_testnet:
         ipv4_address: 10.42.0.2
 
   validator2:
@@ -49,7 +49,7 @@ services:
       - ./static-nodes/validator2.json:/opt/besu/static-nodes.json:ro
       - validator2-data:/opt/besu/data
     networks:
-      qbft_testnet:
+      besu_testnet:
         ipv4_address: 10.42.0.3
 
   validator3:
@@ -75,7 +75,7 @@ services:
       - ./static-nodes/validator3.json:/opt/besu/static-nodes.json:ro
       - validator3-data:/opt/besu/data
     networks:
-      qbft_testnet:
+      besu_testnet:
         ipv4_address: 10.42.0.4
 
   validator4:
@@ -101,7 +101,7 @@ services:
       - ./static-nodes/validator4.json:/opt/besu/static-nodes.json:ro
       - validator4-data:/opt/besu/data
     networks:
-      qbft_testnet:
+      besu_testnet:
         ipv4_address: 10.42.0.5
 
   # Not a genesis validator. Only started on demand, to be voted into the validator set.
@@ -122,11 +122,11 @@ services:
       - ./static-nodes/validator5.json:/opt/besu/static-nodes.json:ro
       - validator5-data:/opt/besu/data
     networks:
-      qbft_testnet:
+      besu_testnet:
         ipv4_address: 10.42.0.6
 
 networks:
-  qbft_testnet:
+  besu_testnet:
     driver: bridge
     driver_opts:
       com.docker.network.enable_ipv6: "false"

@@ -411,13 +411,13 @@
         "internalType": "uint64"
       },
       {
-        "name": "trustedConsensusStateHash",
+        "name": "consensusStateHash1",
         "type": "bytes32",
         "indexed": false,
         "internalType": "bytes32"
       },
       {
-        "name": "conflictingConsensusStateHash",
+        "name": "consensusStateHash2",
         "type": "bytes32",
         "indexed": false,
         "internalType": "bytes32"
@@ -750,22 +750,6 @@
   },
   {
     "type": "error",
-    "name": "InvalidMisbehaviourHeightOrder",
-    "inputs": [
-      {
-        "name": "height1",
-        "type": "uint64",
-        "internalType": "uint64"
-      },
-      {
-        "name": "height2",
-        "type": "uint64",
-        "internalType": "uint64"
-      }
-    ]
-  },
-  {
-    "type": "error",
     "name": "InvalidMixHash",
     "inputs": [
       {
@@ -821,22 +805,6 @@
         "name": "providedRevisionNumber",
         "type": "uint64",
         "internalType": "uint64"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "InvalidTimeNonMonotonicityMisbehaviour",
-    "inputs": [
-      {
-        "name": "timestamp1",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "timestamp2",
-        "type": "uint256",
-        "internalType": "uint256"
       }
     ]
   },
@@ -903,6 +871,11 @@
         "internalType": "uint256"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "NoMisbehaviourDetected",
+    "inputs": []
   },
   {
     "type": "error",
