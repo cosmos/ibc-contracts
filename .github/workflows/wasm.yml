@@ -19,7 +19,7 @@ on:
 jobs:
   build-08-wasm-eth:
     name: build-08-wasm-eth
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     continue-on-error: true

@@ -46,7 +46,9 @@ runs:
         name: e2e-build-artifacts
         path: e2e-artifacts/
 
-    - name: Cache Solana
+    # Toolchain only: the built programs come from e2e-build-artifacts, so this key
+    # depends on versions alone and is shared by every test job.
+    - name: Cache Solana toolchain
       id: cache-solana
       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
@@ -54,9 +56,7 @@ runs:
           ~/.cache/solana/
           ~/.local/share/solana/
           ~/.cargo/bin/anchor
-          ./ibc-solana/target/deploy/
-          ./ibc-solana/target/sbpf-solana-solana/
-        key: ${{ runner.os }}-solana-${{ env.SOLANA_VERSION }}-${{ env.ANCHOR_VERSION }}-${{ hashFiles('ibc-solana/**', 'packages/tendermint-light-client/**', 'packages/constrained_types/**', 'proto/**', 'ibc-solidity/abi/IFTOwnable.json', 'ibc-solidity/contracts/light-clients/attestation/msgs/**', 'ibc-solidity/contracts/msgs/**', 'scripts/build-solana-test-instance.sh', 'solana-keypairs/localnet/**', 'justfile') }}
+        key: ${{ runner.os }}-solana-toolchain-${{ env.SOLANA_VERSION }}-${{ env.ANCHOR_VERSION }}
 
     - name: Install just
       uses: extractions/setup-just@dd310ad5a97d8e7b41793f8ef055398d51ad4de6 # v2.0.0

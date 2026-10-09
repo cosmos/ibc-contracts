@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 name: e2e-build
+description: Builds and caches the SP1, proof-api, operator and Solana artifacts the E2E suites consume
 
 inputs:
   github_token:
@@ -56,13 +57,6 @@ runs:
         path: ~/.cargo/bin/proof-api
         key: ${{ runner.os }}-proof-api-${{ hashFiles('programs/proof-api/**', 'packages/**', 'ibc-solana/packages/solana-ibc-constants/**', 'ibc-solana/packages/solana-ibc-types/**', 'ibc-solidity/abi/bytecode/**', 'Cargo.lock') }}
 
-    - name: Install proof API
-      if: steps.cache-proof-api.outputs.cache-hit != 'true'
-      uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # v1.0.3
-      with:
-        command: install
-        args: --bin proof-api --path programs/proof-api --locked
-
     - name: Cache Operator
       id: cache-operator
       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
@@ -70,12 +64,26 @@ runs:
         path: ~/.cargo/bin/operator
         key: ${{ runner.os }}-operator-${{ hashFiles('ibc-solidity/programs/operator/**', 'packages/**', 'Cargo.lock') }}
 
+    - name: Cache Rust build state
+      if: steps.cache-proof-api.outputs.cache-hit != 'true' || steps.cache-operator.outputs.cache-hit != 'true'
+      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      with:
+        shared-key: e2e-build
+        cache-on-failure: true
+
+    - name: Install proof API
+      if: steps.cache-proof-api.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        cargo install --bin proof-api --path programs/proof-api --locked \
+          --target-dir "${{ github.workspace }}/target"
+
     - name: Install operator
       if: steps.cache-operator.outputs.cache-hit != 'true'
-      uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # v1.0.3
-      with:
-        command: install
-        args: --bin operator --path ibc-solidity/programs/operator --locked
+      shell: bash
+      run: |
+        cargo install --bin operator --path ibc-solidity/programs/operator --locked \
+          --target-dir "${{ github.workspace }}/target"
 
     - name: Cache Solana Programs
       id: cache-solana
@@ -87,7 +95,9 @@ runs:
           ~/.avm/
           ./ibc-solana/target/deploy/
           ./ibc-solana/target/sbpf-solana-solana/
-        key: ${{ runner.os }}-solana-${{ env.SOLANA_VERSION }}-${{ env.ANCHOR_VERSION }}-${{ hashFiles('ibc-solana/**', 'packages/tendermint-light-client/**', 'packages/constrained_types/**', 'proto/**', 'ibc-solidity/abi/IFTOwnable.json', 'ibc-solidity/contracts/light-clients/attestation/msgs/**', 'ibc-solidity/contracts/msgs/**', 'scripts/build-solana-test-instance.sh', 'solana-keypairs/localnet/**', 'justfile') }}
+        key: ${{ runner.os }}-solana-${{ env.SOLANA_VERSION }}-${{ env.ANCHOR_VERSION }}-${{ hashFiles('ibc-solana/programs/**', 'ibc-solana/packages/**', 'ibc-solana/Cargo.lock', 'ibc-solana/Cargo.toml', 'ibc-solana/Anchor.toml', 'ibc-solana/rust-toolchain.toml', 'ibc-solana/solana.just', 'packages/tendermint-light-client/**', 'packages/constrained_types/**', 'proto/**', 'ibc-solidity/abi/IFTOwnable.json', 'ibc-solidity/contracts/light-clients/attestation/msgs/**', 'ibc-solidity/contracts/msgs/**', 'scripts/build-solana-test-instance.sh', 'solana-keypairs/localnet/**', 'justfile') }}
+        restore-keys: |
+          ${{ runner.os }}-solana-${{ env.SOLANA_VERSION }}-${{ env.ANCHOR_VERSION }}-
 
     - name: Setup Solana and Anchor
       if: steps.cache-solana.outputs.cache-hit != 'true'
@@ -100,10 +110,14 @@ runs:
       if: steps.cache-solana.outputs.cache-hit != 'true'
       uses: extractions/setup-just@dd310ad5a97d8e7b41793f8ef055398d51ad4de6 # v2.0.0
 
+    # A restore-keys fallback brings back an older target/deploy; clear it so programs
+    # that were since removed or renamed don't end up in the packaged artifacts.
     - name: Build Solana Programs
       if: steps.cache-solana.outputs.cache-hit != 'true'
       shell: bash
-      run: just solana::build-solana-programs
+      run: |
+        rm -rf ibc-solana/target/deploy
+        just solana::build-solana-programs
 
     - name: Package artifacts
       shell: bash

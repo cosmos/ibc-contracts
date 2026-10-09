@@ -20,7 +20,7 @@ on:
 jobs:
   lints:
     name: fmt-and-clippy
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
@@ -48,7 +48,7 @@ jobs:
 
   tests:
     name: unit-tests
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
@@ -65,7 +65,7 @@ jobs:
 
   build-proof-api:
     name: build-proof-api
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     continue-on-error: true
@@ -81,7 +81,7 @@ jobs:
 
   build-operator:
     name: build-operator
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     continue-on-error: true

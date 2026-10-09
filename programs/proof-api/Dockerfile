@@ -33,9 +33,11 @@ ARG BUILD_DATE
 ARG VCS_REF
 ARG VERSION
 ARG COMMIT
+ARG VCS_URL=https://github.com/cosmos/ibc-contracts
+
 LABEL org.opencontainers.image.title="proof-api" \
       org.opencontainers.image.description="Solidity IBC Eureka Proof API" \
-      org.opencontainers.image.source="https://github.com/cosmos/solidity-ibc-eureka" \
+      org.opencontainers.image.source=$VCS_URL \
       org.opencontainers.image.revision=$VCS_REF \
       org.opencontainers.image.created=$BUILD_DATE \
       org.opencontainers.image.version=$VERSION

@@ -1,10 +1,26 @@
 # SPDX-License-Identifier: Apache-2.0
 
-name: e2e-attestor
+name: e2e
 on:
   workflow_dispatch:
+    inputs:
+      ibc-go-docker-tag:
+        description: 'ibc-go Docker image tag'
+        type: string
+        required: false
+        default: 'v11.0.0'
+      wasm-light-client-tag:
+        description: 'Wasm light client release tag'
+        type: choice
+        required: true
+        default: 'local'
+        options:
+          - local
   pull_request:
+    # Union of the three original filters.
     paths:
+      - 'justfile'
+      - 'ibc-solidity/solidity.just'
       - '**.rs'
       - '**.go'
       - '**.toml'
@@ -12,27 +28,75 @@ on:
       - '**.mod'
       - '**.sum'
       - '**.sol'
-      - '.github/workflows/e2e-attestor.yml'
+      - '.github/workflows/e2e.yml'
+      - '.github/actions/**'
       - 'ibc-solidity/bun.lock'
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
   FOUNDRY_PROFILE: ci
+  SP1_VERSION: "6.1.0"
+  SOLANA_VERSION: "2.3.13"
+  ANCHOR_VERSION: "0.32.1"
+  E2E_IBC_GO_DOCKER_TAG: ${{ inputs.ibc-go-docker-tag || 'v11.0.0' }}
+  IBC_ATTESTOR_IMAGE: ghcr.io/cosmos/ibc-attestor:v0.3.0
+  # Attestor defaults; jobs override what differs.
   ETH_TESTNET_TYPE: anvil
   E2E_WASM_LIGHT_CLIENT_TAG: ""
   COSMOS_LC_ON_ETH: attestor
-  SP1_VERSION: "6.1.0"
-  IBC_ATTESTOR_IMAGE: ghcr.io/cosmos/ibc-attestor:v0.3.0
-  SOLANA_VERSION: "2.3.13"
-  ANCHOR_VERSION: "0.32.1"
+
 permissions: {}
 
 jobs:
-  generate-matrix:
-    runs-on: depot-ubuntu-24.04-4
+  # Built once, consumed by every test job below via the e2e-build-artifacts artifact.
+  build-e2e-programs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build E2E artifacts
+        uses: ./.github/actions/e2e-build
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+  golangci:
+    name: lint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: 1.26.5
+          cache-dependency-path: e2e/interchaintestv8/go.sum
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: v2.11
+          working-directory: e2e/interchaintestv8
+
+  generate-matrix-mock:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      matrix: ${{ steps.get-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Generate Test Matrix
+        id: get-matrix
+        uses: ./.github/actions/e2e-matrix
+        with:
+          skip-tests: TestWithProofAPITestSuite/Test_2_ConcurrentRecvPacketToEth,TestWithProofAPITestSuite/Test_MultiPeriodClientUpdateToCosmos,TestWithProofAPITestSuite/Test_5_FinalizedTimeoutPacketFromEth,TestWithProofAPITestSuite/Test_UpdateClientToCosmos,TestWithEthToEthAttestedTestSuite,TestWithMultiAttestorTestSuite
+
+  generate-matrix-attestor:
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     outputs:
@@ -46,7 +110,7 @@ jobs:
         uses: ./.github/actions/e2e-matrix
 
   generate-matrix-eth-to-eth:
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     outputs:
@@ -60,7 +124,7 @@ jobs:
         uses: ./.github/actions/e2e-matrix
 
   generate-matrix-besu-to-besu:
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     outputs:
@@ -73,27 +137,48 @@ jobs:
           TEST_ENTRYPOINT: TestWithBesuToBesuTestSuite
         uses: ./.github/actions/e2e-matrix
 
-  build-e2e-programs:
-    runs-on: depot-ubuntu-24.04-4
+  # ------------------------------------------------------------ mock (was e2e-mock)
+  e2e-mock:
+    needs: [generate-matrix-mock, build-e2e-programs]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.generate-matrix-mock.outputs.matrix) }}
+    name: mock/${{ matrix.entrypoint }}/${{ matrix.test }}
+    env:
+      ETH_LC_ON_COSMOS: dummy
+      COSMOS_LC_ON_ETH: sp1
+      SP1_PROVER: mock
+      E2E_PROOF_TYPE: groth16
+
+    runs-on: ubuntu-latest
     permissions:
       contents: read
+      packages: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Build E2E artifacts
-        uses: ./.github/actions/e2e-build
+      - name: Set up E2E environment
+        uses: ./.github/actions/e2e-setup
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Run Tests
+        env:
+          NETWORK_PRIVATE_KEY: ${{ secrets.SP1_PRIVATE_KEY }}
+        run: |
+          cd e2e/interchaintestv8
+          go test -v -mod=readonly . -run "^${{ matrix.entrypoint }}$/${{ matrix.test }}$" -timeout 40m
+
+  # ------------------------------------------------------ attestor (was e2e-attestor)
   e2e-attestor-native:
-    needs: [generate-matrix, build-e2e-programs]
+    needs: [generate-matrix-attestor, build-e2e-programs]
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.generate-matrix-attestor.outputs.matrix) }}
     name: attestor-native/${{ matrix.entrypoint }}/${{ matrix.test }}
     env:
       ETH_LC_ON_COSMOS: attestor-native
 
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: read
@@ -118,7 +203,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.generate-matrix-eth-to-eth.outputs.matrix) }}
     name: attestor-native/${{ matrix.entrypoint }}/${{ matrix.test }}
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: read
@@ -143,7 +228,7 @@ jobs:
       COSMOS_LC_ON_ETH: sp1
       SP1_PROVER: mock
       E2E_PROOF_TYPE: groth16
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: read
@@ -164,7 +249,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.generate-matrix-besu-to-besu.outputs.matrix) }}
     name: besu-to-besu/${{ matrix.test }}
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: read
@@ -202,7 +287,7 @@ jobs:
       MULTI_ATTESTOR_QUORUM: ${{ matrix.required_signatures }}
       MULTI_ATTESTOR_ACTIVE: ${{ matrix.active_attestors }}
 
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: read
@@ -227,7 +312,7 @@ jobs:
       MULTI_ATTESTOR_QUORUM: 1
       MULTI_ATTESTOR_ACTIVE: 1
 
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: read
@@ -242,3 +327,45 @@ jobs:
         run: |
           cd e2e/interchaintestv8
           go test -v -mod=readonly . -run "^TestWithMultiAttestorTestSuite$/Test_UpdateClientCosmosToEth$" -timeout 60m
+
+  # ------------------------------ light-client combos (was e2e-lc-combinations)
+  e2e-lc-combinations:
+    needs: build-e2e-programs
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - Test_TimeoutPacketFromCosmos
+          - Test_TimeoutPacketFromEth
+          - Test_ICS20TransferERC20TokenfromEthereumToCosmosAndBack
+        eth_lc_on_cosmos:
+          - dummy
+          - attestor-native
+        cosmos_lc_on_eth:
+          - sp1
+          - attestor
+    name: ${{ matrix.test }}/eth=${{ matrix.eth_lc_on_cosmos }}/cosmos=${{ matrix.cosmos_lc_on_eth }}
+    env:
+      E2E_WASM_LIGHT_CLIENT_TAG: ${{ inputs.wasm-light-client-tag || 'local' }}
+      SP1_PROVER: mock
+      E2E_PROOF_TYPE: groth16
+      ETH_LC_ON_COSMOS: ${{ matrix.eth_lc_on_cosmos }}
+      COSMOS_LC_ON_ETH: ${{ matrix.cosmos_lc_on_eth }}
+
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up E2E environment
+        uses: ./.github/actions/e2e-setup
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Tests
+        env:
+          NETWORK_PRIVATE_KEY: ${{ secrets.SP1_PRIVATE_KEY }}
+        run: |
+          cd e2e/interchaintestv8
+          go test -v -mod=readonly . -run "^TestWithIbcEurekaTestSuite$/${{ matrix.test }}$" -timeout 60m

@@ -34,7 +34,7 @@ env:
 jobs:
   build-and-test:
     name: build-and-test-solana
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
