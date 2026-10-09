@@ -15,8 +15,8 @@ github.com/gagliardetto/anchor-go v1.0.0 h1:YNt9I/9NOrNzz5uuzfzByAcbp39Ft07w63iP
 github.com/gagliardetto/anchor-go v1.0.0/go.mod h1:X6c9bx9JnmwNiyy8hmV5pAsq1c/zzPvkdzeq9/qmlCg=
 github.com/gagliardetto/binary v0.8.0 h1:U9ahc45v9HW0d15LoN++vIXSJyqR/pWw8DDlhd7zvxg=
 github.com/gagliardetto/binary v0.8.0/go.mod h1:2tfj51g5o9dnvsc+fL3Jxr22MuWzYXwx9wEoN0XQ7/c=
-github.com/gagliardetto/solana-go v1.24.0 h1:AKGKLa2DDXn7XNcCu/HYih0zWX+uj3/YjKvAWsfZ/40=
-github.com/gagliardetto/solana-go v1.24.0/go.mod h1:SwTS3aUVSJIvmMjQdXBOea3X3roXZNHnbLy2JwHECxk=
+github.com/gagliardetto/solana-go v1.25.0 h1:oA82BtKW6PTDq0AzXh/ivj6UPFOvHAUAsXQd4KPW7rU=
+github.com/gagliardetto/solana-go v1.25.0/go.mod h1:SwTS3aUVSJIvmMjQdXBOea3X3roXZNHnbLy2JwHECxk=
 github.com/gagliardetto/treeout v0.1.4 h1:ozeYerrLCmCubo1TcIjFiOWTTGteOOHND1twdFpgwaw=
 github.com/gagliardetto/treeout v0.1.4/go.mod h1:loUefvXTrlRG5rYmJmExNryyBRh8f89VZhmMOyCyqok=
 github.com/goccy/go-json v0.10.6 h1:p8HrPJzOakx/mn/bQtjgNjdTcN+/S6FcG2CTtQOrHVU=
