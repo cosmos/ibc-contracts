@@ -210,12 +210,18 @@ generate-abi: build-contracts
 	jq -r '.bytecode.object' out/BesuQBFTLightClient.sol/BesuQBFTLightClient.json > tmp/abigen/BesuQBFTLightClient.bin
 	jq '.abi' out/IFTOwnable.sol/IFTOwnable.json > abi/IFTOwnable.json
 	jq -r '.bytecode.object' out/IFTOwnable.sol/IFTOwnable.json > tmp/abigen/IFTOwnable.bin
+	jq '.abi' out/IFTOwnable2Step.sol/IFTOwnable2Step.json > abi/IFTOwnable2Step.json
+	jq -r '.bytecode.object' out/IFTOwnable2Step.sol/IFTOwnable2Step.json > tmp/abigen/IFTOwnable2Step.bin
+	jq '.abi' out/IFTAccessManaged.sol/IFTAccessManaged.json > abi/IFTAccessManaged.json
+	jq -r '.bytecode.object' out/IFTAccessManaged.sol/IFTAccessManaged.json > tmp/abigen/IFTAccessManaged.bin
 	jq '.abi' out/ERC1967Proxy.sol/ERC1967Proxy.json > abi/ERC1967Proxy.json
 	jq -r '.bytecode.object' out/ERC1967Proxy.sol/ERC1967Proxy.json > tmp/abigen/ERC1967Proxy.bin
 	jq '.abi' out/EVMIFTSendCallConstructor.sol/EVMIFTSendCallConstructor.json > abi/EVMIFTSendCallConstructor.json
 	jq -r '.bytecode.object' out/EVMIFTSendCallConstructor.sol/EVMIFTSendCallConstructor.json > tmp/abigen/EVMIFTSendCallConstructor.bin
 	abigen --abi abi/ERC20.json --bin tmp/abigen/ERC20.bin --pkg erc20 --type Contract --out ../e2e/interchaintestv8/types/erc20/contract.go
 	abigen --abi abi/IFTOwnable.json --bin tmp/abigen/IFTOwnable.bin --pkg ift --type Contract --out ../packages/go-abigen/ift/contract.go
+	abigen --abi abi/IFTOwnable2Step.json --bin tmp/abigen/IFTOwnable2Step.bin --pkg iftownable2step --type Contract --out ../packages/go-abigen/iftownable2step/contract.go
+	abigen --abi abi/IFTAccessManaged.json --bin tmp/abigen/IFTAccessManaged.bin --pkg iftaccessmanaged --type Contract --out ../packages/go-abigen/iftaccessmanaged/contract.go
 	abigen --abi abi/SP1ICS07Tendermint.json --bin tmp/abigen/SP1ICS07Tendermint.bin --pkg sp1ics07tendermint --type Contract --out ../packages/go-abigen/sp1ics07tendermint/contract.go
 	abigen --abi abi/ICS20Transfer.json --bin tmp/abigen/ICS20Transfer.bin --pkg ics20transfer --type Contract --out ../packages/go-abigen/ics20transfer/contract.go
 	abigen --abi abi/ICS26Router.json --bin tmp/abigen/ICS26Router.bin --pkg ics26router --type Contract --out ../packages/go-abigen/ics26router/contract.go
@@ -224,11 +230,8 @@ generate-abi: build-contracts
 	abigen --abi abi/ICS27GMP.json --bin tmp/abigen/ICS27GMP.bin --pkg ics27gmp --type Contract --out ../packages/go-abigen/ics27gmp/contract.go
 	abigen --abi abi/RelayerHelper.json --bin tmp/abigen/RelayerHelper.bin --pkg relayerhelper --type Contract --out ../packages/go-abigen/relayerhelper/contract.go
 	abigen --abi abi/AttestationLightClient.json --bin tmp/abigen/AttestationLightClient.bin --pkg attestation --type Contract --out ../packages/go-abigen/attestation/contract.go
-	mkdir -p ../packages/go-abigen/besuqbft
 	abigen --abi abi/BesuQBFTLightClient.json --bin tmp/abigen/BesuQBFTLightClient.bin --pkg besuqbft --type Contract --out ../packages/go-abigen/besuqbft/contract.go
-	mkdir -p ../packages/go-abigen/besumsgs
 	abigen --v2 --abi abi/IBesuLightClientEncoding.json --pkg besumsgs --type Bindings --out ../packages/go-abigen/besumsgs/bindings.go
-	mkdir -p ../packages/go-abigen/besuerrors
 	abigen --v2 --abi abi/IBesuLightClientErrors.json --pkg besuerrors --type Bindings --out ../packages/go-abigen/besuerrors/bindings.go
 	abigen --abi abi/ERC1967Proxy.json --bin tmp/abigen/ERC1967Proxy.bin --pkg erc1967proxy --type Contract --out ../packages/go-abigen/erc1967proxy/contract.go
 	abigen --abi abi/EVMIFTSendCallConstructor.json --bin tmp/abigen/EVMIFTSendCallConstructor.bin --pkg evmiftsendcall --type Contract --out ../packages/go-abigen/evmiftsendcall/contract.go

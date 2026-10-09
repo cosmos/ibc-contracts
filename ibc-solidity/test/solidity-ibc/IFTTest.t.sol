@@ -24,6 +24,7 @@ import { IERC165 } from "@openzeppelin-contracts/utils/introspection/IERC165.sol
 import { IERC20Metadata } from "@openzeppelin-contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 import { IFTOwnable } from "../../contracts/utils/IFTOwnable.sol";
+import { IFTOwnable2Step } from "../../contracts/utils/IFTOwnable2Step.sol";
 import { IFTAccessManaged } from "../../contracts/utils/IFTAccessManaged.sol";
 import { EVMIFTSendCallConstructor } from "../../contracts/utils/EVMIFTSendCallConstructor.sol";
 import { CosmosIFTSendCallConstructor } from "../../contracts/utils/CosmosIFTSendCallConstructor.sol";
@@ -62,6 +63,14 @@ contract IFTTest is Test {
         address impl = address(new IFTOwnable());
         ERC1967Proxy proxy =
             new ERC1967Proxy(impl, abi.encodeCall(IFTOwnable.initialize, (admin, TOKEN_NAME, TOKEN_SYMBOL, mockICS27)));
+        ift = IIFT(address(proxy));
+    }
+
+    function setUpOwnable2Step() public {
+        address impl = address(new IFTOwnable2Step());
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            impl, abi.encodeCall(IFTOwnable2Step.initialize, (admin, TOKEN_NAME, TOKEN_SYMBOL, mockICS27))
+        );
         ift = IIFT(address(proxy));
     }
 
@@ -255,6 +264,102 @@ contract IFTTest is Test {
         vm.expectRevert();
         vm.prank(spender);
         IFTAccessManaged(address(ift)).burnFrom(holder, amount);
+    }
+
+    function test_Ownable2Step_deployment() public {
+        setUpOwnable2Step();
+        assertEq(address(ift.ics27()), mockICS27);
+        assertEq(IERC20Metadata(address(ift)).name(), TOKEN_NAME);
+        assertEq(IERC20Metadata(address(ift)).symbol(), TOKEN_SYMBOL);
+        assertEq(IFTOwnable2Step(address(ift)).owner(), admin);
+        assertEq(IFTOwnable2Step(address(ift)).pendingOwner(), address(0));
+    }
+
+    function testFuzz_Ownable2Step_authorityCanMint(uint256 amount) public {
+        setUpOwnable2Step();
+
+        address receiver = makeAddr("receiver");
+
+        vm.prank(admin);
+        IFTOwnable2Step(address(ift)).mint(receiver, amount);
+
+        assertEq(IERC20(address(ift)).balanceOf(receiver), amount);
+        assertEq(IERC20(address(ift)).totalSupply(), amount);
+    }
+
+    function testFuzz_Ownable2Step_unauthorizedCannotMint(uint256 amount) public {
+        setUpOwnable2Step();
+
+        address unauthorized = makeAddr("unauthorized");
+
+        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, unauthorized));
+        vm.prank(unauthorized);
+        IFTOwnable2Step(address(ift)).mint(makeAddr("receiver"), amount);
+    }
+
+    function test_Ownable2Step_transferOwnership() public {
+        setUpOwnable2Step();
+        IFTOwnable2Step iftOwnable2Step = IFTOwnable2Step(address(ift));
+
+        address newOwner = makeAddr("newOwner");
+        address unauthorized = makeAddr("unauthorized");
+
+        vm.prank(admin);
+        iftOwnable2Step.transferOwnership(newOwner);
+
+        // ownership does not change until the pending owner accepts
+        assertEq(iftOwnable2Step.owner(), admin);
+        assertEq(iftOwnable2Step.pendingOwner(), newOwner);
+        assertOwnable2StepAccess(newOwner, false);
+        assertOwnable2StepAccess(admin, true);
+
+        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, unauthorized));
+        vm.prank(unauthorized);
+        iftOwnable2Step.acceptOwnership();
+
+        vm.prank(newOwner);
+        iftOwnable2Step.acceptOwnership();
+
+        assertEq(iftOwnable2Step.owner(), newOwner);
+        assertEq(iftOwnable2Step.pendingOwner(), address(0));
+        assertOwnable2StepAccess(admin, false);
+        assertOwnable2StepAccess(newOwner, true);
+    }
+
+    /// @dev Checks `account` against each owner-gated hook: mint, _onlyAuthority, and _authorizeUpgrade
+    function assertOwnable2StepAccess(address account, bool authorized) internal {
+        IFTOwnable2Step iftOwnable2Step = IFTOwnable2Step(address(ift));
+        address newImpl = address(new IFTOwnable2Step());
+        bytes memory unauthorizedErr =
+            abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, account);
+
+        if (!authorized) vm.expectRevert(unauthorizedErr);
+        vm.prank(account);
+        iftOwnable2Step.mint(account, 1);
+
+        if (!authorized) vm.expectRevert(unauthorizedErr);
+        vm.prank(account);
+        iftOwnable2Step.setIFTRateLimit(RATE_LIMIT_CAPACITY, RATE_LIMIT_WINDOW);
+
+        if (!authorized) vm.expectRevert(unauthorizedErr);
+        vm.prank(account);
+        UUPSUpgradeable(address(ift)).upgradeToAndCall(newImpl, "");
+    }
+
+    function test_Ownable2Step_upgrade() public {
+        setUpOwnable2Step();
+
+        address unauthorized = makeAddr("unauthorized");
+        IFTOwnable2Step newImpl = new IFTOwnable2Step();
+
+        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, unauthorized));
+        vm.prank(unauthorized);
+        UUPSUpgradeable(address(ift)).upgradeToAndCall(address(newImpl), "");
+
+        vm.prank(admin);
+        UUPSUpgradeable(address(ift)).upgradeToAndCall(address(newImpl), "");
+
+        assertEq(IFTOwnable2Step(address(ift)).owner(), admin, "owner should be preserved after upgrade");
     }
 
     function fixtureregisterBridgeTC() public returns (RegisterIFTBridgeTestCase[] memory) {
