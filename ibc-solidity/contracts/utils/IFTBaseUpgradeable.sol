@@ -25,7 +25,9 @@ import { ERC165Checker } from "@openzeppelin-contracts/utils/introspection/ERC16
  * @dev Extend this contract and implement the ERC20 constructor to create an IFT token
  * @dev Inbound mints and outbound burns are rate limited, see IFTRateLimitUpgradeable. The rate limit
  * must be set by the authority before the token can be bridged.
- * @dev _update in ERC20Upgradeable can be overriden to add custom logic on minting and burning such as whitelisting.
+ * @dev Override _beforeIFTTransfer, _beforeIFTMint and _beforeIFTRefund to add custom policy to bridge flows, such as
+ * per-client limits or receiver allowlists. _update in ERC20Upgradeable can still be overridden for logic that must
+ * apply to every mint, burn and transfer.
  */
 abstract contract IFTBaseUpgradeable is
     IIFTErrors,
@@ -160,12 +162,14 @@ abstract contract IFTBaseUpgradeable is
         require(amount > 0, IFTZeroAmount());
         require(timeoutTimestamp > block.timestamp, IFTTimeoutInPast(timeoutTimestamp, uint64(block.timestamp)));
 
-        _consumeIFTRateLimit(IIFTMsgs.IFTRateLimitDirection.Outbound, amount);
-        _burn(sender, amount); // Implemented in the ERC20 base contract
-
         IFTBaseStorage storage $ = _getIFTBaseStorage();
         IIFTMsgs.IFTBridge memory bridge = $._iftBridges[clientId];
         require(keccak256(bytes(bridge.clientId)) == keccak256(bytes(clientId)), IFTBridgeNotFound(clientId));
+
+        _beforeIFTTransfer(sender, clientId, receiver, amount, timeoutTimestamp);
+
+        _consumeIFTRateLimit(IIFTMsgs.IFTRateLimitDirection.Outbound, amount);
+        _burn(sender, amount); // Implemented in the ERC20 base contract
 
         bytes memory payload = bridge.iftSendCallConstructor.constructMintCall(receiver, amount);
         uint64 seq = $._ics27Gmp
@@ -202,6 +206,8 @@ abstract contract IFTBaseUpgradeable is
             IFTUnauthorizedMint(bridge.counterpartyIFTAddress, accountId.sender)
         );
         require(accountId.salt.length == 0, IFTUnexpectedSalt(accountId.salt));
+
+        _beforeIFTMint(accountId.clientId, receiver, amount);
 
         _consumeIFTRateLimit(IIFTMsgs.IFTRateLimitDirection.Inbound, amount);
         _mint(receiver, amount); // Implemented in the ERC20 base contract
@@ -281,6 +287,8 @@ abstract contract IFTBaseUpgradeable is
 
         require(pending.amount > 0, IFTPendingTransferNotFound(clientId, sequence));
 
+        _beforeIFTRefund(clientId, sequence, pending.sender, pending.amount);
+
         // Refunds consume inbound allowance like any other mint, so that forged timeouts cannot bypass the limit
         _consumeIFTRateLimit(IIFTMsgs.IFTRateLimitDirection.Inbound, pending.amount);
         _mint(pending.sender, pending.amount); // Implemented in the ERC20 base contract
@@ -288,6 +296,57 @@ abstract contract IFTBaseUpgradeable is
 
         emit IFTTransferRefunded(clientId, sequence, pending.sender, pending.amount);
     }
+
+    /* solhint-disable no-empty-blocks */
+    /// @notice Hook called before an outbound transfer burns tokens
+    /// @dev No-op by default. Called after input validation and the bridge lookup, so `clientId` always has a
+    /// registered bridge, and before rate limit usage, the burn and the ICS27-GMP packet. Reverting aborts the
+    /// transfer and leaves no state behind. Runs inside a `nonReentrant` entrypoint.
+    /// @param sender The address whose tokens are burned
+    /// @param clientId The IBC client identifier of the bridge
+    /// @param receiver The receiver address on the counterparty chain
+    /// @param amount The amount of tokens to transfer
+    /// @param timeoutTimestamp The timeout timestamp for the IBC packet
+    function _beforeIFTTransfer(
+        address sender,
+        string calldata clientId,
+        string calldata receiver,
+        uint256 amount,
+        uint64 timeoutTimestamp
+    )
+        internal
+        virtual { }
+
+    /// @notice Hook called before an inbound transfer mints tokens
+    /// @dev No-op by default. Called after the ICS27-GMP account is authenticated against the registered bridge, and
+    /// before rate limit usage and the mint. Reverting aborts the mint and makes ICS27-GMP write an error
+    /// acknowledgement, which refunds the sender on the counterparty chain. Revert with a reason, since the router
+    /// treats a revert without returndata as out of gas and fails the whole relay. Runs inside a `nonReentrant`
+    /// entrypoint.
+    /// @param clientId The IBC client identifier the mint came from
+    /// @param receiver The address receiving the minted tokens
+    /// @param amount The amount of tokens to mint
+    function _beforeIFTMint(string memory clientId, address receiver, uint256 amount) internal virtual { }
+
+    /// @notice Hook called before a pending transfer is refunded after an error acknowledgement or a timeout
+    /// @dev No-op by default. Called after the pending transfer is found, and before rate limit usage, the mint and
+    /// the pending transfer is cleared. Reverting aborts the acknowledgement or timeout relay, so the refund stays
+    /// pending and can be retried. A hook that keeps reverting for a transfer locks its funds, so avoid permanent
+    /// rejections here. Runs inside a `nonReentrant` entrypoint.
+    /// @param clientId The IBC client identifier of the bridge
+    /// @param sequence The packet sequence number
+    /// @param sender The original sender, who receives the refund
+    /// @param amount The amount of tokens to refund
+    function _beforeIFTRefund(
+        string memory clientId,
+        uint64 sequence,
+        address sender,
+        uint256 amount
+    )
+        internal
+        virtual { }
+
+    /* solhint-enable no-empty-blocks */
 
     /// @notice Ensures the caller is the ICS27-GMP contract
     function _onlyICS27GMP() internal view {
