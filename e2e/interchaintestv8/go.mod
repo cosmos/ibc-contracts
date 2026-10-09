@@ -26,7 +26,7 @@ require (
 	github.com/docker/go-connections v0.8.1
 	github.com/ethereum/go-ethereum v1.17.5
 	github.com/gagliardetto/binary v0.8.0
-	github.com/gagliardetto/solana-go v1.24.0
+	github.com/gagliardetto/solana-go v1.25.0
 	github.com/holiman/uint256 v1.3.2
 	github.com/kurtosis-tech/kurtosis/api/golang v1.20.0
 	github.com/moby/moby v28.5.2+incompatible
