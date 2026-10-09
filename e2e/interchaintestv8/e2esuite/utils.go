@@ -132,6 +132,19 @@ func GetEvmEvent[T any](receipt *ethtypes.Receipt, parseFn func(log ethtypes.Log
 	return event, err
 }
 
+// GetEvmEvents parses the logs in the given receipt and returns every event that can be parsed
+func GetEvmEvents[T any](receipt *ethtypes.Receipt, parseFn func(log ethtypes.Log) (*T, error)) []T {
+	var events []T
+	for _, l := range receipt.Logs {
+		event, err := parseFn(*l)
+		if err == nil && event != nil {
+			events = append(events, *event)
+		}
+	}
+
+	return events
+}
+
 func (s *TestSuite) GetTransactOpts(key *ecdsa.PrivateKey, chain *ethereum.Ethereum) *bind.TransactOpts {
 	opts, err := chain.GetTransactOpts(key)
 	s.Require().NoError(err)
