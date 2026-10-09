@@ -50,6 +50,7 @@ contracts=(
 
   # IFT contracts
   IFTOwnable
+  IFTOwnable2Step
   IFTAccessManaged
   CosmosIFTSendCallConstructor
   EVMIFTSendCallConstructor
