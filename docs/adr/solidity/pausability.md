@@ -55,9 +55,7 @@ This does not make the router free of trusted levers, and we document the ones t
 - revoke relayers, when relaying is restricted to `RELAYER_ROLE`,
 - close the router as a target in the AccessManager. This blocks every `restricted` function (`recvPacket`, `ackPacket`, `timeoutPacket`, `updateClient`, the custom-identifier registrations, and `migrateClient`), but not `sendPacket` or the permissionless registrations.
 
-These are admin powers, intended for governance and protected by AccessManager execution delays. This ADR does not add a fast path to them.
-
-Mature implementations made the same choice. The ibc-go core has no pause, the [Hyperlane v3 `Mailbox`](https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/solidity/contracts/isms/PausableIsm.sol) dropped the pause its predecessor had in favour of opt-in pausable modules, and the [LayerZero V2 endpoint](https://github.com/LayerZero-Labs/LayerZero-v2/blob/main/packages/layerzero-v2/evm/protocol/contracts/MessagingChannel.sol) cannot be paused.
+These are admin powers, intended for governance and protected by execution delays. This ADR does not add a fast path to them.
 
 ### Applications
 
@@ -96,7 +94,7 @@ Two existing knobs are not a substitute for the pause. Setting the IFT rate limi
 
 **Decision: an application pause is a single contract-wide flag.** The flag halts sends, receives, acknowledgements and timeouts together. OpenZeppelin's `Pausable` works this way, and it leaves operators a single question during an incident: is the contract paused or not?
 
-We considered pausing sends and receives separately, similar to ibc-go's ICS20 `SendEnabled` and `ReceiveEnabled` parameters, or per message type like the [Cosmos SDK `x/circuit`](https://github.com/cosmos/cosmos-sdk/blob/main/contrib/x/circuit/README.md) module. A forged receive and a forged refund are equally dangerous, so a one-directional pause rarely contains an exploit, and every extra combination of states is one more thing to reason about under pressure. More granularity can be added later without changing the contract-wide flag.
+We considered pausing sends and receives separately, or pausing individual functions. A forged receive and a forged refund are equally dangerous, so a one-directional pause rarely contains an exploit, and every extra combination of states is one more thing to reason about under pressure. More granularity can be added later without changing the contract-wide flag.
 
 We also considered pausing individual clients inside applications. The light client pause already halts a single connection for every app that uses it, and IFT can remove a single bridge, so a per-client app pause would duplicate both.
 
@@ -115,9 +113,9 @@ A pause does not freeze tokens. ICS20 vouchers and IFT tokens remain transferabl
 
 **Decision: pausing and unpausing are held by separate roles, and a pause does not expire.**
 
-`PAUSER_ROLE` is meant for a fast key without an execution delay, so it can react within minutes. `UNPAUSER_ROLE` is meant for the same body that holds admin rights, or one with a higher threshold, because resuming after an incident is a deliberate decision. Wormhole NTT uses the same split: the owner or a pauser can pause, but only the owner can unpause ([`ManagerBase`](https://github.com/wormhole-foundation/native-token-transfers/blob/main/evm/src/NttManager/ManagerBase.sol)). Light clients use the same two role names in their own `AccessControl` (see [Light Clients](#light-clients)).
+`PAUSER_ROLE` is meant for a fast key without an execution delay, so it can react within minutes. `UNPAUSER_ROLE` is meant for the same body that holds admin rights, or one with a higher threshold, because resuming after an incident is a deliberate decision. Light clients use the same two role names in their own `AccessControl` (see [Light Clients](#light-clients)).
 
-We considered letting pauses expire automatically, like Optimism's [`SuperchainConfig`](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v4.0.0/packages/contracts-bedrock/src/L1/SuperchainConfig.sol), where a guardian pause lifts after three months and cannot be triggered again until it is reset. That bound exists so that a guardian cannot hold rollup withdrawals hostage. In our case, whoever can hold a pause can already halt the contract by other means: applications and IFTs can be upgraded by their authority, and a light client with a role manager only serves the proof submitters that the role manager authorizes. Expiry would add no guarantee, and it could reopen a contract before the fix is ready.
+We considered letting pauses expire automatically after a fixed period, so that a pauser cannot halt a contract indefinitely. However, whoever can hold a pause can already halt the contract by other means: applications and IFTs can be upgraded by their authority, and a light client with a role manager only serves the proof submitters that the role manager authorizes. Expiry would add no guarantee, and it could reopen a contract before the fix is ready.
 
 We also considered using AccessManager's `setTargetClosed` as the application pause, instead of a pause flag. Closing a target needs `ADMIN_ROLE` and is subject to the target admin delay, so it is not a fast lever. It also blocks only `restricted` functions, while `sendTransfer`, `sendCall` and `iftTransfer` are public and the app callbacks are guarded by `onlyRouter`.
 
@@ -125,7 +123,7 @@ We also considered using AccessManager's `setTargetClosed` as the application pa
 
 **Decision: [`SP1ICS07Tendermint`](../../../ibc-solidity/contracts/light-clients/sp1-ics07/SP1ICS07Tendermint.sol), [`BesuLightClientBase`](../../../ibc-solidity/contracts/light-clients/besu/BesuLightClientBase.sol) and [`AttestationLightClient`](../../../ibc-solidity/contracts/light-clients/attestation/AttestationLightClient.sol) get a reversible pause, controlled by roles that are granted to the client's role manager.**
 
-A per-client pause halts a single connection, for every application that uses it, without touching any other connection. It is the IBC equivalent of cursing a single lane in Chainlink CCIP's [`RMNRemote`](https://github.com/smartcontractkit/chainlink-ccip/blob/contracts-ccip-v1.6.4/chains/evm/contracts/rmn/RMNRemote.sol), and it covers what ibc-go handles through client status. It is the response to a suspected light client problem that cannot be proven on chain: a prover bug, a compromised attestor key, or a validator set behaving strangely.
+A per-client pause halts a single connection, for every application that uses it, without touching any other connection. It is the response to a suspected light client problem that cannot be proven on chain: a prover bug, a compromised attestor key, or a validator set behaving strangely.
 
 The pause belongs in the light client, not in the router. A router-level client pause would be held by the router authority, which could then halt clients it does not own. Every light client is deployed with a role manager that already administers it, so the pause sits with the client's owner.
 
@@ -135,15 +133,15 @@ The pause belongs in the light client, not in the router. A router-level client 
 - **Allowed**: `misbehaviour` still works for whoever may submit it, so a paused client can still be frozen permanently when misbehaviour is proven.
 - **State**: the pause flag lives in its own storage, not in the client state. `isFrozen` keeps its meaning, a permanent freeze on proven misbehaviour, and the encoding returned by `getClientState` does not change for relayers.
 
-**The pause is reversible, and there is no admin-triggered permanent freeze.** After an investigation, the outcome is either a false alarm or a confirmed problem. A false alarm is resolved by unpausing. A confirmed problem is resolved by migrating the client identifier to a new light client with `migrateClient`, which keeps the identifier and its packet state, as `MsgRecoverClient` does in ibc-go. A permanent admin freeze would remove the first option, and recovering from it would always need a router-admin migration, even for clients registered permissionlessly.
+**The pause is reversible, and there is no admin-triggered permanent freeze.** After an investigation, the outcome is either a false alarm or a confirmed problem. A false alarm is resolved by unpausing. A confirmed problem is resolved by migrating the client identifier to a new light client with `migrateClient`, which keeps the identifier and its packet state. A permanent admin freeze would remove the first option, and recovering from it would always need a router-admin migration, even for clients registered permissionlessly.
 
-The [`ICS02PrecompileWrapper`](../../../ibc-solidity/contracts/light-clients/ics02-wrapper/ICS02PrecompileWrapper.sol) is not pausable. It forwards to an ibc-go client that lives in the Cosmos chain's state, and that client is halted and recovered through the chain's own mechanisms: client status, `MsgRecoverClient` and `x/circuit`.
+The [`ICS02PrecompileWrapper`](../../../ibc-solidity/contracts/light-clients/ics02-wrapper/ICS02PrecompileWrapper.sol) is not pausable. It forwards to a light client that lives in the host chain's native state, so halting and recovering that client is handled by the host chain itself.
 
 ### Sending on a Paused or Frozen Client
 
 **Decision: the router does not check client status on send. This is documented, not changed.** `sendPacket` only looks up the counterparty of the source client and never calls the light client. A packet sent from chain A over a paused or frozen client is still committed, and chain B can still receive it, because B verifies it with its own client of A, which is unaffected. The acknowledgement or timeout back on A needs A's client of B, so it waits until that client is unpaused or migrated. In the meantime, the sender's pending state, such as an IFT pending transfer, stays open.
 
-This is a liveness issue, not a safety issue. A light client pause stops exactly the operations where chain A trusts B's state, and a send does not depend on that trust. This already happens today with clients frozen by misbehaviour. Applications and front ends should check a client's `paused()` and frozen status before sending. ibc-go rejects sends on non-active clients, so a status view on `ILightClient`, checked by `sendPacket`, is a possible follow-up. It would change the light client interface, so it is out of scope here.
+This is a liveness issue, not a safety issue. A light client pause stops exactly the operations where chain A trusts B's state, and a send does not depend on that trust. This already happens today with clients frozen by misbehaviour. Applications and front ends should check a client's `paused()` and frozen status before sending. A status view on `ILightClient`, checked by `sendPacket`, is a possible follow-up. It would change the light client interface, so it is out of scope here.
 
 ## Consequences
 
