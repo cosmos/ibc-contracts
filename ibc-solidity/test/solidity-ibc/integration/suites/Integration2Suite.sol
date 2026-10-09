@@ -3,29 +3,28 @@ pragma solidity ^0.8.28;
 
 // solhint-disable custom-errors,max-line-length,max-states-count
 
-import { Test } from "forge-std/Test.sol";
-
-import { IICS26RouterMsgs } from "../../contracts/msgs/IICS26RouterMsgs.sol";
-import { IICS27GMPMsgs } from "../../contracts/msgs/IICS27GMPMsgs.sol";
+import { IICS26RouterMsgs } from "../../../../contracts/msgs/IICS26RouterMsgs.sol";
+import { IICS27GMPMsgs } from "../../../../contracts/msgs/IICS27GMPMsgs.sol";
 
 import { IERC20 } from "@openzeppelin-contracts/token/ERC20/IERC20.sol";
 import { ISignatureTransfer } from "@uniswap/permit2/src/interfaces/ISignatureTransfer.sol";
-import { IICS26Router } from "../../contracts/interfaces/IICS26Router.sol";
-import { IICS26RouterErrors } from "../../contracts/errors/IICS26RouterErrors.sol";
-import { ILightClient } from "../../contracts/interfaces/ILightClient.sol";
-import { IICS27Account } from "../../contracts/interfaces/IICS27Account.sol";
+import { IICS26Router } from "../../../../contracts/interfaces/IICS26Router.sol";
+import { IICS26RouterErrors } from "../../../../contracts/errors/IICS26RouterErrors.sol";
+import { ILightClient } from "../../../../contracts/interfaces/ILightClient.sol";
+import { IICS27Account } from "../../../../contracts/interfaces/IICS27Account.sol";
 
-import { IbcImpl } from "./utils/IbcImpl.sol";
-import { TestHelper } from "./utils/TestHelper.sol";
-import { IntegrationEnv } from "./utils/IntegrationEnv.sol";
+import { IbcImpl } from "../../utils/IbcImpl.sol";
+import { LightClientDriverTest } from "../drivers/LightClientDriverTest.sol";
+import { TestHelper } from "../../utils/TestHelper.sol";
+import { IntegrationEnv } from "../../utils/IntegrationEnv.sol";
 import { Strings } from "@openzeppelin-contracts/utils/Strings.sol";
-import { ICS24Host } from "../../contracts/utils/ICS24Host.sol";
-import { ICS20Lib } from "../../contracts/utils/ICS20Lib.sol";
-import { ICS27Lib } from "../../contracts/utils/ICS27Lib.sol";
+import { ICS24Host } from "../../../../contracts/utils/ICS24Host.sol";
+import { ICS20Lib } from "../../../../contracts/utils/ICS20Lib.sol";
+import { ICS27Lib } from "../../../../contracts/utils/ICS27Lib.sol";
 import { ERC1967Proxy } from "@openzeppelin-contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import { RefImplIBCERC20 } from "./utils/RefImplIBCERC20.sol";
+import { RefImplIBCERC20 } from "../../utils/RefImplIBCERC20.sol";
 
-contract Integration2Test is Test {
+abstract contract Integration2Suite is LightClientDriverTest {
     IbcImpl public ibcImplA;
     IbcImpl public ibcImplB;
 
@@ -39,23 +38,17 @@ contract Integration2Test is Test {
 
         // Add the counterparty implementations
         string memory clientId;
-        clientId = ibcImplA.addCounterpartyImpl(ibcImplB, th.FIRST_CLIENT_ID());
+        clientId = ibcImplA.addClient(th.FIRST_CLIENT_ID(), _newDriver(ibcImplB.ics26Router()));
         assertEq(clientId, th.FIRST_CLIENT_ID());
 
-        clientId = ibcImplB.addCounterpartyImpl(ibcImplA, th.FIRST_CLIENT_ID());
+        clientId = ibcImplB.addClient(th.FIRST_CLIENT_ID(), _newDriver(ibcImplA.ics26Router()));
         assertEq(clientId, th.FIRST_CLIENT_ID());
     }
 
     function test_deployment() public view {
-        // Check that the counterparty implementations are set correctly
-        assertEq(
-            ibcImplA.ics26Router().getClient(th.FIRST_CLIENT_ID()).getClientState(),
-            abi.encodePacked(address(ibcImplB.ics26Router()))
-        );
-        assertEq(
-            ibcImplB.ics26Router().getClient(th.FIRST_CLIENT_ID()).getClientState(),
-            abi.encodePacked(address(ibcImplA.ics26Router()))
-        );
+        // ibcImplA (client-0) <--> (client-0) ibcImplB
+        assertEq(ibcImplA.ics26Router().getCounterparty(th.FIRST_CLIENT_ID()).clientId, th.FIRST_CLIENT_ID());
+        assertEq(ibcImplB.ics26Router().getCounterparty(th.FIRST_CLIENT_ID()).clientId, th.FIRST_CLIENT_ID());
     }
 
     function setup_createForeignDenomOnImplA(address receiver, uint256 amount) public returns (IERC20) {
@@ -240,8 +233,7 @@ contract Integration2Test is Test {
         assertEq(token.balanceOf(receiver), amount, "receiver balance mismatch");
 
         // Check replay protection
-        IICS26RouterMsgs.MsgRecvPacket memory msgRecvPacket;
-        msgRecvPacket.packet = sentPacket;
+        IICS26RouterMsgs.MsgRecvPacket memory msgRecvPacket = ibcImplB.recvPacketMsg(sentPacket);
         vm.recordLogs();
         ibcImplB.ics26Router().recvPacket(msgRecvPacket);
         th.getValueFromEvent(IICS26Router.Noop.selector);
@@ -307,8 +299,7 @@ contract Integration2Test is Test {
         assertEq(token.balanceOf(receiver), amount, "receiver balance mismatch");
 
         // Check replay protection
-        IICS26RouterMsgs.MsgRecvPacket memory msgRecvPacket;
-        msgRecvPacket.packet = sentPacket;
+        IICS26RouterMsgs.MsgRecvPacket memory msgRecvPacket = ibcImplB.recvPacketMsg(sentPacket);
         vm.recordLogs();
         ibcImplB.ics26Router().recvPacket(msgRecvPacket);
         th.getValueFromEvent(IICS26Router.Noop.selector);
@@ -357,8 +348,7 @@ contract Integration2Test is Test {
         assertEq(supplyAfterSend, 0); // Burned
 
         // Check replay protection
-        IICS26RouterMsgs.MsgRecvPacket memory msgRecvPacket;
-        msgRecvPacket.packet = sentPacket;
+        IICS26RouterMsgs.MsgRecvPacket memory msgRecvPacket = ibcImplB.recvPacketMsg(sentPacket);
         vm.recordLogs();
         ibcImplB.ics26Router().recvPacket(msgRecvPacket);
         th.getValueFromEvent(IICS26Router.Noop.selector);

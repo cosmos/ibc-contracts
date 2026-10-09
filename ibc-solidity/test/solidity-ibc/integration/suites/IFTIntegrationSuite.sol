@@ -4,25 +4,24 @@ pragma solidity ^0.8.28;
 // solhint-disable
 // custom-errors,max-line-length,max-states-count,var-name-mixedcase,gas-small-strings
 
-import { Test } from "forge-std/Test.sol";
+import { IICS26RouterMsgs } from "../../../../contracts/msgs/IICS26RouterMsgs.sol";
+import { IICS26Router } from "../../../../contracts/interfaces/IICS26Router.sol";
+import { IIFTMsgs } from "../../../../contracts/msgs/IIFTMsgs.sol";
 
-import { IICS26RouterMsgs } from "../../contracts/msgs/IICS26RouterMsgs.sol";
-import { IICS26Router } from "../../contracts/interfaces/IICS26Router.sol";
-import { IIFTMsgs } from "../../contracts/msgs/IIFTMsgs.sol";
+import { IIFT } from "../../../../contracts/interfaces/IIFT.sol";
+import { IIFTRateLimit } from "../../../../contracts/interfaces/IIFTRateLimit.sol";
+import { IIFTErrors } from "../../../../contracts/errors/IIFTErrors.sol";
 
-import { IIFT } from "../../contracts/interfaces/IIFT.sol";
-import { IIFTRateLimit } from "../../contracts/interfaces/IIFTRateLimit.sol";
-import { IIFTErrors } from "../../contracts/errors/IIFTErrors.sol";
-
-import { IbcImpl } from "./utils/IbcImpl.sol";
-import { TestHelper } from "./utils/TestHelper.sol";
-import { IntegrationEnv } from "./utils/IntegrationEnv.sol";
-import { IFTAccessManaged } from "../../contracts/utils/IFTAccessManaged.sol";
-import { EVMIFTSendCallConstructor } from "../../contracts/utils/EVMIFTSendCallConstructor.sol";
+import { IbcImpl } from "../../utils/IbcImpl.sol";
+import { LightClientDriverTest } from "../drivers/LightClientDriverTest.sol";
+import { TestHelper } from "../../utils/TestHelper.sol";
+import { IntegrationEnv } from "../../utils/IntegrationEnv.sol";
+import { IFTAccessManaged } from "../../../../contracts/utils/IFTAccessManaged.sol";
+import { EVMIFTSendCallConstructor } from "../../../../contracts/utils/EVMIFTSendCallConstructor.sol";
 import { Strings } from "@openzeppelin-contracts/utils/Strings.sol";
 import { ERC1967Proxy } from "@openzeppelin-contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-contract IFTIntegrationTest is Test {
+abstract contract IFTIntegrationSuite is LightClientDriverTest {
     IbcImpl public ibcImplA;
     IbcImpl public ibcImplB;
 
@@ -47,10 +46,10 @@ contract IFTIntegrationTest is Test {
         ibcImplB = new IbcImpl(integrationEnv.permit2());
 
         string memory clientId;
-        clientId = ibcImplA.addCounterpartyImpl(ibcImplB, th.FIRST_CLIENT_ID());
+        clientId = ibcImplA.addClient(th.FIRST_CLIENT_ID(), _newDriver(ibcImplB.ics26Router()));
         assertEq(clientId, th.FIRST_CLIENT_ID());
 
-        clientId = ibcImplB.addCounterpartyImpl(ibcImplA, th.FIRST_CLIENT_ID());
+        clientId = ibcImplB.addClient(th.FIRST_CLIENT_ID(), _newDriver(ibcImplA.ics26Router()));
         assertEq(clientId, th.FIRST_CLIENT_ID());
 
         sendCallConstructor = new EVMIFTSendCallConstructor();
