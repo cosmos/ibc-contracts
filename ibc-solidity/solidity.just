@@ -212,6 +212,8 @@ generate-abi: build-contracts
 	jq -r '.bytecode.object' out/IFTOwnable.sol/IFTOwnable.json > tmp/abigen/IFTOwnable.bin
 	jq '.abi' out/IFTOwnable2Step.sol/IFTOwnable2Step.json > abi/IFTOwnable2Step.json
 	jq -r '.bytecode.object' out/IFTOwnable2Step.sol/IFTOwnable2Step.json > tmp/abigen/IFTOwnable2Step.bin
+	jq '.abi' out/IFTAccessManaged.sol/IFTAccessManaged.json > abi/IFTAccessManaged.json
+	jq -r '.bytecode.object' out/IFTAccessManaged.sol/IFTAccessManaged.json > tmp/abigen/IFTAccessManaged.bin
 	jq '.abi' out/ERC1967Proxy.sol/ERC1967Proxy.json > abi/ERC1967Proxy.json
 	jq -r '.bytecode.object' out/ERC1967Proxy.sol/ERC1967Proxy.json > tmp/abigen/ERC1967Proxy.bin
 	jq '.abi' out/EVMIFTSendCallConstructor.sol/EVMIFTSendCallConstructor.json > abi/EVMIFTSendCallConstructor.json
@@ -220,6 +222,8 @@ generate-abi: build-contracts
 	abigen --abi abi/IFTOwnable.json --bin tmp/abigen/IFTOwnable.bin --pkg ift --type Contract --out ../packages/go-abigen/ift/contract.go
 	mkdir -p ../packages/go-abigen/iftownable2step
 	abigen --abi abi/IFTOwnable2Step.json --bin tmp/abigen/IFTOwnable2Step.bin --pkg iftownable2step --type Contract --out ../packages/go-abigen/iftownable2step/contract.go
+	mkdir -p ../packages/go-abigen/iftaccessmanaged
+	abigen --abi abi/IFTAccessManaged.json --bin tmp/abigen/IFTAccessManaged.bin --pkg iftaccessmanaged --type Contract --out ../packages/go-abigen/iftaccessmanaged/contract.go
 	abigen --abi abi/SP1ICS07Tendermint.json --bin tmp/abigen/SP1ICS07Tendermint.bin --pkg sp1ics07tendermint --type Contract --out ../packages/go-abigen/sp1ics07tendermint/contract.go
 	abigen --abi abi/ICS20Transfer.json --bin tmp/abigen/ICS20Transfer.bin --pkg ics20transfer --type Contract --out ../packages/go-abigen/ics20transfer/contract.go
 	abigen --abi abi/ICS26Router.json --bin tmp/abigen/ICS26Router.bin --pkg ics26router --type Contract --out ../packages/go-abigen/ics26router/contract.go
