@@ -18,37 +18,46 @@ The guiding principle is that a pause affects liveness, never safety. A pauser c
 
 ## Summary
 
-|   **Category**   |           **Option**           |                             **Meaning**                             | **Decision** |                                                            **Reason**                                                            |
-|:----------------:|:------------------------------:|:-------------------------------------------------------------------:|:------------:|:--------------------------------------------------------------------------------------------------------------------------------:|
-|    **Scope**     |          ICS26Router           |        A router-level pause that halts every app and client.        |      ❌       |        Apps and light clients are registered permissionlessly. A router pauser could halt parties that never trusted it.         |
-|    **Scope**     |          Light Client          |       Each light client can be paused by its own role manager.      |      ✅       |              Halts a single connection without affecting others, and is controlled by whoever deployed the client.               |
-|    **Scope**     |         ICS20Transfer          |                      App-wide pause (existing).                     |      ✅       |                                Holds escrowed funds and mints vouchers on behalf of its operator.                                |
-|    **Scope**     |            ICS27GMP            |                      App-wide pause (existing).                     |      ✅       |              Executes arbitrary calls through accounts. IFTs built on it inherit its pauser as a trust assumption.               |
-|    **Scope**     |       IFTBaseUpgradeable       |                  Pause logic in the abstract base.                  |      ❌       |                         Access control belongs to the inheriter. The base exposes virtual hooks instead.                         |
-|    **Scope**     |  IFTOwnable, IFTAccessManaged  |             Pause in the reference IFT implementations.             |      ✅       |                           Issuers deploying the reference contracts get a pause without writing code.                            |
-|    **Scope**     | Escrow, IBCERC20, ICS27Account |                    Pause in the helper contracts.                   |      ❌       |                      Their bridge functions are only reachable through their parent app, which is pausable.                      |
-| **Granularity**  |         Contract-wide          |           A single flag halts every flow of the contract.           |      ✅       |                                           Easy to operate under pressure. OZ default.                                            |
-| **Granularity**  |         Per Direction          |             Sends and receives can be paused separately.            |      ❌       | Containing an exploit usually requires halting both, and every extra state is one more thing to reason about during an incident. |
-| **Granularity**  |       Per Client in Apps       |                 An app can pause individual clients.                |      ❌       |                            Covered by the light client pause. IFT can already remove a single bridge.                            |
-|    **Effect**    |             Sends              |                       Outbound packets revert.                      |      ✅       |                                                  Stops new funds from leaving.                                                   |
-|    **Effect**    |            Receives            |      Inbound packets are written with an error acknowledgement.     |      ✅       |                      The router turns app reverts into error acknowledgements, so the source chain refunds.                      |
-|    **Effect**    |       Acks and Timeouts        | Acknowledgements and timeouts revert, and the packet stays pending. |      ✅       |                            Refunds can be forged too. Pending packets can be retried after unpausing.                            |
-|    **Effect**    |        Admin Functions         |             Configuration remains callable while paused.            |      ✅       |                                  Operators must be able to fix configuration before unpausing.                                   |
-|    **Effect**    |        Token Transfers         |                  Local ERC20 transfers are paused.                  |      ❌       |                 A pause halts the bridge, it does not freeze the token. Token-level policy belongs in `_update`.                 |
-|  **Authority**   |     Pauser/Unpauser Split      |                  Different roles pause and unpause.                 |      ✅       |                                        Pausing must be fast, resuming must be deliberate.                                        |
-|  **Authority**   |          Pause Expiry          |          A pause lifts automatically after a fixed period.          |      ❌       |        Whoever can hold a pause can already halt the contract by other means. Expiry could reopen an unpatched contract.         |
-|  **Authority**   |          Close Target          |    Use AccessManager's `setTargetClosed` instead of a pause flag.   |      ❌       |                    Admin-only, subject to the target admin delay, and it only affects `restricted` functions.                    |
-| **Light Client** |        Reversible Pause        |                       The pause can be lifted.                      |      ✅       |                                    A false alarm can be undone without migrating the client.                                     |
-| **Light Client** |   Misbehaviour While Paused    |       Misbehaviour can still be submitted to a paused client.       |      ✅       |                                A paused client must still be able to freeze permanently on proof.                                |
-| **Light Client** |        Send-Side Check         |        The router rejects sends on paused or frozen clients.        |      ❌       |   Not part of this decision. Sends are still delivered; only their acknowledgements wait. Documented as a possible follow-up.    |
+|   **Category**   |           **Option**           |                                     **Meaning**                                      | **Decision** |                                                            **Reason**                                                            |
+|:----------------:|:------------------------------:|:------------------------------------------------------------------------------------:|:------------:|:--------------------------------------------------------------------------------------------------------------------------------:|
+|    **Scope**     |      ICS26Router Packets       | A router-level pause that halts packets and client updates for every app and client. |      ❌       |        Apps and light clients are registered permissionlessly. A router pauser could halt parties that never trusted it.         |
+|    **Scope**     |    ICS26Router Registration    |     A router-level pause that halts permissionless app and client registration.      |      ✅       |            Stops abuse of permissionless registration without affecting apps and clients that are already registered.            |
+|    **Scope**     |          Light Client          |               Each light client can be paused by its own role manager.               |      ✅       |              Halts a single connection without affecting others, and is controlled by whoever deployed the client.               |
+|    **Scope**     |         ICS20Transfer          |                              App-wide pause (existing).                              |      ✅       |                                Holds escrowed funds and mints vouchers on behalf of its operator.                                |
+|    **Scope**     |            ICS27GMP            |                              App-wide pause (existing).                              |      ✅       |              Executes arbitrary calls through accounts. IFTs built on it inherit its pauser as a trust assumption.               |
+|    **Scope**     |       IFTBaseUpgradeable       |                          Pause logic in the abstract base.                           |      ❌       |                         Access control belongs to the inheriter. The base exposes virtual hooks instead.                         |
+|    **Scope**     |  IFTOwnable, IFTAccessManaged  |                     Pause in the reference IFT implementations.                      |      ✅       |                           Issuers deploying the reference contracts get a pause without writing code.                            |
+|    **Scope**     | Escrow, IBCERC20, ICS27Account |                            Pause in the helper contracts.                            |      ❌       |                      Their bridge functions are only reachable through their parent app, which is pausable.                      |
+| **Granularity**  |         Contract-wide          |                   A single flag halts every flow of the contract.                    |      ✅       |                                           Easy to operate under pressure. OZ default.                                            |
+| **Granularity**  |         Per Direction          |                     Sends and receives can be paused separately.                     |      ❌       | Containing an exploit usually requires halting both, and every extra state is one more thing to reason about during an incident. |
+| **Granularity**  |       Per Client in Apps       |                         An app can pause individual clients.                         |      ❌       |                            Covered by the light client pause. IFT can already remove a single bridge.                            |
+|    **Effect**    |             Sends              |                               Outbound packets revert.                               |      ✅       |                                                  Stops new funds from leaving.                                                   |
+|    **Effect**    |            Receives            |              Inbound packets are written with an error acknowledgement.              |      ✅       |                      The router turns app reverts into error acknowledgements, so the source chain refunds.                      |
+|    **Effect**    |       Acks and Timeouts        |         Acknowledgements and timeouts revert, and the packet stays pending.          |      ✅       |                            Refunds can be forged too. Pending packets can be retried after unpausing.                            |
+|    **Effect**    |        Admin Functions         |                     Configuration remains callable while paused.                     |      ✅       |                                  Operators must be able to fix configuration before unpausing.                                   |
+|    **Effect**    |        Token Transfers         |                          Local ERC20 transfers are paused.                           |      ❌       |                 A pause halts the bridge, it does not freeze the token. Token-level policy belongs in `_update`.                 |
+|  **Authority**   |     Pauser/Unpauser Split      |                          Different roles pause and unpause.                          |      ✅       |                                        Pausing must be fast, resuming must be deliberate.                                        |
+|  **Authority**   |          Pause Expiry          |                  A pause lifts automatically after a fixed period.                   |      ❌       |        Whoever can hold a pause can already halt the contract by other means. Expiry could reopen an unpatched contract.         |
+|  **Authority**   |          Close Target          |            Use AccessManager's `setTargetClosed` instead of a pause flag.            |      ❌       |                    Admin-only, subject to the target admin delay, and it only affects `restricted` functions.                    |
+| **Light Client** |        Reversible Pause        |                               The pause can be lifted.                               |      ✅       |                                    A false alarm can be undone without migrating the client.                                     |
+| **Light Client** |   Misbehaviour While Paused    |               Misbehaviour can still be submitted to a paused client.                |      ✅       |                                A paused client must still be able to freeze permanently on proof.                                |
+| **Light Client** |        Send-Side Check         |                The router rejects sends on paused or frozen clients.                 |      ❌       |   Not part of this decision. Sends are still delivered; only their acknowledgements wait. Documented as a possible follow-up.    |
 
 ## Decisions
 
 ### Router
 
-**Decision: the router is not pausable.** Anyone can register an IBC application through `addIBCApp(address)` and a light client through `addClient(counterpartyInfo, client)`. A router pause would hand a single fast key the power to halt every one of these parties, including those that never trusted it, which is exactly what the guiding principle rules out. Each layer that carries risk can halt itself instead: applications pause themselves, and light clients pause themselves (see [Light Clients](#light-clients)).
+**Decision: the packet lifecycle on the router is not pausable, but permissionless registration is.** Anyone can register an IBC application through `addIBCApp(address)` and a light client through `addClient(counterpartyInfo, client)`. A pause on `sendPacket`, `recvPacket`, `ackPacket`, `timeoutPacket` or `updateClient` would hand a single fast key the power to halt every one of these parties, including those that never trusted it, which is exactly what the guiding principle rules out. Each layer that carries risk can halt its own packets instead: applications pause themselves, and light clients pause themselves (see [Light Clients](#light-clients)).
 
-This does not make the router free of trusted levers, and we document the ones that already exist. The AccessManager admin can:
+Registration is different. If a way to abuse permissionless registration is found, for example a router bug that can only be reached through a newly registered malicious app or light client, operators need to stop new registrations while a fix is prepared. Pausing registration does not affect any app or client that is already registered, so it cannot halt a party that relies on the router today. It only delays new entrants, who have not yet relied on it.
+
+- **Mechanism**: the router inherits `PausableUpgradeable` and implements [`IPausable`](../../../ibc-solidity/contracts/interfaces/IPausable.sol). `pause()` and `unpause()` are `restricted`, and the existing `IBCRolesLib.pauserSelectors()` and `unpauserSelectors()` map them to `PAUSER_ROLE` and `UNPAUSER_ROLE`. `PausableUpgradeable` keeps its state in an ERC-7201 namespace and starts unpaused, so upgrading the deployed proxy is storage-safe and needs no reinitializer.
+- **Blocked**: the permissionless `addIBCApp(address)` and `addClient(counterpartyInfo, client)` revert while paused.
+- **Not blocked**: `sendPacket`, `recvPacket`, `ackPacket`, `timeoutPacket`, `updateClient` and `submitMisbehaviour` behave as usual. Registrations with custom identifiers, which are already restricted to `ID_CUSTOMIZER_ROLE`, and `migrateClient` also stay callable, as other admin functions do while paused.
+
+The registration pause is preventive. It does not remove an app or client that an attacker registered before the pause. A malicious light client can be replaced with `migrateClient`, while there is no way to remove an app. Contracts that interact with an attacker's app or client have to protect themselves.
+
+The router also has trusted levers outside the pause, and we document the ones that already exist. The AccessManager admin can:
 
 - upgrade the router through UUPS,
 - replace the light client behind any client identifier with `migrateClient`, including clients that were registered permissionlessly,
@@ -90,14 +99,6 @@ The hooks are general purpose. Pausing is the first use, but the same hooks can 
 
 Two existing knobs are not a substitute for the pause. Setting the IFT rate limit capacity to zero also blocks every flow, but only the authority can do it, it needs a fresh configuration to undo, and it shares a setting with the rate limit policy. `removeIFTBridge` disables a single client while refunds keep working, which is useful for retiring a route but not for stopping an incident.
 
-### Granularity
-
-**Decision: an application pause is a single contract-wide flag.** The flag halts sends, receives, acknowledgements and timeouts together. OpenZeppelin's `Pausable` works this way, and it leaves operators a single question during an incident: is the contract paused or not?
-
-We considered pausing sends and receives separately, or pausing individual functions. A forged receive and a forged refund are equally dangerous, so a one-directional pause rarely contains an exploit, and every extra combination of states is one more thing to reason about under pressure. More granularity can be added later without changing the contract-wide flag.
-
-We also considered pausing individual clients inside applications. The light client pause already halts a single connection for every app that uses it, and IFT can remove a single bridge, so a per-client app pause would duplicate both.
-
 ### What a Pause Blocks
 
 **Decision: a paused application rejects sends, receives, acknowledgements and timeouts, while admin functions stay available.** How each kind of packet behaves follows from how the router calls the application:
@@ -115,7 +116,7 @@ A pause does not freeze tokens. ICS20 vouchers and IFT tokens remain transferabl
 
 `PAUSER_ROLE` is meant for a fast key without an execution delay, so it can react within minutes. `UNPAUSER_ROLE` is meant for the same body that holds admin rights, or one with a higher threshold, because resuming after an incident is a deliberate decision. Light clients use the same two role names in their own `AccessControl` (see [Light Clients](#light-clients)).
 
-We considered letting pauses expire automatically after a fixed period, so that a pauser cannot halt a contract indefinitely. However, whoever can hold a pause can already halt the contract by other means: applications and IFTs can be upgraded by their authority, and a light client with a role manager only serves the proof submitters that the role manager authorizes. Expiry would add no guarantee, and it could reopen a contract before the fix is ready.
+We considered letting pauses expire automatically after a fixed period, so that a pauser cannot halt a contract indefinitely. However, whoever can hold a pause can already halt the contract by other means: the router, applications and IFTs can be upgraded by their authority, and a light client with a role manager only serves the proof submitters that the role manager authorizes. Expiry would add no guarantee, and it could reopen a contract before the fix is ready.
 
 We also considered using AccessManager's `setTargetClosed` as the application pause, instead of a pause flag. Closing a target needs `ADMIN_ROLE` and is subject to the target admin delay, so it is not a fast lever. It also blocks only `restricted` functions, while `sendTransfer`, `sendCall` and `iftTransfer` are public and the app callbacks are guarded by `onlyRouter`.
 
@@ -150,6 +151,7 @@ This is a liveness issue, not a safety issue. A light client pause stops exactly
 |        **Actor**        |                                  **Can Halt**                                  |                  **Cannot**                  |
 |:-----------------------:|:------------------------------------------------------------------------------:|:--------------------------------------------:|
 |   AccessManager admin   | Everything, slowly: upgrades, `migrateClient`, closing targets, granting roles |        Move funds without an upgrade         |
+|      Router pauser      |                New permissionless app and client registrations                 |  Halt existing apps or clients, or unpause   |
 |   ICS20 or GMP pauser   |            That application. A GMP pause halts every IFT using it.             |            Move funds, or unpause            |
 |   Light client pauser   |              A single connection, for every application using it               |   Unpause, or undo stored consensus states   |
 | IFT authority or pauser |                           That token's bridge flows                            | Halt local token transfers through the pause |
@@ -165,9 +167,10 @@ This is a liveness issue, not a safety issue. A light client pause stops exactly
 
 This ADR does not change any code. Implementation follows in separate pull requests:
 
+- **Router**: add `PausableUpgradeable` and `IPausable` to `ICS26Router`, and gate the permissionless `addIBCApp(address)` and `addClient(counterpartyInfo, client)` with `whenNotPaused`.
 - **IFT**: add the three hooks to `IFTBaseUpgradeable`, next to the existing `_consumeIFTRateLimit` calls. Add `PausableUpgradeable` and `IPausable` to `IFTOwnable` and `IFTAccessManaged`, and override the hooks.
 - **Light clients**: add `Pausable`, `PAUSER_ROLE` and `UNPAUSER_ROLE` to `SP1ICS07Tendermint`, `BesuLightClientBase` and `AttestationLightClient`, and gate `updateClient`, `verifyMembership` and `verifyNonMembership` with `whenNotPaused`.
-- **Deployment**: wire `IFTAccessManaged` deployments to `PAUSER_ROLE` and `UNPAUSER_ROLE` using the existing `IBCRolesLib` selectors.
+- **Deployment**: wire `ICS26Router` and `IFTAccessManaged` deployments to `PAUSER_ROLE` and `UNPAUSER_ROLE` using the existing `IBCRolesLib` selectors.
 - **Tooling**: run `just solidity::generate-abi` after the interface changes, and add tests for each flow while paused, including retrying acknowledgements and timeouts after unpausing.
 - **Docs**: link this ADR from [`ibc-solidity/contracts/README.md`](../../../ibc-solidity/contracts/README.md).
 
