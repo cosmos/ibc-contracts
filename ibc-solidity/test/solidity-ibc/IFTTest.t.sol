@@ -310,10 +310,8 @@ contract IFTTest is Test {
         // ownership does not change until the pending owner accepts
         assertEq(iftOwnable2Step.owner(), admin);
         assertEq(iftOwnable2Step.pendingOwner(), newOwner);
-
-        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, newOwner));
-        vm.prank(newOwner);
-        iftOwnable2Step.mint(newOwner, 1);
+        assertOwnable2StepAccess(newOwner, false);
+        assertOwnable2StepAccess(admin, true);
 
         vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, unauthorized));
         vm.prank(unauthorized);
@@ -324,14 +322,28 @@ contract IFTTest is Test {
 
         assertEq(iftOwnable2Step.owner(), newOwner);
         assertEq(iftOwnable2Step.pendingOwner(), address(0));
+        assertOwnable2StepAccess(admin, false);
+        assertOwnable2StepAccess(newOwner, true);
+    }
 
-        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, admin));
-        vm.prank(admin);
-        iftOwnable2Step.mint(admin, 1);
+    /// @dev Checks `account` against each owner-gated hook: mint, _onlyAuthority, and _authorizeUpgrade
+    function assertOwnable2StepAccess(address account, bool authorized) internal {
+        IFTOwnable2Step iftOwnable2Step = IFTOwnable2Step(address(ift));
+        address newImpl = address(new IFTOwnable2Step());
+        bytes memory unauthorizedErr =
+            abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, account);
 
-        vm.prank(newOwner);
-        iftOwnable2Step.mint(newOwner, 1);
-        assertEq(IERC20(address(ift)).balanceOf(newOwner), 1);
+        if (!authorized) vm.expectRevert(unauthorizedErr);
+        vm.prank(account);
+        iftOwnable2Step.mint(account, 1);
+
+        if (!authorized) vm.expectRevert(unauthorizedErr);
+        vm.prank(account);
+        iftOwnable2Step.setIFTRateLimit(RATE_LIMIT_CAPACITY, RATE_LIMIT_WINDOW);
+
+        if (!authorized) vm.expectRevert(unauthorizedErr);
+        vm.prank(account);
+        UUPSUpgradeable(address(ift)).upgradeToAndCall(newImpl, "");
     }
 
     function test_Ownable2Step_upgrade() public {
