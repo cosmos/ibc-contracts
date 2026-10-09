@@ -64,7 +64,7 @@ The router also has trusted levers outside the pause, and we document the ones t
 - revoke relayers, when relaying is restricted to `RELAYER_ROLE`,
 - close the router as a target in the AccessManager. This blocks every `restricted` function (`recvPacket`, `ackPacket`, `timeoutPacket`, `updateClient`, the custom-identifier registrations, and `migrateClient`), but not `sendPacket` or the permissionless registrations.
 
-These are admin powers, intended for governance and protected by execution delays. This ADR does not add a fast path to them.
+These are admin powers, intended for governance and protected by a timelock (AccessManager execution delays). Some of them can move funds: an upgrade can change any logic, and `migrateClient` can install a light client that accepts forged proofs, which would let the router release escrowed tokens or mint vouchers. The timelock is what gives users time to react, and this ADR does not add a fast path to any of these powers.
 
 ### Applications
 
@@ -148,13 +148,13 @@ This is a liveness issue, not a safety issue. A light client pause stops exactly
 
 ### Trust Assumptions
 
-|        **Actor**        |                                  **Can Halt**                                  |                  **Cannot**                  |
-|:-----------------------:|:------------------------------------------------------------------------------:|:--------------------------------------------:|
-|   AccessManager admin   | Everything, slowly: upgrades, `migrateClient`, closing targets, granting roles |        Move funds without an upgrade         |
-|      Router pauser      |                        New app and client registrations                        |  Halt existing apps or clients, or unpause   |
-|   ICS20 or GMP pauser   |            That application. A GMP pause halts every IFT using it.             |            Move funds, or unpause            |
-|   Light client pauser   |              A single connection, for every application using it               |   Unpause, or undo stored consensus states   |
-| IFT authority or pauser |                           That token's bridge flows                            | Halt local token transfers through the pause |
+|        **Actor**        |                                  **Can Halt**                                  |                                                               **Cannot**                                                               |
+|:-----------------------:|:------------------------------------------------------------------------------:|:--------------------------------------------------------------------------------------------------------------------------------------:|
+|   AccessManager admin   | Everything, slowly: upgrades, `migrateClient`, closing targets, granting roles | Move funds without a timelock: upgrades and `migrateClient` (which can install a client that accepts forged proofs) both go through it |
+|      Router pauser      |                        New app and client registrations                        |                                               Halt existing apps or clients, or unpause                                                |
+|   ICS20 or GMP pauser   |            That application. A GMP pause halts every IFT using it.             |                                                         Move funds, or unpause                                                         |
+|   Light client pauser   |              A single connection, for every application using it               |                                                Unpause, or undo stored consensus states                                                |
+| IFT authority or pauser |                           That token's bridge flows                            |                                              Halt local token transfers through the pause                                              |
 
 ### Operational Notes
 
