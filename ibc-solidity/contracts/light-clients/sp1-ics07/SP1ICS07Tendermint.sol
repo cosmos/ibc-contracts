@@ -13,17 +13,27 @@ import { IICS02ClientMsgs } from "../../msgs/IICS02ClientMsgs.sol";
 import { ISP1ICS07TendermintErrors } from "./errors/ISP1ICS07TendermintErrors.sol";
 import { ISP1ICS07Tendermint } from "./interfaces/ISP1ICS07Tendermint.sol";
 import { ILightClient } from "../../interfaces/ILightClient.sol";
+import { IPausable } from "../../interfaces/IPausable.sol";
 import { ISP1Verifier } from "@sp1-contracts/ISP1Verifier.sol";
 
 import { Paths } from "./utils/Paths.sol";
 import { Multicall } from "@openzeppelin-contracts/utils/Multicall.sol";
 import { TransientSlot } from "@openzeppelin-contracts/utils/TransientSlot.sol";
 import { AccessControl } from "@openzeppelin-contracts/access/AccessControl.sol";
+import { Pausable } from "@openzeppelin-contracts/utils/Pausable.sol";
 
 /// @title SP1 ICS07 Tendermint Light Client
 /// @author srdtrk
 /// @notice This contract implements an ICS07 IBC tendermint light client using SP1.
-contract SP1ICS07Tendermint is ISP1ICS07TendermintErrors, ISP1ICS07Tendermint, ILightClient, Multicall, AccessControl {
+contract SP1ICS07Tendermint is
+    ISP1ICS07TendermintErrors,
+    ISP1ICS07Tendermint,
+    ILightClient,
+    IPausable,
+    Multicall,
+    AccessControl,
+    Pausable
+{
     using TransientSlot for *;
 
     /// @inheritdoc ISP1ICS07Tendermint
@@ -49,6 +59,10 @@ contract SP1ICS07Tendermint is ISP1ICS07TendermintErrors, ISP1ICS07Tendermint, I
 
     /// @inheritdoc ISP1ICS07Tendermint
     bytes32 public constant PROOF_SUBMITTER_ROLE = keccak256("PROOF_SUBMITTER_ROLE");
+    /// @inheritdoc ISP1ICS07Tendermint
+    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+    /// @inheritdoc ISP1ICS07Tendermint
+    bytes32 public constant UNPAUSER_ROLE = keccak256("UNPAUSER_ROLE");
 
     /// @notice The constructor sets the program verification key and the initial client and consensus states.
     /// @param updateClientProgramVkey The verification key for the update client program.
@@ -58,7 +72,8 @@ contract SP1ICS07Tendermint is ISP1ICS07TendermintErrors, ISP1ICS07Tendermint, I
     /// @param sp1Verifier The address of the SP1 verifier contract.
     /// @param _clientState The encoded initial client state.
     /// @param _consensusState The encoded initial consensus state.
-    /// @param roleManager Manages the proof submitters and can submit proofs. Should be the ICS26Router if used in IBC.
+    /// @param roleManager Manages the roles, can submit proofs, and can pause and unpause the client. Should be the
+    /// ICS26Router if used in IBC.
     constructor(
         bytes32 updateClientProgramVkey,
         bytes32 membershipProgramVkey,
@@ -89,6 +104,8 @@ contract SP1ICS07Tendermint is ISP1ICS07TendermintErrors, ISP1ICS07Tendermint, I
         } else {
             _grantRole(DEFAULT_ADMIN_ROLE, roleManager); // Allow the role manager to manage roles
             _grantRole(PROOF_SUBMITTER_ROLE, roleManager); // Allow the role manager to submit proofs
+            _grantRole(PAUSER_ROLE, roleManager); // Allow the role manager to pause the client
+            _grantRole(UNPAUSER_ROLE, roleManager); // Allow the role manager to unpause the client
         }
     }
 
@@ -109,6 +126,7 @@ contract SP1ICS07Tendermint is ISP1ICS07TendermintErrors, ISP1ICS07Tendermint, I
     function updateClient(bytes calldata updateMsg)
         external
         notFrozen
+        whenNotPaused
         onlyProofSubmitter
         returns (ILightClientMsgs.UpdateResult)
     {
@@ -146,6 +164,7 @@ contract SP1ICS07Tendermint is ISP1ICS07TendermintErrors, ISP1ICS07Tendermint, I
     function verifyMembership(ILightClientMsgs.MsgVerifyMembership calldata msg_)
         external
         notFrozen
+        whenNotPaused
         onlyProofSubmitter
         returns (uint256)
     {
@@ -157,10 +176,21 @@ contract SP1ICS07Tendermint is ISP1ICS07TendermintErrors, ISP1ICS07Tendermint, I
     function verifyNonMembership(ILightClientMsgs.MsgVerifyNonMembership calldata msg_)
         external
         notFrozen
+        whenNotPaused
         onlyProofSubmitter
         returns (uint256)
     {
         return _membership(msg_.proof, msg_.proofHeight, msg_.path, bytes(""));
+    }
+
+    /// @inheritdoc IPausable
+    function pause() external onlyRole(PAUSER_ROLE) {
+        _pause();
+    }
+
+    /// @inheritdoc IPausable
+    function unpause() external onlyRole(UNPAUSER_ROLE) {
+        _unpause();
     }
 
     /// @notice The entrypoint for verifying (non)membership proof.

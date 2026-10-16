@@ -3,8 +3,10 @@ pragma solidity ^0.8.28;
 
 import { AccessControl } from "@openzeppelin-contracts/access/AccessControl.sol";
 import { ECDSA } from "@openzeppelin-contracts/utils/cryptography/ECDSA.sol";
+import { Pausable } from "@openzeppelin-contracts/utils/Pausable.sol";
 
 import { ILightClient } from "../../interfaces/ILightClient.sol";
+import { IPausable } from "../../interfaces/IPausable.sol";
 import { ILightClientMsgs } from "../../msgs/ILightClientMsgs.sol";
 import { IAttestationLightClient } from "./interfaces/IAttestationLightClient.sol";
 import { IAttestationLightClientErrors } from "./errors/IAttestationLightClientErrors.sol";
@@ -13,7 +15,13 @@ import { IAttestationLightClientMsgs } from "./msgs/IAttestationLightClientMsgs.
 
 /// @title Attestation-based IBC Light Client
 /// @notice Implements an IBC light client that trusts an off-chain m-of-n attestor set.
-contract AttestationLightClient is IAttestationLightClient, IAttestationLightClientErrors, AccessControl {
+contract AttestationLightClient is
+    IAttestationLightClient,
+    IAttestationLightClientErrors,
+    IPausable,
+    AccessControl,
+    Pausable
+{
     /// @notice Current attestation-set configuration and latest trusted height/frozen flag.
     IAttestationLightClientMsgs.ClientState private clientState;
     /// @notice Tracks whether an `attestor` address is part of the configured attestor set.
@@ -23,6 +31,10 @@ contract AttestationLightClient is IAttestationLightClient, IAttestationLightCli
 
     /// @inheritdoc IAttestationLightClient
     bytes32 public constant PROOF_SUBMITTER_ROLE = keccak256("PROOF_SUBMITTER_ROLE");
+    /// @inheritdoc IAttestationLightClient
+    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+    /// @inheritdoc IAttestationLightClient
+    bytes32 public constant UNPAUSER_ROLE = keccak256("UNPAUSER_ROLE");
 
     /// @notice Length of a compact ECDSA signature (r||s||v).
     uint256 private constant ECDSA_SIGNATURE_LENGTH = 65;
@@ -37,8 +49,8 @@ contract AttestationLightClient is IAttestationLightClient, IAttestationLightCli
     /// @param minRequiredSigs The quorum threshold
     /// @param initialHeight The initial known height
     /// @param initialTimestampSeconds The initial timestamp in seconds for the initial height
-    /// @param roleManager Address that will administer roles and be allowed to submit proofs; if zero, anyone can
-    /// submit
+    /// @param roleManager Address that will administer roles, be allowed to submit proofs, and pause and unpause the
+    /// client; if zero, anyone can submit and the client cannot be paused
     constructor(
         address[] memory attestorAddresses,
         uint8 minRequiredSigs,
@@ -72,6 +84,8 @@ contract AttestationLightClient is IAttestationLightClient, IAttestationLightCli
         } else {
             _grantRole(DEFAULT_ADMIN_ROLE, roleManager);
             _grantRole(PROOF_SUBMITTER_ROLE, roleManager);
+            _grantRole(PAUSER_ROLE, roleManager);
+            _grantRole(UNPAUSER_ROLE, roleManager);
         }
     }
 
@@ -94,6 +108,7 @@ contract AttestationLightClient is IAttestationLightClient, IAttestationLightCli
     function updateClient(bytes calldata updateMsg)
         external
         notFrozen
+        whenNotPaused
         onlyProofSubmitter
         returns (ILightClientMsgs.UpdateResult)
     {
@@ -131,6 +146,7 @@ contract AttestationLightClient is IAttestationLightClient, IAttestationLightCli
         external
         view
         notFrozen
+        whenNotPaused
         onlyProofSubmitter
         returns (uint256)
     {
@@ -171,6 +187,7 @@ contract AttestationLightClient is IAttestationLightClient, IAttestationLightCli
         external
         view
         notFrozen
+        whenNotPaused
         onlyProofSubmitter
         returns (uint256)
     {
@@ -209,6 +226,16 @@ contract AttestationLightClient is IAttestationLightClient, IAttestationLightCli
     function misbehaviour(bytes calldata) external view notFrozen onlyProofSubmitter {
         // Out of scope for this version
         revert FeatureNotSupported();
+    }
+
+    /// @inheritdoc IPausable
+    function pause() external onlyRole(PAUSER_ROLE) {
+        _pause();
+    }
+
+    /// @inheritdoc IPausable
+    function unpause() external onlyRole(UNPAUSER_ROLE) {
+        _unpause();
     }
 
     /// @notice Computes domain-separated prehash: `sha256(typeTag || sha256(data))`.

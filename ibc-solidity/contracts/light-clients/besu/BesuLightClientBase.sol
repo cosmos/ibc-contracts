@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import { AccessControl } from "@openzeppelin-contracts/access/AccessControl.sol";
 import { ECDSA } from "@openzeppelin-contracts/utils/cryptography/ECDSA.sol";
+import { Pausable } from "@openzeppelin-contracts/utils/Pausable.sol";
 import { RLP } from "@openzeppelin-contracts/utils/RLP.sol";
 import { TrieProof } from "../../utils/TrieProof.sol";
 import { Memory } from "@openzeppelin-contracts/utils/Memory.sol";
@@ -10,6 +11,7 @@ import { TransientSlot } from "@openzeppelin-contracts/utils/TransientSlot.sol";
 import { Math } from "@openzeppelin-contracts/utils/math/Math.sol";
 
 import { ILightClient } from "../../interfaces/ILightClient.sol";
+import { IPausable } from "../../interfaces/IPausable.sol";
 import { ILightClientMsgs } from "../../msgs/ILightClientMsgs.sol";
 import { IICS02ClientMsgs } from "../../msgs/IICS02ClientMsgs.sol";
 import { IBesuLightClientMsgs } from "./msgs/IBesuLightClientMsgs.sol";
@@ -20,12 +22,18 @@ import { Header } from "./utils/Header.sol";
 
 /// @title Besu Light Client Base
 /// @notice Shared implementation for Besu BFT light clients that verify headers and EVM storage proofs.
-abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientErrors, AccessControl {
+abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientErrors, IPausable, AccessControl, Pausable {
     using TransientSlot for TransientSlot.Bytes32Slot;
 
     /// @notice Role allowed to submit client updates and proof verifications. Misbehaviour is permissionless.
     // natlint-disable-next-line MissingInheritdoc
     bytes32 public constant PROOF_SUBMITTER_ROLE = keccak256("PROOF_SUBMITTER_ROLE");
+    /// @notice Role allowed to pause `updateClient`, `verifyMembership` and `verifyNonMembership`.
+    // natlint-disable-next-line MissingInheritdoc
+    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+    /// @notice Role allowed to unpause the client.
+    // natlint-disable-next-line MissingInheritdoc
+    bytes32 public constant UNPAUSER_ROLE = keccak256("UNPAUSER_ROLE");
 
     /// @notice ERC-7201 storage slot used by `IBCStoreUpgradeable` commitments.
     /// @dev keccak256(abi.encode(uint256(keccak256("ibc.storage.IBCStore")) - 1)) & ~bytes32(uint256(0xff))
@@ -40,7 +48,8 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @dev `initialConsensusState` is trusted at `initialClientState.latestHeight`.
     /// @param initialClientState Initial client state. Must not be frozen and must use revision number `0`.
     /// @param initialConsensusState Initial trusted consensus state at `initialClientState.latestHeight`.
-    /// @param roleManager Address that administers proof submission; if zero, proof submission is open.
+    /// @param roleManager Address that administers proof submission and can pause and unpause the client; if zero,
+    /// proof submission is open and the client cannot be paused.
     constructor(
         IBesuLightClientMsgs.ClientState memory initialClientState,
         IBesuLightClientMsgs.ConsensusState memory initialConsensusState,
@@ -81,6 +90,8 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         } else {
             _grantRole(DEFAULT_ADMIN_ROLE, roleManager);
             _grantRole(PROOF_SUBMITTER_ROLE, roleManager);
+            _grantRole(PAUSER_ROLE, roleManager);
+            _grantRole(UNPAUSER_ROLE, roleManager);
         }
     }
 
@@ -100,6 +111,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     function updateClient(bytes calldata updateMsg)
         external
         notFrozen
+        whenNotPaused
         onlyProofSubmitter
         returns (ILightClientMsgs.UpdateResult)
     {
@@ -141,6 +153,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     function verifyMembership(ILightClientMsgs.MsgVerifyMembership calldata msg_)
         external
         notFrozen
+        whenNotPaused
         onlyProofSubmitter
         returns (uint256)
     {
@@ -172,6 +185,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     function verifyNonMembership(ILightClientMsgs.MsgVerifyNonMembership calldata msg_)
         external
         notFrozen
+        whenNotPaused
         onlyProofSubmitter
         returns (uint256)
     {
@@ -207,6 +221,16 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         } else {
             _headersMisbehaviour(abi.decode(msg_.misbehaviour, (IBesuLightClientMsgs.MsgHeadersMisbehaviour)));
         }
+    }
+
+    /// @inheritdoc IPausable
+    function pause() external onlyRole(PAUSER_ROLE) {
+        _pause();
+    }
+
+    /// @inheritdoc IPausable
+    function unpause() external onlyRole(UNPAUSER_ROLE) {
+        _unpause();
     }
 
     /// @notice Computes the protocol-specific commit seal digest for a parsed header.

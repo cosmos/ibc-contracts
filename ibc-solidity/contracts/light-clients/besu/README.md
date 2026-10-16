@@ -76,7 +76,7 @@ constructor(
   - `isFrozen`: must be `false`.
   - `trustLevel`: minimum fraction of the trusted validator set that must sign an update. Must have a non-zero denominator and lie within `[1/3, 1]`, or the constructor reverts with `InvalidTrustLevel`.
 - `initialConsensusState`: the consensus state trusted at `latestHeight`: the header's timestamp in seconds (non-zero), state root, and validator set (non-empty, sorted ascending, no zero address). It must be within the trusting period and no further than `maxClockDrift` in the future at deployment, the same checks `updateClient` applies.
-- `roleManager`: if non-zero, receives admin and `PROOF_SUBMITTER_ROLE`; if zero, proof submission is open to anyone through the zero-address sentinel.
+- `roleManager`: if non-zero, receives admin, `PROOF_SUBMITTER_ROLE`, `PAUSER_ROLE` and `UNPAUSER_ROLE`; if zero, proof submission is open to anyone through the zero-address sentinel and the client cannot be paused. While paused, `updateClient`, `verifyMembership` and `verifyNonMembership` revert, but `misbehaviour` still works (see the [pausability ADR](../../../../docs/adr/solidity/pausability.md#light-clients)).
 
 No proof is checked for the initial states; the deployer is trusted to supply them.
 

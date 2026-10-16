@@ -2,8 +2,10 @@
 pragma solidity ^0.8.28;
 
 import { ILightClientMsgs } from "../../contracts/msgs/ILightClientMsgs.sol";
+import { IICS07TendermintMsgs } from "../../contracts/light-clients/sp1-ics07/msgs/IICS07TendermintMsgs.sol";
 
 import { IAccessControl } from "@openzeppelin-contracts/access/IAccessControl.sol";
+import { Pausable } from "@openzeppelin-contracts/utils/Pausable.sol";
 
 import { SP1ICS07MockTest } from "./SP1ICS07MockTest.sol";
 
@@ -253,5 +255,66 @@ contract SP1ICS07AccessControlTest is SP1ICS07MockTest {
         );
         vm.prank(unauthorized);
         ics07Tendermint.misbehaviour(misbehaviourMsg);
+    }
+
+    function test_pause() public {
+        bytes32 pauserRole = ics07Tendermint.PAUSER_ROLE();
+        bytes32 unpauserRole = ics07Tendermint.UNPAUSER_ROLE();
+        assertTrue(ics07Tendermint.hasRole(pauserRole, roleManager));
+        assertTrue(ics07Tendermint.hasRole(unpauserRole, roleManager));
+
+        address pauser = makeAddr("pauser");
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, pauser, pauserRole)
+        );
+        vm.prank(pauser);
+        ics07Tendermint.pause();
+
+        vm.prank(roleManager);
+        ics07Tendermint.grantRole(pauserRole, pauser);
+        vm.prank(pauser);
+        ics07Tendermint.pause();
+        assertTrue(ics07Tendermint.paused());
+
+        bytes memory updateMsg = newUpdateClientMsg();
+        ILightClientMsgs.MsgVerifyMembership memory membershipMsg = newMembershipMsg(1);
+        ILightClientMsgs.MsgVerifyNonMembership memory nonMembershipMsg = newNonMembershipMsg(1);
+
+        vm.startPrank(proofSubmitter);
+        vm.expectRevert(Pausable.EnforcedPause.selector);
+        ics07Tendermint.updateClient(updateMsg);
+        vm.expectRevert(Pausable.EnforcedPause.selector);
+        ics07Tendermint.verifyMembership(membershipMsg);
+        vm.expectRevert(Pausable.EnforcedPause.selector);
+        ics07Tendermint.verifyNonMembership(nonMembershipMsg);
+        vm.stopPrank();
+
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, pauser, unpauserRole)
+        );
+        vm.prank(pauser);
+        ics07Tendermint.unpause();
+
+        vm.prank(roleManager);
+        ics07Tendermint.unpause();
+        assertFalse(ics07Tendermint.paused());
+
+        vm.startPrank(proofSubmitter);
+        assert(ics07Tendermint.updateClient(updateMsg) == ILightClientMsgs.UpdateResult.Update);
+        ics07Tendermint.verifyMembership(membershipMsg);
+        ics07Tendermint.verifyNonMembership(nonMembershipMsg);
+        vm.stopPrank();
+    }
+
+    function test_misbehaviourWhilePaused() public {
+        vm.prank(roleManager);
+        ics07Tendermint.pause();
+
+        bytes memory misbehaviourMsg = newMisbehaviourMsg();
+        vm.prank(proofSubmitter);
+        ics07Tendermint.misbehaviour(misbehaviourMsg);
+        IICS07TendermintMsgs.ClientState memory clientState =
+            abi.decode(ics07Tendermint.getClientState(), (IICS07TendermintMsgs.ClientState));
+        assertTrue(clientState.isFrozen);
     }
 }

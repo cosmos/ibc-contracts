@@ -152,6 +152,7 @@ Out of scope for this version. The function exists but MUST revert with a clear 
 
 - `DEFAULT_ADMIN_ROLE`: manages roles.
 - `PROOF_SUBMITTER_ROLE`: required to call `updateClient` and (non-)membership queries. Grant this to `ICS26Router` when used in IBC. If granted to `address(0)`, anyone may submit proofs.
+- `PAUSER_ROLE` and `UNPAUSER_ROLE`: granted to the role manager at construction. While paused, `updateClient` and (non-)membership queries revert; `misbehaviour` is unaffected. A client deployed without a role manager cannot be paused. See the [pausability ADR](../../../../docs/adr/solidity/pausability.md#light-clients).
 
 ## Time and Ordering
 

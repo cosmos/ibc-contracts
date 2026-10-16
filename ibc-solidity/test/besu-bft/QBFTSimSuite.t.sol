@@ -6,6 +6,7 @@ import { IAccessControl } from "@openzeppelin-contracts/access/IAccessControl.so
 import { Math } from "@openzeppelin-contracts/utils/math/Math.sol";
 import { Memory } from "@openzeppelin-contracts/utils/Memory.sol";
 import { RLP } from "@openzeppelin-contracts/utils/RLP.sol";
+import { Pausable } from "@openzeppelin-contracts/utils/Pausable.sol";
 
 import { IICS02ClientMsgs } from "../../contracts/msgs/IICS02ClientMsgs.sol";
 import { IICS26RouterMsgs } from "../../contracts/msgs/IICS26RouterMsgs.sol";
@@ -345,6 +346,69 @@ abstract contract QBFTSimSuiteTest is Test {
         vm.prank(anyone);
         gated.misbehaviour(misbehaviour);
         assertTrue(_isFrozen(gated));
+    }
+
+    /// @dev A paused client rejects updates and proofs, but can still be frozen by misbehaviour.
+    function test_pause() public {
+        address manager = makeAddr("manager");
+        address pauser = makeAddr("pauser");
+        BesuLightClientBase gated = BesuLightClientBase(
+            address(
+                sim.deployLightClient(
+                    TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(2, 3), manager
+                )
+            )
+        );
+        bytes32 pauserRole = gated.PAUSER_ROLE();
+        bytes32 unpauserRole = gated.UNPAUSER_ROLE();
+        assertTrue(gated.hasRole(pauserRole, manager));
+        assertTrue(gated.hasRole(unpauserRole, manager));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, pauser, pauserRole)
+        );
+        vm.prank(pauser);
+        gated.pause();
+
+        vm.prank(manager);
+        gated.grantRole(pauserRole, pauser);
+        vm.prank(pauser);
+        gated.pause();
+        assertTrue(gated.paused());
+
+        SimHeader.Data memory a = sim.seal(sim.nextBlock());
+        SimHeader.Data memory b = sim.nextBlock();
+        b.stateRoot = keccak256("equivocation");
+        b = sim.seal(b);
+        bytes memory update = sim.updateMsg(2, a);
+        bytes memory misbehaviour = _headersMisbehaviour(update, sim.updateMsg(2, b));
+        ILightClientMsgs.MsgVerifyMembership memory membership;
+        ILightClientMsgs.MsgVerifyNonMembership memory nonMembership;
+
+        vm.startPrank(manager);
+        vm.expectRevert(Pausable.EnforcedPause.selector);
+        gated.updateClient(update);
+        vm.expectRevert(Pausable.EnforcedPause.selector);
+        gated.verifyMembership(membership);
+        vm.expectRevert(Pausable.EnforcedPause.selector);
+        gated.verifyNonMembership(nonMembership);
+        vm.stopPrank();
+
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, pauser, unpauserRole)
+        );
+        vm.prank(pauser);
+        gated.unpause();
+
+        vm.prank(manager);
+        gated.unpause();
+        vm.prank(manager);
+        assertEq(uint8(gated.updateClient(update)), uint8(ILightClientMsgs.UpdateResult.Update));
+
+        vm.prank(pauser);
+        gated.pause();
+        gated.misbehaviour(misbehaviour);
+        assertTrue(_isFrozen(IBesuLightClient(address(gated))));
     }
 
     function test_timestampFromFuture() public {

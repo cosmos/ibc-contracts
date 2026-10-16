@@ -14,6 +14,7 @@ import {
     IAttestationLightClientErrors
 } from "../../contracts/light-clients/attestation/errors/IAttestationLightClientErrors.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 
 contract AttestationLightClientTest is Test {
     AttestationLightClient internal client;
@@ -118,6 +119,68 @@ contract AttestationLightClientTest is Test {
             )
         );
         client.updateClient(bytes(""));
+    }
+
+    function test_pause() public {
+        address roleManager = makeAddr("roleManager");
+        (address[] memory addrs,) = client.getAttestationSet();
+        client = new AttestationLightClient({
+            attestorAddresses: addrs,
+            minRequiredSigs: 2,
+            initialHeight: INITIAL_HEIGHT,
+            initialTimestampSeconds: INITIAL_TS,
+            roleManager: roleManager
+        });
+        bytes32 pauserRole = client.PAUSER_ROLE();
+        bytes32 unpauserRole = client.UNPAUSER_ROLE();
+        assertTrue(client.hasRole(pauserRole, roleManager));
+        assertTrue(client.hasRole(unpauserRole, roleManager));
+
+        address unauthorized = makeAddr("unauthorized");
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, unauthorized, pauserRole)
+        );
+        vm.prank(unauthorized);
+        client.pause();
+
+        vm.prank(roleManager);
+        client.pause();
+        assertTrue(client.paused());
+
+        ILightClientMsgs.MsgVerifyMembership memory membershipMsg;
+        ILightClientMsgs.MsgVerifyNonMembership memory nonMembershipMsg;
+        vm.startPrank(roleManager);
+        vm.expectRevert(Pausable.EnforcedPause.selector);
+        client.updateClient(bytes(""));
+        vm.expectRevert(Pausable.EnforcedPause.selector);
+        client.verifyMembership(membershipMsg);
+        vm.expectRevert(Pausable.EnforcedPause.selector);
+        client.verifyNonMembership(nonMembershipMsg);
+        // misbehaviour is not blocked by the pause
+        vm.expectRevert(IAttestationLightClientErrors.FeatureNotSupported.selector);
+        client.misbehaviour(bytes(""));
+        vm.stopPrank();
+
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, unauthorized, unpauserRole)
+        );
+        vm.prank(unauthorized);
+        client.unpause();
+
+        vm.prank(roleManager);
+        client.unpause();
+        assertFalse(client.paused());
+
+        uint256[] memory signers = new uint256[](2);
+        signers[0] = attestorPrivKey1;
+        signers[1] = attestorPrivKey2;
+        (bytes memory attestationData, bytes[] memory signatures) =
+            _stateAttestation(INITIAL_HEIGHT + 1, INITIAL_TS + 100, signers);
+        AM.AttestationProof memory proof =
+            AM.AttestationProof({ attestationData: attestationData, signatures: signatures });
+        vm.prank(roleManager);
+        ILightClientMsgs.UpdateResult res = client.updateClient(abi.encode(proof));
+        assertEq(uint8(res), uint8(ILightClientMsgs.UpdateResult.Update));
     }
 
     function test_updateClient_noop_same_height_same_ts() public {

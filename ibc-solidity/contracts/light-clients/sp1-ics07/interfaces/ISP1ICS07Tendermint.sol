@@ -13,6 +13,17 @@ interface ISP1ICS07Tendermint {
     /// @return The role identifier
     function PROOF_SUBMITTER_ROLE() external view returns (bytes32);
 
+    /// @notice The role identifier for the pauser role
+    /// @dev The pauser can halt `updateClient`, `verifyMembership` and `verifyNonMembership`. Granted to the role
+    /// manager at construction.
+    /// @return The role identifier
+    function PAUSER_ROLE() external view returns (bytes32);
+
+    /// @notice The role identifier for the unpauser role
+    /// @dev Granted to the role manager at construction.
+    /// @return The role identifier
+    function UNPAUSER_ROLE() external view returns (bytes32);
+
     /// @notice Immutable update client program verification key.
     /// @return The verification key for the update client program.
     function UPDATE_CLIENT_PROGRAM_VKEY() external view returns (bytes32);
