@@ -19,6 +19,8 @@ import { IBesuLightClientMsgs } from "../../contracts/light-clients/besu/msgs/IB
 import { IBesuLightClientErrors } from "../../contracts/light-clients/besu/errors/IBesuLightClientErrors.sol";
 import { Header } from "../../contracts/light-clients/besu/utils/Header.sol";
 import { TrieProof } from "../../contracts/utils/TrieProof.sol";
+import { AccessManager } from "@openzeppelin-contracts/access/manager/AccessManager.sol";
+import { DeployAccessManagerWithRoles } from "../../scripts/deployments/DeployAccessManagerWithRoles.sol";
 
 /// @dev Successful update input and expected consensus state.
 struct BesuUpdateFixture {
@@ -141,7 +143,7 @@ struct BesuFixture {
     BesuProofFixture nonMembership;
 }
 
-abstract contract BesuLightClientFixtureTestBase is Test {
+abstract contract BesuLightClientFixtureTestBase is Test, DeployAccessManagerWithRoles {
     using stdJson for string;
     using RLP for bytes;
     using Memory for Memory.Slice;
@@ -153,6 +155,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
 
     BesuFixture internal fixture;
     IBesuLightClientMsgs.TrustThreshold internal trustLevel = IBesuLightClientMsgs.TrustThreshold(2, 3);
+    AccessManager private immutable ACCESS_MANAGER = new AccessManager(address(this));
     IBesuLightClient internal client;
     IBesuLightClient internal wrongWrapper;
 
@@ -1727,7 +1730,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         internal
         returns (IBesuLightClient)
     {
-        return new BesuIBFT2LightClient(clientState, consensusState, address(0));
+        return _openAccess(new BesuIBFT2LightClient(clientState, consensusState, address(ACCESS_MANAGER)));
     }
 
     function _deployQBFT(
@@ -1737,7 +1740,13 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         internal
         returns (IBesuLightClient)
     {
-        return new BesuQBFTLightClient(clientState, consensusState, address(0));
+        return _openAccess(new BesuQBFTLightClient(clientState, consensusState, address(ACCESS_MANAGER)));
+    }
+
+    /// @dev Fixture tests call the client directly, so every selector is mapped to `PUBLIC_ROLE`.
+    function _openAccess(IBesuLightClient lightClient) private returns (IBesuLightClient) {
+        accessManagerSetLightClientTargetRoles(ACCESS_MANAGER, address(lightClient), true, true);
+        return lightClient;
     }
 
     function _fixtureFile() internal pure virtual returns (string memory);

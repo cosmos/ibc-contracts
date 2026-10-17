@@ -17,13 +17,13 @@ contract BesuQBFTLightClient is BesuLightClientBase {
     /// @notice Creates a Besu QBFT light client from an initial trusted client and consensus state.
     /// @param initialClientState Initial client state. Its `latestHeight` is the height of `initialConsensusState`.
     /// @param initialConsensusState Initial trusted consensus state at `initialClientState.latestHeight`.
-    /// @param roleManager Address that administers proof submission; if zero, proof submission is open.
+    /// @param authority The AccessManager that restricts access to this client.
     constructor(
         IBesuLightClientMsgs.ClientState memory initialClientState,
         IBesuLightClientMsgs.ConsensusState memory initialConsensusState,
-        address roleManager
+        address authority
     )
-        BesuLightClientBase(initialClientState, initialConsensusState, roleManager)
+        BesuLightClientBase(initialClientState, initialConsensusState, authority)
     { }
 
     /// @inheritdoc BesuLightClientBase

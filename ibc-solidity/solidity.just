@@ -218,6 +218,8 @@ generate-abi: build-contracts
 	jq -r '.bytecode.object' out/ERC1967Proxy.sol/ERC1967Proxy.json > tmp/abigen/ERC1967Proxy.bin
 	jq '.abi' out/EVMIFTSendCallConstructor.sol/EVMIFTSendCallConstructor.json > abi/EVMIFTSendCallConstructor.json
 	jq -r '.bytecode.object' out/EVMIFTSendCallConstructor.sol/EVMIFTSendCallConstructor.json > tmp/abigen/EVMIFTSendCallConstructor.bin
+	jq '.abi' out/AccessManager.sol/AccessManager.json > abi/AccessManager.json
+	jq -r '.bytecode.object' out/AccessManager.sol/AccessManager.json > tmp/abigen/AccessManager.bin
 	abigen --abi abi/ERC20.json --bin tmp/abigen/ERC20.bin --pkg erc20 --type Contract --out ../e2e/interchaintestv8/types/erc20/contract.go
 	abigen --abi abi/IFTOwnable.json --bin tmp/abigen/IFTOwnable.bin --pkg ift --type Contract --out ../packages/go-abigen/ift/contract.go
 	abigen --abi abi/IFTOwnable2Step.json --bin tmp/abigen/IFTOwnable2Step.bin --pkg iftownable2step --type Contract --out ../packages/go-abigen/iftownable2step/contract.go
@@ -235,6 +237,7 @@ generate-abi: build-contracts
 	abigen --v2 --abi abi/IBesuLightClientErrors.json --pkg besuerrors --type Bindings --out ../packages/go-abigen/besuerrors/bindings.go
 	abigen --abi abi/ERC1967Proxy.json --bin tmp/abigen/ERC1967Proxy.bin --pkg erc1967proxy --type Contract --out ../packages/go-abigen/erc1967proxy/contract.go
 	abigen --abi abi/EVMIFTSendCallConstructor.json --bin tmp/abigen/EVMIFTSendCallConstructor.bin --pkg evmiftsendcall --type Contract --out ../packages/go-abigen/evmiftsendcall/contract.go
+	abigen --abi abi/AccessManager.json --bin tmp/abigen/AccessManager.bin --pkg accessmanager --type Contract --out ../packages/go-abigen/accessmanager/contract.go
 	rm -rf abi/bytecode
 	mkdir -p abi/bytecode
 	jq -c '{abi, bytecode: {object: .bytecode.object}}' out/SP1ICS07Tendermint.sol/SP1ICS07Tendermint.json > abi/bytecode/SP1ICS07Tendermint.json

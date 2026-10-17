@@ -31,6 +31,7 @@ type DeployedContracts struct {
 	VerifierGroth16 string `json:"verifierGroth16"`
 	// Mock SP1 verifier
 	VerifierMock  string `json:"verifierMock"`
+	AccessManager string `json:"accessManager"`
 	Ics26Router   string `json:"ics26Router"`
 	Ics20Transfer string `json:"ics20Transfer"`
 	Ics27Gmp      string `json:"ics27Gmp"`
@@ -84,6 +85,7 @@ func GetEthContractsFromDeployOutput(stdout string) (DeployedContracts, error) {
 		embeddedContracts.VerifierPlonk == "" ||
 		embeddedContracts.VerifierGroth16 == "" ||
 		embeddedContracts.VerifierMock == "" ||
+		embeddedContracts.AccessManager == "" ||
 		embeddedContracts.Ics26Router == "" {
 
 		return DeployedContracts{}, fmt.Errorf("one or more contracts missing: %+v", embeddedContracts)

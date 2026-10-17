@@ -940,7 +940,7 @@ func (s *BesuToBesuTestSuite) Test_HeadersDoubleSignMisbehaviourIsPermissionless
 }
 
 // HeadersDoubleSignMisbehaviourIsPermissionlessTest submits two conflicting headers at the same height directly to a
-// dedicated client on Chain B from an account without PROOF_SUBMITTER_ROLE. Neither header is stored.
+// dedicated client on Chain B from an account without RELAYER_ROLE. Neither header is stored.
 func (s *BesuToBesuTestSuite) HeadersDoubleSignMisbehaviourIsPermissionlessTest(consensus string) {
 	ctx := context.Background()
 	s.SetupSuite(ctx, consensus)
@@ -971,11 +971,7 @@ func (s *BesuToBesuTestSuite) HeadersDoubleSignMisbehaviourIsPermissionlessTest(
 		clientAddress, err := s.chainB.ics26.GetClient(nil, clientID)
 		s.Require().NoError(err)
 		updateCalldata := s.besuClientCalldata("updateClient", honestUpdate)
-		unauthorizedErr := s.besuClientErr(
-			"AccessControlUnauthorizedAccount",
-			crypto.PubkeyToAddress(s.chainB.user.PublicKey),
-			crypto.Keccak256Hash([]byte("PROOF_SUBMITTER_ROLE")),
-		)
+		unauthorizedErr := s.besuClientErr("AccessManagedUnauthorized", crypto.PubkeyToAddress(s.chainB.user.PublicKey))
 		s.requireCallRevert(ctx, s.chainB.user, clientAddress, updateCalldata, unauthorizedErr)
 	}))
 
@@ -1006,7 +1002,7 @@ func (s *BesuToBesuTestSuite) Test_HeadersTimeNonMonotonicityMisbehaviourIsPermi
 }
 
 // HeadersTimeNonMonotonicityMisbehaviourIsPermissionlessTest submits two headers whose timestamps do not increase
-// with height directly to a dedicated client on Chain B from an account without PROOF_SUBMITTER_ROLE. Neither header
+// with height directly to a dedicated client on Chain B from an account without RELAYER_ROLE. Neither header
 // is stored.
 func (s *BesuToBesuTestSuite) HeadersTimeNonMonotonicityMisbehaviourIsPermissionlessTest(consensus string) {
 	ctx := context.Background()
@@ -1338,6 +1334,7 @@ func (s *BesuToBesuTestSuite) headersMisbehaviourMsg(update1, update2 []byte) []
 }
 
 // submitBesuMisbehaviour calls misbehaviour on the light client directly from Chain B's user, which holds no role.
+// This works because `createAndRegisterBesuClient` maps the misbehaviour selector to PUBLIC_ROLE.
 func (s *BesuToBesuTestSuite) submitBesuMisbehaviour(ctx context.Context, client *besuqbft.Contract, misbehaviourMsg []byte) *ethtypes.Receipt {
 	tx, err := client.Misbehaviour(s.mustTransactOpts(&s.chainB, s.chainB.user), misbehaviourMsg)
 	s.Require().NoError(err)
@@ -1474,7 +1471,7 @@ func (s *BesuToBesuTestSuite) createAndRegisterBesuClient(
 			testvalues.ParameterKey_TrustingPeriod: strconv.Itoa(testvalues.DefaultTrustPeriod),
 			testvalues.ParameterKey_MaxClockDrift:  strconv.Itoa(testvalues.DefaultMaxClockDrift),
 			testvalues.ParameterKey_TrustLevel:     trustLevel,
-			testvalues.ParameterKey_RoleManager:    dstChain.contractAddresses.Ics26Router,
+			testvalues.ParameterKey_AccessManager:  dstChain.contractAddresses.AccessManager,
 		},
 	})
 	s.Require().NoError(err)
@@ -1484,6 +1481,12 @@ func (s *BesuToBesuTestSuite) createAndRegisterBesuClient(
 	s.Require().NoError(err)
 	s.Require().Equal(ethtypes.ReceiptStatusSuccessful, createClientReceipt.Status)
 	s.Require().NotEqual(ethcommon.Address{}, createClientReceipt.ContractAddress)
+
+	// Proof submission is restricted to relayers (including the router), while misbehaviour is permissionless.
+	s.Require().NoError(dstChain.eth.SetLightClientTargetRoles(
+		context.Background(), dstChain.deployer, ethcommon.HexToAddress(dstChain.contractAddresses.AccessManager),
+		createClientReceipt.ContractAddress, testvalues.EVMRelayerRole, testvalues.EVMPublicRole,
+	))
 
 	counterpartyInfo := ics26router.IICS02ClientMsgsCounterpartyInfo{
 		ClientId:     counterpartyClientID,

@@ -52,6 +52,7 @@ contract E2ETestDeploy is Script, IICS07TendermintMsgs, DeployAccessManagerWithR
         address verifierPlonk;
         address verifierGroth16;
         address verifierMock;
+        address accessManager;
         address ics26Router;
         address ics20Transfer;
         address ics27Gmp;
@@ -80,6 +81,7 @@ contract E2ETestDeploy is Script, IICS07TendermintMsgs, DeployAccessManagerWithR
 
         // Deploy IBC core
         AccessManager accessManager = new AccessManager(msg.sender);
+        d.accessManager = address(accessManager);
         address routerLogic = address(new ICS26Router());
         address transferLogic = address(new ICS20Transfer());
         address gmpLogic = address(new ICS27GMP());
@@ -144,6 +146,7 @@ contract E2ETestDeploy is Script, IICS07TendermintMsgs, DeployAccessManagerWithR
         json.serialize("verifierPlonk", Strings.toHexString(d.verifierPlonk));
         json.serialize("verifierGroth16", Strings.toHexString(d.verifierGroth16));
         json.serialize("verifierMock", Strings.toHexString(d.verifierMock));
+        json.serialize("accessManager", Strings.toHexString(d.accessManager));
         json.serialize("ics26Router", Strings.toHexString(d.ics26Router));
         json.serialize("ics20Transfer", Strings.toHexString(d.ics20Transfer));
         json.serialize("ics27Gmp", Strings.toHexString(d.ics27Gmp));

@@ -20,6 +20,8 @@ import {
     ISP1ICS07TendermintErrors
 } from "../../contracts/light-clients/sp1-ics07/errors/ISP1ICS07TendermintErrors.sol";
 import { SP1MockVerifier } from "@sp1-contracts/SP1MockVerifier.sol";
+import { AccessManager } from "@openzeppelin-contracts/access/manager/AccessManager.sol";
+import { DeployAccessManagerWithRoles } from "../../scripts/deployments/DeployAccessManagerWithRoles.sol";
 import { SP1Verifier as SP1VerifierPlonk } from "@sp1-contracts/v6.1.0/SP1VerifierPlonk.sol";
 import { SP1Verifier as SP1VerifierGroth16 } from "@sp1-contracts/v6.1.0/SP1VerifierGroth16.sol";
 
@@ -42,7 +44,8 @@ abstract contract SP1ICS07TendermintTest is
     IUpdateClientAndMembershipMsgs,
     IMisbehaviourMsgs,
     ISP1ICS07TendermintErrors,
-    ILightClientMsgs
+    ILightClientMsgs,
+    DeployAccessManagerWithRoles
 {
     using stdJson for string;
     using stdStorage for StdStorage;
@@ -54,7 +57,7 @@ abstract contract SP1ICS07TendermintTest is
 
     string internal constant FIXTURE_DIR = "/test/sp1-ics07/fixtures/";
 
-    function setUpTest(string memory fileName, address roleManager) public {
+    function setUpTest(string memory fileName) public {
         genesisFixture = loadGenesisFixture(fileName);
 
         ConsensusState memory trustedConsensusState = abi.decode(genesisFixture.trustedConsensusState, (ConsensusState));
@@ -71,6 +74,8 @@ abstract contract SP1ICS07TendermintTest is
             revert("Unsupported zk algorithm");
         }
 
+        AccessManager accessManager = new AccessManager(address(this));
+
         ics07Tendermint = new SP1ICS07Tendermint(
             genesisFixture.updateClientVkey,
             genesisFixture.membershipVkey,
@@ -79,7 +84,7 @@ abstract contract SP1ICS07TendermintTest is
             verifier,
             genesisFixture.trustedClientState,
             trustedConsensusHash,
-            roleManager
+            address(accessManager)
         );
 
         mockIcs07Tendermint = new SP1ICS07Tendermint(
@@ -90,8 +95,12 @@ abstract contract SP1ICS07TendermintTest is
             address(new SP1MockVerifier()),
             genesisFixture.trustedClientState,
             trustedConsensusHash,
-            roleManager
+            address(accessManager)
         );
+
+        // Tests call the clients directly, so they are made permissionless
+        accessManagerSetLightClientTargetRoles(accessManager, address(ics07Tendermint), true, true);
+        accessManagerSetLightClientTargetRoles(accessManager, address(mockIcs07Tendermint), true, true);
 
         ClientState memory clientState = abi.decode(mockIcs07Tendermint.getClientState(), (ClientState));
         assert(keccak256(abi.encode(clientState)) == keccak256(genesisFixture.trustedClientState));

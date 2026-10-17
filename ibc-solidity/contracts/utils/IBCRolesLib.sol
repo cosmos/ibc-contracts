@@ -8,6 +8,7 @@ import { IICS26Router } from "../interfaces/IICS26Router.sol";
 import { IICS02Client } from "../interfaces/IICS02Client.sol";
 import { IICS27GMP } from "../interfaces/IICS27GMP.sol";
 import { IPausable } from "../interfaces/IPausable.sol";
+import { ILightClient } from "../interfaces/ILightClient.sol";
 import { IRateLimit } from "../interfaces/IRateLimit.sol";
 import { UUPSUpgradeable } from "@openzeppelin-contracts/proxy/utils/UUPSUpgradeable.sol";
 
@@ -20,7 +21,8 @@ library IBCRolesLib {
     /// @notice The relayer role as per defined by AccessManager.
     uint64 internal constant PUBLIC_ROLE = type(uint64).max;
 
-    /// @notice Only addresses with this role may relay packets.
+    /// @notice Only addresses with this role may relay packets and submit proofs to light clients.
+    /// @dev The ICS26Router must hold this role since it calls the light clients when relaying packets.
     uint64 internal constant RELAYER_ROLE = 1;
 
     /// @notice The pauser role can pause IBC applications.
@@ -78,6 +80,26 @@ library IBCRolesLib {
         publicFunctions[0] = IICS26Router.addIBCApp.selector;
         publicFunctions[1] = IICS02Client.addClient.selector;
         return publicFunctions;
+    }
+
+    /// @notice The functions that can be called by the RELAYER_ROLE in light clients.
+    /// @dev These functions can be assigned to the PUBLIC_ROLE to make a light client permissionless.
+    /// @return An array of function selectors that can be called by the RELAYER_ROLE.
+    function lightClientRelayerSelectors() internal pure returns (bytes4[] memory) {
+        bytes4[] memory relayerFunctions = new bytes4[](3);
+        relayerFunctions[0] = ILightClient.updateClient.selector;
+        relayerFunctions[1] = ILightClient.verifyMembership.selector;
+        relayerFunctions[2] = ILightClient.verifyNonMembership.selector;
+        return relayerFunctions;
+    }
+
+    /// @notice The functions that can be used to submit misbehaviour to light clients.
+    /// @dev These functions are assigned to the RELAYER_ROLE or to the PUBLIC_ROLE on discretion of the access manager.
+    /// @return An array of function selectors that can be used to submit misbehaviour.
+    function lightClientMisbehaviourSelectors() internal pure returns (bytes4[] memory) {
+        bytes4[] memory misbehaviourFunctions = new bytes4[](1);
+        misbehaviourFunctions[0] = ILightClient.misbehaviour.selector;
+        return misbehaviourFunctions;
     }
 
     /// @notice The functions that can be called by the ERC20_CUSTOMIZER_ROLE in ICS20Transfer.

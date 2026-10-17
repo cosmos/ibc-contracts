@@ -22,6 +22,9 @@ import (
 
 	"cosmossdk.io/math"
 
+	"github.com/cosmos/ibc-contracts/packages/go-abigen/accessmanager"
+	"github.com/cosmos/ibc-contracts/packages/go-abigen/attestation"
+
 	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
 )
 
@@ -218,6 +221,50 @@ func (e *Ethereum) GetTxReciept(ctx context.Context, hash ethcommon.Hash) (*etht
 
 func (e *Ethereum) GetTransactOpts(key *ecdsa.PrivateKey) (*bind.TransactOpts, error) {
 	return GetTransactOpts(context.Background(), e.RPCClient, key)
+}
+
+// SetLightClientTargetRoles maps the selectors of a light client to roles in its AccessManager, mirroring
+// `DeployAccessManagerWithRoles.accessManagerSetLightClientTargetRoles`. The admin key must hold the ADMIN_ROLE.
+func (e *Ethereum) SetLightClientTargetRoles(
+	ctx context.Context, admin *ecdsa.PrivateKey, accessManager, lightClient ethcommon.Address,
+	relayerRole, misbehaviourRole uint64,
+) error {
+	// All light clients implement ILightClient, so any light client ABI has the same selectors.
+	lightClientAbi, err := attestation.ContractMetaData.GetAbi()
+	if err != nil {
+		return err
+	}
+	manager, err := accessmanager.NewContract(accessManager, e.RPCClient)
+	if err != nil {
+		return err
+	}
+
+	setRole := func(role uint64, methods ...string) error {
+		selectors := make([][4]byte, len(methods))
+		for i, method := range methods {
+			selectors[i] = [4]byte(lightClientAbi.Methods[method].ID)
+		}
+		opts, err := e.GetTransactOpts(admin)
+		if err != nil {
+			return err
+		}
+		tx, err := manager.SetTargetFunctionRole(opts, lightClient, selectors, role)
+		if err != nil {
+			return err
+		}
+		receipt, err := e.GetTxReciept(ctx, tx.Hash())
+		if err != nil {
+			return err
+		}
+		if receipt.Status != ethtypes.ReceiptStatusSuccessful {
+			return fmt.Errorf("setTargetFunctionRole transaction failed on-chain with status %d", receipt.Status)
+		}
+		return nil
+	}
+	if err := setRole(relayerRole, "updateClient", "verifyMembership", "verifyNonMembership"); err != nil {
+		return err
+	}
+	return setRole(misbehaviourRole, "misbehaviour")
 }
 
 // SetIntervalMining sets the interval (in seconds) at which Anvil mines new blocks.

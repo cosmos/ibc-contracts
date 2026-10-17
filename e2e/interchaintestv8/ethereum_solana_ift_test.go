@@ -519,6 +519,7 @@ func (s *EthereumSolanaIFTTestSuite) SetupSuite(ctx context.Context) {
 				testvalues.ParameterKey_MinRequiredSigs:   strconv.Itoa(numSolAttestors),
 				testvalues.ParameterKey_height:            strconv.FormatUint(currentFinalizedSlot, 10),
 				testvalues.ParameterKey_timestamp:         strconv.FormatInt(int64(*solanaTimestamp), 10),
+				testvalues.ParameterKey_AccessManager:     s.contractAddresses.AccessManager,
 			},
 		})
 		s.Require().NoError(err)
@@ -532,6 +533,7 @@ func (s *EthereumSolanaIFTTestSuite) SetupSuite(ctx context.Context) {
 		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
 		sp1Ics07Address := receipt.ContractAddress
 		s.T().Logf("Solana light client deployed on Ethereum at: %s", sp1Ics07Address.Hex())
+		s.Require().NoError(eth.SetLightClientTargetRoles(ctx, s.ethDeployer, ethcommon.HexToAddress(s.contractAddresses.AccessManager), sp1Ics07Address, testvalues.EVMRelayerRole, testvalues.EVMRelayerRole))
 
 		ics26Contract, err := ics26router.NewContract(ethcommon.HexToAddress(s.contractAddresses.Ics26Router), eth.RPCClient)
 		s.Require().NoError(err)

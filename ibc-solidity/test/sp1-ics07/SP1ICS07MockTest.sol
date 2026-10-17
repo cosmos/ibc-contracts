@@ -14,16 +14,19 @@ import { ISP1Msgs } from "../../contracts/light-clients/sp1-ics07/msgs/ISP1Msgs.
 import { SP1ICS07Tendermint } from "../../contracts/light-clients/sp1-ics07/SP1ICS07Tendermint.sol";
 
 import { SP1MockVerifier } from "@sp1-contracts/SP1MockVerifier.sol";
+import { AccessManager } from "@openzeppelin-contracts/access/manager/AccessManager.sol";
+import { IBCRolesLib } from "../../contracts/utils/IBCRolesLib.sol";
+import { DeployAccessManagerWithRoles } from "../../scripts/deployments/DeployAccessManagerWithRoles.sol";
 
-abstract contract SP1ICS07MockTest is Test {
+abstract contract SP1ICS07MockTest is Test, DeployAccessManagerWithRoles {
     string public constant MOCK_CHAIN_ID = "mock-chain";
     bytes32 public constant MOCK_VKEY = keccak256("MOCK_VKEY");
     bytes32 public constant MOCK_ROOT = keccak256("MOCK_ROOT");
     bytes32 public constant MOCK_VAL_HASH = keccak256("MOCK_VAL_HASH");
 
-    address public roleManager = makeAddr("roleManager");
-    address public proofSubmitter = makeAddr("proofSubmitter");
+    address public relayer = makeAddr("relayer");
 
+    AccessManager public accessManager;
     SP1ICS07Tendermint public ics07Tendermint;
 
     bytes[] public membershipPath = [bytes("ibc"), bytes("path")];
@@ -31,6 +34,8 @@ abstract contract SP1ICS07MockTest is Test {
 
     function setUp() public {
         bytes32 firstConsensusStateHash = keccak256(abi.encode(newMockConsensusState(1)));
+
+        accessManager = new AccessManager(address(this));
 
         ics07Tendermint = new SP1ICS07Tendermint(
             MOCK_VKEY,
@@ -40,12 +45,11 @@ abstract contract SP1ICS07MockTest is Test {
             address(new SP1MockVerifier()),
             abi.encode(mockClientState(1)),
             firstConsensusStateHash,
-            roleManager
+            address(accessManager)
         );
 
-        bytes32 proofSubmitterRole = ics07Tendermint.PROOF_SUBMITTER_ROLE();
-        vm.prank(roleManager);
-        ics07Tendermint.grantRole(proofSubmitterRole, proofSubmitter);
+        accessManagerSetLightClientTargetRoles(accessManager, address(ics07Tendermint), false, false);
+        accessManager.grantRole(IBCRolesLib.RELAYER_ROLE, relayer, 0);
     }
 
     function mockClientState(uint64 height) public pure returns (IICS07TendermintMsgs.ClientState memory) {

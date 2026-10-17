@@ -24,7 +24,7 @@ contract SP1ICS07UpdateClientTest is SP1ICS07TendermintTest {
     function setUpTestWithFixture(string memory fileName) public {
         fixture = loadFixture(fileName);
 
-        setUpTest(fileName, address(0));
+        setUpTest(fileName);
 
         MsgUpdateClient memory updateMsg = abi.decode(fixture.updateMsg, (MsgUpdateClient));
         output = abi.decode(updateMsg.sp1Proof.publicValues, (UpdateClientOutput));

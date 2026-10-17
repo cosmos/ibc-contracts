@@ -355,7 +355,7 @@ The IBC solidity contracts use [`AccessManager`](https://github.com/OpenZeppelin
 | **Role Name** | **Role Id** | **Description** |
 |:---:|:---:|:---:|
 | `ADMIN_ROLE` | 0 | Can grant and set target functions for all roles. |
-| `RELAYER_ROLE` | 1 | Whitelisted relayer addresses. |
+| `RELAYER_ROLE` | 1 | Whitelisted relayer addresses. Also submits proofs and misbehaviour to light clients, so `ICS26Router` must hold it. |
 | `PAUSER_ROLE` | 2 | Can pause the IBC application contracts. |
 | `UNPAUSER_ROLE` | 3 | Can unpause the IBC application contract. |
 | `DELEGATE_SENDER_ROLE` | 4 | Has permission to call `sendTransferWithSender`. |

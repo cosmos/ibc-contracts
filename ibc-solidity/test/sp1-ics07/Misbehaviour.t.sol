@@ -37,7 +37,7 @@ contract SP1ICS07MisbehaviourTest is SP1ICS07TendermintTest {
             submitMsg: submitMsgBz
         });
 
-        setUpTest(fileName, address(0));
+        setUpTest(fileName);
 
         submitMsg = abi.decode(fixture.submitMsg, (IMisbehaviourMsgs.MsgSubmitMisbehaviour));
         output = abi.decode(submitMsg.sp1Proof.publicValues, (IMisbehaviourMsgs.MisbehaviourOutput));

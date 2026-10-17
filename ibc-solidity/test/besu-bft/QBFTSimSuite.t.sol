@@ -2,7 +2,8 @@
 pragma solidity ^0.8.28;
 
 import { Test } from "forge-std/Test.sol";
-import { IAccessControl } from "@openzeppelin-contracts/access/IAccessControl.sol";
+import { AccessManager } from "@openzeppelin-contracts/access/manager/AccessManager.sol";
+import { IAccessManaged } from "@openzeppelin-contracts/access/manager/IAccessManaged.sol";
 import { Math } from "@openzeppelin-contracts/utils/math/Math.sol";
 import { Memory } from "@openzeppelin-contracts/utils/Memory.sol";
 import { RLP } from "@openzeppelin-contracts/utils/RLP.sol";
@@ -13,14 +14,15 @@ import { ILightClientMsgs } from "../../contracts/msgs/ILightClientMsgs.sol";
 import { IBesuLightClient } from "../../contracts/light-clients/besu/interfaces/IBesuLightClient.sol";
 import { IBesuLightClientMsgs } from "../../contracts/light-clients/besu/msgs/IBesuLightClientMsgs.sol";
 import { IBesuLightClientErrors } from "../../contracts/light-clients/besu/errors/IBesuLightClientErrors.sol";
-import { BesuLightClientBase } from "../../contracts/light-clients/besu/BesuLightClientBase.sol";
 import { ICS24Host } from "../../contracts/utils/ICS24Host.sol";
+import { IBCRolesLib } from "../../contracts/utils/IBCRolesLib.sol";
+import { DeployAccessManagerWithRoles } from "../../scripts/deployments/DeployAccessManagerWithRoles.sol";
 
 import { QBFTSimSuite } from "./utils/QBFTSimSuite.sol";
 import { SimHeader } from "./utils/SimHeader.sol";
 
 /// @dev Every scenario runs once per consensus mode through `QBFTSimSuiteQBFTTest` and `QBFTSimSuiteIBFT2Test`.
-abstract contract QBFTSimSuiteTest is Test {
+abstract contract QBFTSimSuiteTest is Test, DeployAccessManagerWithRoles {
     uint64 internal constant TRUSTING_PERIOD = 1 days;
     uint64 internal constant MAX_CLOCK_DRIFT = 10;
 
@@ -77,22 +79,17 @@ abstract contract QBFTSimSuiteTest is Test {
         );
     }
 
-    function test_accessControl() public {
-        address manager = makeAddr("manager");
+    function test_accessManaged() public {
         address relayer = makeAddr("relayer");
+        AccessManager accessManager = new AccessManager(address(this));
         IBesuLightClient restricted = sim.deployLightClient(
-            TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(2, 3), manager
+            TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(2, 3), address(accessManager)
         );
-        IAccessControl acl = IAccessControl(address(restricted));
-        bytes32 role = BesuLightClientBase(address(restricted)).PROOF_SUBMITTER_ROLE();
-        assertTrue(acl.hasRole(acl.getRoleAdmin(role), manager));
-        assertTrue(acl.hasRole(role, manager));
-        assertFalse(acl.hasRole(role, address(0)));
+        accessManagerSetLightClientTargetRoles(accessManager, address(restricted), false, false);
 
         sim.produceBlock();
         bytes memory update = sim.updateMsg(2, 3);
-        bytes memory unauthorized =
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, relayer, role);
+        bytes memory unauthorized = abi.encodeWithSelector(IAccessManaged.AccessManagedUnauthorized.selector, relayer);
         ILightClientMsgs.MsgVerifyMembership memory membership;
         ILightClientMsgs.MsgVerifyNonMembership memory nonMembership;
 
@@ -103,20 +100,22 @@ abstract contract QBFTSimSuiteTest is Test {
         restricted.verifyMembership(membership);
         vm.expectRevert(unauthorized);
         restricted.verifyNonMembership(nonMembership);
+        vm.expectRevert(unauthorized);
+        restricted.misbehaviour(bytes(""));
         vm.stopPrank();
-        // misbehaviour is permissionless, see `test_misbehaviourIsPermissionless`.
 
-        vm.prank(manager);
-        acl.grantRole(role, relayer);
+        accessManager.grantRole(IBCRolesLib.RELAYER_ROLE, relayer, 0);
         vm.prank(relayer);
         assertEq(uint8(restricted.updateClient(update)), uint8(ILightClientMsgs.UpdateResult.Update));
 
-        // Without a role manager, anyone may submit and no one administers the role.
-        IAccessControl open = IAccessControl(address(client));
-        assertTrue(open.hasRole(role, address(0)));
-        assertFalse(open.hasRole(open.getRoleAdmin(role), manager));
-        vm.prank(relayer);
+        // The default client maps every selector to `PUBLIC_ROLE`, so anyone may submit.
+        vm.prank(makeAddr("anyone"));
         assertEq(uint8(client.updateClient(update)), uint8(ILightClientMsgs.UpdateResult.Update));
+    }
+
+    function test_constructor_revertInvalidAuthority() public {
+        vm.expectRevert(abi.encodeWithSelector(IAccessManaged.AccessManagedInvalidAuthority.selector, address(0)));
+        sim.deployLightClient(TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(2, 3), address(0));
     }
 
     function _expectUpdateRevert(bytes memory headerRlp, bytes memory revertData) internal {
@@ -325,11 +324,13 @@ abstract contract QBFTSimSuiteTest is Test {
         assertFalse(_isFrozen(client));
     }
 
-    /// @dev Proof submission is gated, but anyone can submit misbehaviour.
-    function test_misbehaviourIsPermissionless() public {
+    /// @dev Proof submission is gated, but misbehaviour can be opened to anyone.
+    function test_misbehaviourCanBePublic() public {
+        AccessManager accessManager = new AccessManager(address(this));
         IBesuLightClient gated = sim.deployLightClient(
-            TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(2, 3), address(this)
+            TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(2, 3), address(accessManager)
         );
+        accessManagerSetLightClientTargetRoles(accessManager, address(gated), false, true);
         SimHeader.Data memory a = sim.seal(sim.nextBlock());
         SimHeader.Data memory b = sim.nextBlock();
         b.stateRoot = keccak256("equivocation");
@@ -338,7 +339,7 @@ abstract contract QBFTSimSuiteTest is Test {
         bytes memory misbehaviour = _headersMisbehaviour(update, sim.updateMsg(2, b));
         address anyone = makeAddr("anyone");
 
-        vm.expectPartialRevert(IAccessControl.AccessControlUnauthorizedAccount.selector);
+        vm.expectRevert(abi.encodeWithSelector(IAccessManaged.AccessManagedUnauthorized.selector, anyone));
         vm.prank(anyone);
         gated.updateClient(update);
 

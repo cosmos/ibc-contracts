@@ -336,8 +336,9 @@ func (s *CosmosEthereumIFTTestSuite) setupIFTInfrastructure(ctx context.Context,
 					SrcChain: s.Wfchain.Config().ChainID,
 					DstChain: eth.ChainID.String(),
 					Parameters: map[string]string{
-						testvalues.ParameterKey_Sp1Verifier: verifierAddress,
-						testvalues.ParameterKey_ZkAlgorithm: proofType.String(),
+						testvalues.ParameterKey_Sp1Verifier:   verifierAddress,
+						testvalues.ParameterKey_ZkAlgorithm:   proofType.String(),
+						testvalues.ParameterKey_AccessManager: s.contractAddresses.AccessManager,
 					},
 				})
 				s.Require().NoError(err)
@@ -350,6 +351,7 @@ func (s *CosmosEthereumIFTTestSuite) setupIFTInfrastructure(ctx context.Context,
 				s.Require().NoError(err)
 				s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
 				tc.sp1Ics07Address = receipt.ContractAddress
+				s.Require().NoError(eth.SetLightClientTargetRoles(ctx, s.ethDeployer, ethcommon.HexToAddress(s.contractAddresses.AccessManager), tc.sp1Ics07Address, testvalues.EVMRelayerRole, testvalues.EVMRelayerRole))
 			}))
 		}))
 
@@ -1025,8 +1027,9 @@ func (s *CosmosEthereumIFTTestSuite) Test_IFTTransfer_FailedReceiveOnEthereum() 
 				SrcChain: s.Wfchain.Config().ChainID,
 				DstChain: eth.ChainID.String(),
 				Parameters: map[string]string{
-					testvalues.ParameterKey_Sp1Verifier: verifierAddress,
-					testvalues.ParameterKey_ZkAlgorithm: s.proofType.String(),
+					testvalues.ParameterKey_Sp1Verifier:   verifierAddress,
+					testvalues.ParameterKey_ZkAlgorithm:   s.proofType.String(),
+					testvalues.ParameterKey_AccessManager: s.contractAddresses.AccessManager,
 				},
 			})
 			s.Require().NoError(err)
@@ -1036,6 +1039,7 @@ func (s *CosmosEthereumIFTTestSuite) Test_IFTTransfer_FailedReceiveOnEthereum() 
 			s.Require().NoError(err)
 			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
 			sp1Ics07Address = receipt.ContractAddress
+			s.Require().NoError(eth.SetLightClientTargetRoles(ctx, s.ethDeployer, ethcommon.HexToAddress(s.contractAddresses.AccessManager), sp1Ics07Address, testvalues.EVMRelayerRole, testvalues.EVMRelayerRole))
 		}))
 
 		s.Require().True(s.Run("Create Ethereum light client on Cosmos", func() {

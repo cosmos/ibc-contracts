@@ -82,9 +82,9 @@ State transition:
   - Return `UpdateResult.Update`.
 
 Access control:
-- Gated by `PROOF_SUBMITTER_ROLE` (same semantics as `SP1ICS07Tendermint`):
-  - If `address(0)` has the role, anyone can submit.
-  - Otherwise, caller must have the role (e.g., `ICS26Router`).
+- `restricted` by the client's `AccessManager` (same semantics as `SP1ICS07Tendermint`):
+  - If the selector is mapped to `PUBLIC_ROLE`, anyone can submit.
+  - Otherwise, the caller must hold the mapped role, usually `RELAYER_ROLE` (e.g., `ICS26Router`).
 
 Notes:
 - No time-window or clock-drift validation is performed.
@@ -115,7 +115,7 @@ Return:
 - The trusted timestamp (in seconds) stored for `proofHeight.revisionHeight`.
 
 Access control:
-- Gated by `PROOF_SUBMITTER_ROLE`.
+- `restricted` by the client's `AccessManager`, like `updateClient`.
 
 ### verifyNonMembership(MsgVerifyNonMembership)
 
@@ -142,7 +142,7 @@ Return:
 - The trusted timestamp (in seconds) stored for `proofHeight.revisionHeight`.
 
 Access control:
-- Gated by `PROOF_SUBMITTER_ROLE`.
+- `restricted` by the client's `AccessManager`, like `updateClient`.
 
 ### misbehaviour(...)
 
@@ -150,8 +150,10 @@ Out of scope for this version. The function exists but MUST revert with a clear 
 
 ## Roles and Permissions
 
-- `DEFAULT_ADMIN_ROLE`: manages roles.
-- `PROOF_SUBMITTER_ROLE`: required to call `updateClient` and (non-)membership queries. Grant this to `ICS26Router` when used in IBC. If granted to `address(0)`, anyone may submit proofs.
+The client is `AccessManaged` with a mandatory `AccessManager` authority passed to the constructor. Its admin maps the client's selectors to roles from `IBCRolesLib`:
+
+- `lightClientRelayerSelectors()` (`updateClient` and (non-)membership queries): `RELAYER_ROLE`, which `ICS26Router` must hold when used in IBC, or `PUBLIC_ROLE` to let anyone submit proofs.
+- `lightClientMisbehaviourSelectors()` (`misbehaviour`): `RELAYER_ROLE` or `PUBLIC_ROLE`.
 
 ## Time and Ordering
 

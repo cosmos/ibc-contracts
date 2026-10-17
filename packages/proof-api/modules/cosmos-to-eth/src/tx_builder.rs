@@ -128,8 +128,8 @@ where
 const SP1_VERIFIER: &str = "sp1_verifier";
 /// The key for the zk algorithm in the parameters map.
 const ZK_ALGORITHM: &str = "zk_algorithm";
-/// The key for the role manager in the parameters map.
-const ROLE_MANAGER: &str = "role_manager";
+/// The key for the access manager in the parameters map.
+const ACCESS_MANAGER: &str = "access_manager";
 
 #[async_trait::async_trait]
 impl<P> TxBuilderService<EthEureka, CosmosSdk> for TxBuilder<P>
@@ -218,9 +218,9 @@ where
         // Check if parameters only include correct keys
         parameters
             .keys()
-            .find(|k| ![SP1_VERIFIER, ZK_ALGORITHM, ROLE_MANAGER].contains(&k.as_str()))
+            .find(|k| ![SP1_VERIFIER, ZK_ALGORITHM, ACCESS_MANAGER].contains(&k.as_str()))
             .map_or(Ok(()), |param| {
-                Err(anyhow::anyhow!("Unexpected parameter: `{param}`, only `{SP1_VERIFIER}` and `{ZK_ALGORITHM}` are allowed"))
+                Err(anyhow::anyhow!("Unexpected parameter: `{param}`, only `{SP1_VERIFIER}`, `{ZK_ALGORITHM}` and `{ACCESS_MANAGER}` are allowed"))
             })?;
 
         let latest_light_block = self.tm_client.get_light_block(None).await?;
@@ -230,11 +230,11 @@ where
             latest_light_block.height().value()
         );
 
-        let role_admin = parameters
-            .get(ROLE_MANAGER)
-            .map_or(Ok(Address::ZERO), |a| {
-                Address::from_str(a.as_str()).map_err(|e| anyhow::anyhow!(e))
-            })?;
+        let access_manager = Address::from_str(
+            parameters
+                .get(ACCESS_MANAGER)
+                .ok_or_else(|| anyhow::anyhow!("Missing `{ACCESS_MANAGER}` parameter"))?,
+        )?;
         let sp1_verifier = Address::from_str(
             parameters
                 .get(SP1_VERIFIER)
@@ -290,7 +290,7 @@ where
             sp1_verifier,
             client_state.abi_encode().into(),
             consensus_state_hash,
-            role_admin,
+            access_manager,
         )
         .calldata()
         .to_vec())

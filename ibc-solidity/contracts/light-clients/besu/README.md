@@ -64,7 +64,7 @@ Both wrappers take the same constructor arguments:
 constructor(
     IBesuLightClientMsgs.ClientState memory initialClientState,
     IBesuLightClientMsgs.ConsensusState memory initialConsensusState,
-    address roleManager
+    address authority
 )
 ```
 
@@ -76,7 +76,7 @@ constructor(
   - `isFrozen`: must be `false`.
   - `trustLevel`: minimum fraction of the trusted validator set that must sign an update. Must have a non-zero denominator and lie within `[1/3, 1]`, or the constructor reverts with `InvalidTrustLevel`.
 - `initialConsensusState`: the consensus state trusted at `latestHeight`: the header's timestamp in seconds (non-zero), state root, and validator set (non-empty, sorted ascending, no zero address). It must be within the trusting period and no further than `maxClockDrift` in the future at deployment, the same checks `updateClient` applies.
-- `roleManager`: if non-zero, receives admin and `PROOF_SUBMITTER_ROLE`; if zero, proof submission is open to anyone through the zero-address sentinel.
+- `authority`: the `AccessManager` that restricts `updateClient`, `verifyMembership`, `verifyNonMembership` and `misbehaviour`. It must be a contract, or the constructor reverts with `AccessManagedInvalidAuthority`. The access manager admin maps `IBCRolesLib.lightClientRelayerSelectors()` and `lightClientMisbehaviourSelectors()` of the client to `RELAYER_ROLE` (which `ICS26Router` must hold) or to `PUBLIC_ROLE`.
 
 No proof is checked for the initial states; the deployer is trusted to supply them.
 
@@ -110,7 +110,7 @@ The header height must be strictly greater than `trustedHeight`, or the update r
 
 ## Misbehaviour
 
-`misbehaviour(bytes)` is permissionless: anyone can submit evidence, regardless of `PROOF_SUBMITTER_ROLE`. It takes `abi.encode(IBesuLightClientMsgs.MsgSubmitMisbehaviour)`, which wraps one ABI-encoded evidence message tagged with its `MisbehaviourType`:
+`misbehaviour(bytes)` is `restricted` by the access manager. Evidence is checked against stored consensus states or the same signature and trust checks as `updateClient`, so it is safe to map it to `PUBLIC_ROLE` and let anyone submit evidence. It takes `abi.encode(IBesuLightClientMsgs.MsgSubmitMisbehaviour)`, which wraps one ABI-encoded evidence message tagged with its `MisbehaviourType`:
 
 ```solidity
 enum MisbehaviourType { TimeNonMonotonicity, Headers }

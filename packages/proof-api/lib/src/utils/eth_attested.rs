@@ -30,13 +30,13 @@ pub const HEIGHT: &str = "height";
 pub const TIMESTAMP: &str = "timestamp";
 /// Parameter key for attestor addresses.
 pub const ATTESTOR_ADDRESSES: &str = "attestor_addresses";
-/// Parameter key for role manager address.
-pub const ROLE_MANAGER: &str = "role_manager";
+/// Parameter key for the `AccessManager` address that restricts the light client.
+pub const ACCESS_MANAGER: &str = "access_manager";
 
 /// Parsed parameters for creating an attestor light client.
 pub struct AttestorClientParams {
-    /// Role admin address (defaults to zero address if not provided).
-    pub role_admin: Address,
+    /// The `AccessManager` address that restricts the light client.
+    pub access_manager: Address,
     /// Minimum required signatures for attestation verification.
     pub min_required_sigs: u8,
     /// Initial height for the client state.
@@ -54,12 +54,11 @@ pub struct AttestorClientParams {
 pub fn parse_attestor_client_params<S: std::hash::BuildHasher>(
     parameters: &HashMap<String, String, S>,
 ) -> Result<AttestorClientParams> {
-    let role_admin = parameters
-        .get(ROLE_MANAGER)
-        .map_or(Ok(Address::ZERO), |a| {
-            a.parse()
-                .map_err(|e| anyhow::anyhow!("invalid role_manager address: {e}"))
-        })?;
+    let access_manager: Address = parameters
+        .get(ACCESS_MANAGER)
+        .ok_or_else(|| anyhow::anyhow!("Missing `{ACCESS_MANAGER}` parameter"))?
+        .parse()
+        .map_err(|e| anyhow::anyhow!("invalid `{ACCESS_MANAGER}` address: {e}"))?;
 
     let min_required_sigs: u8 = parameters
         .get(MIN_REQUIRED_SIGS)
@@ -88,7 +87,7 @@ pub fn parse_attestor_client_params<S: std::hash::BuildHasher>(
         .map_err(|_| anyhow::anyhow!("failed to parse ethereum address list"))?;
 
     Ok(AttestorClientParams {
-        role_admin,
+        access_manager,
         min_required_sigs,
         height,
         timestamp,
@@ -338,7 +337,7 @@ pub fn build_eth_attestor_create_client_calldata<
             params.min_required_sigs,
             params.height,
             params.timestamp,
-            params.role_admin,
+            params.access_manager,
         )
         .calldata()
         .to_vec(),

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.28;
 
-import { AccessControl } from "@openzeppelin-contracts/access/AccessControl.sol";
+import { AccessManaged } from "@openzeppelin-contracts/access/manager/AccessManaged.sol";
 import { ECDSA } from "@openzeppelin-contracts/utils/cryptography/ECDSA.sol";
 
 import { ILightClient } from "../../interfaces/ILightClient.sol";
@@ -13,16 +13,13 @@ import { IAttestationLightClientMsgs } from "./msgs/IAttestationLightClientMsgs.
 
 /// @title Attestation-based IBC Light Client
 /// @notice Implements an IBC light client that trusts an off-chain m-of-n attestor set.
-contract AttestationLightClient is IAttestationLightClient, IAttestationLightClientErrors, AccessControl {
+contract AttestationLightClient is IAttestationLightClient, IAttestationLightClientErrors, AccessManaged {
     /// @notice Current attestation-set configuration and latest trusted height/frozen flag.
     IAttestationLightClientMsgs.ClientState private clientState;
     /// @notice Tracks whether an `attestor` address is part of the configured attestor set.
     mapping(address attestor => bool isAttestor) private _isAttestor;
     /// @notice Trusted consensus timestamp in seconds for a given `height`.
     mapping(uint64 height => uint64 timestampSeconds) private _consensusTimestampAtHeight;
-
-    /// @inheritdoc IAttestationLightClient
-    bytes32 public constant PROOF_SUBMITTER_ROLE = keccak256("PROOF_SUBMITTER_ROLE");
 
     /// @notice Length of a compact ECDSA signature (r||s||v).
     uint256 private constant ECDSA_SIGNATURE_LENGTH = 65;
@@ -37,15 +34,18 @@ contract AttestationLightClient is IAttestationLightClient, IAttestationLightCli
     /// @param minRequiredSigs The quorum threshold
     /// @param initialHeight The initial known height
     /// @param initialTimestampSeconds The initial timestamp in seconds for the initial height
-    /// @param roleManager Address that will administer roles and be allowed to submit proofs; if zero, anyone can
-    /// submit
+    /// @param authority The AccessManager that restricts access to this client. Its admin must map the
+    /// `IBCRolesLib.lightClient*Selectors()` of this client to the appropriate roles (e.g. `RELAYER_ROLE`).
     constructor(
         address[] memory attestorAddresses,
         uint8 minRequiredSigs,
         uint64 initialHeight,
         uint64 initialTimestampSeconds,
-        address roleManager
-    ) {
+        address authority
+    )
+        AccessManaged(authority)
+    {
+        require(authority.code.length != 0, AccessManagedInvalidAuthority(authority));
         require(attestorAddresses.length > 0, NoAttestors());
         require(
             minRequiredSigs > 0 && attestorAddresses.length > minRequiredSigs - 1,
@@ -66,13 +66,6 @@ contract AttestationLightClient is IAttestationLightClient, IAttestationLightCli
         }
 
         _consensusTimestampAtHeight[initialHeight] = initialTimestampSeconds;
-
-        if (roleManager == address(0)) {
-            _grantRole(PROOF_SUBMITTER_ROLE, address(0)); // allow anyone
-        } else {
-            _grantRole(DEFAULT_ADMIN_ROLE, roleManager);
-            _grantRole(PROOF_SUBMITTER_ROLE, roleManager);
-        }
     }
 
     /// @inheritdoc ILightClient
@@ -94,7 +87,7 @@ contract AttestationLightClient is IAttestationLightClient, IAttestationLightCli
     function updateClient(bytes calldata updateMsg)
         external
         notFrozen
-        onlyProofSubmitter
+        restricted
         returns (ILightClientMsgs.UpdateResult)
     {
         IAttestationMsgs.AttestationProof memory proof = abi.decode(updateMsg, (IAttestationMsgs.AttestationProof));
@@ -129,9 +122,8 @@ contract AttestationLightClient is IAttestationLightClient, IAttestationLightCli
     /// @inheritdoc ILightClient
     function verifyMembership(ILightClientMsgs.MsgVerifyMembership calldata msg_)
         external
-        view
         notFrozen
-        onlyProofSubmitter
+        restricted
         returns (uint256)
     {
         require(msg_.value.length != 0, EmptyValue());
@@ -169,9 +161,8 @@ contract AttestationLightClient is IAttestationLightClient, IAttestationLightCli
     /// @inheritdoc ILightClient
     function verifyNonMembership(ILightClientMsgs.MsgVerifyNonMembership calldata msg_)
         external
-        view
         notFrozen
-        onlyProofSubmitter
+        restricted
         returns (uint256)
     {
         require(msg_.path.length == 1, InvalidPathLength(1, msg_.path.length));
@@ -206,7 +197,7 @@ contract AttestationLightClient is IAttestationLightClient, IAttestationLightCli
     }
 
     /// @inheritdoc ILightClient
-    function misbehaviour(bytes calldata) external view notFrozen onlyProofSubmitter {
+    function misbehaviour(bytes calldata) external notFrozen restricted {
         // Out of scope for this version
         revert FeatureNotSupported();
     }
@@ -263,14 +254,6 @@ contract AttestationLightClient is IAttestationLightClient, IAttestationLightCli
     /// @notice Reverts if the client state is frozen.
     modifier notFrozen() {
         require(!clientState.isFrozen, FrozenClientState());
-        _;
-    }
-
-    /// @notice Restricts access to addresses with `PROOF_SUBMITTER_ROLE` unless the role is open to anyone.
-    modifier onlyProofSubmitter() {
-        if (!hasRole(PROOF_SUBMITTER_ROLE, address(0))) {
-            _checkRole(PROOF_SUBMITTER_ROLE);
-        }
         _;
     }
 }

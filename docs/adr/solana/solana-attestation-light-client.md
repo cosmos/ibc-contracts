@@ -138,7 +138,7 @@ Full parity: initialization, updates, membership/non-membership verification, mi
 | ---------------------- | ------------------------------ | ------------------------------------- |
 | Consensus storage      | `mapping(height => timestamp)` | Per-height PDA accounts               |
 | Signature verification | OpenZeppelin ECDSA             | Native `secp256k1_recover` syscall    |
-| Access control         | OpenZeppelin AccessControl     | Separate `access_manager` program     |
+| Access control         | OpenZeppelin AccessManager     | Separate `access_manager` program     |
 | Signature limit        | None (gas scales linearly)     | 11 per transaction                    |
 | Initialize validation  | No height/timestamp validation | Requires height > 0 and timestamp > 0 |
 

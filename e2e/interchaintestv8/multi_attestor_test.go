@@ -334,7 +334,7 @@ func (s *MultiAttestorTestSuite) SetupSuite(ctx context.Context) {
 					testvalues.ParameterKey_MinRequiredSigs:   strconv.Itoa(s.quorumThreshold),
 					testvalues.ParameterKey_height:            strconv.FormatInt(latestCosmosHeader.Header.Height, 10),
 					testvalues.ParameterKey_timestamp:         strconv.FormatInt(latestCosmosHeader.Header.Time.Unix(), 10),
-					testvalues.ParameterKey_RoleManager:       ethcommon.HexToAddress(s.contractAddresses.Ics26Router).Hex(),
+					testvalues.ParameterKey_AccessManager:     s.contractAddresses.AccessManager,
 				},
 			})
 			s.Require().NoError(err)
@@ -350,6 +350,7 @@ func (s *MultiAttestorTestSuite) SetupSuite(ctx context.Context) {
 
 			lightClientAddress := receipt.ContractAddress
 			s.T().Logf("Attestor light client for Cosmos deployed on Ethereum at: %s", lightClientAddress.Hex())
+			s.Require().NoError(eth.SetLightClientTargetRoles(ctx, s.deployer, ethcommon.HexToAddress(s.contractAddresses.AccessManager), lightClientAddress, testvalues.EVMRelayerRole, testvalues.EVMRelayerRole))
 			s.T().Logf("Registered %d attestors (only %d active) with quorum %d",
 				len(s.allCosmosAttestorAddresses), s.activeAttestors, s.quorumThreshold)
 

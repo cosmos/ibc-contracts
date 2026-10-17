@@ -18,12 +18,12 @@ import { ISP1Verifier } from "@sp1-contracts/ISP1Verifier.sol";
 import { Paths } from "./utils/Paths.sol";
 import { Multicall } from "@openzeppelin-contracts/utils/Multicall.sol";
 import { TransientSlot } from "@openzeppelin-contracts/utils/TransientSlot.sol";
-import { AccessControl } from "@openzeppelin-contracts/access/AccessControl.sol";
+import { AccessManaged } from "@openzeppelin-contracts/access/manager/AccessManaged.sol";
 
 /// @title SP1 ICS07 Tendermint Light Client
 /// @author srdtrk
 /// @notice This contract implements an ICS07 IBC tendermint light client using SP1.
-contract SP1ICS07Tendermint is ISP1ICS07TendermintErrors, ISP1ICS07Tendermint, ILightClient, Multicall, AccessControl {
+contract SP1ICS07Tendermint is ISP1ICS07TendermintErrors, ISP1ICS07Tendermint, ILightClient, Multicall, AccessManaged {
     using TransientSlot for *;
 
     /// @inheritdoc ISP1ICS07Tendermint
@@ -47,9 +47,6 @@ contract SP1ICS07Tendermint is ISP1ICS07TendermintErrors, ISP1ICS07Tendermint, I
     /// @inheritdoc ISP1ICS07Tendermint
     uint16 public constant ALLOWED_SP1_CLOCK_DRIFT = 30 minutes;
 
-    /// @inheritdoc ISP1ICS07Tendermint
-    bytes32 public constant PROOF_SUBMITTER_ROLE = keccak256("PROOF_SUBMITTER_ROLE");
-
     /// @notice The constructor sets the program verification key and the initial client and consensus states.
     /// @param updateClientProgramVkey The verification key for the update client program.
     /// @param membershipProgramVkey The verification key for the verify (non)membership program.
@@ -58,7 +55,8 @@ contract SP1ICS07Tendermint is ISP1ICS07TendermintErrors, ISP1ICS07Tendermint, I
     /// @param sp1Verifier The address of the SP1 verifier contract.
     /// @param _clientState The encoded initial client state.
     /// @param _consensusState The encoded initial consensus state.
-    /// @param roleManager Manages the proof submitters and can submit proofs. Should be the ICS26Router if used in IBC.
+    /// @param authority The AccessManager that restricts access to this client. Its admin must map the
+    /// `IBCRolesLib.lightClient*Selectors()` of this client to the appropriate roles (e.g. `RELAYER_ROLE`).
     constructor(
         bytes32 updateClientProgramVkey,
         bytes32 membershipProgramVkey,
@@ -67,8 +65,12 @@ contract SP1ICS07Tendermint is ISP1ICS07TendermintErrors, ISP1ICS07Tendermint, I
         address sp1Verifier,
         bytes memory _clientState,
         bytes32 _consensusState,
-        address roleManager
-    ) {
+        address authority
+    )
+        AccessManaged(authority)
+    {
+        require(authority.code.length != 0, AccessManagedInvalidAuthority(authority));
+
         UPDATE_CLIENT_PROGRAM_VKEY = updateClientProgramVkey;
         MEMBERSHIP_PROGRAM_VKEY = membershipProgramVkey;
         UPDATE_CLIENT_AND_MEMBERSHIP_PROGRAM_VKEY = updateClientAndMembershipProgramVkey;
@@ -83,13 +85,6 @@ contract SP1ICS07Tendermint is ISP1ICS07TendermintErrors, ISP1ICS07Tendermint, I
             clientState.trustingPeriod + ALLOWED_SP1_CLOCK_DRIFT <= clientState.unbondingPeriod,
             TrustingPeriodTooLong(clientState.trustingPeriod, clientState.unbondingPeriod)
         );
-
-        if (roleManager == address(0)) {
-            _grantRole(PROOF_SUBMITTER_ROLE, address(0)); // Allow anyone to submit proofs
-        } else {
-            _grantRole(DEFAULT_ADMIN_ROLE, roleManager); // Allow the role manager to manage roles
-            _grantRole(PROOF_SUBMITTER_ROLE, roleManager); // Allow the role manager to submit proofs
-        }
     }
 
     /// @inheritdoc ILightClient
@@ -109,7 +104,7 @@ contract SP1ICS07Tendermint is ISP1ICS07TendermintErrors, ISP1ICS07Tendermint, I
     function updateClient(bytes calldata updateMsg)
         external
         notFrozen
-        onlyProofSubmitter
+        restricted
         returns (ILightClientMsgs.UpdateResult)
     {
         IUpdateClientMsgs.MsgUpdateClient memory msgUpdateClient =
@@ -146,7 +141,7 @@ contract SP1ICS07Tendermint is ISP1ICS07TendermintErrors, ISP1ICS07Tendermint, I
     function verifyMembership(ILightClientMsgs.MsgVerifyMembership calldata msg_)
         external
         notFrozen
-        onlyProofSubmitter
+        restricted
         returns (uint256)
     {
         require(msg_.value.length > 0, EmptyValue());
@@ -157,7 +152,7 @@ contract SP1ICS07Tendermint is ISP1ICS07TendermintErrors, ISP1ICS07Tendermint, I
     function verifyNonMembership(ILightClientMsgs.MsgVerifyNonMembership calldata msg_)
         external
         notFrozen
-        onlyProofSubmitter
+        restricted
         returns (uint256)
     {
         return _membership(msg_.proof, msg_.proofHeight, msg_.path, bytes(""));
@@ -200,7 +195,7 @@ contract SP1ICS07Tendermint is ISP1ICS07TendermintErrors, ISP1ICS07Tendermint, I
     /// @dev The misbehavior is verfied in the sp1 program. Here we only check the public values which contain the
     /// trusted headers.
     /// @inheritdoc ILightClient
-    function misbehaviour(bytes calldata misbehaviourMsg) external notFrozen onlyProofSubmitter {
+    function misbehaviour(bytes calldata misbehaviourMsg) external notFrozen restricted {
         IMisbehaviourMsgs.MsgSubmitMisbehaviour memory msgSubmitMisbehaviour =
             abi.decode(misbehaviourMsg, (IMisbehaviourMsgs.MsgSubmitMisbehaviour));
         require(
@@ -567,14 +562,6 @@ contract SP1ICS07Tendermint is ISP1ICS07TendermintErrors, ISP1ICS07Tendermint, I
     /// @notice Modifier to check if the client is not frozen.
     modifier notFrozen() {
         require(!clientState.isFrozen, FrozenClientState());
-        _;
-    }
-
-    /// @notice Modifier to check if the caller has the proof submitter role or if the role is permitted for anyone.
-    modifier onlyProofSubmitter() {
-        if (!hasRole(PROOF_SUBMITTER_ROLE, address(0))) {
-            _checkRole(PROOF_SUBMITTER_ROLE);
-        }
         _;
     }
 }

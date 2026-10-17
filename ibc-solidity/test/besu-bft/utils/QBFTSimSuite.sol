@@ -17,13 +17,15 @@ import { ICS24Host } from "../../../contracts/utils/ICS24Host.sol";
 import { IBCStoreUpgradeable } from "../../../contracts/utils/IBCStoreUpgradeable.sol";
 import { SimHeader } from "./SimHeader.sol";
 import { SimWorldState } from "./SimWorldState.sol";
+import { AccessManager } from "@openzeppelin-contracts/access/manager/AccessManager.sol";
+import { DeployAccessManagerWithRoles } from "../../../scripts/deployments/DeployAccessManagerWithRoles.sol";
 
 /// @title QBFT Sim Suite
 /// @notice In-process Besu QBFT/IBFT2 chain simulator: manages validator keys, produces and seals RLP headers, and
 /// keeps a world state whose roots and MPT proofs the Besu light clients accept.
 /// @dev Storage writes made while the tip is height `h` land in block `h + 1`. `commit` warps the EVM clock forward
 /// to the committed timestamp so light client clock-drift checks pass by default.
-contract QBFTSimSuite is Test, SimWorldState {
+contract QBFTSimSuite is Test, SimWorldState, DeployAccessManagerWithRoles {
     using SimHeader for SimHeader.Data;
 
     struct Block {
@@ -216,17 +218,19 @@ contract QBFTSimSuite is Test, SimWorldState {
         IBesuLightClientMsgs.TrustThreshold memory trustLevel
     )
         external
-        returns (IBesuLightClient)
+        returns (IBesuLightClient lightClient)
     {
-        return deployLightClient(trustingPeriod, maxClockDrift, trustLevel, address(0));
+        AccessManager accessManager = new AccessManager(address(this));
+        lightClient = deployLightClient(trustingPeriod, maxClockDrift, trustLevel, address(accessManager));
+        accessManagerSetLightClientTargetRoles(accessManager, address(lightClient), true, true);
     }
 
-    /// @notice Deploys the light client for `MODE`, trusting the current tip, with `roleManager` gating submission.
+    /// @notice Deploys the light client for `MODE`, trusting the current tip, with `authority` gating submission.
     function deployLightClient(
         uint64 trustingPeriod,
         uint64 maxClockDrift,
         IBesuLightClientMsgs.TrustThreshold memory trustLevel,
-        address roleManager
+        address authority
     )
         public
         returns (IBesuLightClient)
@@ -241,9 +245,9 @@ contract QBFTSimSuite is Test, SimWorldState {
             trustLevel: trustLevel
         });
         if (MODE == SimHeader.Mode.QBFT) {
-            return new BesuQBFTLightClient(clientState, consensusState(height), roleManager);
+            return new BesuQBFTLightClient(clientState, consensusState(height), authority);
         }
-        return new BesuIBFT2LightClient(clientState, consensusState(height), roleManager);
+        return new BesuIBFT2LightClient(clientState, consensusState(height), authority);
     }
 
     function consensusState(uint64 height) public view returns (IBesuLightClientMsgs.ConsensusState memory) {

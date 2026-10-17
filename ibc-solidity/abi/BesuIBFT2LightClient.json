@@ -86,7 +86,7 @@
         ]
       },
       {
-        "name": "roleManager",
+        "name": "authority",
         "type": "address",
         "internalType": "address"
       }
@@ -95,26 +95,13 @@
   },
   {
     "type": "function",
-    "name": "DEFAULT_ADMIN_ROLE",
+    "name": "authority",
     "inputs": [],
     "outputs": [
       {
         "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "PROOF_SUBMITTER_ROLE",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "stateMutability": "view"
@@ -153,61 +140,13 @@
   },
   {
     "type": "function",
-    "name": "getRoleAdmin",
-    "inputs": [
-      {
-        "name": "role",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
+    "name": "isConsumingScheduledOp",
+    "inputs": [],
     "outputs": [
       {
         "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "grantRole",
-    "inputs": [
-      {
-        "name": "role",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "account",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "hasRole",
-    "inputs": [
-      {
-        "name": "role",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "account",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool",
-        "internalType": "bool"
+        "type": "bytes4",
+        "internalType": "bytes4"
       }
     ],
     "stateMutability": "view"
@@ -227,58 +166,16 @@
   },
   {
     "type": "function",
-    "name": "renounceRole",
+    "name": "setAuthority",
     "inputs": [
       {
-        "name": "role",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "callerConfirmation",
+        "name": "newAuthority",
         "type": "address",
         "internalType": "address"
       }
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "revokeRole",
-    "inputs": [
-      {
-        "name": "role",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "account",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "supportsInterface",
-    "inputs": [
-      {
-        "name": "interfaceId",
-        "type": "bytes4",
-        "internalType": "bytes4"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -402,6 +299,19 @@
   },
   {
     "type": "event",
+    "name": "AuthorityUpdated",
+    "inputs": [
+      {
+        "name": "authority",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "DoubleSign",
     "inputs": [
       {
@@ -421,81 +331,6 @@
         "type": "bytes32",
         "indexed": false,
         "internalType": "bytes32"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "RoleAdminChanged",
-    "inputs": [
-      {
-        "name": "role",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
-      },
-      {
-        "name": "previousAdminRole",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
-      },
-      {
-        "name": "newAdminRole",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "RoleGranted",
-    "inputs": [
-      {
-        "name": "role",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
-      },
-      {
-        "name": "account",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "sender",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "RoleRevoked",
-    "inputs": [
-      {
-        "name": "role",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
-      },
-      {
-        "name": "account",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "sender",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
       }
     ],
     "anonymous": false
@@ -533,22 +368,39 @@
   },
   {
     "type": "error",
-    "name": "AccessControlBadConfirmation",
-    "inputs": []
+    "name": "AccessManagedInvalidAuthority",
+    "inputs": [
+      {
+        "name": "authority",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
   },
   {
     "type": "error",
-    "name": "AccessControlUnauthorizedAccount",
+    "name": "AccessManagedRequiredDelay",
     "inputs": [
       {
-        "name": "account",
+        "name": "caller",
         "type": "address",
         "internalType": "address"
       },
       {
-        "name": "neededRole",
-        "type": "bytes32",
-        "internalType": "bytes32"
+        "name": "delay",
+        "type": "uint32",
+        "internalType": "uint32"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "AccessManagedUnauthorized",
+    "inputs": [
+      {
+        "name": "caller",
+        "type": "address",
+        "internalType": "address"
       }
     ]
   },

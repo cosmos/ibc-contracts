@@ -109,8 +109,9 @@ abstract contract FixtureTest is Test, IICS07TendermintMsgs, DeployAccessManager
             verifier,
             fixture.genesisFixture.trustedClientState,
             fixture.genesisFixture.trustedConsensusStateHash,
-            address(ics26Router)
+            address(accessManager)
         );
+        accessManagerSetLightClientTargetRoles(accessManager, address(ics07Tendermint), false, false);
 
         ics26Router.addClient(
             customClientId, IICS02ClientMsgs.CounterpartyInfo(counterpartyId, merklePrefix), address(ics07Tendermint)

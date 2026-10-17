@@ -243,8 +243,8 @@ const (
 	ParameterKey_Sp1Verifier = "sp1_verifier"
 	// Zk algorithm parameter key for the proof API's sp1 light client creation.
 	ParameterKey_ZkAlgorithm = "zk_algorithm"
-	// The role manager address parameter key for proof API light client creation.
-	ParameterKey_RoleManager = "role_manager"
+	// The access manager address parameter key for proof API EVM light client creation.
+	ParameterKey_AccessManager = "access_manager"
 	// Trusting period parameter key for proof API light client creation.
 	ParameterKey_TrustingPeriod = "trusting_period"
 	// Max clock drift parameter key for proof API light client creation.
@@ -253,6 +253,11 @@ const (
 	ParameterKey_TrustLevel = "trust_level"
 	// Checksum hex parameter key for the proof API's ethereum light client creation.
 	ParameterKey_ChecksumHex = "checksum_hex"
+
+	// EVMRelayerRole is `IBCRolesLib.RELAYER_ROLE` in the EVM AccessManager.
+	EVMRelayerRole uint64 = 1
+	// EVMPublicRole is `IBCRolesLib.PUBLIC_ROLE` in the EVM AccessManager.
+	EVMPublicRole uint64 = ^uint64(0)
 
 	// Min sigs parameter for the attestor light client creation.
 	ParameterKey_MinRequiredSigs = "min_required_sigs"
