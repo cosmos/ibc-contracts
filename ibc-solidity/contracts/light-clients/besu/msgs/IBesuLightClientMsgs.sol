@@ -63,10 +63,10 @@ interface IBesuLightClientMsgs {
     /// @notice Misbehaviour message containing two conflicting trusted consensus states at different heights.
     /// @dev Time monotonicity check is done during updateClient, however, it is possible that the check is bypassed if
     /// a suitable trusted consensus state is provided. This misbehavior message is used to freeze the client by simply
-    /// providing two consensus states that are trusted but whose timestamps increase by less than one second per block,
-    /// since sub-second block periods are not supported. The same evidence
-    /// also freezes the client if the validator sets of the two states differ by more validators than their height
-    /// difference. The states only need to match their stored hashes; they may be past their trusting period.
+    /// providing two consensus states that are trusted but have timestamps that are not monotonic. The same evidence
+    /// also freezes the client if the timestamps of the two states increase by less than one second per block, or if
+    /// their validator sets differ by more validators than their height difference. The states only need to match their
+    /// stored hashes; they may be past their trusting period.
     /// @param height1 Height of the first trusted consensus state.
     /// @param height2 Height of the second trusted consensus state. Must differ from `height1`; order is irrelevant.
     /// @param consensusStatePreimage1 Preimage of the first trusted consensus state.
@@ -80,13 +80,14 @@ interface IBesuLightClientMsgs {
 
     /// @notice Misbehaviour message containing two validly signed headers that conflict with each other.
     /// @dev Each header is verified against its own trusted consensus state exactly as in `updateClient`, except that
-    /// the clock drift check is skipped. A header whose timestamp exceeds its trusted consensus state's timestamp by
-    /// less than their height difference proves time non-monotonicity on its own; the other header may then be any
-    /// valid header, including the same one. Otherwise, headers at the same height with different consensus states
-    /// prove a double sign, and headers at different heights whose timestamps differ by less than their height
-    /// difference prove time non-monotonicity. The same applies to a validator set change of more validators than the
-    /// height difference, whether between a header and its trusted consensus state or between the two headers. The
-    /// headers may be in either order and need not be stored.
+    /// the clock drift check is skipped. A header whose timestamp is not greater than its trusted consensus state's
+    /// timestamp proves time non-monotonicity on its own; the other header may then be any valid header, including
+    /// the same one. Otherwise, headers at the same height with different consensus states prove a double sign, and
+    /// headers at different heights where the lower header's timestamp is not less than the higher header's
+    /// timestamp prove time non-monotonicity. The same applies to timestamps that increase by less than one second per
+    /// block and to a validator set change of more validators than the height difference, whether between a header and
+    /// its trusted consensus state or between the two headers. The headers may be in either order and need not be
+    /// stored.
     /// @param update1 The first header with its trusted consensus state.
     /// @param update2 The second header with its trusted consensus state.
     struct MsgConflictingHeadersMisbehaviour {

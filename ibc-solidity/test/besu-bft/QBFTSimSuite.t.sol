@@ -206,7 +206,7 @@ abstract contract QBFTSimSuiteTest is Test {
 
     /// @dev Blocks are at least one second apart, so a header two blocks after its trusted state that is only one
     /// second newer freezes the client, while one that is two seconds newer updates it.
-    function test_timeNonMonotonicitySubSecondBlocks() public {
+    function test_subSecondBlockTime() public {
         sim.produceBlock();
         uint64 trustedTimestamp = sim.blockAt(2).timestamp;
         SimHeader.Data memory h = sim.nextBlock();
@@ -221,7 +221,7 @@ abstract contract QBFTSimSuiteTest is Test {
         vm.revertToState(snapshot);
 
         vm.expectEmit(address(client));
-        emit IBesuLightClient.TimeNonMonotonicity(4, 2, trustedTimestamp + 1, trustedTimestamp);
+        emit IBesuLightClient.SubSecondBlockTime(4, 2, trustedTimestamp + 1, trustedTimestamp);
         assertEq(uint8(client.updateClient(subSecondBlocks)), uint8(ILightClientMsgs.UpdateResult.Misbehaviour));
         assertTrue(_isFrozen(client));
         vm.stopPrank();
