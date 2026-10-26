@@ -132,6 +132,412 @@
   },
   {
     "type": "function",
+    "name": "conflictingConsensusStatesMisbehaviour",
+    "inputs": [
+      {
+        "name": "message",
+        "type": "tuple",
+        "internalType": "struct IBesuLightClientMsgs.MsgConflictingConsensusStatesMisbehaviour",
+        "components": [
+          {
+            "name": "height1",
+            "type": "tuple",
+            "internalType": "struct IICS02ClientMsgs.Height",
+            "components": [
+              {
+                "name": "revisionNumber",
+                "type": "uint64",
+                "internalType": "uint64"
+              },
+              {
+                "name": "revisionHeight",
+                "type": "uint64",
+                "internalType": "uint64"
+              }
+            ]
+          },
+          {
+            "name": "height2",
+            "type": "tuple",
+            "internalType": "struct IICS02ClientMsgs.Height",
+            "components": [
+              {
+                "name": "revisionNumber",
+                "type": "uint64",
+                "internalType": "uint64"
+              },
+              {
+                "name": "revisionHeight",
+                "type": "uint64",
+                "internalType": "uint64"
+              }
+            ]
+          },
+          {
+            "name": "consensusStatePreimage1",
+            "type": "tuple",
+            "internalType": "struct IBesuLightClientMsgs.ConsensusState",
+            "components": [
+              {
+                "name": "timestamp",
+                "type": "uint64",
+                "internalType": "uint64"
+              },
+              {
+                "name": "stateRoot",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              },
+              {
+                "name": "validators",
+                "type": "address[]",
+                "internalType": "address[]"
+              }
+            ]
+          },
+          {
+            "name": "consensusStatePreimage2",
+            "type": "tuple",
+            "internalType": "struct IBesuLightClientMsgs.ConsensusState",
+            "components": [
+              {
+                "name": "timestamp",
+                "type": "uint64",
+                "internalType": "uint64"
+              },
+              {
+                "name": "stateRoot",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              },
+              {
+                "name": "validators",
+                "type": "address[]",
+                "internalType": "address[]"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct IBesuLightClientMsgs.MsgConflictingConsensusStatesMisbehaviour",
+        "components": [
+          {
+            "name": "height1",
+            "type": "tuple",
+            "internalType": "struct IICS02ClientMsgs.Height",
+            "components": [
+              {
+                "name": "revisionNumber",
+                "type": "uint64",
+                "internalType": "uint64"
+              },
+              {
+                "name": "revisionHeight",
+                "type": "uint64",
+                "internalType": "uint64"
+              }
+            ]
+          },
+          {
+            "name": "height2",
+            "type": "tuple",
+            "internalType": "struct IICS02ClientMsgs.Height",
+            "components": [
+              {
+                "name": "revisionNumber",
+                "type": "uint64",
+                "internalType": "uint64"
+              },
+              {
+                "name": "revisionHeight",
+                "type": "uint64",
+                "internalType": "uint64"
+              }
+            ]
+          },
+          {
+            "name": "consensusStatePreimage1",
+            "type": "tuple",
+            "internalType": "struct IBesuLightClientMsgs.ConsensusState",
+            "components": [
+              {
+                "name": "timestamp",
+                "type": "uint64",
+                "internalType": "uint64"
+              },
+              {
+                "name": "stateRoot",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              },
+              {
+                "name": "validators",
+                "type": "address[]",
+                "internalType": "address[]"
+              }
+            ]
+          },
+          {
+            "name": "consensusStatePreimage2",
+            "type": "tuple",
+            "internalType": "struct IBesuLightClientMsgs.ConsensusState",
+            "components": [
+              {
+                "name": "timestamp",
+                "type": "uint64",
+                "internalType": "uint64"
+              },
+              {
+                "name": "stateRoot",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              },
+              {
+                "name": "validators",
+                "type": "address[]",
+                "internalType": "address[]"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "stateMutability": "pure"
+  },
+  {
+    "type": "function",
+    "name": "conflictingHeadersMisbehaviour",
+    "inputs": [
+      {
+        "name": "message",
+        "type": "tuple",
+        "internalType": "struct IBesuLightClientMsgs.MsgConflictingHeadersMisbehaviour",
+        "components": [
+          {
+            "name": "update1",
+            "type": "tuple",
+            "internalType": "struct IBesuLightClientMsgs.MsgUpdateClient",
+            "components": [
+              {
+                "name": "headerRlp",
+                "type": "bytes",
+                "internalType": "bytes"
+              },
+              {
+                "name": "trustedHeight",
+                "type": "tuple",
+                "internalType": "struct IICS02ClientMsgs.Height",
+                "components": [
+                  {
+                    "name": "revisionNumber",
+                    "type": "uint64",
+                    "internalType": "uint64"
+                  },
+                  {
+                    "name": "revisionHeight",
+                    "type": "uint64",
+                    "internalType": "uint64"
+                  }
+                ]
+              },
+              {
+                "name": "consensusStatePreimage",
+                "type": "tuple",
+                "internalType": "struct IBesuLightClientMsgs.ConsensusState",
+                "components": [
+                  {
+                    "name": "timestamp",
+                    "type": "uint64",
+                    "internalType": "uint64"
+                  },
+                  {
+                    "name": "stateRoot",
+                    "type": "bytes32",
+                    "internalType": "bytes32"
+                  },
+                  {
+                    "name": "validators",
+                    "type": "address[]",
+                    "internalType": "address[]"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "update2",
+            "type": "tuple",
+            "internalType": "struct IBesuLightClientMsgs.MsgUpdateClient",
+            "components": [
+              {
+                "name": "headerRlp",
+                "type": "bytes",
+                "internalType": "bytes"
+              },
+              {
+                "name": "trustedHeight",
+                "type": "tuple",
+                "internalType": "struct IICS02ClientMsgs.Height",
+                "components": [
+                  {
+                    "name": "revisionNumber",
+                    "type": "uint64",
+                    "internalType": "uint64"
+                  },
+                  {
+                    "name": "revisionHeight",
+                    "type": "uint64",
+                    "internalType": "uint64"
+                  }
+                ]
+              },
+              {
+                "name": "consensusStatePreimage",
+                "type": "tuple",
+                "internalType": "struct IBesuLightClientMsgs.ConsensusState",
+                "components": [
+                  {
+                    "name": "timestamp",
+                    "type": "uint64",
+                    "internalType": "uint64"
+                  },
+                  {
+                    "name": "stateRoot",
+                    "type": "bytes32",
+                    "internalType": "bytes32"
+                  },
+                  {
+                    "name": "validators",
+                    "type": "address[]",
+                    "internalType": "address[]"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct IBesuLightClientMsgs.MsgConflictingHeadersMisbehaviour",
+        "components": [
+          {
+            "name": "update1",
+            "type": "tuple",
+            "internalType": "struct IBesuLightClientMsgs.MsgUpdateClient",
+            "components": [
+              {
+                "name": "headerRlp",
+                "type": "bytes",
+                "internalType": "bytes"
+              },
+              {
+                "name": "trustedHeight",
+                "type": "tuple",
+                "internalType": "struct IICS02ClientMsgs.Height",
+                "components": [
+                  {
+                    "name": "revisionNumber",
+                    "type": "uint64",
+                    "internalType": "uint64"
+                  },
+                  {
+                    "name": "revisionHeight",
+                    "type": "uint64",
+                    "internalType": "uint64"
+                  }
+                ]
+              },
+              {
+                "name": "consensusStatePreimage",
+                "type": "tuple",
+                "internalType": "struct IBesuLightClientMsgs.ConsensusState",
+                "components": [
+                  {
+                    "name": "timestamp",
+                    "type": "uint64",
+                    "internalType": "uint64"
+                  },
+                  {
+                    "name": "stateRoot",
+                    "type": "bytes32",
+                    "internalType": "bytes32"
+                  },
+                  {
+                    "name": "validators",
+                    "type": "address[]",
+                    "internalType": "address[]"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "update2",
+            "type": "tuple",
+            "internalType": "struct IBesuLightClientMsgs.MsgUpdateClient",
+            "components": [
+              {
+                "name": "headerRlp",
+                "type": "bytes",
+                "internalType": "bytes"
+              },
+              {
+                "name": "trustedHeight",
+                "type": "tuple",
+                "internalType": "struct IICS02ClientMsgs.Height",
+                "components": [
+                  {
+                    "name": "revisionNumber",
+                    "type": "uint64",
+                    "internalType": "uint64"
+                  },
+                  {
+                    "name": "revisionHeight",
+                    "type": "uint64",
+                    "internalType": "uint64"
+                  }
+                ]
+              },
+              {
+                "name": "consensusStatePreimage",
+                "type": "tuple",
+                "internalType": "struct IBesuLightClientMsgs.ConsensusState",
+                "components": [
+                  {
+                    "name": "timestamp",
+                    "type": "uint64",
+                    "internalType": "uint64"
+                  },
+                  {
+                    "name": "stateRoot",
+                    "type": "bytes32",
+                    "internalType": "bytes32"
+                  },
+                  {
+                    "name": "validators",
+                    "type": "address[]",
+                    "internalType": "address[]"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "stateMutability": "pure"
+  },
+  {
+    "type": "function",
     "name": "consensusState",
     "inputs": [
       {
@@ -177,233 +583,6 @@
             "name": "validators",
             "type": "address[]",
             "internalType": "address[]"
-          }
-        ]
-      }
-    ],
-    "stateMutability": "pure"
-  },
-  {
-    "type": "function",
-    "name": "headersMisbehaviour",
-    "inputs": [
-      {
-        "name": "message",
-        "type": "tuple",
-        "internalType": "struct IBesuLightClientMsgs.MsgHeadersMisbehaviour",
-        "components": [
-          {
-            "name": "update1",
-            "type": "tuple",
-            "internalType": "struct IBesuLightClientMsgs.MsgUpdateClient",
-            "components": [
-              {
-                "name": "headerRlp",
-                "type": "bytes",
-                "internalType": "bytes"
-              },
-              {
-                "name": "trustedHeight",
-                "type": "tuple",
-                "internalType": "struct IICS02ClientMsgs.Height",
-                "components": [
-                  {
-                    "name": "revisionNumber",
-                    "type": "uint64",
-                    "internalType": "uint64"
-                  },
-                  {
-                    "name": "revisionHeight",
-                    "type": "uint64",
-                    "internalType": "uint64"
-                  }
-                ]
-              },
-              {
-                "name": "consensusStatePreimage",
-                "type": "tuple",
-                "internalType": "struct IBesuLightClientMsgs.ConsensusState",
-                "components": [
-                  {
-                    "name": "timestamp",
-                    "type": "uint64",
-                    "internalType": "uint64"
-                  },
-                  {
-                    "name": "stateRoot",
-                    "type": "bytes32",
-                    "internalType": "bytes32"
-                  },
-                  {
-                    "name": "validators",
-                    "type": "address[]",
-                    "internalType": "address[]"
-                  }
-                ]
-              }
-            ]
-          },
-          {
-            "name": "update2",
-            "type": "tuple",
-            "internalType": "struct IBesuLightClientMsgs.MsgUpdateClient",
-            "components": [
-              {
-                "name": "headerRlp",
-                "type": "bytes",
-                "internalType": "bytes"
-              },
-              {
-                "name": "trustedHeight",
-                "type": "tuple",
-                "internalType": "struct IICS02ClientMsgs.Height",
-                "components": [
-                  {
-                    "name": "revisionNumber",
-                    "type": "uint64",
-                    "internalType": "uint64"
-                  },
-                  {
-                    "name": "revisionHeight",
-                    "type": "uint64",
-                    "internalType": "uint64"
-                  }
-                ]
-              },
-              {
-                "name": "consensusStatePreimage",
-                "type": "tuple",
-                "internalType": "struct IBesuLightClientMsgs.ConsensusState",
-                "components": [
-                  {
-                    "name": "timestamp",
-                    "type": "uint64",
-                    "internalType": "uint64"
-                  },
-                  {
-                    "name": "stateRoot",
-                    "type": "bytes32",
-                    "internalType": "bytes32"
-                  },
-                  {
-                    "name": "validators",
-                    "type": "address[]",
-                    "internalType": "address[]"
-                  }
-                ]
-              }
-            ]
-          }
-        ]
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "tuple",
-        "internalType": "struct IBesuLightClientMsgs.MsgHeadersMisbehaviour",
-        "components": [
-          {
-            "name": "update1",
-            "type": "tuple",
-            "internalType": "struct IBesuLightClientMsgs.MsgUpdateClient",
-            "components": [
-              {
-                "name": "headerRlp",
-                "type": "bytes",
-                "internalType": "bytes"
-              },
-              {
-                "name": "trustedHeight",
-                "type": "tuple",
-                "internalType": "struct IICS02ClientMsgs.Height",
-                "components": [
-                  {
-                    "name": "revisionNumber",
-                    "type": "uint64",
-                    "internalType": "uint64"
-                  },
-                  {
-                    "name": "revisionHeight",
-                    "type": "uint64",
-                    "internalType": "uint64"
-                  }
-                ]
-              },
-              {
-                "name": "consensusStatePreimage",
-                "type": "tuple",
-                "internalType": "struct IBesuLightClientMsgs.ConsensusState",
-                "components": [
-                  {
-                    "name": "timestamp",
-                    "type": "uint64",
-                    "internalType": "uint64"
-                  },
-                  {
-                    "name": "stateRoot",
-                    "type": "bytes32",
-                    "internalType": "bytes32"
-                  },
-                  {
-                    "name": "validators",
-                    "type": "address[]",
-                    "internalType": "address[]"
-                  }
-                ]
-              }
-            ]
-          },
-          {
-            "name": "update2",
-            "type": "tuple",
-            "internalType": "struct IBesuLightClientMsgs.MsgUpdateClient",
-            "components": [
-              {
-                "name": "headerRlp",
-                "type": "bytes",
-                "internalType": "bytes"
-              },
-              {
-                "name": "trustedHeight",
-                "type": "tuple",
-                "internalType": "struct IICS02ClientMsgs.Height",
-                "components": [
-                  {
-                    "name": "revisionNumber",
-                    "type": "uint64",
-                    "internalType": "uint64"
-                  },
-                  {
-                    "name": "revisionHeight",
-                    "type": "uint64",
-                    "internalType": "uint64"
-                  }
-                ]
-              },
-              {
-                "name": "consensusStatePreimage",
-                "type": "tuple",
-                "internalType": "struct IBesuLightClientMsgs.ConsensusState",
-                "components": [
-                  {
-                    "name": "timestamp",
-                    "type": "uint64",
-                    "internalType": "uint64"
-                  },
-                  {
-                    "name": "stateRoot",
-                    "type": "bytes32",
-                    "internalType": "bytes32"
-                  },
-                  {
-                    "name": "validators",
-                    "type": "address[]",
-                    "internalType": "address[]"
-                  }
-                ]
-              }
-            ]
           }
         ]
       }
@@ -553,185 +732,6 @@
             "name": "misbehaviour",
             "type": "bytes",
             "internalType": "bytes"
-          }
-        ]
-      }
-    ],
-    "stateMutability": "pure"
-  },
-  {
-    "type": "function",
-    "name": "timeNonMonotonicityMisbehaviour",
-    "inputs": [
-      {
-        "name": "message",
-        "type": "tuple",
-        "internalType": "struct IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour",
-        "components": [
-          {
-            "name": "height1",
-            "type": "tuple",
-            "internalType": "struct IICS02ClientMsgs.Height",
-            "components": [
-              {
-                "name": "revisionNumber",
-                "type": "uint64",
-                "internalType": "uint64"
-              },
-              {
-                "name": "revisionHeight",
-                "type": "uint64",
-                "internalType": "uint64"
-              }
-            ]
-          },
-          {
-            "name": "height2",
-            "type": "tuple",
-            "internalType": "struct IICS02ClientMsgs.Height",
-            "components": [
-              {
-                "name": "revisionNumber",
-                "type": "uint64",
-                "internalType": "uint64"
-              },
-              {
-                "name": "revisionHeight",
-                "type": "uint64",
-                "internalType": "uint64"
-              }
-            ]
-          },
-          {
-            "name": "consensusStatePreimage1",
-            "type": "tuple",
-            "internalType": "struct IBesuLightClientMsgs.ConsensusState",
-            "components": [
-              {
-                "name": "timestamp",
-                "type": "uint64",
-                "internalType": "uint64"
-              },
-              {
-                "name": "stateRoot",
-                "type": "bytes32",
-                "internalType": "bytes32"
-              },
-              {
-                "name": "validators",
-                "type": "address[]",
-                "internalType": "address[]"
-              }
-            ]
-          },
-          {
-            "name": "consensusStatePreimage2",
-            "type": "tuple",
-            "internalType": "struct IBesuLightClientMsgs.ConsensusState",
-            "components": [
-              {
-                "name": "timestamp",
-                "type": "uint64",
-                "internalType": "uint64"
-              },
-              {
-                "name": "stateRoot",
-                "type": "bytes32",
-                "internalType": "bytes32"
-              },
-              {
-                "name": "validators",
-                "type": "address[]",
-                "internalType": "address[]"
-              }
-            ]
-          }
-        ]
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "tuple",
-        "internalType": "struct IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour",
-        "components": [
-          {
-            "name": "height1",
-            "type": "tuple",
-            "internalType": "struct IICS02ClientMsgs.Height",
-            "components": [
-              {
-                "name": "revisionNumber",
-                "type": "uint64",
-                "internalType": "uint64"
-              },
-              {
-                "name": "revisionHeight",
-                "type": "uint64",
-                "internalType": "uint64"
-              }
-            ]
-          },
-          {
-            "name": "height2",
-            "type": "tuple",
-            "internalType": "struct IICS02ClientMsgs.Height",
-            "components": [
-              {
-                "name": "revisionNumber",
-                "type": "uint64",
-                "internalType": "uint64"
-              },
-              {
-                "name": "revisionHeight",
-                "type": "uint64",
-                "internalType": "uint64"
-              }
-            ]
-          },
-          {
-            "name": "consensusStatePreimage1",
-            "type": "tuple",
-            "internalType": "struct IBesuLightClientMsgs.ConsensusState",
-            "components": [
-              {
-                "name": "timestamp",
-                "type": "uint64",
-                "internalType": "uint64"
-              },
-              {
-                "name": "stateRoot",
-                "type": "bytes32",
-                "internalType": "bytes32"
-              },
-              {
-                "name": "validators",
-                "type": "address[]",
-                "internalType": "address[]"
-              }
-            ]
-          },
-          {
-            "name": "consensusStatePreimage2",
-            "type": "tuple",
-            "internalType": "struct IBesuLightClientMsgs.ConsensusState",
-            "components": [
-              {
-                "name": "timestamp",
-                "type": "uint64",
-                "internalType": "uint64"
-              },
-              {
-                "name": "stateRoot",
-                "type": "bytes32",
-                "internalType": "bytes32"
-              },
-              {
-                "name": "validators",
-                "type": "address[]",
-                "internalType": "address[]"
-              }
-            ]
           }
         ]
       }
