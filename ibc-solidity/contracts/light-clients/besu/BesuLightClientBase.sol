@@ -104,14 +104,19 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         returns (ILightClientMsgs.UpdateResult)
     {
         IBesuLightClientMsgs.MsgUpdateClient memory msg_ = abi.decode(updateMsg, (IBesuLightClientMsgs.MsgUpdateClient));
-        (uint64 height, IBesuLightClientMsgs.ConsensusState memory newConsensusState) = _verifyHeader(msg_);
+        (uint64 height, IBesuLightClientMsgs.ConsensusState memory newConsensusState, uint256 validatorChanges) =
+            _verifyHeader(msg_);
         require(
             block.timestamp + clientState.maxClockDrift >= newConsensusState.timestamp,
             HeaderFromFuture(block.timestamp, newConsensusState.timestamp, clientState.maxClockDrift)
         );
 
         if (_freezeOnConflict(
-                msg_.trustedHeight.revisionHeight, msg_.consensusStatePreimage, height, newConsensusState
+                msg_.trustedHeight.revisionHeight,
+                msg_.consensusStatePreimage,
+                height,
+                newConsensusState,
+                validatorChanges
             )) {
             return ILightClientMsgs.UpdateResult.Misbehaviour;
         }
@@ -233,7 +238,8 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
                 msg_.height1.revisionHeight,
                 msg_.consensusStatePreimage1,
                 msg_.height2.revisionHeight,
-                msg_.consensusStatePreimage2
+                msg_.consensusStatePreimage2,
+                _validatorSetChanges(msg_.consensusStatePreimage1.validators, msg_.consensusStatePreimage2.validators)
             ),
             NoMisbehaviourDetected()
         );
@@ -245,21 +251,40 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// against the other header. If the first header is misbehaviour on its own, the second header is not verified.
     /// @param msg_ The headers misbehaviour message.
     function _headersMisbehaviour(IBesuLightClientMsgs.MsgHeadersMisbehaviour memory msg_) private {
-        (uint64 height1, IBesuLightClientMsgs.ConsensusState memory consensusState1) = _verifyHeader(msg_.update1);
+        (uint64 height1, IBesuLightClientMsgs.ConsensusState memory consensusState1, uint256 validatorChanges1) =
+            _verifyHeader(msg_.update1);
         if (_freezeOnConflict(
-                msg_.update1.trustedHeight.revisionHeight, msg_.update1.consensusStatePreimage, height1, consensusState1
+                msg_.update1.trustedHeight.revisionHeight,
+                msg_.update1.consensusStatePreimage,
+                height1,
+                consensusState1,
+                validatorChanges1
             )) {
             return;
         }
 
-        (uint64 height2, IBesuLightClientMsgs.ConsensusState memory consensusState2) = _verifyHeader(msg_.update2);
+        (uint64 height2, IBesuLightClientMsgs.ConsensusState memory consensusState2, uint256 validatorChanges2) =
+            _verifyHeader(msg_.update2);
         if (_freezeOnConflict(
-                msg_.update2.trustedHeight.revisionHeight, msg_.update2.consensusStatePreimage, height2, consensusState2
+                msg_.update2.trustedHeight.revisionHeight,
+                msg_.update2.consensusStatePreimage,
+                height2,
+                consensusState2,
+                validatorChanges2
             )) {
             return;
         }
 
-        require(_freezeOnConflict(height1, consensusState1, height2, consensusState2), NoMisbehaviourDetected());
+        require(
+            _freezeOnConflict(
+                height1,
+                consensusState1,
+                height2,
+                consensusState2,
+                _validatorSetChanges(consensusState1.validators, consensusState2.validators)
+            ),
+            NoMisbehaviourDetected()
+        );
     }
 
     /// @notice Freezes the client if two consensus states conflict.
@@ -271,12 +296,15 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @param a The first consensus state.
     /// @param heightB The height of the second consensus state.
     /// @param b The second consensus state.
+    /// @param validatorChanges The number of validators in exactly one of the two validator sets, from
+    /// `_validatorSetChanges`. Passed in so that callers that already counted them do not count them again.
     /// @return frozen True if the consensus states conflict and the client was frozen.
     function _freezeOnConflict(
         uint64 heightA,
         IBesuLightClientMsgs.ConsensusState memory a,
         uint64 heightB,
-        IBesuLightClientMsgs.ConsensusState memory b
+        IBesuLightClientMsgs.ConsensusState memory b,
+        uint256 validatorChanges
     )
         private
         returns (bool frozen)
@@ -303,18 +331,12 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             return true;
         }
 
-        uint256 maxChanges = heightB - heightA;
-        // Sets cannot differ by more validators than they hold in total.
-        if (maxChanges >= a.validators.length + b.validators.length) {
-            return false;
-        }
-        uint256 changes = _validatorSetChanges(a.validators, b.validators);
-        if (changes <= maxChanges) {
+        if (validatorChanges <= heightB - heightA) {
             return false;
         }
 
         clientState.isFrozen = true;
-        emit InvalidValidatorSetChange(heightB, heightA, changes);
+        emit InvalidValidatorSetChange(heightB, heightA, validatorChanges);
         return true;
     }
 
@@ -324,10 +346,6 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @param b The second validator set.
     /// @return changes The size of the symmetric difference of `a` and `b`.
     function _validatorSetChanges(address[] memory a, address[] memory b) private pure returns (uint256 changes) {
-        if (_sameValidatorSet(a, b)) {
-            return 0;
-        }
-
         uint256 common = 0;
         uint256 i = 0;
         uint256 j = 0;
@@ -350,10 +368,11 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @param msg_ The header with its trusted height and trusted consensus state preimage.
     /// @return height The header height.
     /// @return consensusState The consensus state derived from the header.
+    /// @return validatorChanges The number of validators in exactly one of the trusted and header validator sets.
     function _verifyHeader(IBesuLightClientMsgs.MsgUpdateClient memory msg_)
         private
         view
-        returns (uint64 height, IBesuLightClientMsgs.ConsensusState memory consensusState)
+        returns (uint64 height, IBesuLightClientMsgs.ConsensusState memory consensusState, uint256 validatorChanges)
     {
         require(msg_.trustedHeight.revisionNumber == 0, InvalidRevisionNumber(msg_.trustedHeight.revisionNumber));
 
@@ -371,10 +390,11 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         address[] memory signers = _recoverSigners(_commitSealDigest(header), header.commitSeals);
         address[] memory trustedValidators = msg_.consensusStatePreimage.validators;
         if (_sameValidatorSet(trustedValidators, header.validators)) {
-            // Every signer is trusted unless it is unknown, which `_checkValidatorQuorum` rejects below. An unknown
-            // signer is then still counted in the overlap reported by `InsufficientTrustedValidatorOverlap`.
+            // The sets are identical, so every signer is trusted unless it is unknown, which `_checkValidatorQuorum`
+            // rejects below. An unknown signer is still counted in the `InsufficientTrustedValidatorOverlap` actual.
             _requireTrustLevel(signers.length, trustedValidators.length);
         } else {
+            validatorChanges = _validatorSetChanges(trustedValidators, header.validators);
             _requireTrustLevel(_trustedValidatorOverlap(signers, trustedValidators), trustedValidators.length);
         }
         _checkValidatorQuorum(signers, header.validators);
@@ -383,7 +403,8 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             header.height,
             IBesuLightClientMsgs.ConsensusState({
                 timestamp: header.timestamp, stateRoot: header.stateRoot, validators: header.validators
-            })
+            }),
+            validatorChanges
         );
     }
 
@@ -515,17 +536,9 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @notice Returns whether two validator sets are identical.
     /// @param a The first validator set.
     /// @param b The second validator set.
-    /// @return same True if `a` and `b` hold the same validators in the same order.
-    function _sameValidatorSet(address[] memory a, address[] memory b) private pure returns (bool same) {
-        if (a.length != b.length) {
-            return false;
-        }
-        // Hashes the array elements in place, without the copy `abi.encodePacked` would make.
-        // solhint-disable-next-line no-inline-assembly
-        assembly ("memory-safe") {
-            let size := shl(5, mload(a))
-            same := eq(keccak256(add(a, 0x20), size), keccak256(add(b, 0x20), size))
-        }
+    /// @return True if `a` and `b` hold the same validators in the same order.
+    function _sameValidatorSet(address[] memory a, address[] memory b) private pure returns (bool) {
+        return a.length == b.length && keccak256(abi.encodePacked(a)) == keccak256(abi.encodePacked(b));
     }
 
     /// @notice Checks that signers meet quorum for the submitted header validator set.
