@@ -337,9 +337,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             uint256 maxChanges = heightB - heightA;
             // Sets cannot differ by more validators than they hold in total, so only count when they could.
             if (!sameValidators && maxChanges < a.validators.length + b.validators.length) {
-                // Validators in exactly one of the two sets.
-                uint256 changes =
-                    a.validators.length + b.validators.length - 2 * _commonValidators(a.validators, b.validators);
+                uint256 changes = _deltaValidators(a.validators, b.validators);
                 if (changes > maxChanges) {
                     clientState.isFrozen = true;
                     emit InvalidValidatorSetChange(heightB, heightA, changes);
@@ -349,6 +347,15 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         }
 
         return false;
+    }
+
+    /// @notice Counts the validators that are in exactly one of two validator sets.
+    /// @dev Assumes both sets are strictly ascending, as `_commonValidators` does.
+    /// @param a The first validator set.
+    /// @param b The second validator set.
+    /// @return The size of the symmetric difference of `a` and `b`.
+    function _deltaValidators(address[] memory a, address[] memory b) private pure returns (uint256) {
+        return a.length + b.length - 2 * _commonValidators(a, b);
     }
 
     /// @notice Counts the validators that are in both of two validator sets.
