@@ -9,8 +9,8 @@
 [foundry-badge]: https://img.shields.io/badge/Built%20with-Foundry-FFDB1C.svg
 [license]: https://www.apache.org/licenses/LICENSE-2.0
 [license-badge]: https://img.shields.io/badge/License-Apache_2.0-blue.svg
-[codecov]: https://codecov.io/github/cosmos/solidity-ibc-eureka
-[codecov-badge]: https://codecov.io/github/cosmos/solidity-ibc-eureka/graph/badge.svg?token=lhplGORQxX
+[codecov]: https://codecov.io/gh/cosmos/ibc-contracts
+[codecov-badge]: https://codecov.io/gh/cosmos/ibc-contracts/graph/badge.svg
 [scorecard]: https://scorecard.dev/viewer/?uri=github.com/cosmos/ibc-contracts
 [scorecard-badge]: https://api.scorecard.dev/projects/github.com/cosmos/ibc-contracts/badge
 
