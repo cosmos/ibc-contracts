@@ -31,13 +31,9 @@ pub const HEIGHT: &str = "height";
 pub const TIMESTAMP: &str = "timestamp";
 /// Parameter key for attestor addresses.
 pub const ATTESTOR_ADDRESSES: &str = "attestor_addresses";
-/// Parameter key for the `ICS26Router` address that drives the light client.
-pub const ICS26_ROUTER: &str = "ics26_router";
 
 /// Parsed parameters for creating an attestor light client.
 pub struct AttestorClientParams {
-    /// `ICS26Router` that drives the light client (defaults to the module's router if not provided).
-    pub ics26_router: Option<Address>,
     /// Minimum required signatures for attestation verification.
     pub min_required_sigs: u8,
     /// Initial height for the client state.
@@ -55,14 +51,6 @@ pub struct AttestorClientParams {
 pub fn parse_attestor_client_params<S: std::hash::BuildHasher>(
     parameters: &HashMap<String, String, S>,
 ) -> Result<AttestorClientParams> {
-    let ics26_router = parameters
-        .get(ICS26_ROUTER)
-        .map(|a| {
-            a.parse()
-                .map_err(|e| anyhow::anyhow!("invalid `{ICS26_ROUTER}` address: {e}"))
-        })
-        .transpose()?;
-
     let min_required_sigs: u8 = parameters
         .get(MIN_REQUIRED_SIGS)
         .ok_or_else(|| anyhow::anyhow!("Missing `{MIN_REQUIRED_SIGS}` parameter"))?
@@ -90,7 +78,6 @@ pub fn parse_attestor_client_params<S: std::hash::BuildHasher>(
         .map_err(|_| anyhow::anyhow!("failed to parse ethereum address list"))?;
 
     Ok(AttestorClientParams {
-        ics26_router,
         min_required_sigs,
         height,
         timestamp,
@@ -324,7 +311,7 @@ pub async fn build_eth_attestor_relay_events_tx(
 
 /// Builds create client calldata for an Ethereum attestor light client.
 ///
-/// The client is bound to `ics26_address` unless the `ics26_router` parameter overrides it.
+/// The client is bound to the `ICS26Router` at `ics26_address`.
 ///
 /// # Errors
 /// Returns an error if parameter parsing fails.
@@ -345,7 +332,7 @@ pub fn build_eth_attestor_create_client_calldata<
             params.min_required_sigs,
             params.height,
             params.timestamp,
-            params.ics26_router.unwrap_or(ics26_address),
+            ics26_address,
         )
         .calldata()
         .to_vec(),

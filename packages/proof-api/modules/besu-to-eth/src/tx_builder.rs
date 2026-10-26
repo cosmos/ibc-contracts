@@ -2,7 +2,6 @@
 
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
-    str::FromStr,
     time::UNIX_EPOCH,
 };
 
@@ -48,14 +47,12 @@ struct CreateClientParams {
     max_clock_drift: u64,
     trust_level: IBesuLightClientMsgs::TrustThreshold,
     trusted_height: Option<u64>,
-    ics26_router: Option<Address>,
 }
 
 const TRUSTING_PERIOD: &str = "trusting_period";
 const MAX_CLOCK_DRIFT: &str = "max_clock_drift";
 const TRUST_LEVEL: &str = "trust_level";
 const TRUSTED_HEIGHT: &str = "trusted_height";
-const ICS26_ROUTER: &str = "ics26_router";
 
 impl TxBuilder {
     pub fn new(
@@ -90,9 +87,7 @@ impl TxBuilder {
         };
 
         let trusted_state = consensus_state(&self.fetch_source_header(trusted_height).await?)?;
-        let ics26_router = params
-            .ics26_router
-            .unwrap_or_else(|| *self.dst_ics26_router.address());
+        let ics26_router = *self.dst_ics26_router.address();
 
         let calldata = match self.consensus_type {
             BesuConsensusType::Qbft => besu_qbft_light_client::BesuQBFTLightClient::deploy_builder(
@@ -580,13 +575,12 @@ fn parse_create_client_params(parameters: &HashMap<String, String>) -> Result<Cr
                 MAX_CLOCK_DRIFT,
                 TRUST_LEVEL,
                 TRUSTED_HEIGHT,
-                ICS26_ROUTER,
             ]
             .contains(&key.as_str())
         })
         .map_or(Ok(()), |key| {
             Err(anyhow!(
-                "unexpected parameter `{key}`, only `{TRUSTING_PERIOD}`, `{MAX_CLOCK_DRIFT}`, `{TRUST_LEVEL}`, `{TRUSTED_HEIGHT}`, and `{ICS26_ROUTER}` are allowed"
+                "unexpected parameter `{key}`, only `{TRUSTING_PERIOD}`, `{MAX_CLOCK_DRIFT}`, `{TRUST_LEVEL}`, and `{TRUSTED_HEIGHT}` are allowed"
             ))
         })?;
 
@@ -610,13 +604,6 @@ fn parse_create_client_params(parameters: &HashMap<String, String>) -> Result<Cr
                 value.parse().with_context(|| {
                     format!("failed to parse `{TRUSTED_HEIGHT}` as decimal block height")
                 })
-            })
-            .transpose()?,
-        ics26_router: parameters
-            .get(ICS26_ROUTER)
-            .map(|value| {
-                Address::from_str(value)
-                    .with_context(|| format!("failed to parse `{ICS26_ROUTER}` as hex address"))
             })
             .transpose()?,
     })

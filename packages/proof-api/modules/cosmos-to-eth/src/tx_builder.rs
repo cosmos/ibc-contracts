@@ -129,8 +129,6 @@ where
 const SP1_VERIFIER: &str = "sp1_verifier";
 /// The key for the zk algorithm in the parameters map.
 const ZK_ALGORITHM: &str = "zk_algorithm";
-/// The key for the `ICS26Router` that drives the light client in the parameters map.
-const ICS26_ROUTER: &str = "ics26_router";
 
 #[async_trait::async_trait]
 impl<P> TxBuilderService<EthEureka, CosmosSdk> for TxBuilder<P>
@@ -220,9 +218,9 @@ where
         // Check if parameters only include correct keys
         parameters
             .keys()
-            .find(|k| ![SP1_VERIFIER, ZK_ALGORITHM, ICS26_ROUTER].contains(&k.as_str()))
+            .find(|k| ![SP1_VERIFIER, ZK_ALGORITHM].contains(&k.as_str()))
             .map_or(Ok(()), |param| {
-                Err(anyhow::anyhow!("Unexpected parameter: `{param}`, only `{SP1_VERIFIER}`, `{ZK_ALGORITHM}` and `{ICS26_ROUTER}` are allowed"))
+                Err(anyhow::anyhow!("Unexpected parameter: `{param}`, only `{SP1_VERIFIER}` and `{ZK_ALGORITHM}` are allowed"))
             })?;
 
         let latest_light_block = self.tm_client.get_light_block(None).await?;
@@ -232,11 +230,6 @@ where
             latest_light_block.height().value()
         );
 
-        let ics26_router = parameters
-            .get(ICS26_ROUTER)
-            .map_or(Ok(*self.ics26_router.address()), |a| {
-                Address::from_str(a.as_str()).map_err(|e| anyhow::anyhow!(e))
-            })?;
         let sp1_verifier = Address::from_str(
             parameters
                 .get(SP1_VERIFIER)
@@ -292,7 +285,7 @@ where
             sp1_verifier,
             client_state.abi_encode().into(),
             consensus_state_hash,
-            ics26_router,
+            *self.ics26_router.address(),
         )
         .calldata()
         .to_vec())

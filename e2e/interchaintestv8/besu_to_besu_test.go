@@ -1474,7 +1474,6 @@ func (s *BesuToBesuTestSuite) createAndRegisterBesuClient(
 			testvalues.ParameterKey_TrustingPeriod: strconv.Itoa(testvalues.DefaultTrustPeriod),
 			testvalues.ParameterKey_MaxClockDrift:  strconv.Itoa(testvalues.DefaultMaxClockDrift),
 			testvalues.ParameterKey_TrustLevel:     trustLevel,
-			testvalues.ParameterKey_ICS26Router:    dstChain.contractAddresses.Ics26Router,
 		},
 	})
 	s.Require().NoError(err)
