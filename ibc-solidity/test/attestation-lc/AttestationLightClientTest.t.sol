@@ -17,7 +17,7 @@ import { IICS26ManagedLightClientErrors } from "../../contracts/errors/IICS26Man
 import { IBCRolesLib } from "../../contracts/utils/IBCRolesLib.sol";
 import { Pausable } from "@openzeppelin-contracts/utils/Pausable.sol";
 import { AccessManager } from "@openzeppelin-contracts/access/manager/AccessManager.sol";
-import { MockICS26Router } from "../solidity-ibc/mocks/MockICS26Router.sol";
+import { IAccessManaged } from "@openzeppelin-contracts/access/manager/IAccessManaged.sol";
 
 contract AttestationLightClientTest is Test {
     AttestationLightClient internal client;
@@ -109,21 +109,12 @@ contract AttestationLightClientTest is Test {
     }
 
     function test_pause() public {
-        (address[] memory addrs,) = client.getAttestationSet();
         AccessManager accessManager = new AccessManager(address(this));
-        address ics26 = address(new MockICS26Router(address(accessManager)));
         address pauser = makeAddr("pauser");
         address unpauser = makeAddr("unpauser");
         accessManager.grantRole(IBCRolesLib.PAUSER_ROLE, pauser, 0);
         accessManager.grantRole(IBCRolesLib.UNPAUSER_ROLE, unpauser, 0);
-
-        client = new AttestationLightClient({
-            attestorAddresses: addrs,
-            minRequiredSigs: 2,
-            initialHeight: INITIAL_HEIGHT,
-            initialTimestampSeconds: INITIAL_TS,
-            ics26Router: ics26
-        });
+        vm.mockCall(ics26Router, abi.encodeCall(IAccessManaged.authority, ()), abi.encode(address(accessManager)));
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -146,7 +137,7 @@ contract AttestationLightClientTest is Test {
         ILightClientMsgs.MsgVerifyMembership memory membershipMsg;
         ILightClientMsgs.MsgVerifyNonMembership memory nonMembershipMsg;
 
-        vm.startPrank(ics26);
+        vm.startPrank(ics26Router);
         vm.expectRevert(Pausable.EnforcedPause.selector);
         client.updateClient(updateMsg);
         vm.expectRevert(Pausable.EnforcedPause.selector);
@@ -166,7 +157,7 @@ contract AttestationLightClientTest is Test {
         vm.prank(unpauser);
         client.unpause();
 
-        vm.prank(ics26);
+        vm.prank(ics26Router);
         ILightClientMsgs.UpdateResult res = client.updateClient(updateMsg);
         assertEq(uint8(res), uint8(ILightClientMsgs.UpdateResult.Update));
     }

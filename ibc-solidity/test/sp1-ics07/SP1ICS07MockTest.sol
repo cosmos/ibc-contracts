@@ -16,7 +16,7 @@ import { IBCRolesLib } from "../../contracts/utils/IBCRolesLib.sol";
 
 import { SP1MockVerifier } from "@sp1-contracts/SP1MockVerifier.sol";
 import { AccessManager } from "@openzeppelin-contracts/access/manager/AccessManager.sol";
-import { MockICS26Router } from "../solidity-ibc/mocks/MockICS26Router.sol";
+import { IAccessManaged } from "@openzeppelin-contracts/access/manager/IAccessManaged.sol";
 
 abstract contract SP1ICS07MockTest is Test {
     string public constant MOCK_CHAIN_ID = "mock-chain";
@@ -28,7 +28,7 @@ abstract contract SP1ICS07MockTest is Test {
     address public unpauser = makeAddr("unpauser");
 
     AccessManager public accessManager;
-    address public ics26;
+    address public ics26Router = makeAddr("ics26Router");
 
     SP1ICS07Tendermint public ics07Tendermint;
 
@@ -41,7 +41,7 @@ abstract contract SP1ICS07MockTest is Test {
         accessManager = new AccessManager(address(this));
         accessManager.grantRole(IBCRolesLib.PAUSER_ROLE, pauser, 0);
         accessManager.grantRole(IBCRolesLib.UNPAUSER_ROLE, unpauser, 0);
-        ics26 = address(new MockICS26Router(address(accessManager)));
+        vm.mockCall(ics26Router, abi.encodeCall(IAccessManaged.authority, ()), abi.encode(address(accessManager)));
 
         ics07Tendermint = new SP1ICS07Tendermint(
             MOCK_VKEY,
@@ -51,7 +51,7 @@ abstract contract SP1ICS07MockTest is Test {
             address(new SP1MockVerifier()),
             abi.encode(mockClientState(1)),
             firstConsensusStateHash,
-            ics26
+            ics26Router
         );
     }
 

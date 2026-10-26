@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import { Test } from "forge-std/Test.sol";
 import { AccessManager } from "@openzeppelin-contracts/access/manager/AccessManager.sol";
+import { IAccessManaged } from "@openzeppelin-contracts/access/manager/IAccessManaged.sol";
 import { Pausable } from "@openzeppelin-contracts/utils/Pausable.sol";
 import { Math } from "@openzeppelin-contracts/utils/math/Math.sol";
 import { Memory } from "@openzeppelin-contracts/utils/Memory.sol";
@@ -19,7 +20,6 @@ import { IICS26ManagedLightClientErrors } from "../../contracts/errors/IICS26Man
 import { IBCRolesLib } from "../../contracts/utils/IBCRolesLib.sol";
 import { ICS24Host } from "../../contracts/utils/ICS24Host.sol";
 
-import { MockICS26Router } from "../solidity-ibc/mocks/MockICS26Router.sol";
 import { QBFTSimSuite } from "./utils/QBFTSimSuite.sol";
 import { SimHeader } from "./utils/SimHeader.sol";
 
@@ -89,8 +89,8 @@ abstract contract QBFTSimSuiteTest is Test {
     }
 
     function test_accessControl() public {
-        (IBesuLightClient managed, address ics26, address pauser, address unpauser) = _deployManagedClient();
-        assertEq(IICS26ManagedLightClient(address(managed)).ICS26_ROUTER(), ics26);
+        (address pauser, address unpauser) = _mockRouterAuthority();
+        assertEq(IICS26ManagedLightClient(address(client)).ICS26_ROUTER(), ics26Router);
 
         sim.produceBlock();
         bytes memory update = sim.updateMsg(2, 3);
@@ -102,45 +102,40 @@ abstract contract QBFTSimSuiteTest is Test {
 
         vm.startPrank(relayer);
         vm.expectRevert(unauthorized);
-        managed.updateClient(update);
+        client.updateClient(update);
         vm.expectRevert(unauthorized);
-        managed.verifyMembership(membership);
+        client.verifyMembership(membership);
         vm.expectRevert(unauthorized);
-        managed.verifyNonMembership(nonMembership);
+        client.verifyNonMembership(nonMembership);
         vm.expectRevert(unauthorized);
-        managed.misbehaviour("");
+        client.misbehaviour("");
         vm.stopPrank();
 
         vm.prank(pauser);
-        IICS26ManagedLightClient(address(managed)).pause();
-        vm.startPrank(ics26);
+        IICS26ManagedLightClient(address(client)).pause();
+        vm.startPrank(ics26Router);
         vm.expectRevert(Pausable.EnforcedPause.selector);
-        managed.updateClient(update);
+        client.updateClient(update);
         vm.expectRevert(Pausable.EnforcedPause.selector);
-        managed.verifyMembership(membership);
+        client.verifyMembership(membership);
         vm.expectRevert(Pausable.EnforcedPause.selector);
-        managed.verifyNonMembership(nonMembership);
+        client.verifyNonMembership(nonMembership);
         vm.stopPrank();
 
         vm.prank(unpauser);
-        IICS26ManagedLightClient(address(managed)).unpause();
-        vm.prank(ics26);
-        assertEq(uint8(managed.updateClient(update)), uint8(ILightClientMsgs.UpdateResult.Update));
+        IICS26ManagedLightClient(address(client)).unpause();
+        vm.prank(ics26Router);
+        assertEq(uint8(client.updateClient(update)), uint8(ILightClientMsgs.UpdateResult.Update));
     }
 
-    /// @dev Deploys a client bound to a mock router whose authority grants the pause roles.
-    function _deployManagedClient()
-        internal
-        returns (IBesuLightClient managed, address ics26, address pauser, address unpauser)
-    {
+    /// @dev Mocks the router's authority with an `AccessManager` that grants the pause roles.
+    function _mockRouterAuthority() internal returns (address pauser, address unpauser) {
         AccessManager accessManager = new AccessManager(address(this));
-        ics26 = address(new MockICS26Router(address(accessManager)));
         pauser = makeAddr("pauser");
         unpauser = makeAddr("unpauser");
         accessManager.grantRole(IBCRolesLib.PAUSER_ROLE, pauser, 0);
         accessManager.grantRole(IBCRolesLib.UNPAUSER_ROLE, unpauser, 0);
-        managed =
-            sim.deployLightClient(TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(2, 3), ics26);
+        vm.mockCall(ics26Router, abi.encodeCall(IAccessManaged.authority, ()), abi.encode(address(accessManager)));
     }
 
     function _expectUpdateRevert(bytes memory headerRlp, bytes memory revertData) internal {
@@ -365,7 +360,7 @@ abstract contract QBFTSimSuiteTest is Test {
 
     /// @dev A paused client rejects updates but can still be frozen by misbehaviour submitted through the router.
     function test_misbehaviourWhilePaused() public {
-        (IBesuLightClient managed, address ics26, address pauser,) = _deployManagedClient();
+        (address pauser,) = _mockRouterAuthority();
         SimHeader.Data memory a = sim.seal(sim.nextBlock());
         SimHeader.Data memory b = sim.nextBlock();
         b.stateRoot = keccak256("equivocation");
@@ -374,15 +369,15 @@ abstract contract QBFTSimSuiteTest is Test {
         bytes memory misbehaviour = _headersMisbehaviour(update, sim.updateMsg(2, b));
 
         vm.prank(pauser);
-        IICS26ManagedLightClient(address(managed)).pause();
+        IICS26ManagedLightClient(address(client)).pause();
 
-        vm.startPrank(ics26);
+        vm.startPrank(ics26Router);
         vm.expectRevert(Pausable.EnforcedPause.selector);
-        managed.updateClient(update);
+        client.updateClient(update);
 
-        managed.misbehaviour(misbehaviour);
+        client.misbehaviour(misbehaviour);
         vm.stopPrank();
-        assertTrue(_isFrozen(managed));
+        assertTrue(_isFrozen(client));
     }
 
     function test_timestampFromFuture() public {

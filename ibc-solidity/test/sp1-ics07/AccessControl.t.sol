@@ -10,7 +10,7 @@ import { IBCRolesLib } from "../../contracts/utils/IBCRolesLib.sol";
 
 import { Pausable } from "@openzeppelin-contracts/utils/Pausable.sol";
 import { AccessManager } from "@openzeppelin-contracts/access/manager/AccessManager.sol";
-import { MockICS26Router } from "../solidity-ibc/mocks/MockICS26Router.sol";
+import { IAccessManaged } from "@openzeppelin-contracts/access/manager/IAccessManaged.sol";
 
 import { SP1ICS07MockTest } from "./SP1ICS07MockTest.sol";
 
@@ -18,7 +18,7 @@ contract SP1ICS07AccessControlTest is SP1ICS07MockTest {
     address public unauthorized = makeAddr("unauthorized");
 
     function test_success_ics26Router() public view {
-        assertEq(ics07Tendermint.ICS26_ROUTER(), ics26);
+        assertEq(ics07Tendermint.ICS26_ROUTER(), ics26Router);
     }
 
     function test_failure_zeroICS26Router() public {
@@ -37,7 +37,7 @@ contract SP1ICS07AccessControlTest is SP1ICS07MockTest {
 
     function test_success_updateClient() public {
         bytes memory updateMsg = newUpdateClientMsg();
-        vm.prank(ics26);
+        vm.prank(ics26Router);
         ILightClientMsgs.UpdateResult res = ics07Tendermint.updateClient(updateMsg);
         assertEq(uint8(res), uint8(ILightClientMsgs.UpdateResult.Update));
     }
@@ -51,7 +51,7 @@ contract SP1ICS07AccessControlTest is SP1ICS07MockTest {
 
     function test_success_verifyMembership() public {
         ILightClientMsgs.MsgVerifyMembership memory membershipMsg = newMembershipMsg(1);
-        vm.prank(ics26);
+        vm.prank(ics26Router);
         ics07Tendermint.verifyMembership(membershipMsg);
     }
 
@@ -64,7 +64,7 @@ contract SP1ICS07AccessControlTest is SP1ICS07MockTest {
 
     function test_success_verifyNonMembership() public {
         ILightClientMsgs.MsgVerifyNonMembership memory nonMembershipMsg = newNonMembershipMsg(1);
-        vm.prank(ics26);
+        vm.prank(ics26Router);
         ics07Tendermint.verifyNonMembership(nonMembershipMsg);
     }
 
@@ -77,7 +77,7 @@ contract SP1ICS07AccessControlTest is SP1ICS07MockTest {
 
     function test_success_misbehaviour() public {
         bytes memory misbehaviourMsg = newMisbehaviourMsg();
-        vm.prank(ics26);
+        vm.prank(ics26Router);
         ics07Tendermint.misbehaviour(misbehaviourMsg);
         assertTrue(_isFrozen());
     }
@@ -98,7 +98,7 @@ contract SP1ICS07AccessControlTest is SP1ICS07MockTest {
         ILightClientMsgs.MsgVerifyMembership memory membershipMsg = newMembershipMsg(1);
         ILightClientMsgs.MsgVerifyNonMembership memory nonMembershipMsg = newNonMembershipMsg(1);
 
-        vm.startPrank(ics26);
+        vm.startPrank(ics26Router);
         vm.expectRevert(Pausable.EnforcedPause.selector);
         ics07Tendermint.updateClient(updateMsg);
         vm.expectRevert(Pausable.EnforcedPause.selector);
@@ -111,7 +111,7 @@ contract SP1ICS07AccessControlTest is SP1ICS07MockTest {
         ics07Tendermint.unpause();
         assertFalse(ics07Tendermint.paused());
 
-        vm.startPrank(ics26);
+        vm.startPrank(ics26Router);
         ics07Tendermint.updateClient(updateMsg);
         ics07Tendermint.verifyMembership(membershipMsg);
         ics07Tendermint.verifyNonMembership(nonMembershipMsg);
@@ -123,14 +123,14 @@ contract SP1ICS07AccessControlTest is SP1ICS07MockTest {
         ics07Tendermint.pause();
 
         bytes memory misbehaviourMsg = newMisbehaviourMsg();
-        vm.prank(ics26);
+        vm.prank(ics26Router);
         ics07Tendermint.misbehaviour(misbehaviourMsg);
         assertTrue(_isFrozen());
     }
 
     function test_failure_pause() public {
         // neither an unrelated account, the router nor the unpauser can pause
-        address[3] memory callers = [unauthorized, ics26, unpauser];
+        address[3] memory callers = [unauthorized, ics26Router, unpauser];
         for (uint256 i = 0; i < callers.length; ++i) {
             _expectUnauthorizedRole(callers[i], IBCRolesLib.PAUSER_ROLE);
             vm.prank(callers[i]);
@@ -152,7 +152,7 @@ contract SP1ICS07AccessControlTest is SP1ICS07MockTest {
         ics07Tendermint.pause();
 
         // neither an unrelated account, the router nor the pauser can unpause
-        address[3] memory callers = [unauthorized, ics26, pauser];
+        address[3] memory callers = [unauthorized, ics26Router, pauser];
         for (uint256 i = 0; i < callers.length; ++i) {
             _expectUnauthorizedRole(callers[i], IBCRolesLib.UNPAUSER_ROLE);
             vm.prank(callers[i]);
@@ -167,8 +167,7 @@ contract SP1ICS07AccessControlTest is SP1ICS07MockTest {
         address newPauser = makeAddr("newPauser");
         newAccessManager.grantRole(IBCRolesLib.PAUSER_ROLE, newPauser, 0);
 
-        vm.prank(address(accessManager));
-        MockICS26Router(ics26).setAuthority(address(newAccessManager));
+        vm.mockCall(ics26Router, abi.encodeCall(IAccessManaged.authority, ()), abi.encode(address(newAccessManager)));
 
         // the pauser of the previous authority is no longer recognized
         _expectUnauthorizedRole(pauser, IBCRolesLib.PAUSER_ROLE);
