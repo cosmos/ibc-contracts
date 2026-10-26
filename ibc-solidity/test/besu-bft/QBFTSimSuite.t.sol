@@ -183,7 +183,7 @@ abstract contract QBFTSimSuiteTest is Test {
     /// @dev Each update is only checked against its own trusted height, so a forged height-3 header timestamped
     /// after the honest height-4 header is accepted. Submitting both stored states as misbehaviour freezes the client,
     /// even after both are past their trusting period.
-    function test_timeNonMonotonicityMisbehaviour() public {
+    function test_conflictingConsensusStatesTimeNonMonotonicity() public {
         SimHeader.Data memory forged = sim.nextBlock();
         sim.produceBlocks(2);
         forged.timestamp = sim.blockAt(4).timestamp + 1;
@@ -219,7 +219,7 @@ abstract contract QBFTSimSuiteTest is Test {
     }
 
     /// @dev Two validly signed headers at the same height prove a double sign, whether or not either is stored.
-    function test_headersDoubleSign() public {
+    function test_conflictingHeadersDoubleSign() public {
         SimHeader.Data memory a = sim.seal(sim.nextBlock());
         SimHeader.Data memory b = sim.nextBlock();
         b.stateRoot = keccak256("equivocation");
@@ -244,7 +244,7 @@ abstract contract QBFTSimSuiteTest is Test {
 
     /// @dev Two validly signed headers whose timestamps do not increase with height freeze the client in either
     /// order, even though neither is stored and the forged header is ahead of the clock.
-    function test_headersTimeNonMonotonicity() public {
+    function test_conflictingHeadersTimeNonMonotonicity() public {
         SimHeader.Data memory forged = sim.nextBlock();
         sim.produceBlocks(2);
         forged.timestamp = uint64(vm.getBlockTimestamp()) + MAX_CLOCK_DRIFT + 1;
@@ -269,7 +269,7 @@ abstract contract QBFTSimSuiteTest is Test {
 
     /// @dev A header not newer than its own trusted consensus state is evidence on its own, as in `updateClient`,
     /// even when paired with a valid later header or with itself.
-    function test_headersTimeNonMonotonicityAgainstTrustedState() public {
+    function test_conflictingHeadersTimeNonMonotonicityAgainstTrustedState() public {
         uint64 trustedTimestamp = sim.blockAt(2).timestamp;
         SimHeader.Data memory forged = sim.nextBlock();
         forged.timestamp = trustedTimestamp;

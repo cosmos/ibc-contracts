@@ -836,18 +836,18 @@ func (s *BesuToBesuTestSuite) DoubleSignFreezesClientTest(consensus string) {
 	}))
 }
 
-func (s *BesuToBesuTestSuite) Test_TimeNonMonotonicityFreezesClient_QBFT() {
-	s.TimeNonMonotonicityFreezesClientTest(testvalues.BesuConsensusQBFT)
+func (s *BesuToBesuTestSuite) Test_ConflictingConsensusStatesTimeNonMonotonicityFreezesClient_QBFT() {
+	s.ConflictingConsensusStatesTimeNonMonotonicityFreezesClientTest(testvalues.BesuConsensusQBFT)
 }
 
-func (s *BesuToBesuTestSuite) Test_TimeNonMonotonicityFreezesClient_IBFT2() {
-	s.TimeNonMonotonicityFreezesClientTest(testvalues.BesuConsensusIBFT2)
+func (s *BesuToBesuTestSuite) Test_ConflictingConsensusStatesTimeNonMonotonicityFreezesClient_IBFT2() {
+	s.ConflictingConsensusStatesTimeNonMonotonicityFreezesClientTest(testvalues.BesuConsensusIBFT2)
 }
 
-// TimeNonMonotonicityFreezesClientTest stores two consensus states whose timestamps do not increase with height on
-// a dedicated client on Chain B, then submits them as misbehaviour. Each update is only checked against its own
-// trusted height, so both updates are accepted.
-func (s *BesuToBesuTestSuite) TimeNonMonotonicityFreezesClientTest(consensus string) {
+// ConflictingConsensusStatesTimeNonMonotonicityFreezesClientTest stores two consensus states whose timestamps do not
+// increase with height on a dedicated client on Chain B, then submits them as misbehaviour. Each update is only
+// checked against its own trusted height, so both updates are accepted.
+func (s *BesuToBesuTestSuite) ConflictingConsensusStatesTimeNonMonotonicityFreezesClientTest(consensus string) {
 	ctx := context.Background()
 	s.SetupSuite(ctx, consensus)
 
@@ -932,17 +932,17 @@ func (s *BesuToBesuTestSuite) TimeNonMonotonicityFreezesClientTest(consensus str
 	}))
 }
 
-func (s *BesuToBesuTestSuite) Test_HeadersDoubleSignMisbehaviourIsPermissionless_QBFT() {
-	s.HeadersDoubleSignMisbehaviourIsPermissionlessTest(testvalues.BesuConsensusQBFT)
+func (s *BesuToBesuTestSuite) Test_ConflictingHeadersDoubleSignMisbehaviourIsPermissionless_QBFT() {
+	s.ConflictingHeadersDoubleSignMisbehaviourIsPermissionlessTest(testvalues.BesuConsensusQBFT)
 }
 
-func (s *BesuToBesuTestSuite) Test_HeadersDoubleSignMisbehaviourIsPermissionless_IBFT2() {
-	s.HeadersDoubleSignMisbehaviourIsPermissionlessTest(testvalues.BesuConsensusIBFT2)
+func (s *BesuToBesuTestSuite) Test_ConflictingHeadersDoubleSignMisbehaviourIsPermissionless_IBFT2() {
+	s.ConflictingHeadersDoubleSignMisbehaviourIsPermissionlessTest(testvalues.BesuConsensusIBFT2)
 }
 
-// HeadersDoubleSignMisbehaviourIsPermissionlessTest submits two conflicting headers at the same height directly to a
-// dedicated client on Chain B from an account without PROOF_SUBMITTER_ROLE. Neither header is stored.
-func (s *BesuToBesuTestSuite) HeadersDoubleSignMisbehaviourIsPermissionlessTest(consensus string) {
+// ConflictingHeadersDoubleSignMisbehaviourIsPermissionlessTest submits two conflicting headers at the same height
+// directly to a dedicated client on Chain B from an account without PROOF_SUBMITTER_ROLE. Neither header is stored.
+func (s *BesuToBesuTestSuite) ConflictingHeadersDoubleSignMisbehaviourIsPermissionlessTest(consensus string) {
 	ctx := context.Background()
 	s.SetupSuite(ctx, consensus)
 
@@ -965,7 +965,7 @@ func (s *BesuToBesuTestSuite) HeadersDoubleSignMisbehaviourIsPermissionlessTest(
 		s.Require().NoError(err)
 		conflictingUpdate, err := e2etypes.BuildBesuDoubleSignUpdate(ctx, &s.chainA.eth, s.consensus, trustedHeight, height)
 		s.Require().NoError(err)
-		misbehaviourMsg = s.headersMisbehaviourMsg(honestUpdate, conflictingUpdate)
+		misbehaviourMsg = s.conflictingHeadersMisbehaviourMsg(honestUpdate, conflictingUpdate)
 	}))
 
 	s.Require().True(s.Run("Account without role cannot update the client", func() {
@@ -998,18 +998,18 @@ func (s *BesuToBesuTestSuite) HeadersDoubleSignMisbehaviourIsPermissionlessTest(
 	}))
 }
 
-func (s *BesuToBesuTestSuite) Test_HeadersTimeNonMonotonicityMisbehaviourIsPermissionless_QBFT() {
-	s.HeadersTimeNonMonotonicityMisbehaviourIsPermissionlessTest(testvalues.BesuConsensusQBFT)
+func (s *BesuToBesuTestSuite) Test_ConflictingHeadersTimeNonMonotonicityMisbehaviourIsPermissionless_QBFT() {
+	s.ConflictingHeadersTimeNonMonotonicityMisbehaviourIsPermissionlessTest(testvalues.BesuConsensusQBFT)
 }
 
-func (s *BesuToBesuTestSuite) Test_HeadersTimeNonMonotonicityMisbehaviourIsPermissionless_IBFT2() {
-	s.HeadersTimeNonMonotonicityMisbehaviourIsPermissionlessTest(testvalues.BesuConsensusIBFT2)
+func (s *BesuToBesuTestSuite) Test_ConflictingHeadersTimeNonMonotonicityMisbehaviourIsPermissionless_IBFT2() {
+	s.ConflictingHeadersTimeNonMonotonicityMisbehaviourIsPermissionlessTest(testvalues.BesuConsensusIBFT2)
 }
 
-// HeadersTimeNonMonotonicityMisbehaviourIsPermissionlessTest submits two headers whose timestamps do not increase
-// with height directly to a dedicated client on Chain B from an account without PROOF_SUBMITTER_ROLE. Neither header
-// is stored.
-func (s *BesuToBesuTestSuite) HeadersTimeNonMonotonicityMisbehaviourIsPermissionlessTest(consensus string) {
+// ConflictingHeadersTimeNonMonotonicityMisbehaviourIsPermissionlessTest submits two headers whose timestamps do not
+// increase with height directly to a dedicated client on Chain B from an account without PROOF_SUBMITTER_ROLE.
+// Neither header is stored.
+func (s *BesuToBesuTestSuite) ConflictingHeadersTimeNonMonotonicityMisbehaviourIsPermissionlessTest(consensus string) {
 	ctx := context.Background()
 	s.SetupSuite(ctx, consensus)
 
@@ -1036,7 +1036,7 @@ func (s *BesuToBesuTestSuite) HeadersTimeNonMonotonicityMisbehaviourIsPermission
 		// Height1 is re-sealed with the timestamp of height2.
 		forgedUpdate, err := e2etypes.BuildBesuTimestampUpdate(ctx, &s.chainA.eth, s.consensus, trustedHeight, height1, timestamp)
 		s.Require().NoError(err)
-		misbehaviourMsg = s.headersMisbehaviourMsg(honestUpdate, forgedUpdate)
+		misbehaviourMsg = s.conflictingHeadersMisbehaviourMsg(honestUpdate, forgedUpdate)
 	}))
 
 	s.Require().True(s.Run("Account without role submits misbehaviour and freezes the client", func() {
@@ -1316,9 +1316,9 @@ func (s *BesuToBesuTestSuite) besuClientCalldata(method string, args ...any) []b
 	return calldata
 }
 
-// headersMisbehaviourMsg wraps two abi-encoded MsgUpdateClient payloads into abi.encode(MsgSubmitMisbehaviour) of
-// type Headers, without function selectors.
-func (s *BesuToBesuTestSuite) headersMisbehaviourMsg(update1, update2 []byte) []byte {
+// conflictingHeadersMisbehaviourMsg wraps two abi-encoded MsgUpdateClient payloads into
+// abi.encode(MsgSubmitMisbehaviour) of type ConflictingHeaders, without function selectors.
+func (s *BesuToBesuTestSuite) conflictingHeadersMisbehaviourMsg(update1, update2 []byte) []byte {
 	bindings := besumsgs.NewBindings()
 	msg1, err := bindings.UnpackUpdateClient(update1)
 	s.Require().NoError(err)
