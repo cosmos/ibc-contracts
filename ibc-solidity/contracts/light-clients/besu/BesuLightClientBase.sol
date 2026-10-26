@@ -312,41 +312,35 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         if (heightA == heightB) {
             bytes32 hashA = keccak256(abi.encode(a));
             bytes32 hashB = keccak256(abi.encode(b));
-            if (hashA == hashB) {
-                return false;
+            if (hashA != hashB) {
+                clientState.isFrozen = true;
+                emit DoubleSign(heightA, hashA, hashB);
+                return true;
+            }
+        } else {
+            // Order by height so that heightA < heightB.
+            if (heightA > heightB) {
+                (heightA, a, heightB, b) = (heightB, b, heightA, a);
+            }
+            if (a.timestamp >= b.timestamp) {
+                clientState.isFrozen = true;
+                emit TimeNonMonotonicity(heightB, heightA, b.timestamp, a.timestamp);
+                return true;
             }
 
-            clientState.isFrozen = true;
-            emit DoubleSign(heightA, hashA, hashB);
-            return true;
+            uint256 maxChanges = heightB - heightA;
+            // Sets cannot differ by more validators than they hold in total, so only count when they could.
+            if (!sameValidators && maxChanges < a.validators.length + b.validators.length) {
+                uint256 changes = _validatorSetChanges(a.validators, b.validators);
+                if (changes > maxChanges) {
+                    clientState.isFrozen = true;
+                    emit InvalidValidatorSetChange(heightB, heightA, changes);
+                    return true;
+                }
+            }
         }
 
-        // Order by height so that heightA < heightB.
-        if (heightA > heightB) {
-            (heightA, a, heightB, b) = (heightB, b, heightA, a);
-        }
-        if (a.timestamp >= b.timestamp) {
-            clientState.isFrozen = true;
-            emit TimeNonMonotonicity(heightB, heightA, b.timestamp, a.timestamp);
-            return true;
-        }
-
-        if (sameValidators) {
-            return false;
-        }
-        uint256 maxChanges = heightB - heightA;
-        // Sets cannot differ by more validators than they hold in total.
-        if (maxChanges >= a.validators.length + b.validators.length) {
-            return false;
-        }
-        uint256 changes = _validatorSetChanges(a.validators, b.validators);
-        if (changes <= maxChanges) {
-            return false;
-        }
-
-        clientState.isFrozen = true;
-        emit InvalidValidatorSetChange(heightB, heightA, changes);
-        return true;
+        return false;
     }
 
     /// @notice Counts the validators that are in exactly one of two validator sets.
