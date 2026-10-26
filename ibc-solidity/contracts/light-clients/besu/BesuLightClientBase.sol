@@ -337,7 +337,9 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             uint256 maxChanges = heightB - heightA;
             // Sets cannot differ by more validators than they hold in total, so only count when they could.
             if (!sameValidators && maxChanges < a.validators.length + b.validators.length) {
-                uint256 changes = _validatorSetChanges(a.validators, b.validators);
+                // Validators in exactly one of the two sets.
+                uint256 changes =
+                    a.validators.length + b.validators.length - 2 * _commonValidators(a.validators, b.validators);
                 if (changes > maxChanges) {
                     clientState.isFrozen = true;
                     emit InvalidValidatorSetChange(heightB, heightA, changes);
@@ -349,13 +351,13 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         return false;
     }
 
-    /// @notice Counts the validators that are in exactly one of two validator sets.
-    /// @dev Assumes both sets are strictly ascending. Checked in `_validateValidators` before any set is trusted.
+    /// @notice Counts the validators that are in both of two validator sets.
+    /// @dev Assumes both sets are strictly ascending. Commit seal signers are checked in `_recoverSigners`, and
+    /// validator sets in `_validateValidators` before any set is trusted.
     /// @param a The first validator set.
     /// @param b The second validator set.
-    /// @return changes The size of the symmetric difference of `a` and `b`.
-    function _validatorSetChanges(address[] memory a, address[] memory b) private pure returns (uint256 changes) {
-        uint256 common = 0;
+    /// @return common The size of the intersection of `a` and `b`.
+    function _commonValidators(address[] memory a, address[] memory b) private pure returns (uint256 common) {
         uint256 i = 0;
         uint256 j = 0;
         while (i < a.length && j < b.length) {
@@ -369,7 +371,6 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
                 ++j;
             }
         }
-        return a.length + b.length - 2 * common;
     }
 
     /// @notice Verifies a header against its trusted consensus state and derives its consensus state.
@@ -404,7 +405,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             // rejects below. An unknown signer is still counted in the `InsufficientTrustedValidatorOverlap` actual.
             _requireTrustLevel(signers.length, trustedValidators.length);
         } else {
-            _requireTrustLevel(_trustedValidatorOverlap(signers, trustedValidators), trustedValidators.length);
+            _requireTrustLevel(_commonValidators(signers, trustedValidators), trustedValidators.length);
         }
         _checkValidatorQuorum(signers, header.validators);
 
@@ -502,34 +503,6 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             InvalidCommitSeal()
         );
         return signer;
-    }
-
-    /// @notice Counts the signers that are in the trusted validator set.
-    /// @dev Assumes both sets are strictly ascending. Checked in `_recoverSigners` and `_validateValidators`.
-    /// @param signers The recovered commit seal signers.
-    /// @param trustedValidators The trusted validator set.
-    /// @return actual The number of trusted signers.
-    function _trustedValidatorOverlap(
-        address[] memory signers,
-        address[] memory trustedValidators
-    )
-        private
-        pure
-        returns (uint256 actual)
-    {
-        uint256 i = 0;
-        uint256 j = 0;
-        while (i < signers.length && j < trustedValidators.length) {
-            if (signers[i] == trustedValidators[j]) {
-                ++actual;
-                ++i;
-                ++j;
-            } else if (signers[i] < trustedValidators[j]) {
-                ++i;
-            } else {
-                ++j;
-            }
-        }
     }
 
     /// @notice Checks that enough trusted validators signed.
