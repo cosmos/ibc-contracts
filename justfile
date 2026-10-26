@@ -90,6 +90,12 @@ test-cargo testname="--all":
 	cargo test {{testname}} --locked --no-fail-fast -- --nocapture
 	just solidity::test-cargo-cw
 
+# Run the cargo tests with `cargo llvm-cov`, writing LCOV reports to `lcov.info` and `lcov-cw.info`
+[group('test')]
+coverage-cargo:
+	cargo llvm-cov --workspace --locked --no-fail-fast --lcov --output-path lcov.info -- --nocapture
+	cd ibc-solidity/programs/cw-ics08-wasm-eth && cargo llvm-cov --locked --no-fail-fast --lcov --output-path {{justfile_directory()}}/lcov-cw.info -- --nocapture
+
 # Run the tests in abigen
 [group('test')]
 test-abigen:
