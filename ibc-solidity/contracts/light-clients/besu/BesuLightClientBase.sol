@@ -324,6 +324,10 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @param b The second validator set.
     /// @return changes The size of the symmetric difference of `a` and `b`.
     function _validatorSetChanges(address[] memory a, address[] memory b) private pure returns (uint256 changes) {
+        if (_sameValidatorSet(a, b)) {
+            return 0;
+        }
+
         uint256 common = 0;
         uint256 i = 0;
         uint256 j = 0;
@@ -365,7 +369,14 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         _requireTrustedConsensusState(msg_.trustedHeight.revisionHeight, msg_.consensusStatePreimage);
 
         address[] memory signers = _recoverSigners(_commitSealDigest(header), header.commitSeals);
-        _checkTrustedValidatorOverlap(signers, msg_.consensusStatePreimage.validators);
+        address[] memory trustedValidators = msg_.consensusStatePreimage.validators;
+        if (_sameValidatorSet(trustedValidators, header.validators)) {
+            // Every signer is trusted unless it is unknown, which `_checkValidatorQuorum` rejects below. An unknown
+            // signer is then still counted in the overlap reported by `InsufficientTrustedValidatorOverlap`.
+            _requireTrustLevel(signers.length, trustedValidators.length);
+        } else {
+            _requireTrustLevel(_trustedValidatorOverlap(signers, trustedValidators), trustedValidators.length);
+        }
         _checkValidatorQuorum(signers, header.validators);
 
         return (
@@ -463,13 +474,19 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         return signer;
     }
 
-    /// @notice Checks that signers overlap enough with the trusted validator set.
-    /// @dev Requires at least `ceil(n * trustLevel)` trusted validators to have signed.
-    /// Assumes both sets are strictly ascending. Checked in `_recoverSigners` and `_validateValidators`.
+    /// @notice Counts the signers that are in the trusted validator set.
+    /// @dev Assumes both sets are strictly ascending. Checked in `_recoverSigners` and `_validateValidators`.
     /// @param signers The recovered commit seal signers.
     /// @param trustedValidators The trusted validator set.
-    function _checkTrustedValidatorOverlap(address[] memory signers, address[] memory trustedValidators) private view {
-        uint256 actual = 0;
+    /// @return actual The number of trusted signers.
+    function _trustedValidatorOverlap(
+        address[] memory signers,
+        address[] memory trustedValidators
+    )
+        private
+        pure
+        returns (uint256 actual)
+    {
         uint256 i = 0;
         uint256 j = 0;
         while (i < signers.length && j < trustedValidators.length) {
@@ -483,10 +500,32 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
                 ++j;
             }
         }
+    }
 
+    /// @notice Checks that enough trusted validators signed.
+    /// @dev Requires at least `ceil(n * trustLevel)` trusted validators to have signed.
+    /// @param actual The number of trusted signers.
+    /// @param trustedCount The trusted validator set size.
+    function _requireTrustLevel(uint256 actual, uint256 trustedCount) private view {
         IBesuLightClientMsgs.TrustThreshold memory trustLevel = clientState.trustLevel;
-        uint256 required = Math.ceilDiv(trustedValidators.length * trustLevel.numerator, trustLevel.denominator);
+        uint256 required = Math.ceilDiv(trustedCount * trustLevel.numerator, trustLevel.denominator);
         require(actual >= required, InsufficientTrustedValidatorOverlap(actual, required));
+    }
+
+    /// @notice Returns whether two validator sets are identical.
+    /// @param a The first validator set.
+    /// @param b The second validator set.
+    /// @return same True if `a` and `b` hold the same validators in the same order.
+    function _sameValidatorSet(address[] memory a, address[] memory b) private pure returns (bool same) {
+        if (a.length != b.length) {
+            return false;
+        }
+        // Hashes the array elements in place, without the copy `abi.encodePacked` would make.
+        // solhint-disable-next-line no-inline-assembly
+        assembly ("memory-safe") {
+            let size := shl(5, mload(a))
+            same := eq(keccak256(add(a, 0x20), size), keccak256(add(b, 0x20), size))
+        }
     }
 
     /// @notice Checks that signers meet quorum for the submitted header validator set.
