@@ -93,7 +93,7 @@ struct BesuCachedStorageRootTestCase {
     uint64 expectedTimestamp;
 }
 
-/// @dev Rejected time non-monotonicity misbehaviour, submitted once `fixture.nonAdjacentUpdate` is stored.
+/// @dev Rejected conflicting consensus states misbehaviour, submitted once `fixture.nonAdjacentUpdate` is stored.
 /// @dev `timestamp` is the block timestamp at which the misbehaviour is submitted.
 struct BesuMisbehaviourTestCase {
     string name;
@@ -1186,7 +1186,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.NoMisbehaviourDetected.selector)
         });
 
-        IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour memory wrongRevision =
+        IBesuLightClientMsgs.MsgConflictingConsensusStatesMisbehaviour memory wrongRevision =
             _misbehaviourMsg(height1, state1, height2, state2);
         wrongRevision.height1.revisionNumber = 1;
         testCases[3] = BesuMisbehaviourTestCase({
@@ -1535,9 +1535,9 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     )
         internal
         pure
-        returns (IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour memory)
+        returns (IBesuLightClientMsgs.MsgConflictingConsensusStatesMisbehaviour memory)
     {
-        return IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour({
+        return IBesuLightClientMsgs.MsgConflictingConsensusStatesMisbehaviour({
             height1: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: height1 }),
             height2: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: height2 }),
             consensusStatePreimage1: state1,
@@ -1545,14 +1545,14 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         });
     }
 
-    function _encodeMisbehaviour(IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour memory misbehaviour)
+    function _encodeMisbehaviour(IBesuLightClientMsgs.MsgConflictingConsensusStatesMisbehaviour memory misbehaviour)
         internal
         pure
         returns (bytes memory)
     {
         return abi.encode(
             IBesuLightClientMsgs.MsgSubmitMisbehaviour(
-                IBesuLightClientMsgs.MisbehaviourType.TimeNonMonotonicity, abi.encode(misbehaviour)
+                IBesuLightClientMsgs.MisbehaviourType.ConflictingConsensusStates, abi.encode(misbehaviour)
             )
         );
     }

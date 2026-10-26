@@ -207,7 +207,7 @@ abstract contract QBFTSimSuiteTest is Test {
     /// @dev Each update is only checked against its own trusted height, so a forged height-3 header timestamped
     /// after the honest height-4 header is accepted. Submitting both stored states as misbehaviour freezes the client,
     /// even after both are past their trusting period.
-    function test_timeNonMonotonicityMisbehaviour() public {
+    function test_conflictingConsensusStatesTimeNonMonotonicity() public {
         SimHeader.Data memory forged = sim.nextBlock();
         sim.produceBlocks(2);
         forged.timestamp = sim.blockAt(4).timestamp + 1;
@@ -222,9 +222,9 @@ abstract contract QBFTSimSuiteTest is Test {
         IBesuLightClientMsgs.ConsensusState memory honestState = sim.consensusState(4);
         bytes memory misbehaviour = abi.encode(
             IBesuLightClientMsgs.MsgSubmitMisbehaviour(
-                IBesuLightClientMsgs.MisbehaviourType.TimeNonMonotonicity,
+                IBesuLightClientMsgs.MisbehaviourType.ConflictingConsensusStates,
                 abi.encode(
-                    IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour({
+                    IBesuLightClientMsgs.MsgConflictingConsensusStatesMisbehaviour({
                         height1: IICS02ClientMsgs.Height(0, 3),
                         height2: IICS02ClientMsgs.Height(0, 4),
                         consensusStatePreimage1: _consensusState(forged),
@@ -245,12 +245,12 @@ abstract contract QBFTSimSuiteTest is Test {
     }
 
     /// @dev Two validly signed headers at the same height prove a double sign, whether or not either is stored.
-    function test_headersDoubleSign() public {
+    function test_conflictingHeadersDoubleSign() public {
         SimHeader.Data memory a = sim.seal(sim.nextBlock());
         SimHeader.Data memory b = sim.nextBlock();
         b.stateRoot = keccak256("equivocation");
         b = sim.seal(b);
-        bytes memory misbehaviour = _headersMisbehaviour(sim.updateMsg(2, a), sim.updateMsg(2, b));
+        bytes memory misbehaviour = _conflictingHeadersMisbehaviour(sim.updateMsg(2, a), sim.updateMsg(2, b));
 
         uint256 snapshot = vm.snapshotState();
         vm.startPrank(ics26Router);
@@ -273,7 +273,7 @@ abstract contract QBFTSimSuiteTest is Test {
 
     /// @dev Two validly signed headers whose timestamps do not increase with height freeze the client in either
     /// order, even though neither is stored and the forged header is ahead of the clock.
-    function test_headersTimeNonMonotonicity() public {
+    function test_conflictingHeadersTimeNonMonotonicity() public {
         SimHeader.Data memory forged = sim.nextBlock();
         sim.produceBlocks(2);
         forged.timestamp = uint64(vm.getBlockTimestamp()) + MAX_CLOCK_DRIFT + 1;
@@ -283,8 +283,10 @@ abstract contract QBFTSimSuiteTest is Test {
         uint64 honestTimestamp = sim.blockAt(4).timestamp;
 
         uint256 snapshot = vm.snapshotState();
-        bytes[2] memory misbehaviours =
-            [_headersMisbehaviour(forgedUpdate, honestUpdate), _headersMisbehaviour(honestUpdate, forgedUpdate)];
+        bytes[2] memory misbehaviours = [
+            _conflictingHeadersMisbehaviour(forgedUpdate, honestUpdate),
+            _conflictingHeadersMisbehaviour(honestUpdate, forgedUpdate)
+        ];
         for (uint256 i = 0; i < misbehaviours.length; ++i) {
             vm.revertToState(snapshot);
             vm.expectEmit(address(client));
@@ -297,7 +299,7 @@ abstract contract QBFTSimSuiteTest is Test {
 
     /// @dev A header not newer than its own trusted consensus state is evidence on its own, as in `updateClient`,
     /// even when paired with a valid later header or with itself.
-    function test_headersTimeNonMonotonicityAgainstTrustedState() public {
+    function test_conflictingHeadersTimeNonMonotonicityAgainstTrustedState() public {
         uint64 trustedTimestamp = sim.blockAt(2).timestamp;
         SimHeader.Data memory forged = sim.nextBlock();
         forged.timestamp = trustedTimestamp;
@@ -308,9 +310,9 @@ abstract contract QBFTSimSuiteTest is Test {
 
         uint256 snapshot = vm.snapshotState();
         bytes[3] memory misbehaviours = [
-            _headersMisbehaviour(forgedUpdate, honestUpdate),
-            _headersMisbehaviour(honestUpdate, forgedUpdate),
-            _headersMisbehaviour(forgedUpdate, forgedUpdate)
+            _conflictingHeadersMisbehaviour(forgedUpdate, honestUpdate),
+            _conflictingHeadersMisbehaviour(honestUpdate, forgedUpdate),
+            _conflictingHeadersMisbehaviour(forgedUpdate, forgedUpdate)
         ];
         for (uint256 i = 0; i < misbehaviours.length; ++i) {
             vm.revertToState(snapshot);
@@ -322,7 +324,7 @@ abstract contract QBFTSimSuiteTest is Test {
         }
     }
 
-    function test_headersMisbehaviourRejections() public {
+    function test_conflictingHeadersMisbehaviourRejections() public {
         address[] memory two = new address[](2);
         (two[0], two[1]) = (sim.validators()[0], sim.validators()[1]);
         bytes memory underSigned = sim.updateMsg(2, sim.seal(sim.nextBlock(), two));
@@ -332,15 +334,15 @@ abstract contract QBFTSimSuiteTest is Test {
 
         vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.NoMisbehaviourDetected.selector));
         vm.startPrank(ics26Router);
-        client.misbehaviour(_headersMisbehaviour(update3, update3));
+        client.misbehaviour(_conflictingHeadersMisbehaviour(update3, update3));
 
         vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.NoMisbehaviourDetected.selector));
-        client.misbehaviour(_headersMisbehaviour(update4, update3));
+        client.misbehaviour(_conflictingHeadersMisbehaviour(update4, update3));
 
         vm.expectRevert(
             abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 2, 3)
         );
-        client.misbehaviour(_headersMisbehaviour(update3, underSigned));
+        client.misbehaviour(_conflictingHeadersMisbehaviour(update3, underSigned));
 
         uint64 trustedTimestamp = sim.blockAt(2).timestamp;
         vm.warp(trustedTimestamp + TRUSTING_PERIOD);
@@ -352,7 +354,7 @@ abstract contract QBFTSimSuiteTest is Test {
                 TRUSTING_PERIOD
             )
         );
-        client.misbehaviour(_headersMisbehaviour(update3, update4));
+        client.misbehaviour(_conflictingHeadersMisbehaviour(update3, update4));
         vm.stopPrank();
 
         assertFalse(_isFrozen(client));
@@ -366,7 +368,7 @@ abstract contract QBFTSimSuiteTest is Test {
         b.stateRoot = keccak256("equivocation");
         b = sim.seal(b);
         bytes memory update = sim.updateMsg(2, a);
-        bytes memory misbehaviour = _headersMisbehaviour(update, sim.updateMsg(2, b));
+        bytes memory misbehaviour = _conflictingHeadersMisbehaviour(update, sim.updateMsg(2, b));
 
         vm.prank(pauser);
         IICS26ManagedLightClient(address(client)).pause();
@@ -436,24 +438,92 @@ abstract contract QBFTSimSuiteTest is Test {
     }
 
     function test_validatorChurn() public {
-        sim.removeValidator(sim.validators()[0]);
-        sim.addValidator();
-        sim.produceBlock();
-        bytes memory update = sim.updateMsg(2, 3);
+        _rotateValidators(1, 1);
+        bytes memory update = sim.updateMsg(2, 4);
         vm.startPrank(ics26Router);
         client.updateClient(update);
-        assertEq(sim.blockAt(3).validators.length, 4);
+        assertEq(sim.blockAt(4).validators.length, 4);
 
+        // Replacing the whole set in one block also changes it too much, but the overlap check comes first.
         for (uint256 i = 0; i < 4; ++i) {
             sim.removeValidator(sim.validators()[0]);
         }
         sim.addValidators(4);
         sim.produceBlock();
-        update = sim.updateMsg(3, 4);
+        update = sim.updateMsg(4, 5);
         vm.expectRevert(
             abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 0, 3)
         );
         client.updateClient(update);
+        vm.stopPrank();
+    }
+
+    /// @dev Two validator changes need at least two blocks: a header that makes both in one block freezes the client.
+    function test_invalidValidatorSetChangeUpdate() public {
+        sim.removeValidator(sim.validators()[0]);
+        sim.addValidator();
+        sim.produceBlocks(2);
+        bytes memory update3 = sim.updateMsg(2, 3);
+        bytes memory update4 = sim.updateMsg(2, 4);
+
+        uint256 snapshot = vm.snapshotState();
+        vm.startPrank(ics26Router);
+        assertEq(uint8(client.updateClient(update4)), uint8(ILightClientMsgs.UpdateResult.Update));
+        vm.revertToState(snapshot);
+
+        vm.expectEmit(address(client));
+        emit IBesuLightClient.InvalidValidatorSetChange(3, 2, 2);
+        assertEq(uint8(client.updateClient(update3)), uint8(ILightClientMsgs.UpdateResult.Misbehaviour));
+        vm.stopPrank();
+
+        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.ConsensusStateNotFound.selector, 3));
+        client.getConsensusStateHash(3);
+        assertTrue(_isFrozen(client));
+    }
+
+    /// @dev The honest chain rotates one validator out and one in by height 4, and a forged height-5 header signed by
+    /// the original validators reverts the rotation. Each is valid against height 2, but heights 4 and 5 differ by two
+    /// validators, so they freeze the client as stored consensus states or as unstored headers, in either order.
+    function test_invalidValidatorSetChangeMisbehaviour() public {
+        address[] memory trusted = sim.validators();
+        _rotateValidators(1, 1);
+        SimHeader.Data memory forged = sim.nextBlock();
+        forged.validators = trusted;
+        forged = sim.seal(forged);
+        bytes memory honestUpdate = sim.updateMsg(2, 4);
+        bytes memory forgedUpdate = sim.updateMsg(2, forged);
+
+        bytes[3] memory misbehaviours = [
+            abi.encode(
+                IBesuLightClientMsgs.MsgSubmitMisbehaviour(
+                    IBesuLightClientMsgs.MisbehaviourType.ConflictingConsensusStates,
+                    abi.encode(
+                        IBesuLightClientMsgs.MsgConflictingConsensusStatesMisbehaviour({
+                            height1: IICS02ClientMsgs.Height(0, 5),
+                            height2: IICS02ClientMsgs.Height(0, 4),
+                            consensusStatePreimage1: _consensusState(forged),
+                            consensusStatePreimage2: sim.consensusState(4)
+                        })
+                    )
+                )
+            ),
+            _conflictingHeadersMisbehaviour(honestUpdate, forgedUpdate),
+            _conflictingHeadersMisbehaviour(forgedUpdate, honestUpdate)
+        ];
+        uint256 snapshot = vm.snapshotState();
+        vm.startPrank(ics26Router);
+        for (uint256 i = 0; i < misbehaviours.length; ++i) {
+            vm.revertToState(snapshot);
+            if (i == 0) {
+                assertEq(uint8(client.updateClient(honestUpdate)), uint8(ILightClientMsgs.UpdateResult.Update));
+                assertEq(uint8(client.updateClient(forgedUpdate)), uint8(ILightClientMsgs.UpdateResult.Update));
+            }
+
+            vm.expectEmit(address(client));
+            emit IBesuLightClient.InvalidValidatorSetChange(5, 4, 2);
+            client.misbehaviour(misbehaviours[i]);
+            assertTrue(_isFrozen(client));
+        }
         vm.stopPrank();
     }
 
@@ -475,11 +545,8 @@ abstract contract QBFTSimSuiteTest is Test {
         strict.updateClient(update);
 
         // Rotating half of the validators leaves 2 of 4 trusted signers: below 2/3, above 1/3.
-        sim.removeValidator(sim.validators()[0]);
-        sim.removeValidator(sim.validators()[0]);
-        sim.addValidators(2);
-        sim.produceBlock();
-        update = sim.updateMsg(2, 3);
+        _rotateValidators(2, 2);
+        update = sim.updateMsg(2, 6);
         vm.expectRevert(
             abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 2, 3)
         );
@@ -536,12 +603,19 @@ abstract contract QBFTSimSuiteTest is Test {
         vm.stopPrank();
     }
 
-    function _headersMisbehaviour(bytes memory update1, bytes memory update2) internal pure returns (bytes memory) {
+    function _conflictingHeadersMisbehaviour(
+        bytes memory update1,
+        bytes memory update2
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
         return abi.encode(
             IBesuLightClientMsgs.MsgSubmitMisbehaviour(
-                IBesuLightClientMsgs.MisbehaviourType.Headers,
+                IBesuLightClientMsgs.MisbehaviourType.ConflictingHeaders,
                 abi.encode(
-                    IBesuLightClientMsgs.MsgHeadersMisbehaviour(
+                    IBesuLightClientMsgs.MsgConflictingHeadersMisbehaviour(
                         abi.decode(update1, (IBesuLightClientMsgs.MsgUpdateClient)),
                         abi.decode(update2, (IBesuLightClientMsgs.MsgUpdateClient))
                     )
@@ -576,10 +650,7 @@ abstract contract QBFTSimSuiteTest is Test {
         removed = bound(removed, 0, trustedCount - 1);
         added = bound(added, 0, 3);
         sim = _setUp(trustedCount);
-        for (uint256 i = 0; i < removed; ++i) {
-            sim.removeValidator(sim.validators()[0]);
-        }
-        sim.addValidators(added);
+        _rotateValidators(removed, added);
 
         address[] memory trusted = sim.consensusState(2).validators;
         address[] memory current = sim.validators();
@@ -621,6 +692,19 @@ abstract contract QBFTSimSuiteTest is Test {
             return;
         }
         client.updateClient(update);
+    }
+
+    /// @dev Removes the lowest `removed` validators, then adds `added` new ones, producing a block after each change as
+    /// header-validator voting does.
+    function _rotateValidators(uint256 removed, uint256 added) internal {
+        for (uint256 i = 0; i < removed; ++i) {
+            sim.removeValidator(sim.validators()[0]);
+            sim.produceBlock();
+        }
+        for (uint256 i = 0; i < added; ++i) {
+            sim.addValidator();
+            sim.produceBlock();
+        }
     }
 
     function _contains(address[] memory set, address value) internal pure returns (bool) {
