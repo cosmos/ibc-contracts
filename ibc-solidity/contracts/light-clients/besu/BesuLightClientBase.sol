@@ -242,8 +242,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
                 msg_.height1.revisionHeight,
                 msg_.consensusStatePreimage1,
                 msg_.height2.revisionHeight,
-                msg_.consensusStatePreimage2,
-                _sameValidatorSet(msg_.consensusStatePreimage1.validators, msg_.consensusStatePreimage2.validators)
+                msg_.consensusStatePreimage2
             ),
             NoMisbehaviourDetected()
         );
@@ -281,16 +280,25 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             return;
         }
 
-        require(
-            _freezeOnConflict(
-                height1,
-                consensusState1,
-                height2,
-                consensusState2,
-                _sameValidatorSet(consensusState1.validators, consensusState2.validators)
-            ),
-            NoMisbehaviourDetected()
-        );
+        require(_freezeOnConflict(height1, consensusState1, height2, consensusState2), NoMisbehaviourDetected());
+    }
+
+    /// @notice Freezes the client if two consensus states conflict, comparing their validator sets itself.
+    /// @param heightA The height of the first consensus state.
+    /// @param a The first consensus state.
+    /// @param heightB The height of the second consensus state.
+    /// @param b The second consensus state.
+    /// @return frozen True if the consensus states conflict and the client was frozen.
+    function _freezeOnConflict(
+        uint64 heightA,
+        IBesuLightClientMsgs.ConsensusState memory a,
+        uint64 heightB,
+        IBesuLightClientMsgs.ConsensusState memory b
+    )
+        private
+        returns (bool frozen)
+    {
+        return _freezeOnConflict(heightA, a, heightB, b, _sameValidatorSet(a.validators, b.validators));
     }
 
     /// @notice Freezes the client if two consensus states conflict.
@@ -303,7 +311,8 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @param heightB The height of the second consensus state.
     /// @param b The second consensus state.
     /// @param sameValidators Whether `a` and `b` have identical validator sets, from `_sameValidatorSet`. Passed in so
-    /// that callers that already compared them do not compare them again.
+    /// that `_verifyHeader` callers do not compare them again. A wrong `true` disables the validator set change check,
+    /// so callers without a computed value must use the overload without this parameter.
     /// @return frozen True if the consensus states conflict and the client was frozen.
     function _freezeOnConflict(
         uint64 heightA,
