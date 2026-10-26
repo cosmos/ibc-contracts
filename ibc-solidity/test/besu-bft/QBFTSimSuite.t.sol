@@ -197,9 +197,9 @@ abstract contract QBFTSimSuiteTest is Test {
         IBesuLightClientMsgs.ConsensusState memory honestState = sim.consensusState(4);
         bytes memory misbehaviour = abi.encode(
             IBesuLightClientMsgs.MsgSubmitMisbehaviour(
-                IBesuLightClientMsgs.MisbehaviourType.TimeNonMonotonicity,
+                IBesuLightClientMsgs.MisbehaviourType.ConflictingConsensusStates,
                 abi.encode(
-                    IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour({
+                    IBesuLightClientMsgs.MsgConflictingConsensusStatesMisbehaviour({
                         height1: IICS02ClientMsgs.Height(0, 3),
                         height2: IICS02ClientMsgs.Height(0, 4),
                         consensusStatePreimage1: _consensusState(forged),
@@ -224,7 +224,7 @@ abstract contract QBFTSimSuiteTest is Test {
         SimHeader.Data memory b = sim.nextBlock();
         b.stateRoot = keccak256("equivocation");
         b = sim.seal(b);
-        bytes memory misbehaviour = _headersMisbehaviour(sim.updateMsg(2, a), sim.updateMsg(2, b));
+        bytes memory misbehaviour = _conflictingHeadersMisbehaviour(sim.updateMsg(2, a), sim.updateMsg(2, b));
 
         uint256 snapshot = vm.snapshotState();
         for (uint256 stored = 0; stored < 2; ++stored) {
@@ -254,8 +254,10 @@ abstract contract QBFTSimSuiteTest is Test {
         uint64 honestTimestamp = sim.blockAt(4).timestamp;
 
         uint256 snapshot = vm.snapshotState();
-        bytes[2] memory misbehaviours =
-            [_headersMisbehaviour(forgedUpdate, honestUpdate), _headersMisbehaviour(honestUpdate, forgedUpdate)];
+        bytes[2] memory misbehaviours = [
+            _conflictingHeadersMisbehaviour(forgedUpdate, honestUpdate),
+            _conflictingHeadersMisbehaviour(honestUpdate, forgedUpdate)
+        ];
         for (uint256 i = 0; i < misbehaviours.length; ++i) {
             vm.revertToState(snapshot);
             vm.expectEmit(address(client));
@@ -278,9 +280,9 @@ abstract contract QBFTSimSuiteTest is Test {
 
         uint256 snapshot = vm.snapshotState();
         bytes[3] memory misbehaviours = [
-            _headersMisbehaviour(forgedUpdate, honestUpdate),
-            _headersMisbehaviour(honestUpdate, forgedUpdate),
-            _headersMisbehaviour(forgedUpdate, forgedUpdate)
+            _conflictingHeadersMisbehaviour(forgedUpdate, honestUpdate),
+            _conflictingHeadersMisbehaviour(honestUpdate, forgedUpdate),
+            _conflictingHeadersMisbehaviour(forgedUpdate, forgedUpdate)
         ];
         for (uint256 i = 0; i < misbehaviours.length; ++i) {
             vm.revertToState(snapshot);
@@ -291,7 +293,7 @@ abstract contract QBFTSimSuiteTest is Test {
         }
     }
 
-    function test_headersMisbehaviourRejections() public {
+    function test_conflictingHeadersMisbehaviourRejections() public {
         address[] memory two = new address[](2);
         (two[0], two[1]) = (sim.validators()[0], sim.validators()[1]);
         bytes memory underSigned = sim.updateMsg(2, sim.seal(sim.nextBlock(), two));
@@ -300,15 +302,15 @@ abstract contract QBFTSimSuiteTest is Test {
         bytes memory update4 = sim.updateMsg(2, 4);
 
         vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.NoMisbehaviourDetected.selector));
-        client.misbehaviour(_headersMisbehaviour(update3, update3));
+        client.misbehaviour(_conflictingHeadersMisbehaviour(update3, update3));
 
         vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.NoMisbehaviourDetected.selector));
-        client.misbehaviour(_headersMisbehaviour(update4, update3));
+        client.misbehaviour(_conflictingHeadersMisbehaviour(update4, update3));
 
         vm.expectRevert(
             abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 2, 3)
         );
-        client.misbehaviour(_headersMisbehaviour(update3, underSigned));
+        client.misbehaviour(_conflictingHeadersMisbehaviour(update3, underSigned));
 
         uint64 trustedTimestamp = sim.blockAt(2).timestamp;
         vm.warp(trustedTimestamp + TRUSTING_PERIOD);
@@ -320,7 +322,7 @@ abstract contract QBFTSimSuiteTest is Test {
                 TRUSTING_PERIOD
             )
         );
-        client.misbehaviour(_headersMisbehaviour(update3, update4));
+        client.misbehaviour(_conflictingHeadersMisbehaviour(update3, update4));
 
         assertFalse(_isFrozen(client));
     }
@@ -335,7 +337,7 @@ abstract contract QBFTSimSuiteTest is Test {
         b.stateRoot = keccak256("equivocation");
         b = sim.seal(b);
         bytes memory update = sim.updateMsg(2, a);
-        bytes memory misbehaviour = _headersMisbehaviour(update, sim.updateMsg(2, b));
+        bytes memory misbehaviour = _conflictingHeadersMisbehaviour(update, sim.updateMsg(2, b));
         address anyone = makeAddr("anyone");
 
         vm.expectPartialRevert(IAccessControl.AccessControlUnauthorizedAccount.selector);
@@ -451,9 +453,9 @@ abstract contract QBFTSimSuiteTest is Test {
         bytes[3] memory misbehaviours = [
             abi.encode(
                 IBesuLightClientMsgs.MsgSubmitMisbehaviour(
-                    IBesuLightClientMsgs.MisbehaviourType.TimeNonMonotonicity,
+                    IBesuLightClientMsgs.MisbehaviourType.ConflictingConsensusStates,
                     abi.encode(
-                        IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour({
+                        IBesuLightClientMsgs.MsgConflictingConsensusStatesMisbehaviour({
                             height1: IICS02ClientMsgs.Height(0, 5),
                             height2: IICS02ClientMsgs.Height(0, 4),
                             consensusStatePreimage1: _consensusState(forged),
@@ -462,8 +464,8 @@ abstract contract QBFTSimSuiteTest is Test {
                     )
                 )
             ),
-            _headersMisbehaviour(honestUpdate, forgedUpdate),
-            _headersMisbehaviour(forgedUpdate, honestUpdate)
+            _conflictingHeadersMisbehaviour(honestUpdate, forgedUpdate),
+            _conflictingHeadersMisbehaviour(forgedUpdate, honestUpdate)
         ];
         uint256 snapshot = vm.snapshotState();
         for (uint256 i = 0; i < misbehaviours.length; ++i) {
@@ -543,12 +545,19 @@ abstract contract QBFTSimSuiteTest is Test {
         assertEq(client.verifyMembership(sim.membershipMsg(3, path)), sim.blockAt(3).timestamp);
     }
 
-    function _headersMisbehaviour(bytes memory update1, bytes memory update2) internal pure returns (bytes memory) {
+    function _conflictingHeadersMisbehaviour(
+        bytes memory update1,
+        bytes memory update2
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
         return abi.encode(
             IBesuLightClientMsgs.MsgSubmitMisbehaviour(
-                IBesuLightClientMsgs.MisbehaviourType.Headers,
+                IBesuLightClientMsgs.MisbehaviourType.ConflictingHeaders,
                 abi.encode(
-                    IBesuLightClientMsgs.MsgHeadersMisbehaviour(
+                    IBesuLightClientMsgs.MsgConflictingHeadersMisbehaviour(
                         abi.decode(update1, (IBesuLightClientMsgs.MsgUpdateClient)),
                         abi.decode(update2, (IBesuLightClientMsgs.MsgUpdateClient))
                     )

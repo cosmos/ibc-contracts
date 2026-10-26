@@ -888,12 +888,12 @@ func (s *BesuToBesuTestSuite) TimeNonMonotonicityFreezesClientTest(consensus str
 		state1.Timestamp = timestamp
 
 		// The light client expects abi.encode(MsgSubmitMisbehaviour) wrapping
-		// abi.encode(MsgTimeNonMonotonicityMisbehaviour), both without the function selector.
+		// abi.encode(MsgConflictingConsensusStatesMisbehaviour), both without the function selector.
 		bindings := besumsgs.NewBindings()
 		misbehaviourMsg = bindings.PackSubmitMisbehaviour(besumsgs.IBesuLightClientMsgsMsgSubmitMisbehaviour{
-			MisbehaviourType: 0, // TimeNonMonotonicity
-			Misbehaviour: bindings.PackTimeNonMonotonicityMisbehaviour(
-				besumsgs.IBesuLightClientMsgsMsgTimeNonMonotonicityMisbehaviour{
+			MisbehaviourType: 0, // ConflictingConsensusStates
+			Misbehaviour: bindings.PackConflictingConsensusStatesMisbehaviour(
+				besumsgs.IBesuLightClientMsgsMsgConflictingConsensusStatesMisbehaviour{
 					Height1:                 besumsgs.IICS02ClientMsgsHeight{RevisionHeight: height1},
 					Height2:                 besumsgs.IICS02ClientMsgsHeight{RevisionHeight: height2},
 					ConsensusStatePreimage1: state1,
@@ -1326,8 +1326,8 @@ func (s *BesuToBesuTestSuite) headersMisbehaviourMsg(update1, update2 []byte) []
 	s.Require().NoError(err)
 
 	return bindings.PackSubmitMisbehaviour(besumsgs.IBesuLightClientMsgsMsgSubmitMisbehaviour{
-		MisbehaviourType: 1, // Headers
-		Misbehaviour: bindings.PackHeadersMisbehaviour(besumsgs.IBesuLightClientMsgsMsgHeadersMisbehaviour{
+		MisbehaviourType: 1, // ConflictingHeaders
+		Misbehaviour: bindings.PackConflictingHeadersMisbehaviour(besumsgs.IBesuLightClientMsgsMsgConflictingHeadersMisbehaviour{
 			Update1: msg1,
 			Update2: msg2,
 		})[4:],

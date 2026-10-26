@@ -10,9 +10,9 @@ interface IBesuLightClient is ILightClient {
     /// @dev The client is permanently frozen when this is emitted.
     /// @param revisionHeight The height at which the double sign occurred.
     /// @param consensusStateHash1 The first consensus state hash: the one stored at `revisionHeight` for
-    /// `updateClient`, or the one derived from the first header of a `MsgHeadersMisbehaviour`.
+    /// `updateClient`, or the one derived from the first header of a `MsgConflictingHeadersMisbehaviour`.
     /// @param consensusStateHash2 The second consensus state hash: the one derived from the submitted header for
-    /// `updateClient`, or from the second header of a `MsgHeadersMisbehaviour`.
+    /// `updateClient`, or from the second header of a `MsgConflictingHeadersMisbehaviour`.
     event DoubleSign(uint64 indexed revisionHeight, bytes32 consensusStateHash1, bytes32 consensusStateHash2);
 
     /// @notice Emitted when a time monotonicity violation is detected between two validly signed headers.

@@ -70,7 +70,7 @@ interface IBesuLightClientMsgs {
     /// @param height2 Height of the second trusted consensus state. Must differ from `height1`; order is irrelevant.
     /// @param consensusStatePreimage1 Preimage of the first trusted consensus state.
     /// @param consensusStatePreimage2 Preimage of the second trusted consensus state.
-    struct MsgTimeNonMonotonicityMisbehaviour {
+    struct MsgConflictingConsensusStatesMisbehaviour {
         IICS02ClientMsgs.Height height1;
         IICS02ClientMsgs.Height height2;
         ConsensusState consensusStatePreimage1;
@@ -88,17 +88,19 @@ interface IBesuLightClientMsgs {
     /// headers may be in either order and need not be stored.
     /// @param update1 The first header with its trusted consensus state.
     /// @param update2 The second header with its trusted consensus state.
-    struct MsgHeadersMisbehaviour {
+    struct MsgConflictingHeadersMisbehaviour {
         MsgUpdateClient update1;
         MsgUpdateClient update2;
     }
 
     /// @notice The type of misbehaviour evidence in a `MsgSubmitMisbehaviour`.
     enum MisbehaviourType {
-        /// The evidence is an `abi.encode(MsgTimeNonMonotonicityMisbehaviour)`.
-        TimeNonMonotonicity,
-        /// The evidence is an `abi.encode(MsgHeadersMisbehaviour)`.
-        Headers
+        /// Two stored consensus states that conflict with each other. The evidence is an
+        /// `abi.encode(MsgConflictingConsensusStatesMisbehaviour)`.
+        ConflictingConsensusStates,
+        /// Two validly signed headers that conflict with each other or with their trusted consensus states. The
+        /// evidence is an `abi.encode(MsgConflictingHeadersMisbehaviour)`.
+        ConflictingHeaders
     }
 
     /// @notice Misbehaviour message accepted by `misbehaviour(bytes)`.

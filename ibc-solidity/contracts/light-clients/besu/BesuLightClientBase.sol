@@ -205,12 +205,14 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     function misbehaviour(bytes calldata misbehaviourMsg) external notFrozen {
         IBesuLightClientMsgs.MsgSubmitMisbehaviour memory msg_ =
             abi.decode(misbehaviourMsg, (IBesuLightClientMsgs.MsgSubmitMisbehaviour));
-        if (msg_.misbehaviourType == IBesuLightClientMsgs.MisbehaviourType.TimeNonMonotonicity) {
-            _timeNonMonotonicityMisbehaviour(
-                abi.decode(msg_.misbehaviour, (IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour))
+        if (msg_.misbehaviourType == IBesuLightClientMsgs.MisbehaviourType.ConflictingConsensusStates) {
+            _conflictingConsensusStatesMisbehaviour(
+                abi.decode(msg_.misbehaviour, (IBesuLightClientMsgs.MsgConflictingConsensusStatesMisbehaviour))
             );
         } else {
-            _headersMisbehaviour(abi.decode(msg_.misbehaviour, (IBesuLightClientMsgs.MsgHeadersMisbehaviour)));
+            _conflictingHeadersMisbehaviour(
+                abi.decode(msg_.misbehaviour, (IBesuLightClientMsgs.MsgConflictingHeadersMisbehaviour))
+            );
         }
     }
 
@@ -222,8 +224,10 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
     /// @notice Freezes the client if two stored consensus states violate time monotonicity or change the validator set
     /// by more validators than their height difference.
-    /// @param msg_ The time non-monotonicity misbehaviour message.
-    function _timeNonMonotonicityMisbehaviour(IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour memory msg_)
+    /// @param msg_ The conflicting consensus states misbehaviour message.
+    function _conflictingConsensusStatesMisbehaviour(
+        IBesuLightClientMsgs.MsgConflictingConsensusStatesMisbehaviour memory msg_
+    )
         private
     {
         require(msg_.height1.revisionNumber == 0, InvalidRevisionNumber(msg_.height1.revisionNumber));
@@ -249,8 +253,10 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// invalid validator set change.
     /// @dev Each header is first checked against its own trusted consensus state, as in `updateClient`, and only then
     /// against the other header. If the first header is misbehaviour on its own, the second header is not verified.
-    /// @param msg_ The headers misbehaviour message.
-    function _headersMisbehaviour(IBesuLightClientMsgs.MsgHeadersMisbehaviour memory msg_) private {
+    /// @param msg_ The conflicting headers misbehaviour message.
+    function _conflictingHeadersMisbehaviour(IBesuLightClientMsgs.MsgConflictingHeadersMisbehaviour memory msg_)
+        private
+    {
         (uint64 height1, IBesuLightClientMsgs.ConsensusState memory consensusState1, bool sameValidators1) =
             _verifyHeader(msg_.update1);
         if (_freezeOnConflict(
