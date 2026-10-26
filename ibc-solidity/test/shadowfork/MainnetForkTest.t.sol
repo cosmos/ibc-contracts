@@ -12,6 +12,8 @@ import { IBCRolesLib } from "../../contracts/utils/IBCRolesLib.sol";
 import { IICS02ClientMsgs } from "../../contracts/msgs/IICS02ClientMsgs.sol";
 import { AccessManager } from "@openzeppelin-contracts/access/manager/AccessManager.sol";
 import { IAccessManaged } from "@openzeppelin-contracts/access/manager/IAccessManaged.sol";
+import { IICS02ClientAccessControlled } from "../../contracts/interfaces/IICS02Client.sol";
+import { IICS26RouterAccessControlled } from "../../contracts/interfaces/IICS26Router.sol";
 
 import { DeployAccessManagerWithRoles } from "../../scripts/deployments/DeployAccessManagerWithRoles.sol";
 
@@ -74,5 +76,31 @@ contract MainnetForkTest is Test, DeployAccessManagerWithRoles {
         ics26Proxy.addIBCApp(makeAddr("mockApp"));
         vm.prank(user);
         ics26Proxy.addClient(counterpartyInfo, makeAddr("mockClient"));
+    }
+
+    function test_upgrade_ics26VerifySelectors() public {
+        bytes4[] memory verifySelectors = new bytes4[](2);
+        verifySelectors[0] = IICS02ClientAccessControlled.verifyMembership.selector;
+        verifySelectors[1] = IICS02ClientAccessControlled.verifyNonMembership.selector;
+        uint64 relayerRole =
+            accessManager.getTargetFunctionRole(address(ics26Proxy), IICS26RouterAccessControlled.recvPacket.selector);
+
+        address newLogic = address(new ICS26Router());
+        vm.prank(timelockedAdmin);
+        ics26Proxy.upgradeToAndCall(newLogic, "");
+
+        // the new verification selectors default to ADMIN_ROLE after the upgrade
+        for (uint256 i = 0; i < verifySelectors.length; ++i) {
+            assertEq(
+                accessManager.getTargetFunctionRole(address(ics26Proxy), verifySelectors[i]), IBCRolesLib.ADMIN_ROLE
+            );
+        }
+
+        // the upgrade proposal maps them to the role that relays packets
+        vm.prank(timelockedAdmin);
+        accessManager.setTargetFunctionRole(address(ics26Proxy), verifySelectors, relayerRole);
+        for (uint256 i = 0; i < verifySelectors.length; ++i) {
+            assertEq(accessManager.getTargetFunctionRole(address(ics26Proxy), verifySelectors[i]), relayerRole);
+        }
     }
 }
