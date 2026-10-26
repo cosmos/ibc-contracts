@@ -303,10 +303,10 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     }
 
     /// @notice Freezes the client if two consensus states conflict.
-    /// @dev At the same height, differing consensus states are a double sign. At different heights, a lower consensus
-    /// state whose timestamp is not less than the higher one's is time non-monotonicity, and validator sets that differ
-    /// by more validators than the height difference are an invalid validator set change, since a header-validator
-    /// vote adds or removes at most one validator per block.
+    /// @dev At the same height, differing consensus states are a double sign. At different heights, timestamps that
+    /// increase by less than the height difference are time non-monotonicity, since sub-second block periods are not
+    /// supported, and validator sets that differ by more validators than the height difference are an invalid validator
+    /// set change, since a header-validator vote adds or removes at most one validator per block.
     /// @param heightA The height of the first consensus state.
     /// @param a The first consensus state.
     /// @param heightB The height of the second consensus state.
@@ -338,17 +338,18 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             if (heightA > heightB) {
                 (heightA, a, heightB, b) = (heightB, b, heightA, a);
             }
-            if (a.timestamp >= b.timestamp) {
+            uint256 heightDiff = heightB - heightA;
+            // Blocks are at least one second apart, so `b.timestamp - a.timestamp >= heightDiff`.
+            if (uint256(a.timestamp) + heightDiff > b.timestamp) {
                 clientState.isFrozen = true;
                 emit TimeNonMonotonicity(heightB, heightA, b.timestamp, a.timestamp);
                 return true;
             }
 
-            uint256 maxChanges = heightB - heightA;
             // Sets cannot differ by more validators than they hold in total, so only count when they could.
-            if (!sameValidators && maxChanges < a.validators.length + b.validators.length) {
+            if (!sameValidators && heightDiff < a.validators.length + b.validators.length) {
                 uint256 changes = _deltaValidators(a.validators, b.validators);
-                if (changes > maxChanges) {
+                if (changes > heightDiff) {
                     clientState.isFrozen = true;
                     emit InvalidValidatorSetChange(heightB, heightA, changes);
                     return true;

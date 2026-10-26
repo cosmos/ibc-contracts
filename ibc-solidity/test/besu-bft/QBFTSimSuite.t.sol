@@ -204,6 +204,29 @@ abstract contract QBFTSimSuiteTest is Test {
         vm.stopPrank();
     }
 
+    /// @dev Blocks are at least one second apart, so a header two blocks after its trusted state that is only one
+    /// second newer freezes the client, while one that is two seconds newer updates it.
+    function test_timeNonMonotonicitySubSecondBlocks() public {
+        sim.produceBlock();
+        uint64 trustedTimestamp = sim.blockAt(2).timestamp;
+        SimHeader.Data memory h = sim.nextBlock();
+        h.timestamp = trustedTimestamp + 2;
+        bytes memory oneSecondPerBlock = sim.updateMsg(2, sim.seal(h));
+        h.timestamp = trustedTimestamp + 1;
+        bytes memory subSecondBlocks = sim.updateMsg(2, sim.seal(h));
+
+        vm.startPrank(ics26Router);
+        uint256 snapshot = vm.snapshotState();
+        assertEq(uint8(client.updateClient(oneSecondPerBlock)), uint8(ILightClientMsgs.UpdateResult.Update));
+        vm.revertToState(snapshot);
+
+        vm.expectEmit(address(client));
+        emit IBesuLightClient.TimeNonMonotonicity(4, 2, trustedTimestamp + 1, trustedTimestamp);
+        assertEq(uint8(client.updateClient(subSecondBlocks)), uint8(ILightClientMsgs.UpdateResult.Misbehaviour));
+        assertTrue(_isFrozen(client));
+        vm.stopPrank();
+    }
+
     /// @dev Each update is only checked against its own trusted height, so a forged height-3 header timestamped
     /// after the honest height-4 header is accepted. Submitting both stored states as misbehaviour freezes the client,
     /// even after both are past their trusting period.

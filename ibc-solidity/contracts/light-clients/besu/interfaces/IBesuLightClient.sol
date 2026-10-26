@@ -15,7 +15,8 @@ interface IBesuLightClient is ILightClient {
     /// `updateClient`, or from the second header of a `MsgConflictingHeadersMisbehaviour`.
     event DoubleSign(uint64 indexed revisionHeight, bytes32 consensusStateHash1, bytes32 consensusStateHash2);
 
-    /// @notice Emitted when a time monotonicity violation is detected between two validly signed headers.
+    /// @notice Emitted when a time monotonicity violation is detected between two validly signed headers: the timestamp
+    /// increases by less than one second per block, which also covers timestamps that do not increase at all.
     /// @dev The client is permanently frozen when this is emitted.
     /// @param height2 The height of the second trusted consensus state.
     /// @param height1 The height of the first trusted consensus state. Less than `height2`.
