@@ -24,6 +24,16 @@ interface IBesuLightClient is ILightClient {
     // solhint-disable-next-line gas-indexed-events
     event TimeNonMonotonicity(uint64 indexed height2, uint64 height1, uint64 timestamp2, uint64 timestamp1);
 
+    /// @notice Emitted when two validly signed consensus states have validator sets that differ by more validators
+    /// than their height difference, which a header-validator vote of at most one change per block cannot produce.
+    /// @dev The client is permanently frozen when this is emitted.
+    /// @param height2 The height of the second trusted consensus state.
+    /// @param height1 The height of the first trusted consensus state. Less than `height2`.
+    /// @param changes The number of validators in exactly one of the two validator sets. Greater than
+    /// `height2 - height1`.
+    // solhint-disable-next-line gas-indexed-events
+    event InvalidValidatorSetChange(uint64 indexed height2, uint64 height1, uint256 changes);
+
     /// @notice Returns the stored consensus state hash at a revision height.
     /// @dev The hash is `keccak256(abi.encode(IBesuLightClientMsgs.ConsensusState))`.
     /// Reverts with `ConsensusStateNotFound` if no consensus state is stored at the height.

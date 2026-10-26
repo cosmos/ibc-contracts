@@ -215,7 +215,8 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @return The digest signed by commit seals.
     function _commitSealDigest(Header.Data memory header) internal pure virtual returns (bytes32);
 
-    /// @notice Freezes the client if two stored consensus states violate time monotonicity.
+    /// @notice Freezes the client if two stored consensus states violate time monotonicity or change the validator set
+    /// by more validators than their height difference.
     /// @param msg_ The time non-monotonicity misbehaviour message.
     function _timeNonMonotonicityMisbehaviour(IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour memory msg_)
         private
@@ -238,7 +239,8 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         );
     }
 
-    /// @notice Freezes the client if two validly signed headers prove a double sign or time non-monotonicity.
+    /// @notice Freezes the client if two validly signed headers prove a double sign, time non-monotonicity, or an
+    /// invalid validator set change.
     /// @dev Each header is first checked against its own trusted consensus state, as in `updateClient`, and only then
     /// against the other header. If the first header is misbehaviour on its own, the second header is not verified.
     /// @param msg_ The headers misbehaviour message.
@@ -262,7 +264,9 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
     /// @notice Freezes the client if two consensus states conflict.
     /// @dev At the same height, differing consensus states are a double sign. At different heights, a lower consensus
-    /// state whose timestamp is not less than the higher one's is time non-monotonicity.
+    /// state whose timestamp is not less than the higher one's is time non-monotonicity, and validator sets that differ
+    /// by more validators than the height difference are an invalid validator set change, since a header-validator
+    /// vote adds or removes at most one validator per block.
     /// @param heightA The height of the first consensus state.
     /// @param a The first consensus state.
     /// @param heightB The height of the second consensus state.
@@ -293,13 +297,48 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         if (heightA > heightB) {
             (heightA, a, heightB, b) = (heightB, b, heightA, a);
         }
-        if (a.timestamp < b.timestamp) {
+        if (a.timestamp >= b.timestamp) {
+            clientState.isFrozen = true;
+            emit TimeNonMonotonicity(heightB, heightA, b.timestamp, a.timestamp);
+            return true;
+        }
+
+        uint256 maxChanges = heightB - heightA;
+        // Sets cannot differ by more validators than they hold in total.
+        if (maxChanges >= a.validators.length + b.validators.length) {
+            return false;
+        }
+        uint256 changes = _validatorSetChanges(a.validators, b.validators);
+        if (changes <= maxChanges) {
             return false;
         }
 
         clientState.isFrozen = true;
-        emit TimeNonMonotonicity(heightB, heightA, b.timestamp, a.timestamp);
+        emit InvalidValidatorSetChange(heightB, heightA, changes);
         return true;
+    }
+
+    /// @notice Counts the validators that are in exactly one of two validator sets.
+    /// @dev Assumes both sets are strictly ascending. Checked in `_validateValidators` before any set is trusted.
+    /// @param a The first validator set.
+    /// @param b The second validator set.
+    /// @return changes The size of the symmetric difference of `a` and `b`.
+    function _validatorSetChanges(address[] memory a, address[] memory b) private pure returns (uint256 changes) {
+        uint256 common = 0;
+        uint256 i = 0;
+        uint256 j = 0;
+        while (i < a.length && j < b.length) {
+            if (a[i] == b[j]) {
+                ++common;
+                ++i;
+                ++j;
+            } else if (a[i] < b[j]) {
+                ++i;
+            } else {
+                ++j;
+            }
+        }
+        return a.length + b.length - 2 * common;
     }
 
     /// @notice Verifies a header against its trusted consensus state and derives its consensus state.

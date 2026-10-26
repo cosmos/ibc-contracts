@@ -398,22 +398,86 @@ abstract contract QBFTSimSuiteTest is Test {
     }
 
     function test_validatorChurn() public {
-        sim.removeValidator(sim.validators()[0]);
-        sim.addValidator();
-        sim.produceBlock();
-        client.updateClient(sim.updateMsg(2, 3));
-        assertEq(sim.blockAt(3).validators.length, 4);
+        _rotateValidators(1, 1);
+        client.updateClient(sim.updateMsg(2, 4));
+        assertEq(sim.blockAt(4).validators.length, 4);
 
+        // Replacing the whole set in one block also changes it too much, but the overlap check comes first.
         for (uint256 i = 0; i < 4; ++i) {
             sim.removeValidator(sim.validators()[0]);
         }
         sim.addValidators(4);
         sim.produceBlock();
-        bytes memory update = sim.updateMsg(3, 4);
+        bytes memory update = sim.updateMsg(4, 5);
         vm.expectRevert(
             abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 0, 3)
         );
         client.updateClient(update);
+    }
+
+    /// @dev Two validator changes need at least two blocks: a header that makes both in one block freezes the client.
+    function test_invalidValidatorSetChangeUpdate() public {
+        sim.removeValidator(sim.validators()[0]);
+        sim.addValidator();
+        sim.produceBlocks(2);
+        bytes memory update3 = sim.updateMsg(2, 3);
+        bytes memory update4 = sim.updateMsg(2, 4);
+
+        uint256 snapshot = vm.snapshotState();
+        assertEq(uint8(client.updateClient(update4)), uint8(ILightClientMsgs.UpdateResult.Update));
+        vm.revertToState(snapshot);
+
+        vm.expectEmit(address(client));
+        emit IBesuLightClient.InvalidValidatorSetChange(3, 2, 2);
+        assertEq(uint8(client.updateClient(update3)), uint8(ILightClientMsgs.UpdateResult.Misbehaviour));
+
+        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.ConsensusStateNotFound.selector, 3));
+        client.getConsensusStateHash(3);
+        assertTrue(_isFrozen(client));
+    }
+
+    /// @dev The honest chain rotates one validator out and one in by height 4, and a forged height-5 header signed by
+    /// the original validators reverts the rotation. Each is valid against height 2, but heights 4 and 5 differ by two
+    /// validators, so they freeze the client as stored consensus states or as unstored headers, in either order.
+    function test_invalidValidatorSetChangeMisbehaviour() public {
+        address[] memory trusted = sim.validators();
+        _rotateValidators(1, 1);
+        SimHeader.Data memory forged = sim.nextBlock();
+        forged.validators = trusted;
+        forged = sim.seal(forged);
+        bytes memory honestUpdate = sim.updateMsg(2, 4);
+        bytes memory forgedUpdate = sim.updateMsg(2, forged);
+
+        bytes[3] memory misbehaviours = [
+            abi.encode(
+                IBesuLightClientMsgs.MsgSubmitMisbehaviour(
+                    IBesuLightClientMsgs.MisbehaviourType.TimeNonMonotonicity,
+                    abi.encode(
+                        IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour({
+                            height1: IICS02ClientMsgs.Height(0, 5),
+                            height2: IICS02ClientMsgs.Height(0, 4),
+                            consensusStatePreimage1: _consensusState(forged),
+                            consensusStatePreimage2: sim.consensusState(4)
+                        })
+                    )
+                )
+            ),
+            _headersMisbehaviour(honestUpdate, forgedUpdate),
+            _headersMisbehaviour(forgedUpdate, honestUpdate)
+        ];
+        uint256 snapshot = vm.snapshotState();
+        for (uint256 i = 0; i < misbehaviours.length; ++i) {
+            vm.revertToState(snapshot);
+            if (i == 0) {
+                assertEq(uint8(client.updateClient(honestUpdate)), uint8(ILightClientMsgs.UpdateResult.Update));
+                assertEq(uint8(client.updateClient(forgedUpdate)), uint8(ILightClientMsgs.UpdateResult.Update));
+            }
+
+            vm.expectEmit(address(client));
+            emit IBesuLightClient.InvalidValidatorSetChange(5, 4, 2);
+            client.misbehaviour(misbehaviours[i]);
+            assertTrue(_isFrozen(client));
+        }
     }
 
     function test_trustLevel() public {
@@ -431,11 +495,8 @@ abstract contract QBFTSimSuiteTest is Test {
         strict.updateClient(update);
 
         // Rotating half of the validators leaves 2 of 4 trusted signers: below 2/3, above 1/3.
-        sim.removeValidator(sim.validators()[0]);
-        sim.removeValidator(sim.validators()[0]);
-        sim.addValidators(2);
-        sim.produceBlock();
-        update = sim.updateMsg(2, 3);
+        _rotateValidators(2, 2);
+        update = sim.updateMsg(2, 6);
         vm.expectRevert(
             abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 2, 3)
         );
@@ -522,10 +583,7 @@ abstract contract QBFTSimSuiteTest is Test {
         removed = bound(removed, 0, trustedCount - 1);
         added = bound(added, 0, 3);
         sim = _setUp(trustedCount);
-        for (uint256 i = 0; i < removed; ++i) {
-            sim.removeValidator(sim.validators()[0]);
-        }
-        sim.addValidators(added);
+        _rotateValidators(removed, added);
 
         address[] memory trusted = sim.consensusState(2).validators;
         address[] memory current = sim.validators();
@@ -566,6 +624,19 @@ abstract contract QBFTSimSuiteTest is Test {
             return;
         }
         client.updateClient(update);
+    }
+
+    /// @dev Removes the lowest `removed` validators, then adds `added` new ones, producing a block after each change as
+    /// header-validator voting does.
+    function _rotateValidators(uint256 removed, uint256 added) internal {
+        for (uint256 i = 0; i < removed; ++i) {
+            sim.removeValidator(sim.validators()[0]);
+            sim.produceBlock();
+        }
+        for (uint256 i = 0; i < added; ++i) {
+            sim.addValidator();
+            sim.produceBlock();
+        }
     }
 
     function _contains(address[] memory set, address value) internal pure returns (bool) {
