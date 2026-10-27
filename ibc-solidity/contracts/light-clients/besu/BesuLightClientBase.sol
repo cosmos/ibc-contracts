@@ -31,6 +31,8 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @notice Maximum allowed clock drift.
     /// @dev Covers the host `block.timestamp` lagging the time of inclusion by up to one Ethereum slot
     uint64 private constant MAX_CLOCK_DRIFT = 12 seconds;
+    /// @notice Length of a compact ECDSA signature (r||s||v).
+    uint256 private constant ECDSA_SIGNATURE_LENGTH = 65;
 
     /// @notice Current client state.
     IBesuLightClientMsgs.ClientState private clientState;
@@ -530,16 +532,16 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
     /// @notice Recovers commit seal signers for a digest, requiring them to be sorted.
     /// @dev Seals must be ordered by recovered signer in strictly ascending order, which also rejects duplicates.
+    /// Seals must use 27/28 recovery ids; relayers convert Besu's 0/1 ids before submitting.
     /// @param digest The commit seal digest.
     /// @param seals The commit seals to recover.
     /// @return signers The recovered signer addresses, in strictly ascending order.
     function _recoverSigners(bytes32 digest, bytes[] memory seals) private pure returns (address[] memory signers) {
-        signers = new address[](seals.length);
-        if (seals.length == 0) {
-            return signers;
-        }
+        require(seals.length != 0, EmptyCommitSeals());
 
+        signers = new address[](seals.length);
         signers[0] = _recoverSigner(digest, seals[0]);
+        require(signers[0] != address(0), InvalidCommitSeal());
         for (uint256 i = 1; i < seals.length; ++i) {
             signers[i] = _recoverSigner(digest, seals[i]);
             require(signers[i - 1] < signers[i], UnsortedCommitSealSigners(i - 1));
@@ -548,19 +550,11 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
     /// @notice Recovers one commit seal signer.
     /// @param digest The commit seal digest.
-    /// @param seal The 65-byte ECDSA commit seal.
+    /// @param seal The 65-byte ECDSA commit seal (r||s||v).
     /// @return The recovered signer address.
     function _recoverSigner(bytes32 digest, bytes memory seal) private pure returns (address) {
-        require(seal.length == 65, InvalidECDSASignatureLength(seal.length));
-        if (uint8(seal[64]) < 27) {
-            seal[64] = bytes1(uint8(seal[64]) + 27);
-        }
-        (address signer, ECDSA.RecoverError err, bytes32 errorArgument) = ECDSA.tryRecover(digest, seal);
-        require(
-            err == ECDSA.RecoverError.NoError && errorArgument == bytes32(0) && signer != address(0),
-            InvalidCommitSeal()
-        );
-        return signer;
+        require(seal.length == ECDSA_SIGNATURE_LENGTH, InvalidECDSASignatureLength(seal.length));
+        return ECDSA.recover(digest, seal);
     }
 
     /// @notice Checks that enough trusted validators signed.

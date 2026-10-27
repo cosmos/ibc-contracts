@@ -49,6 +49,11 @@
   },
   {
     "type": "error",
+    "name": "EmptyCommitSeals",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "EmptyValidatorSet",
     "inputs": []
   },
