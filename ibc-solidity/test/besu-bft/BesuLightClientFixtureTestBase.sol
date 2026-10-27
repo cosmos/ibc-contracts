@@ -1130,25 +1130,23 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         });
 
         // The malleable twin of a valid seal recovers the same signer but must be rejected.
-        bytes32 s = seal.asSlice().load(32);
-        bytes32 highS = bytes32(SECP256K1_N - uint256(s));
-        bytes memory highSSeal = abi.encodePacked(seal.asSlice().load(0), highS, bytes1(55 - uint8(seal[64])));
+        bytes32 highS = bytes32(SECP256K1_N - uint256(seal.asSlice().load(32)));
         testCases[27] = BesuUpdateTestCase({
             name: "failure: high-s commit seal",
             timestamp: fixture.initialTrustedTimestamp + 1,
-            update: _firstSealUpdate(highSSeal),
+            update: _firstSealUpdate(abi.encodePacked(seal.asSlice().load(0), highS, bytes1(55 - uint8(seal[64])))),
             preUpdate: "",
             expectedRevert: abi.encodeWithSelector(ECDSA.ECDSAInvalidSignatureS.selector, highS),
             expectedState: emptyExpectedState
         });
 
         // Relayers must convert Besu's raw 0/1 recovery ids to 27/28.
-        bytes memory rawRecoveryIdSeal = abi.encodePacked(seal);
-        rawRecoveryIdSeal[64] = bytes1(uint8(seal[64]) - 27);
         testCases[28] = BesuUpdateTestCase({
             name: "failure: raw recovery id commit seal",
             timestamp: fixture.initialTrustedTimestamp + 1,
-            update: _firstSealUpdate(rawRecoveryIdSeal),
+            update: _firstSealUpdate(
+                abi.encodePacked(seal.asSlice().slice(0, 64).toBytes(), bytes1(uint8(seal[64]) - 27))
+            ),
             preUpdate: "",
             expectedRevert: abi.encodeWithSelector(ECDSA.ECDSAInvalidSignature.selector),
             expectedState: emptyExpectedState
