@@ -563,7 +563,7 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
         IBesuLightClientMsgs.TrustThreshold memory trustLevel = clientState.trustLevel;
         uint256 required = Math.max(
             Math.mulDiv(trustedCount, trustLevel.numerator, trustLevel.denominator, Math.Rounding.Ceil),
-            Math.mulDiv(trustedCount, 1, 3) + 1
+            trustedCount / 3 + 1
         );
         require(actual >= required, InsufficientTrustedValidatorOverlap(actual, required));
     }
