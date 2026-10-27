@@ -64,7 +64,7 @@ library Header {
         bytes memory extraData = headerItems[12].readBytes();
         Memory.Slice[] memory extraDataItems = extraData.decodeList();
         require(
-            extraDataItems.length == 4 || extraDataItems.length == 5,
+            extraDataItems.length == 5 || extraDataItems.length == 4,
             IBesuLightClientErrors.InvalidExtraDataFormat(extraDataItems.length)
         );
         if (extraDataItems.length == 5) {
