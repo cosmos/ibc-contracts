@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.28;
 
-import { AccessControl } from "@openzeppelin-contracts/access/AccessControl.sol";
 import { ECDSA } from "@openzeppelin-contracts/utils/cryptography/ECDSA.sol";
 import { RLP } from "@openzeppelin-contracts/utils/RLP.sol";
-import { TrieProof } from "../../utils/TrieProof.sol";
+import { TrieProof } from "../utils/TrieProof.sol";
 import { Memory } from "@openzeppelin-contracts/utils/Memory.sol";
 import { TransientSlot } from "@openzeppelin-contracts/utils/TransientSlot.sol";
 import { Math } from "@openzeppelin-contracts/utils/math/Math.sol";
@@ -17,15 +16,12 @@ import { IBesuLightClientErrors } from "./errors/IBesuLightClientErrors.sol";
 import { IBesuLightClient } from "./interfaces/IBesuLightClient.sol";
 
 import { Header } from "./utils/Header.sol";
+import { ICS26ManagedLightClient } from "../utils/ICS26ManagedLightClient.sol";
 
 /// @title Besu Light Client Base
 /// @notice Shared implementation for Besu BFT light clients that verify headers and EVM storage proofs.
-abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientErrors, AccessControl {
+abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientErrors, ICS26ManagedLightClient {
     using TransientSlot for TransientSlot.Bytes32Slot;
-
-    /// @notice Role allowed to submit client updates and proof verifications. Misbehaviour is permissionless.
-    // natlint-disable-next-line MissingInheritdoc
-    bytes32 public constant PROOF_SUBMITTER_ROLE = keccak256("PROOF_SUBMITTER_ROLE");
 
     /// @notice ERC-7201 storage slot used by `IBCStoreUpgradeable` commitments.
     /// @dev keccak256(abi.encode(uint256(keccak256("ibc.storage.IBCStore")) - 1)) & ~bytes32(uint256(0xff))
@@ -40,12 +36,14 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @dev `initialConsensusState` is trusted at `initialClientState.latestHeight`.
     /// @param initialClientState Initial client state. Must not be frozen and must use revision number `0`.
     /// @param initialConsensusState Initial trusted consensus state at `initialClientState.latestHeight`.
-    /// @param roleManager Address that administers proof submission; if zero, proof submission is open.
+    /// @param ics26Router The ICS26Router that may drive this client and whose authority controls pausing.
     constructor(
         IBesuLightClientMsgs.ClientState memory initialClientState,
         IBesuLightClientMsgs.ConsensusState memory initialConsensusState,
-        address roleManager
-    ) {
+        address ics26Router
+    )
+        ICS26ManagedLightClient(ics26Router)
+    {
         IICS02ClientMsgs.Height memory latestHeight = initialClientState.latestHeight;
         IBesuLightClientMsgs.TrustThreshold memory trustLevel = initialClientState.trustLevel;
         uint64 trustingPeriod = initialClientState.trustingPeriod;
@@ -63,6 +61,11 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         );
 
         require(timestamp != 0, InvalidHeaderTimestamp());
+        require(
+            initialConsensusState.stateRoot != bytes32(0)
+                && initialConsensusState.stateRoot != TrieProof.EMPTY_ROOT_HASH,
+            InvalidStateRoot(initialConsensusState.stateRoot)
+        );
         _validateValidators(initialConsensusState.validators);
         require(
             uint256(timestamp) + trustingPeriod > block.timestamp,
@@ -75,13 +78,6 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
         clientState = initialClientState;
         consensusStateHashes[latestHeight.revisionHeight] = keccak256(abi.encode(initialConsensusState));
-
-        if (roleManager == address(0)) {
-            _grantRole(PROOF_SUBMITTER_ROLE, address(0));
-        } else {
-            _grantRole(DEFAULT_ADMIN_ROLE, roleManager);
-            _grantRole(PROOF_SUBMITTER_ROLE, roleManager);
-        }
     }
 
     /// @inheritdoc ILightClient
@@ -100,12 +96,14 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     function updateClient(bytes calldata updateMsg)
         external
         notFrozen
-        onlyProofSubmitter
+        whenNotPaused
+        onlyICS26Router
         returns (ILightClientMsgs.UpdateResult)
     {
         IBesuLightClientMsgs.MsgUpdateClient memory msg_ = abi.decode(updateMsg, (IBesuLightClientMsgs.MsgUpdateClient));
         (uint64 height, IBesuLightClientMsgs.ConsensusState memory newConsensusState, bool sameValidators) =
             _verifyHeader(msg_);
+        // Checked here rather than in `_verifyHeader` so `misbehaviour` can still use future headers as evidence.
         require(
             block.timestamp + clientState.maxClockDrift >= newConsensusState.timestamp,
             HeaderFromFuture(block.timestamp, newConsensusState.timestamp, clientState.maxClockDrift)
@@ -142,7 +140,8 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     function verifyMembership(ILightClientMsgs.MsgVerifyMembership calldata msg_)
         external
         notFrozen
-        onlyProofSubmitter
+        whenNotPaused
+        onlyICS26Router
         returns (uint256)
     {
         require(msg_.proofHeight.revisionNumber == 0, InvalidRevisionNumber(msg_.proofHeight.revisionNumber));
@@ -173,7 +172,8 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     function verifyNonMembership(ILightClientMsgs.MsgVerifyNonMembership calldata msg_)
         external
         notFrozen
-        onlyProofSubmitter
+        whenNotPaused
+        onlyICS26Router
         returns (uint256)
     {
         require(msg_.proofHeight.revisionNumber == 0, InvalidRevisionNumber(msg_.proofHeight.revisionNumber));
@@ -196,9 +196,10 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     }
 
     /// @inheritdoc ILightClient
-    /// @dev Permissionless: evidence is either already stored consensus states or headers that pass the same
-    /// signature and trust checks as `updateClient`, so freezing requires genuine validator misbehaviour.
-    function misbehaviour(bytes calldata misbehaviourMsg) external notFrozen {
+    /// @dev Only callable through the router's permissionless `submitMisbehaviour`: evidence is either already stored
+    /// consensus states or headers that pass the same signature and trust checks as `updateClient`, so freezing
+    /// requires genuine validator misbehaviour. Allowed while paused, so a paused client can still be frozen.
+    function misbehaviour(bytes calldata misbehaviourMsg) external notFrozen onlyICS26Router {
         IBesuLightClientMsgs.MsgSubmitMisbehaviour memory msg_ =
             abi.decode(misbehaviourMsg, (IBesuLightClientMsgs.MsgSubmitMisbehaviour));
         if (msg_.misbehaviourType == IBesuLightClientMsgs.MisbehaviourType.ConflictingConsensusStates) {
@@ -321,9 +322,11 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
     /// @notice Freezes the client if two consensus states conflict.
     /// @dev At the same height, differing consensus states are a double sign. At different heights, a lower consensus
-    /// state whose timestamp is not less than the higher one's is time non-monotonicity, and validator sets that differ
-    /// by more validators than the height difference are an invalid validator set change, since a header-validator
-    /// vote adds or removes at most one validator per block.
+    /// state whose timestamp is not less than the higher one's is time non-monotonicity, timestamps that increase by
+    /// less than the height difference are a sub-second block time, since sub-second block periods are not supported,
+    /// and
+    /// validator sets that differ by more validators than the height difference are an invalid validator set change,
+    /// since a header-validator vote adds or removes at most one validator per block.
     /// @param heightA The height of the first consensus state.
     /// @param a The first consensus state.
     /// @param heightB The height of the second consensus state.
@@ -361,11 +364,18 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
                 return true;
             }
 
-            uint256 maxChanges = heightB - heightA;
+            uint256 heightDiff = heightB - heightA;
+            // Blocks are at least one second apart, so `b.timestamp - a.timestamp >= heightDiff`.
+            if (b.timestamp - a.timestamp < heightDiff) {
+                clientState.isFrozen = true;
+                emit SubSecondBlockTime(heightB, heightA, b.timestamp, a.timestamp);
+                return true;
+            }
+
             // Sets cannot differ by more validators than they hold in total, so only count when they could.
-            if (!sameValidators && maxChanges < a.validators.length + b.validators.length) {
+            if (!sameValidators && heightDiff < a.validators.length + b.validators.length) {
                 uint256 changes = _deltaValidators(a.validators, b.validators);
-                if (changes > maxChanges) {
+                if (changes > heightDiff) {
                     clientState.isFrozen = true;
                     emit InvalidValidatorSetChange(heightB, heightA, changes);
                     return true;
@@ -408,7 +418,9 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     }
 
     /// @notice Verifies a header against its trusted consensus state and derives its consensus state.
-    /// @dev Does not check clock drift, so callers that store the result must check it themselves.
+    /// @dev Does not check clock drift, so callers that store the result must check it themselves. This is
+    /// deliberate: `misbehaviour` must accept validly signed headers from the future, as they can still prove
+    /// misbehaviour.
     /// @param msg_ The header with its trusted height and trusted consensus state preimage.
     /// @return height The header height.
     /// @return consensusState The consensus state derived from the header.
@@ -423,6 +435,10 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         Header.Data memory header = Header.decodeRlp(msg_.headerRlp);
         require(header.height != 0, InvalidHeaderHeight());
         require(header.timestamp != 0, InvalidHeaderTimestamp());
+        require(
+            header.stateRoot != bytes32(0) && header.stateRoot != TrieProof.EMPTY_ROOT_HASH,
+            InvalidStateRoot(header.stateRoot)
+        );
         _validateValidators(header.validators);
         require(
             header.height > msg_.trustedHeight.revisionHeight,
@@ -655,14 +671,6 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @notice Reverts if the client is frozen. A frozen client can never be unfrozen.
     modifier notFrozen() {
         require(!clientState.isFrozen, FrozenClientState());
-        _;
-    }
-
-    /// @notice Restricts access to proof submitters unless submission is open to anyone.
-    modifier onlyProofSubmitter() {
-        if (!hasRole(PROOF_SUBMITTER_ROLE, address(0))) {
-            _checkRole(PROOF_SUBMITTER_ROLE);
-        }
         _;
     }
 }

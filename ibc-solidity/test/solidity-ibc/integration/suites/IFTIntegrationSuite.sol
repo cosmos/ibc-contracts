@@ -51,10 +51,10 @@ abstract contract IFTIntegrationSuite is LightClientDriverTest {
         ibcImplB = new IbcImpl(integrationEnv.permit2());
 
         string memory clientId;
-        clientId = ibcImplA.addClient(th.FIRST_CLIENT_ID(), _newDriver(ibcImplB.ics26Router()));
+        clientId = ibcImplA.addClient(th.FIRST_CLIENT_ID(), _newDriver(ibcImplA.ics26Router(), ibcImplB.ics26Router()));
         assertEq(clientId, th.FIRST_CLIENT_ID());
 
-        clientId = ibcImplB.addClient(th.FIRST_CLIENT_ID(), _newDriver(ibcImplA.ics26Router()));
+        clientId = ibcImplB.addClient(th.FIRST_CLIENT_ID(), _newDriver(ibcImplB.ics26Router(), ibcImplA.ics26Router()));
         assertEq(clientId, th.FIRST_CLIENT_ID());
 
         sendCallConstructor = new EVMIFTSendCallConstructor();

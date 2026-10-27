@@ -25,11 +25,14 @@ All contracts are compiled for the **Cancun** EVM (`evm_version = "cancun"` in `
 - `RelayerHelper.sol` – Read-only helper for relayers to query packet commitments, receipts, and successful acknowledgements from `ICS26Router`.
 
 ## Light clients (`light-clients/`)
-- `attestation/AttestationLightClient.sol` – m-of-n attestor-set light client using ECDSA signatures with role-gated proof submission.
+All light clients except `ICS02PrecompileWrapper` inherit `light-clients/utils/ICS26ManagedLightClient.sol`: they are bound at construction to an immutable `ICS26_ROUTER`, the only caller allowed to update them, verify proofs or submit misbehaviour. Relayers reach them through the router's `updateClient`, `verifyMembership`, `verifyNonMembership` (`RELAYER_ROLE`) and the permissionless `submitMisbehaviour`. Each client is pausable through `pause()`/`unpause()`, which check `PAUSER_ROLE`/`UNPAUSER_ROLE` in the router's `AccessManager`; a paused client rejects updates and proofs but can still be frozen by misbehaviour.
+- `attestation/AttestationLightClient.sol` – m-of-n attestor-set light client using ECDSA signatures.
 - `besu/BesuIBFT2LightClient.sol` – Besu IBFT 2.0 light client for header-validator mode. Uses weak-subjectivity / trusting-period updates, verifies Besu commit seals under the existing YUI + prover sealing-header model plus EVM account/storage proofs, and proves Eureka commitments against the tracked counterparty `ICS26Router` storage.
 - `besu/BesuQBFTLightClient.sol` – Besu QBFT light client for header-validator mode with the same proof model and storage verification surface as the IBFT2 wrapper, but QBFT-specific seal-digest rules within that same YUI + prover sealing-header model.
 - `ics02-wrapper/ICS02PrecompileWrapper.sol` – Thin adapter that exposes the `ILightClient` interface over the Cosmos EVM ICS02 precompile at a fixed address.
 - `sp1-ics07/SP1ICS07Tendermint.sol` – Tendermint light client verified via SP1 programs and verifier contract; supports update, (non)membership proofs, and misbehaviour handling.
+- `utils/ICS26ManagedLightClient.sol` – Shared base that binds a light client to its `ICS26Router` and authorizes `pause()`/`unpause()` through the router's `AccessManager`.
+- `utils/TrieProof.sol` – Merkle-Patricia trie proof verification forked from OpenZeppelin, used by the Besu light clients for account and storage proofs.
 
 ### Besu light-client scope
 - Supported: Besu **IBFT 2.0** and **QBFT** in **header-validator mode**.
@@ -39,7 +42,7 @@ All contracts are compiled for the **Cancun** EVM (`evm_version = "cancun"` in `
 - Proof surface: Besu block headers, commit seals, Ethereum account proofs, and Ethereum storage proofs.
 - Destination chain requirement: the chain hosting the client must have Cancun (EIP-1153 transient storage) enabled; the proven router storage root is cached in transient storage so a batch of packet proofs at one height pays for a single account proof. See `light-clients/besu/README.md`.
 - Counterparty storage model: Eureka `ICS26Router` / `IBCStoreUpgradeable` commitments mapping.
-- Misbehaviour: a double sign or time non-monotonicity permanently freezes the client. `updateClient` detects both against the trusted and stored consensus states. `misbehaviour(bytes)` is permissionless and accepts either two stored consensus states with non-monotonic timestamps or two validly signed headers proving a double sign or time non-monotonicity. See `light-clients/besu/README.md`.
+- Misbehaviour: a double sign or time non-monotonicity permanently freezes the client. `updateClient` detects both against the trusted and stored consensus states. `misbehaviour(bytes)` is permissionless through the router's `submitMisbehaviour` and accepts either two stored consensus states with non-monotonic timestamps or two validly signed headers proving a double sign or time non-monotonicity. See `light-clients/besu/README.md`.
 - Not supported in v1: QBFT validator-contract mode and mode transitions.
 - Fixture status: `test/besu-bft/fixtures/qbft.json` and `ibft2.json` are captured from live Besu QBFT and IBFT2 networks by the Besu↔Besu e2e suite; only their negative update cases are derived by off-chain header mutation.
 

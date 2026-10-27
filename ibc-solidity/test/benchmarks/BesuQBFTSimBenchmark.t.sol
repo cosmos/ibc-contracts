@@ -14,17 +14,21 @@ import { SimHeader } from "../besu-bft/utils/SimHeader.sol";
 contract BesuQBFTSimBenchmark is Test {
     string internal constant SNAPSHOT_GROUP = "BesuQBFTSim";
 
+    address internal ics26Router = makeAddr("ics26Router");
+
     function testBenchmark_UpdateClient_ValidatorCount() public {
         uint256[6] memory counts = [uint256(4), 7, 16, 32, 64, 100];
         for (uint256 i = 0; i < counts.length; ++i) {
             QBFTSimSuite sim = new QBFTSimSuite(SimHeader.Mode.QBFT);
             sim.addValidators(counts[i]);
             sim.produceBlocks(2);
-            IBesuLightClient client = sim.deployLightClient(1 days, 10, IBesuLightClientMsgs.TrustThreshold(2, 3));
+            IBesuLightClient client =
+                sim.deployLightClient(1 days, 10, IBesuLightClientMsgs.TrustThreshold(2, 3), ics26Router);
             sim.produceBlock();
             bytes memory update = sim.updateMsg(2, 3);
             string memory name = string.concat("update.validators_", vm.toString(counts[i]));
 
+            vm.prank(ics26Router);
             client.updateClient(update);
             vm.snapshotGasLastFrame(SNAPSHOT_GROUP, string.concat(name, ".gas"));
             vm.snapshotValue(
@@ -43,7 +47,8 @@ contract BesuQBFTSimBenchmark is Test {
                 QBFTSimSuite sim = new QBFTSimSuite(SimHeader.Mode.QBFT);
                 sim.addValidators(4);
                 sim.produceBlocks(2);
-                IBesuLightClient client = sim.deployLightClient(1 days, 10, IBesuLightClientMsgs.TrustThreshold(2, 3));
+                IBesuLightClient client =
+                    sim.deployLightClient(1 days, 10, IBesuLightClientMsgs.TrustThreshold(2, 3), ics26Router);
                 sim.addAccounts(sizes[a] - 1);
                 for (uint64 seq = 1; seq <= sizes[c]; ++seq) {
                     sim.setCommitment(
@@ -51,7 +56,9 @@ contract BesuQBFTSimBenchmark is Test {
                     );
                 }
                 sim.produceBlock();
-                client.updateClient(sim.updateMsg(2, 3));
+                bytes memory update = sim.updateMsg(2, 3);
+                vm.startPrank(ics26Router);
+                client.updateClient(update);
                 ILightClientMsgs.MsgVerifyMembership memory message =
                     sim.membershipMsg(3, ICS24Host.packetCommitmentPathCalldata("client-0", 1));
                 string memory name = string.concat(
@@ -59,6 +66,7 @@ contract BesuQBFTSimBenchmark is Test {
                 );
 
                 client.verifyMembership(message);
+                vm.stopPrank();
                 vm.snapshotGasLastFrame(SNAPSHOT_GROUP, string.concat(name, ".gas"));
                 vm.snapshotValue(
                     SNAPSHOT_GROUP,

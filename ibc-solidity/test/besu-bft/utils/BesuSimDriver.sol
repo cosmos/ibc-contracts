@@ -24,11 +24,11 @@ contract BesuSimDriver is ILightClientDriver {
     ILightClient public immutable lightClient;
     IBCStoreUpgradeable private immutable _counterpartyRouter;
 
-    constructor(SimHeader.Mode mode, ICS26Router counterparty) {
+    constructor(SimHeader.Mode mode, ICS26Router host, ICS26Router counterparty) {
         sim = new QBFTSimSuite(mode);
         sim.addValidators(4);
         _produceBlock();
-        lightClient = sim.deployLightClient(1 days, 10, IBesuLightClientMsgs.TrustThreshold(2, 3));
+        lightClient = sim.deployLightClient(1 days, 10, IBesuLightClientMsgs.TrustThreshold(2, 3), address(host));
         _counterpartyRouter = counterparty;
     }
 
@@ -66,13 +66,13 @@ contract BesuSimDriver is ILightClientDriver {
 }
 
 abstract contract WithBesuQBFTSim is LightClientDriverTest {
-    function _newDriver(ICS26Router counterparty) internal override returns (ILightClientDriver) {
-        return new BesuSimDriver(SimHeader.Mode.QBFT, counterparty);
+    function _newDriver(ICS26Router host, ICS26Router counterparty) internal override returns (ILightClientDriver) {
+        return new BesuSimDriver(SimHeader.Mode.QBFT, host, counterparty);
     }
 }
 
 abstract contract WithBesuIBFT2Sim is LightClientDriverTest {
-    function _newDriver(ICS26Router counterparty) internal override returns (ILightClientDriver) {
-        return new BesuSimDriver(SimHeader.Mode.IBFT2, counterparty);
+    function _newDriver(ICS26Router host, ICS26Router counterparty) internal override returns (ILightClientDriver) {
+        return new BesuSimDriver(SimHeader.Mode.IBFT2, host, counterparty);
     }
 }

@@ -39,7 +39,7 @@ jobs:
       - uses: srdtrk/natlint@94f472f15c25c18091b8532cfa660f46379e2a02 # main
         with:
           include: 'contracts/**/*.sol'
-          exclude: 'contracts/utils/TrieProof.sol'
+          exclude: 'contracts/light-clients/utils/TrieProof.sol'
           config: 'ibc-solidity/natlint.toml'
           root: 'ibc-solidity'
 

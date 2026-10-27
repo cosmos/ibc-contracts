@@ -129,8 +129,6 @@ where
 const SP1_VERIFIER: &str = "sp1_verifier";
 /// The key for the zk algorithm in the parameters map.
 const ZK_ALGORITHM: &str = "zk_algorithm";
-/// The key for the role manager in the parameters map.
-const ROLE_MANAGER: &str = "role_manager";
 
 #[async_trait::async_trait]
 impl<P> TxBuilderService<EthEureka, CosmosSdk> for TxBuilder<P>
@@ -220,7 +218,7 @@ where
         // Check if parameters only include correct keys
         parameters
             .keys()
-            .find(|k| ![SP1_VERIFIER, ZK_ALGORITHM, ROLE_MANAGER].contains(&k.as_str()))
+            .find(|k| ![SP1_VERIFIER, ZK_ALGORITHM].contains(&k.as_str()))
             .map_or(Ok(()), |param| {
                 Err(anyhow::anyhow!("Unexpected parameter: `{param}`, only `{SP1_VERIFIER}` and `{ZK_ALGORITHM}` are allowed"))
             })?;
@@ -232,11 +230,6 @@ where
             latest_light_block.height().value()
         );
 
-        let role_admin = parameters
-            .get(ROLE_MANAGER)
-            .map_or(Ok(Address::ZERO), |a| {
-                Address::from_str(a.as_str()).map_err(|e| anyhow::anyhow!(e))
-            })?;
         let sp1_verifier = Address::from_str(
             parameters
                 .get(SP1_VERIFIER)
@@ -292,7 +285,7 @@ where
             sp1_verifier,
             client_state.abi_encode().into(),
             consensus_state_hash,
-            role_admin,
+            *self.ics26_router.address(),
         )
         .calldata()
         .to_vec())
@@ -395,7 +388,11 @@ impl<P: Provider + Clone> AttestedTxBuilder<P> {
     /// # Errors
     /// Returns an error if transaction building fails.
     pub fn create_client(&self, parameters: &HashMap<String, String>) -> Result<Vec<u8>> {
-        build_eth_attestor_create_client_calldata(parameters, self.provider.clone())
+        build_eth_attestor_create_client_calldata(
+            parameters,
+            self.ics26_address,
+            self.provider.clone(),
+        )
     }
 
     /// Update a client on Ethereum using attestations.
