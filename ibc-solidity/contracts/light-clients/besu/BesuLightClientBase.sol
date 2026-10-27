@@ -63,6 +63,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         );
 
         require(timestamp != 0, InvalidHeaderTimestamp());
+        _validateStateRoot(initialConsensusState.stateRoot);
         _validateValidators(initialConsensusState.validators);
         require(
             uint256(timestamp) + trustingPeriod > block.timestamp,
@@ -405,6 +406,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         Header.Data memory header = Header.decodeRlp(msg_.headerRlp);
         require(header.height != 0, InvalidHeaderHeight());
         require(header.timestamp != 0, InvalidHeaderTimestamp());
+        _validateStateRoot(header.stateRoot);
         _validateValidators(header.validators);
         require(
             header.height > msg_.trustedHeight.revisionHeight,
@@ -562,6 +564,13 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @return The minimum number of matching signers.
     function _bftThreshold(uint256 n) private pure returns (uint256) {
         return Math.ceilDiv(2 * n, 3);
+    }
+
+    /// @notice Validates that a state root is neither zero nor the empty trie root.
+    /// @dev An empty trie root would let any non-membership proof pass without proof nodes.
+    /// @param stateRoot The state root to validate.
+    function _validateStateRoot(bytes32 stateRoot) private pure {
+        require(stateRoot != bytes32(0) && stateRoot != TrieProof.EMPTY_ROOT_HASH, InvalidStateRoot(stateRoot));
     }
 
     /// @notice Validates that a validator set is non-empty, unique, and sorted.

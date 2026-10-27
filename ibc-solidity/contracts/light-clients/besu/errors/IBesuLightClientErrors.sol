@@ -19,6 +19,9 @@ interface IBesuLightClientErrors {
     error InvalidHeaderHeight();
     /// @notice The submitted header timestamp is zero.
     error InvalidHeaderTimestamp();
+    /// @notice The state root is zero or the empty trie root.
+    /// @param stateRoot The invalid state root.
+    error InvalidStateRoot(bytes32 stateRoot);
     /// @notice Trusting period must be greater than zero.
     error InvalidTrustingPeriod();
     /// @notice Trust level must be within `[1/3, 1]` with a non-zero denominator.
