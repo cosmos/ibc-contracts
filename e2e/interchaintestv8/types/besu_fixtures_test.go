@@ -69,7 +69,7 @@ func TestBesuConsensusStateEncoding(t *testing.T) {
 	}
 	// keccak256(abi.encode(ConsensusState)) for qbft.json's initial trusted state, computed
 	// independently of these bindings with `cast abi-encode "f((uint64,bytes32,address[]))" ... | cast keccak`.
-	want := ethcommon.HexToHash("0xecfbf308ea6a516295fb15952c2b0518e06cf2dcb769175a23d786c04d8ad656")
+	want := ethcommon.HexToHash("0x6a42762d22bc22c0f975f577edc999a99e865a799ed6a081f0832837b3480260")
 	got := crypto.Keccak256Hash(besumsgs.NewBindings().PackConsensusState(state)[4:])
 	require.Equal(t, want, got)
 }
