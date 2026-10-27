@@ -16,8 +16,6 @@ library Header {
     bytes32 private constant BESU_BFT_MIX_HASH = 0x63746963616c2062797a616e74696e65206661756c7420746f6c6572616e6365;
     /// @notice Empty ommers hash required by Besu BFT headers.
     bytes32 private constant EMPTY_OMMERS_HASH = 0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347;
-    /// @notice RLP encoding of an empty list, the commit seal list of a QBFT signing header.
-    bytes1 private constant EMPTY_LIST = 0xc0;
 
     /// @notice Decoded fields from a submitted Besu header.
     /// @param height Header block number.
@@ -70,9 +68,10 @@ library Header {
             IBesuLightClientErrors.InvalidExtraDataFormat(extraDataItems.length)
         );
         if (extraDataItems.length == 5) {
+            // An empty list encodes as the bare list prefix.
             Memory.Slice sealList = extraDataItems[4];
             require(
-                Memory.length(sealList) == 1 && bytes1(Memory.load(sealList, 0)) == EMPTY_LIST,
+                Memory.length(sealList) == 1 && uint8(bytes1(Memory.load(sealList, 0))) == RLP.LONG_OFFSET,
                 IBesuLightClientErrors.NonEmptyCommitSealList()
             );
         }
