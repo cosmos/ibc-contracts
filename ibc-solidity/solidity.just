@@ -203,12 +203,10 @@ generate-abi: build-contracts
 	jq -r '.bytecode.object' out/RelayerHelper.sol/RelayerHelper.json > tmp/abigen/RelayerHelper.bin
 	jq '.abi' out/AttestationLightClient.sol/AttestationLightClient.json > abi/AttestationLightClient.json
 	jq -r '.bytecode.object' out/AttestationLightClient.sol/AttestationLightClient.json > tmp/abigen/AttestationLightClient.bin
-	jq '.abi' out/BesuIBFT2LightClient.sol/BesuIBFT2LightClient.json > abi/BesuIBFT2LightClient.json
-	jq '.abi' out/BesuQBFTLightClient.sol/BesuQBFTLightClient.json > abi/BesuQBFTLightClient.json
+	jq '.abi' out/BesuLightClientBase.sol/BesuLightClientBase.json > abi/BesuLightClientBase.json
 	jq '.abi' out/IBesuLightClientEncoding.sol/IBesuLightClientEncoding.json > abi/IBesuLightClientEncoding.json
 	jq '.abi' out/IBesuLightClientErrors.sol/IBesuLightClientErrors.json > abi/IBesuLightClientErrors.json
-	jq -r '.bytecode.object' out/BesuIBFT2LightClient.sol/BesuIBFT2LightClient.json > tmp/abigen/BesuIBFT2LightClient.bin
-	jq -r '.bytecode.object' out/BesuQBFTLightClient.sol/BesuQBFTLightClient.json > tmp/abigen/BesuQBFTLightClient.bin
+	jq -r '.bytecode.object' out/BesuLightClientBase.sol/BesuLightClientBase.json > tmp/abigen/BesuLightClientBase.bin
 	jq '.abi' out/IFTOwnable.sol/IFTOwnable.json > abi/IFTOwnable.json
 	jq -r '.bytecode.object' out/IFTOwnable.sol/IFTOwnable.json > tmp/abigen/IFTOwnable.bin
 	jq '.abi' out/IFTOwnable2Step.sol/IFTOwnable2Step.json > abi/IFTOwnable2Step.json
@@ -233,8 +231,7 @@ generate-abi: build-contracts
 	abigen --abi abi/ICS27GMP.json --bin tmp/abigen/ICS27GMP.bin --pkg ics27gmp --type Contract --out ../packages/go-abigen/ics27gmp/contract.go
 	abigen --abi abi/RelayerHelper.json --bin tmp/abigen/RelayerHelper.bin --pkg relayerhelper --type Contract --out ../packages/go-abigen/relayerhelper/contract.go
 	abigen --abi abi/AttestationLightClient.json --bin tmp/abigen/AttestationLightClient.bin --pkg attestation --type Contract --out ../packages/go-abigen/attestation/contract.go
-	abigen --abi abi/BesuIBFT2LightClient.json --bin tmp/abigen/BesuIBFT2LightClient.bin --pkg besuibft2 --type Contract --out ../packages/go-abigen/besuibft2/contract.go
-	abigen --abi abi/BesuQBFTLightClient.json --bin tmp/abigen/BesuQBFTLightClient.bin --pkg besuqbft --type Contract --out ../packages/go-abigen/besuqbft/contract.go
+	abigen --abi abi/BesuLightClientBase.json --bin tmp/abigen/BesuLightClientBase.bin --pkg besulightclient --type Contract --out ../packages/go-abigen/besulightclient/contract.go
 	abigen --v2 --abi abi/IBesuLightClientEncoding.json --pkg besumsgs --type Bindings --out ../packages/go-abigen/besumsgs/bindings.go
 	abigen --v2 --abi abi/IBesuLightClientErrors.json --pkg besuerrors --type Bindings --out ../packages/go-abigen/besuerrors/bindings.go
 	abigen --abi abi/IBCMulticall.json --bin tmp/abigen/IBCMulticall.bin --pkg ibcmulticall --type Contract --out ../packages/go-abigen/ibcmulticall/contract.go
@@ -244,8 +241,7 @@ generate-abi: build-contracts
 	mkdir -p abi/bytecode
 	jq -c '{abi, bytecode: {object: .bytecode.object}}' out/SP1ICS07Tendermint.sol/SP1ICS07Tendermint.json > abi/bytecode/SP1ICS07Tendermint.json
 	jq -c '{abi, bytecode: {object: .bytecode.object}}' out/AttestationLightClient.sol/AttestationLightClient.json > abi/bytecode/AttestationLightClient.json
-	jq -c '{abi, bytecode: {object: .bytecode.object}}' out/BesuIBFT2LightClient.sol/BesuIBFT2LightClient.json > abi/bytecode/BesuIBFT2LightClient.json
-	jq -c '{abi, bytecode: {object: .bytecode.object}}' out/BesuQBFTLightClient.sol/BesuQBFTLightClient.json > abi/bytecode/BesuQBFTLightClient.json
+	jq -c '{abi, bytecode: {object: .bytecode.object}}' out/BesuLightClientBase.sol/BesuLightClientBase.json > abi/bytecode/BesuLightClientBase.json
 	rm -rf tmp/abigen
 
 # Clean up the foundry cache and out directories

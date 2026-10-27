@@ -326,6 +326,11 @@
   },
   {
     "type": "error",
+    "name": "NonEmptyCommitSealList",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "StorageRootNotInCache",
     "inputs": [
       {

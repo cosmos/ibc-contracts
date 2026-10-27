@@ -15,6 +15,8 @@ interface IBesuLightClientErrors {
     /// @notice The submitted `extraData` field has an invalid RLP item count.
     /// @param itemsLength The decoded `extraData` item count.
     error InvalidExtraDataFormat(uint256 itemsLength);
+    /// @notice The fifth `extraData` item of the submitted header is not an empty commit seal list.
+    error NonEmptyCommitSealList();
     /// @notice The submitted header height is zero.
     error InvalidHeaderHeight();
     /// @notice The submitted header timestamp is zero.
