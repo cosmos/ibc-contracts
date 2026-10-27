@@ -616,7 +616,9 @@ abstract contract QBFTSimSuiteTest is Test {
 
         uint256 requiredOverlap = Math.ceilDiv(2 * trusted.length, 3);
         uint256 requiredQuorum = Math.ceilDiv(2 * current.length, 3);
-        if (overlap < requiredOverlap) {
+        if (signerCount == 0) {
+            vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.EmptyCommitSeals.selector));
+        } else if (overlap < requiredOverlap) {
             vm.expectRevert(
                 abi.encodeWithSelector(
                     IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, overlap, requiredOverlap
