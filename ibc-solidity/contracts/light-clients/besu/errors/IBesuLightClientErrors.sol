@@ -15,6 +15,8 @@ interface IBesuLightClientErrors {
     /// @notice The submitted `extraData` field has an invalid RLP item count.
     /// @param itemsLength The decoded `extraData` item count.
     error InvalidExtraDataFormat(uint256 itemsLength);
+    /// @notice The fifth `extraData` item of the submitted header is not an empty commit seal list.
+    error NonEmptyCommitSealList();
     /// @notice The submitted header height is zero.
     error InvalidHeaderHeight();
     /// @notice The submitted header timestamp is zero.
@@ -77,7 +79,7 @@ interface IBesuLightClientErrors {
     /// @notice The commit seals are not sorted in strictly ascending order of their recovered signers.
     /// @param index The index of the first unsorted commit seal signer.
     error UnsortedCommitSealSigners(uint256 index);
-    /// @notice The header has no commit seals.
+    /// @notice The update has no commit seals.
     error EmptyCommitSeals();
     /// @notice An ECDSA signature has an invalid length.
     /// @param length The invalid signature length.

@@ -31,8 +31,8 @@ import (
 
 	"github.com/cosmos/interchaintest/v11/testutil"
 
+	"github.com/cosmos/ibc-contracts/packages/go-abigen/besulightclient"
 	"github.com/cosmos/ibc-contracts/packages/go-abigen/besumsgs"
-	"github.com/cosmos/ibc-contracts/packages/go-abigen/besuqbft"
 	"github.com/cosmos/ibc-contracts/packages/go-abigen/ibcerc20"
 	"github.com/cosmos/ibc-contracts/packages/go-abigen/ics20transfer"
 	"github.com/cosmos/ibc-contracts/packages/go-abigen/ics26router"
@@ -786,7 +786,7 @@ func (s *BesuToBesuTestSuite) DoubleSignFreezesClientTest(consensus string) {
 
 	const doubleSignClientID = "besu-double-sign"
 	var (
-		client        *besuqbft.Contract
+		client        *besulightclient.Contract
 		trustedHeight uint64
 		height        uint64
 		trustedHash   [32]byte
@@ -853,7 +853,7 @@ func (s *BesuToBesuTestSuite) ConflictingConsensusStatesTimeNonMonotonicityFreez
 
 	const timeMisbehaviourClientID = "besu-time-non-monotonicity"
 	var (
-		client          *besuqbft.Contract
+		client          *besulightclient.Contract
 		trustedHeight   uint64
 		height1         uint64
 		height2         uint64
@@ -949,7 +949,7 @@ func (s *BesuToBesuTestSuite) ConflictingHeadersDoubleSignMisbehaviourIsPermissi
 
 	const clientID = "besu-headers-double-sign"
 	var (
-		client          *besuqbft.Contract
+		client          *besulightclient.Contract
 		height          uint64
 		honestUpdate    []byte
 		misbehaviourMsg []byte
@@ -1016,7 +1016,7 @@ func (s *BesuToBesuTestSuite) ConflictingHeadersTimeNonMonotonicityMisbehaviourI
 
 	const clientID = "besu-headers-time-non-monotonicity"
 	var (
-		client           *besuqbft.Contract
+		client           *besulightclient.Contract
 		height1, height2 uint64
 		timestamp        uint64
 		misbehaviourMsg  []byte
@@ -1078,8 +1078,8 @@ func (s *BesuToBesuTestSuite) ValidatorSetChangesTest(consensus string) {
 		defaultTrustClientID = "besu-validator-change-default-trust"
 	)
 	var (
-		lowTrustClient      *besuqbft.Contract
-		defaultTrustClient  *besuqbft.Contract
+		lowTrustClient      *besulightclient.Contract
+		defaultTrustClient  *besulightclient.Contract
 		defaultTrustHeight  uint64
 		initialValidators   []ethcommon.Address
 		remainingValidators []ethcommon.Address
@@ -1194,11 +1194,10 @@ func (s *BesuToBesuTestSuite) waitForChainAHeader(ctx context.Context, start uin
 	return height
 }
 
-// createDedicatedBesuClient registers a Chain A client on Chain B that the relayer does not use. The QBFT and IBFT2
-// light clients share an ABI, so the besuqbft bindings serve both.
-func (s *BesuToBesuTestSuite) createDedicatedBesuClient(clientID, trustLevel string) *besuqbft.Contract {
+// createDedicatedBesuClient registers a Chain A client on Chain B that the relayer does not use.
+func (s *BesuToBesuTestSuite) createDedicatedBesuClient(clientID, trustLevel string) *besulightclient.Contract {
 	clientAddress := s.createAndRegisterBesuClient(&s.chainA, &s.chainB, clientID, besuToBesuClientOnA, trustLevel)
-	client, err := besuqbft.NewContract(clientAddress, s.chainB.eth.RPCClient)
+	client, err := besulightclient.NewContract(clientAddress, s.chainB.eth.RPCClient)
 	s.Require().NoError(err)
 	s.Require().False(s.besuClientState(client).IsFrozen)
 	return client
@@ -1299,7 +1298,7 @@ func (s *BesuToBesuTestSuite) requireCallRevert(ctx context.Context, from *ecdsa
 
 // besuClientErr returns the revert data of the Besu light client custom error name with args.
 func (s *BesuToBesuTestSuite) besuClientErr(name string, args ...any) []byte {
-	clientABI, err := besuqbft.ContractMetaData.GetAbi()
+	clientABI, err := besulightclient.ContractMetaData.GetAbi()
 	s.Require().NoError(err)
 	customErr, ok := clientABI.Errors[name]
 	s.Require().True(ok, "unknown error %s", name)
@@ -1310,7 +1309,7 @@ func (s *BesuToBesuTestSuite) besuClientErr(name string, args ...any) []byte {
 
 // besuClientCalldata packs a call to a Besu light client method.
 func (s *BesuToBesuTestSuite) besuClientCalldata(method string, args ...any) []byte {
-	clientABI, err := besuqbft.ContractMetaData.GetAbi()
+	clientABI, err := besulightclient.ContractMetaData.GetAbi()
 	s.Require().NoError(err)
 	calldata, err := clientABI.Pack(method, args...)
 	s.Require().NoError(err)
@@ -1345,7 +1344,7 @@ func (s *BesuToBesuTestSuite) submitBesuMisbehaviour(ctx context.Context, client
 	return receipt
 }
 
-func (s *BesuToBesuTestSuite) besuClientState(client *besuqbft.Contract) besumsgs.IBesuLightClientMsgsClientState {
+func (s *BesuToBesuTestSuite) besuClientState(client *besulightclient.Contract) besumsgs.IBesuLightClientMsgsClientState {
 	clientStateBz, err := client.GetClientState(nil)
 	s.Require().NoError(err)
 	clientState, err := besumsgs.NewBindings().UnpackClientState(clientStateBz)

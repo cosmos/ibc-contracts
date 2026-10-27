@@ -40,12 +40,17 @@ interface IBesuLightClientMsgs {
         address[] validators;
     }
 
-    /// @notice Update message containing a Besu header and the trusted consensus state preimage.
-    /// @param headerRlp RLP-encoded Besu block header.
+    /// @notice Update message containing a Besu header, its commit seals, and the trusted consensus state preimage.
+    /// @param headerRlp RLP-encoded Besu block header in its commit seal signing form: the commit seals are removed
+    /// from `extraData`, leaving 4 `extraData` items for IBFT 2.0 or 5 items ending in an empty seal list for QBFT.
+    /// The commit seal digest is `keccak256(headerRlp)`.
+    /// @param commitSeals 65-byte ECDSA commit seals (r||s||v, with 27/28 recovery ids) over `keccak256(headerRlp)`,
+    /// ordered by recovered signer address in strictly ascending order.
     /// @param trustedHeight Previously trusted height used for weak-subjectivity checks.
     /// @param consensusStatePreimage Preimage of the trusted consensus state at `trustedHeight`.
     struct MsgUpdateClient {
         bytes headerRlp;
+        bytes[] commitSeals;
         IICS02ClientMsgs.Height trustedHeight;
         ConsensusState consensusStatePreimage;
     }

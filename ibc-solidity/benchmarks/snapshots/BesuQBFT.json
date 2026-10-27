@@ -1,10 +1,10 @@
 {
-  "update.adjacent.calldata": "1444",
-  "update.adjacent.gas": "183833",
-  "update.non_adjacent.calldata": "1444",
-  "update.non_adjacent.gas": "184157",
-  "verify_membership.calldata": "2212",
-  "verify_membership.gas": "153129",
-  "verify_non_membership.calldata": "2116",
-  "verify_non_membership.gas": "165419"
+  "update.adjacent.calldata": "1764",
+  "update.adjacent.gas": "151954",
+  "update.non_adjacent.calldata": "1764",
+  "update.non_adjacent.gas": "151992",
+  "verify_membership.calldata": "2308",
+  "verify_membership.gas": "154582",
+  "verify_non_membership.calldata": "2212",
+  "verify_non_membership.gas": "166921"
 }

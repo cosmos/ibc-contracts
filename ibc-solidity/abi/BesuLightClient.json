@@ -865,6 +865,11 @@
   },
   {
     "type": "error",
+    "name": "NonEmptyCommitSealList",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "RLPInvalidEncoding",
     "inputs": []
   },
