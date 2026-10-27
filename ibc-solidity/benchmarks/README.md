@@ -22,22 +22,22 @@ The send value is the average of 50 separate transactions, including the more ex
 
 | Operation | Groth16 gas | Plonk gas | Groth16 calldata | Plonk calldata |
 | --- | ---: | ---: | ---: | ---: |
-| Send ERC20 (50-transaction average) | 164,830 | 164,830 | 516 | 516 |
-| Acknowledge ERC20 end-to-end | 444,205 | 511,363 | 3,748 | 4,356 |
-| Receive returning ERC20 end-to-end | 551,126 | 618,316 | 3,652 | 4,260 |
-| Receive new Cosmos token end-to-end | 1,123,970 | 1,190,944 | 3,652 | 4,260 |
-| Timeout ERC20 end-to-end | 501,550 | 568,901 | 3,652 | 4,260 |
+| Send ERC20 (50-transaction average) | 164,852 | 164,852 | 516 | 516 |
+| Acknowledge ERC20 end-to-end | 444,271 | 511,429 | 3,748 | 4,356 |
+| Receive returning ERC20 end-to-end | 551,236 | 618,426 | 3,652 | 4,260 |
+| Receive new Cosmos token end-to-end | 1,124,080 | 1,191,054 | 3,652 | 4,260 |
+| Timeout ERC20 end-to-end | 501,682 | 569,033 | 3,652 | 4,260 |
 
 ### Batched router multicalls
 
 | Proof | Packets | Operation | Total gas | Average gas / packet | Calldata bytes |
 | --- | ---: | --- | ---: | ---: | ---: |
-| Groth16 | 25 | Acknowledge ERC20 end-to-end | 2,781,294 | 111,251 | 53,668 |
-| Groth16 | 25 | Receive returning ERC20 end-to-end | 4,558,669 | 182,346 | 51,268 |
-| Groth16 | 50 | Acknowledge ERC20 end-to-end | 5,233,948 | 104,678 | 105,668 |
-| Groth16 | 50 | Receive returning ERC20 end-to-end | 8,739,084 | 174,781 | 100,868 |
-| Plonk | 50 | Acknowledge ERC20 end-to-end | 5,276,168 | 105,523 | 106,276 |
-| Plonk | 50 | Receive returning ERC20 end-to-end | 8,794,250 | 175,885 | 101,476 |
+| Groth16 | 25 | Acknowledge ERC20 end-to-end | 2,781,360 | 111,254 | 53,668 |
+| Groth16 | 25 | Receive returning ERC20 end-to-end | 4,559,835 | 182,393 | 51,268 |
+| Groth16 | 50 | Acknowledge ERC20 end-to-end | 5,234,014 | 104,680 | 105,668 |
+| Groth16 | 50 | Receive returning ERC20 end-to-end | 8,741,350 | 174,827 | 100,868 |
+| Plonk | 50 | Acknowledge ERC20 end-to-end | 5,276,234 | 105,524 | 106,276 |
+| Plonk | 50 | Receive returning ERC20 end-to-end | 8,796,516 | 175,930 | 101,476 |
 
 ## Besu QBFT light-client benchmarks
 

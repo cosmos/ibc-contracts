@@ -9,6 +9,7 @@ import { IIBCAppCallbacks } from "./msgs/IIBCAppCallbacks.sol";
 import { IICS26RouterErrors } from "./errors/IICS26RouterErrors.sol";
 import { IIBCApp } from "./interfaces/IIBCApp.sol";
 import { IICS26Router, IICS26RouterAccessControlled } from "./interfaces/IICS26Router.sol";
+import { IPausable } from "./interfaces/IPausable.sol";
 
 import { ReentrancyGuardTransient } from "@openzeppelin-contracts/utils/ReentrancyGuardTransient.sol";
 import { IBCStoreUpgradeable } from "./utils/IBCStoreUpgradeable.sol";
@@ -21,9 +22,11 @@ import { UUPSUpgradeable } from "@openzeppelin-contracts/proxy/utils/UUPSUpgrade
 
 /// @title IBC Eureka Router
 /// @notice The core router for the IBC Eureka protocol
+/// @dev Pausing only blocks app and client registration. The packet lifecycle is not pausable.
 contract ICS26Router is
     IICS26RouterErrors,
     IICS26Router,
+    IPausable,
     ICS02ClientUpgradeable,
     IBCStoreUpgradeable,
     ReentrancyGuardTransient,
@@ -60,6 +63,16 @@ contract ICS26Router is
         __ICS02Client_init(authority);
     }
 
+    /// @inheritdoc IPausable
+    function pause() external restricted {
+        _pause();
+    }
+
+    /// @inheritdoc IPausable
+    function unpause() external restricted {
+        _unpause();
+    }
+
     /// @inheritdoc IICS26Router
     function getIBCApp(string calldata portId) public view returns (IIBCApp) {
         IIBCApp app = _getICS26RouterStorage()._apps[portId];
@@ -68,13 +81,13 @@ contract ICS26Router is
     }
 
     /// @inheritdoc IICS26Router
-    function addIBCApp(address app) external nonReentrant restricted {
+    function addIBCApp(address app) external nonReentrant restricted whenNotPaused {
         string memory portId = Strings.toHexString(app);
         _addIBCApp(portId, app);
     }
 
     /// @inheritdoc IICS26RouterAccessControlled
-    function addIBCApp(string calldata portId, address app) external nonReentrant restricted {
+    function addIBCApp(string calldata portId, address app) external nonReentrant restricted whenNotPaused {
         require(bytes(portId).length != 0, IBCInvalidPortIdentifier(portId));
         // NOTE: We do not allow port-ids to be addresses, as this would conflict with the permissionless port-ids
         // slither-disable-next-line unused-return
