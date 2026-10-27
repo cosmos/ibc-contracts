@@ -76,7 +76,7 @@ abstract contract QBFTSimSuiteTest is Test {
 
     function test_updateClient_revertMalformedHeader() public {
         SimHeader.Data memory h = sim.nextBlock();
-        bytes memory headerRlp = SimHeader.encode(h);
+        bytes memory headerRlp = SimHeader.signingRlp(h, _mode());
 
         _expectUpdateRevert(
             _rewriteHeader(headerRlp, 14, type(uint256).max, ""),
@@ -85,6 +85,14 @@ abstract contract QBFTSimSuiteTest is Test {
         _expectUpdateRevert(
             _rewriteHeader(headerRlp, 20, 12, RLP.encode(bytes(hex"c0"))),
             abi.encodeWithSelector(IBesuLightClientErrors.InvalidExtraDataFormat.selector, 0)
+        );
+        _expectUpdateRevert(
+            _rewriteHeader(headerRlp, 20, 12, RLP.encode(bytes(hex"c6c0c0c0c0c0c0"))),
+            abi.encodeWithSelector(IBesuLightClientErrors.InvalidExtraDataFormat.selector, 6)
+        );
+        _expectUpdateRevert(
+            _rewriteHeader(headerRlp, 20, 12, RLP.encode(bytes(hex"c6c0c0c0c0c1c0"))),
+            abi.encodeWithSelector(IBesuLightClientErrors.NonEmptyCommitSealList.selector)
         );
     }
 
@@ -140,7 +148,9 @@ abstract contract QBFTSimSuiteTest is Test {
 
     function _expectUpdateRevert(bytes memory headerRlp, bytes memory revertData) internal {
         bytes memory update = abi.encode(
-            IBesuLightClientMsgs.MsgUpdateClient(headerRlp, IICS02ClientMsgs.Height(0, 2), sim.consensusState(2))
+            IBesuLightClientMsgs.MsgUpdateClient(
+                headerRlp, new bytes[](0), IICS02ClientMsgs.Height(0, 2), sim.consensusState(2)
+            )
         );
         vm.expectRevert(revertData);
         vm.prank(ics26Router);

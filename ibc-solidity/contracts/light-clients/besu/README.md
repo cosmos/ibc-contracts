@@ -1,11 +1,8 @@
-# Besu IBFT 2.0 / QBFT Light Clients
+# Besu IBFT 2.0 / QBFT Light Client
 
-This module contains two Solidity light clients for Besu BFT chains originally forked from [yui-ibc-solidity](https://github.com/hyperledger-labs/yui-ibc-solidity):
+This module contains `BesuLightClient.sol`, a Solidity light client for Besu BFT chains originally forked from [yui-ibc-solidity](https://github.com/hyperledger-labs/yui-ibc-solidity). One contract serves both Besu **IBFT 2.0** and **QBFT** counterparties.
 
-- `BesuIBFT2LightClient.sol`
-- `BesuQBFTLightClient.sol`
-
-Both wrappers share the same storage model and proof surface through `BesuLightClientBase.sol`. They differ only in how the commit-seal signing digest is reconstructed from the raw Besu header.
+The two protocols differ only in the header their validators sign for a commit seal. The relayer submits each header already in its protocol's commit-seal signing form, with the commit seals separately, so the client hashes the submitted header the same way for both and does not track which protocol the counterparty runs. See "Commit-seal signing form" below.
 
 ## Storage model
 
@@ -25,8 +22,7 @@ Relayers therefore need to keep the preimages of the heights they intend to refe
 
 ## Verification model notes
 
-- Commit-seal verification follows the existing **YUI Solidity client + besu-ibc-relay-prover** model: reconstruct the sealing header by rewriting `extraData` into the protocol-specific signing form, then recover commit-seal signers from the `keccak256(RLP(header))` digest.
-- This module does **not** claim to independently rederive a distinct Besu network-level consensus-message payload beyond that established YUI/prover model.
+- Commit-seal verification recovers the commit-seal signers from `keccak256(headerRlp)`, where `headerRlp` is the submitted header in its commit-seal signing form. This is the digest that `hashBlockForCommitSeal` in the [QBFT specification](https://entethalliance.org/specs/qbft/v1) and Besu's IBFT 2.0 implementation sign.
 - Trusted overlap requires at least **`ceil(n * trustLevel)`** of the trusted validator set to have signed the new header. `trustLevel` is a `TrustThreshold` fraction set at construction and must be within `[1/3, 1]`; the proof-api defaults it to `2/3`, the same threshold Besu uses for commit-seal quorum. Commit-seal quorum on the new header's validator set is always **`ceil(2n / 3)`**.
 - In header-validator mode, a validator vote adds or removes at most one validator per block, so the validator sets of any two consensus states at heights `h1 < h2` can differ by at most `h2 - h1` validators (counting validators in one set but not the other). A larger difference proves the consensus states are not from one valid chain; see "Misbehaviour" below. This relies on the chain staying in header-validator mode; validator-contract mode and mode transitions are out of scope.
 - Sub-second block periods are not supported: header timestamps are in whole seconds, so the timestamps of any two consensus states at heights `h1 < h2` must differ by at least `h2 - h1` seconds. A smaller positive difference is a sub-second block time and freezes the client with `SubSecondBlockTime`, separately from time non-monotonicity; see "Misbehaviour" below.
@@ -43,10 +39,10 @@ Relayers therefore need to keep the preimages of the heights they intend to refe
 
 ## Destination EVM requirements
 
-The Besu light clients are deployed on the **destination** EVM chain, next to that chain's `ICS26Router`. That chain must have the **Cancun** hard fork enabled, in particular [EIP-1153](https://eips.ethereum.org/EIPS/eip-1153) transient storage (`TSTORE` / `TLOAD`):
+The Besu light client is deployed on the **destination** EVM chain, next to that chain's `ICS26Router`. That chain must have the **Cancun** hard fork enabled, in particular [EIP-1153](https://eips.ethereum.org/EIPS/eip-1153) transient storage (`TSTORE` / `TLOAD`):
 
-- `BesuLightClientBase` caches each proven router storage root in transient storage (see "Membership / non-membership proofs" below). On a chain without EIP-1153, every `verifyMembership` and `verifyNonMembership` call reverts with an invalid-opcode error when it tries to write that cache, so packet proof verification fails even when the proof itself is valid.
-- This is not a new requirement relative to the rest of the stack: `ICS26Router`, `ICS20Transfer`, and `ICS27GMP` already use OpenZeppelin's `ReentrancyGuardTransient`, and `SP1ICS07Tendermint` caches proofs in transient storage, so a chain that can run the router can run these clients.
+- `BesuLightClient` caches each proven router storage root in transient storage (see "Membership / non-membership proofs" below). On a chain without EIP-1153, every `verifyMembership` and `verifyNonMembership` call reverts with an invalid-opcode error when it tries to write that cache, so packet proof verification fails even when the proof itself is valid.
+- This is not a new requirement relative to the rest of the stack: `ICS26Router`, `ICS20Transfer`, and `ICS27GMP` already use OpenZeppelin's `ReentrancyGuardTransient`, and `SP1ICS07Tendermint` caches proofs in transient storage, so a chain that can run the router can run this client.
 - All contracts in `ibc-solidity/` are compiled with `evm_version = "cancun"` (`ibc-solidity/foundry.toml`), so the compiled artifacts may also rely on other Shanghai and Cancun opcodes such as `PUSH0` and `MCOPY`. Do not lower `evm_version` to target an older chain; the transient cache has no fallback.
 
 Before deploying to a new destination network, confirm that it reports Cancun as active. A quick check is to `eth_call` a probe that executes `TSTORE`; a pre-Cancun chain returns an invalid-opcode failure. The end-to-end suites exercise this on a Cancun target: Foundry tests run under the `cancun` EVM, and the Besu QBFT e2e genesis enables it with `"cancunTime": 0` (`e2e/interchaintestv8/chainconfig/testdata/besu/genesis.json`).
@@ -60,7 +56,7 @@ The **source** Besu chain, whose headers and proofs are being verified, has no h
 
 ## Constructor
 
-Both wrappers take the same constructor arguments:
+The constructor takes:
 
 ```solidity
 constructor(
@@ -89,12 +85,14 @@ No proof is checked for the initial states; the deployer is trusted to supply th
 ```solidity
 struct MsgUpdateClient {
     bytes headerRlp;
+    bytes[] commitSeals;
     IICS02ClientMsgs.Height trustedHeight;
     ConsensusState consensusStatePreimage;
 }
 ```
 
-- `headerRlp`: full raw Besu block header RLP, including `extraData` and commit seals, with two seal rewrites the submitter must apply. Rewriting seals is safe because the commit-seal digest excludes the seal list.
+- `headerRlp`: the Besu block header RLP in its commit-seal signing form; see "Commit-seal signing form" below.
+- `commitSeals`: the commit seals from the header's `extraData`, with two rewrites the submitter must apply. Rewriting seals is safe because they sign `headerRlp`, which excludes them.
   - The commit seals must be ordered by recovered signer address in strictly ascending order. Besu does not order them this way, so the submitter must reorder them.
   - Each commit seal must be a 65-byte `r || s || v` signature with `v` set to 27 or 28. Besu encodes the recovery id as 0 or 1, so the submitter must add 27 to it. Seals with a 0/1 recovery id revert in OpenZeppelin's `ECDSA.recover`.
 
@@ -103,11 +101,26 @@ struct MsgUpdateClient {
 - `trustedHeight`: must use `revisionNumber == 0` and identify a stored consensus state hash.
 - `consensusStatePreimage`: the consensus state trusted at `trustedHeight`. Its hash must match the stored hash.
 
+### Commit-seal signing form
+
+A Besu block header stores its BFT data in `extraData` as the RLP list `[vanity, validators, vote, round, commitSeals]`, for both IBFT 2.0 and QBFT. The relayer removes the commit seals and re-encodes the header in the form its protocol's validators sign:
+
+| Protocol | `extraData` in `headerRlp` |
+| --- | --- |
+| IBFT 2.0 | `[vanity, validators, vote, round]`: 4 items, the seal list dropped. |
+| QBFT | `[vanity, validators, vote, round, []]`: 5 items, the seal list empty (`0xc0`). |
+
+`Header.decodeRlp` accepts exactly these two shapes. Any other `extraData` item count reverts with `InvalidExtraDataFormat(count)`, and a fifth item that is not the empty list `0xc0`, such as a header submitted with its seals still in `extraData`, reverts with `NonEmptyCommitSealList`.
+
+Accepting both shapes in one client does not let seals cross between them. Validators sign only their own protocol's form, so a header converted to the other form has a different digest, and its seals recover to unrelated addresses that fail the signer order or validator set checks. IBFT 2.0's block-hash form, which also drops the round, has 3 `extraData` items and is rejected.
+
+The proof-api derives the signing form from its `consensus_type` setting, because live headers have 5 `extraData` items under both protocols.
+
 On update, the contract:
 
 1. parses and validates the Besu header,
 2. checks the trusted consensus state preimage against the stored hash and the trusting period,
-3. reconstructs the protocol-specific commit-seal digest following the YUI + prover sealing-header model, and recovers the signers with OpenZeppelin's `ECDSA.recover`, rejecting an empty seal list, seals that are not 65 bytes, and seals that are not strictly ascending by signer,
+3. recovers the commit-seal signers from `keccak256(headerRlp)` with OpenZeppelin's `ECDSA.recover`, rejecting an empty `commitSeals`, seals that are not 65 bytes, and seals that are not strictly ascending by signer,
 4. checks trusted-validator overlap against the preimage validators and quorum against the new header validators,
 5. stores `keccak256(abi.encode(ConsensusState))` for the new height, built from the header timestamp, the header `stateRoot`, and the header validator set.
 
@@ -232,7 +245,7 @@ The Foundry fixtures under `test/besu-bft/fixtures/` can be regenerated from the
 just solidity::generate-fixtures-besu
 ```
 
-This writes `test/besu-bft/fixtures/qbft.json` and `test/besu-bft/fixtures/ibft2.json` using live Besu QBFT and IBFT2 headers, account proofs, and storage proofs captured during the e2e transfer flow. The fixture `proof` and `accountProof` fields hold the raw storage and account proof nodes as `abi.encode(bytes[])`; the Foundry tests wrap them into `MembershipProof` together with the consensus state preimage derived from the fixture's expected update state. The negative cases in those fixtures are still derived by deterministic off-chain header mutation so the contract tests can keep explicit overlap / quorum / conflict coverage.
+This writes `test/besu-bft/fixtures/qbft.json` and `test/besu-bft/fixtures/ibft2.json` using live Besu QBFT and IBFT2 headers, account proofs, and storage proofs captured during the e2e transfer flow. Each update case stores `headerRlp` in its commit-seal signing form and its sorted `commitSeals` separately, exactly as `MsgUpdateClient` carries them. The fixture `proof` and `accountProof` fields hold the raw storage and account proof nodes as `abi.encode(bytes[])`; the Foundry tests wrap them into `MembershipProof` together with the consensus state preimage derived from the fixture's expected update state. The negative cases in those fixtures are still derived by deterministic off-chain header mutation so the contract tests can keep explicit overlap / quorum / conflict coverage.
 
 The synthetic low-overlap case of both fixtures can be regenerated offline with the
 existing Go header and signing helpers:

@@ -18,9 +18,12 @@ import { IBesuLightClient } from "./interfaces/IBesuLightClient.sol";
 import { Header } from "./utils/Header.sol";
 import { ICS26ManagedLightClient } from "../utils/ICS26ManagedLightClient.sol";
 
-/// @title Besu Light Client Base
-/// @notice Shared implementation for Besu BFT light clients that verify headers and EVM storage proofs.
-abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientErrors, ICS26ManagedLightClient {
+/// @title Besu Light Client
+/// @notice Verifies Besu IBFT 2.0 and QBFT headers and ICS26 router storage proofs.
+/// @dev The client does not track which protocol the counterparty runs. Each header is submitted in its protocol's
+/// commit seal signing form, so the commit seal digest is `keccak256(headerRlp)` for both. See `hashBlockForCommitSeal`
+/// in the QBFT specification: https://entethalliance.org/specs/qbft/v1
+contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26ManagedLightClient {
     using TransientSlot for TransientSlot.Bytes32Slot;
 
     /// @notice ERC-7201 storage slot used by `IBCStoreUpgradeable` commitments.
@@ -34,7 +37,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @notice Keccak256 hash of trusted consensus states by revision height.
     mapping(uint64 revisionHeight => bytes32 consensusStateHash) private consensusStateHashes;
 
-    /// @notice Initializes shared Besu light client state.
+    /// @notice Creates a Besu light client from an initial trusted client and consensus state.
     /// @dev `initialConsensusState` is trusted at `initialClientState.latestHeight`.
     /// @param initialClientState Initial client state. Must not be frozen and must use revision number `0`.
     /// @param initialConsensusState Initial trusted consensus state at `initialClientState.latestHeight`.
@@ -214,12 +217,6 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             );
         }
     }
-
-    /// @notice Computes the protocol-specific commit seal digest for a parsed header.
-    /// @dev See `hashBlockForCommitSeal` in QBFT specification: https://entethalliance.org/specs/qbft/v1
-    /// @param header The parsed Besu header.
-    /// @return The digest signed by commit seals.
-    function _commitSealDigest(Header.Data memory header) internal pure virtual returns (bytes32);
 
     /// @notice Freezes the client if two stored consensus states violate time monotonicity or change the validator set
     /// by more validators than their height difference.
@@ -449,7 +446,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
         _requireTrustedConsensusState(msg_.trustedHeight.revisionHeight, msg_.consensusStatePreimage);
 
-        address[] memory signers = _recoverSigners(_commitSealDigest(header), header.commitSeals);
+        address[] memory signers = _recoverSigners(keccak256(msg_.headerRlp), msg_.commitSeals);
         address[] memory trustedValidators = msg_.consensusStatePreimage.validators;
         sameValidators = _sameValidatorSet(trustedValidators, header.validators);
         if (sameValidators) {
