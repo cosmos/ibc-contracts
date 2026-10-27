@@ -106,6 +106,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         IBesuLightClientMsgs.MsgUpdateClient memory msg_ = abi.decode(updateMsg, (IBesuLightClientMsgs.MsgUpdateClient));
         (uint64 height, IBesuLightClientMsgs.ConsensusState memory newConsensusState, bool sameValidators) =
             _verifyHeader(msg_);
+        // Checked here rather than in `_verifyHeader` so `misbehaviour` can still use future headers as evidence.
         require(
             block.timestamp + clientState.maxClockDrift >= newConsensusState.timestamp,
             HeaderFromFuture(block.timestamp, newConsensusState.timestamp, clientState.maxClockDrift)
@@ -390,7 +391,9 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     }
 
     /// @notice Verifies a header against its trusted consensus state and derives its consensus state.
-    /// @dev Does not check clock drift, so callers that store the result must check it themselves.
+    /// @dev Does not check clock drift, so callers that store the result must check it themselves. This is
+    /// deliberate: `misbehaviour` must accept validly signed headers from the future, as they can still prove
+    /// misbehaviour.
     /// @param msg_ The header with its trusted height and trusted consensus state preimage.
     /// @return height The header height.
     /// @return consensusState The consensus state derived from the header.
