@@ -403,7 +403,7 @@ func (s *BesuToBesuTestSuite) ICS20TransferERC20FromChainAToChainBTest(consensus
 				NonAdjacentUpdateHeight: sendHeight,
 				SyntheticSourceHeight:   ackReceipt.BlockNumber.Uint64(),
 				TrustingPeriod:          uint64(testvalues.DefaultTrustPeriod),
-				MaxClockDrift:           uint64(testvalues.DefaultMaxClockDrift),
+				MaxClockDrift:           uint64(testvalues.DefaultBesuMaxClockDrift),
 			}))
 		}))
 	}
@@ -1472,7 +1472,7 @@ func (s *BesuToBesuTestSuite) createAndRegisterBesuClient(
 		DstChain: dstChain.eth.ChainID.String(),
 		Parameters: map[string]string{
 			testvalues.ParameterKey_TrustingPeriod: strconv.Itoa(testvalues.DefaultTrustPeriod),
-			testvalues.ParameterKey_MaxClockDrift:  strconv.Itoa(testvalues.DefaultMaxClockDrift),
+			testvalues.ParameterKey_MaxClockDrift:  strconv.Itoa(testvalues.DefaultBesuMaxClockDrift),
 			testvalues.ParameterKey_TrustLevel:     trustLevel,
 		},
 	})

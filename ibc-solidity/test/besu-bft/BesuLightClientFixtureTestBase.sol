@@ -383,7 +383,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     function fixtureDeployment() public view returns (BesuConstructorTestCase[] memory testCases) {
         uint64 timestamp = fixture.initialTrustedTimestamp;
 
-        testCases = new BesuConstructorTestCase[](18);
+        testCases = new BesuConstructorTestCase[](22);
         testCases[0] = _constructorCase("success: fixture values", timestamp, "");
         testCases[1] = _constructorCase(
             "failure: zero router", timestamp, abi.encodeWithSelector(IBesuLightClientErrors.InvalidIbcRouter.selector)
@@ -410,7 +410,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         testCases[5] = _constructorCase(
             "failure: zero trusting period",
             timestamp,
-            abi.encodeWithSelector(IBesuLightClientErrors.InvalidTrustingPeriod.selector)
+            abi.encodeWithSelector(IBesuLightClientErrors.InvalidTrustingPeriod.selector, 0)
         );
         testCases[5].clientState.trustingPeriod = 0;
         testCases[6] = _trustLevelConstructorCase("success: minimum trust level", 1, 3, "");
@@ -479,6 +479,22 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             abi.encodeWithSelector(IBesuLightClientErrors.InvalidStateRoot.selector, TrieProof.EMPTY_ROOT_HASH)
         );
         testCases[17].consensusState.stateRoot = TrieProof.EMPTY_ROOT_HASH;
+        testCases[18] = _constructorCase("success: max trusting period", timestamp, "");
+        testCases[18].clientState.trustingPeriod = 30 days;
+        testCases[19] = _constructorCase(
+            "failure: trusting period above max",
+            timestamp,
+            abi.encodeWithSelector(IBesuLightClientErrors.InvalidTrustingPeriod.selector, 30 days + 1)
+        );
+        testCases[19].clientState.trustingPeriod = 30 days + 1;
+        testCases[20] = _constructorCase("success: max clock drift", timestamp, "");
+        testCases[20].clientState.maxClockDrift = 12;
+        testCases[21] = _constructorCase(
+            "failure: clock drift above max",
+            timestamp,
+            abi.encodeWithSelector(IBesuLightClientErrors.InvalidMaxClockDrift.selector, 13)
+        );
+        testCases[21].clientState.maxClockDrift = 13;
     }
 
     /// @dev Quorum thresholds are ceil(2n / 3): 3 of 4, 4 of 6 and 5 of 7. With a 2/3 trust level the trusted overlap
