@@ -499,6 +499,8 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
         signers = new address[](seals.length);
         signers[0] = _recoverSigner(digest, seals[0]);
+        // Strict ordering makes every later signer non-zero too.
+        require(signers[0] != address(0), InvalidCommitSeal());
         for (uint256 i = 1; i < seals.length; ++i) {
             signers[i] = _recoverSigner(digest, seals[i]);
             require(signers[i - 1] < signers[i], UnsortedCommitSealSigners(i - 1));
@@ -511,11 +513,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @return The recovered signer address.
     function _recoverSigner(bytes32 digest, bytes memory seal) private pure returns (address) {
         require(seal.length == ECDSA_SIGNATURE_LENGTH, InvalidECDSASignatureLength(seal.length));
-
-        address signer = ECDSA.recover(digest, seal);
-        require(signer != address(0), InvalidCommitSeal());
-
-        return signer;
+        return ECDSA.recover(digest, seal);
     }
 
     /// @notice Checks that enough trusted validators signed.
