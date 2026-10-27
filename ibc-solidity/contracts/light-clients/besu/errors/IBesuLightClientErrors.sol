@@ -25,8 +25,12 @@ interface IBesuLightClientErrors {
     /// @dev An empty trie root would let any non-membership proof pass without proof nodes.
     /// @param stateRoot The invalid state root.
     error InvalidStateRoot(bytes32 stateRoot);
-    /// @notice Trusting period must be greater than zero.
-    error InvalidTrustingPeriod();
+    /// @notice Trusting period must be within `(0, 30 days]`.
+    /// @param trustingPeriod The provided trusting period.
+    error InvalidTrustingPeriod(uint64 trustingPeriod);
+    /// @notice Max clock drift must be at most 12 seconds.
+    /// @param maxClockDrift The provided max clock drift.
+    error InvalidMaxClockDrift(uint64 maxClockDrift);
     /// @notice Trust level must be within `[1/3, 1]` with a non-zero denominator.
     /// @param numerator The provided numerator.
     /// @param denominator The provided denominator.

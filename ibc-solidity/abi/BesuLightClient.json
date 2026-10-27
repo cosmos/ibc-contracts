@@ -676,6 +676,17 @@
   },
   {
     "type": "error",
+    "name": "InvalidMaxClockDrift",
+    "inputs": [
+      {
+        "name": "maxClockDrift",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "InvalidMixHash",
     "inputs": [
       {
@@ -780,7 +791,13 @@
   {
     "type": "error",
     "name": "InvalidTrustingPeriod",
-    "inputs": []
+    "inputs": [
+      {
+        "name": "trustingPeriod",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ]
   },
   {
     "type": "error",
