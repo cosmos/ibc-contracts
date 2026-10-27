@@ -1,6 +1,6 @@
 # ADR: Pausing and Freezing in IBC-Solidity
 
-**Status**: Proposed
+**Status**: Accepted
 **Date**: 2026-10-08
 
 ## Context
