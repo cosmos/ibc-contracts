@@ -120,14 +120,10 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         }
 
         bytes32 newHash = keccak256(abi.encode(newConsensusState));
-        bytes32 existingHash = consensusStateHashes[height];
-        if (existingHash != bytes32(0)) {
-            if (existingHash == newHash) {
-                return ILightClientMsgs.UpdateResult.NoOp;
-            }
-
-            clientState.isFrozen = true;
-            emit DoubleSign(height, existingHash, newHash);
+        if (consensusStateHashes[height] == newHash) {
+            return ILightClientMsgs.UpdateResult.NoOp;
+        }
+        if (_freezeOnStoredConflict(height, newHash)) {
             return ILightClientMsgs.UpdateResult.Misbehaviour;
         }
 
@@ -251,8 +247,9 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
     /// @notice Freezes the client if two validly signed headers prove a double sign, time non-monotonicity, or an
     /// invalid validator set change.
-    /// @dev Each header is first checked against its own trusted consensus state, as in `updateClient`, and only then
-    /// against the other header. If the first header is misbehaviour on its own, the second header is not verified.
+    /// @dev Each header is first checked against its own trusted consensus state and any consensus state stored at its
+    /// height, as in `updateClient`, and only then against the other header. If the first header is misbehaviour on its
+    /// own, the second header is not verified.
     /// @param msg_ The conflicting headers misbehaviour message.
     function _conflictingHeadersMisbehaviour(IBesuLightClientMsgs.MsgConflictingHeadersMisbehaviour memory msg_)
         private
@@ -268,6 +265,9 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             )) {
             return;
         }
+        if (_freezeOnStoredConflict(height1, keccak256(abi.encode(consensusState1)))) {
+            return;
+        }
 
         (uint64 height2, IBesuLightClientMsgs.ConsensusState memory consensusState2, bool sameValidators2) =
             _verifyHeader(msg_.update2);
@@ -280,8 +280,26 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             )) {
             return;
         }
+        if (_freezeOnStoredConflict(height2, keccak256(abi.encode(consensusState2)))) {
+            return;
+        }
 
         require(_freezeOnConflict(height1, consensusState1, height2, consensusState2), NoMisbehaviourDetected());
+    }
+
+    /// @notice Freezes the client if a different consensus state is already stored at `height`.
+    /// @param height The height of the consensus state.
+    /// @param hash The keccak256 hash of the consensus state.
+    /// @return frozen True if a different consensus state is stored at `height` and the client was frozen.
+    function _freezeOnStoredConflict(uint64 height, bytes32 hash) private returns (bool frozen) {
+        bytes32 existingHash = consensusStateHashes[height];
+        if (existingHash != bytes32(0) && existingHash != hash) {
+            clientState.isFrozen = true;
+            emit DoubleSign(height, existingHash, hash);
+            return true;
+        }
+
+        return false;
     }
 
     /// @notice Freezes the client if two consensus states conflict, comparing their validator sets itself.
