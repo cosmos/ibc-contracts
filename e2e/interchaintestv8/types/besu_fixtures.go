@@ -66,9 +66,12 @@ type besuFixture struct {
 	NonMembership            besuProofFixture           `json:"nonMembership"`
 }
 
+// besuUpdateFixture holds the header in its commit seal signing form and its sorted commit seals, as submitted in
+// MsgUpdateClient.
 type besuUpdateFixture struct {
 	Height             uint64   `json:"height"`
 	HeaderRlp          string   `json:"headerRlp"`
+	CommitSeals        []string `json:"commitSeals"`
 	TrustedHeight      uint64   `json:"trustedHeight"`
 	ExpectedTimestamp  uint64   `json:"expectedTimestamp"`
 	ExpectedStateRoot  string   `json:"expectedStateRoot"`
@@ -76,9 +79,10 @@ type besuUpdateFixture struct {
 }
 
 type besuRejectionUpdateFixture struct {
-	Height        uint64 `json:"height"`
-	HeaderRlp     string `json:"headerRlp"`
-	TrustedHeight uint64 `json:"trustedHeight"`
+	Height        uint64   `json:"height"`
+	HeaderRlp     string   `json:"headerRlp"`
+	CommitSeals   []string `json:"commitSeals"`
+	TrustedHeight uint64   `json:"trustedHeight"`
 }
 
 type besuProofFixture struct {
@@ -90,16 +94,21 @@ type besuProofFixture struct {
 	ExpectedTimestamp uint64 `json:"expectedTimestamp"`
 }
 
+// liveHeader is a source header split into its commit seal signing RLP and its sorted commit seals.
 type liveHeader struct {
-	Header     *gethtypes.Header
-	HeaderRLP  []byte
-	Validators []ethcommon.Address
+	Header      *gethtypes.Header
+	HeaderRLP   []byte
+	CommitSeals [][]byte
+	Validators  []ethcommon.Address
 }
 
+// mutableBesuHeader is a Besu header whose commit seals are kept apart from extraData. extraItems holds the
+// vanity, validators, vote, and round items shared by the IBFT2 and QBFT signing forms.
 type mutableBesuHeader struct {
 	consensus  string
 	items      []rlp.RawValue
 	extraItems []rlp.RawValue
+	seals      [][]byte
 }
 
 var syntheticLowOverlapValidatorKeys = []string{
@@ -177,7 +186,7 @@ func generateBesuFixture(ctx context.Context, params GenerateBesuFixtureParams) 
 	if err != nil {
 		return besuFixture{}, err
 	}
-	lowQuorumUpdate, err := buildLowQuorumFixture(params.Consensus, nonAdjacentUpdate, nonAdjacentHeader)
+	lowQuorumUpdate, err := buildLowQuorumFixture(nonAdjacentUpdate, nonAdjacentHeader)
 	if err != nil {
 		return besuFixture{}, err
 	}
@@ -243,6 +252,7 @@ func buildLiveUpdateFixture(
 	return besuUpdateFixture{
 		Height:             targetHeight,
 		HeaderRlp:          encodeHex(header.HeaderRLP),
+		CommitSeals:        encodeHexes(header.CommitSeals),
 		TrustedHeight:      trustedHeight,
 		ExpectedTimestamp:  header.Header.Time,
 		ExpectedStateRoot:  header.Header.Root.Hex(),
@@ -250,27 +260,15 @@ func buildLiveUpdateFixture(
 	}, nil
 }
 
-func buildLowQuorumFixture(consensus string, update besuUpdateFixture, header liveHeader) (besuRejectionUpdateFixture, error) {
-	mutable, err := decodeMutableBesuHeader(header.HeaderRLP, consensus)
-	if err != nil {
-		return besuRejectionUpdateFixture{}, err
-	}
-	commitSeals, err := mutable.commitSeals()
-	if err != nil {
-		return besuRejectionUpdateFixture{}, err
-	}
-	if len(commitSeals) < 2 {
-		return besuRejectionUpdateFixture{}, fmt.Errorf("expected at least two commit seals, got %d", len(commitSeals))
-	}
-	mutable.setCommitSeals(commitSeals[:2])
-	mutatedHeader, err := mutable.encode()
-	if err != nil {
-		return besuRejectionUpdateFixture{}, err
+func buildLowQuorumFixture(update besuUpdateFixture, header liveHeader) (besuRejectionUpdateFixture, error) {
+	if len(header.CommitSeals) < 2 {
+		return besuRejectionUpdateFixture{}, fmt.Errorf("expected at least two commit seals, got %d", len(header.CommitSeals))
 	}
 
 	return besuRejectionUpdateFixture{
 		Height:        update.Height,
-		HeaderRlp:     encodeHex(mutatedHeader),
+		HeaderRlp:     encodeHex(header.HeaderRLP),
+		CommitSeals:   encodeHexes(header.CommitSeals[:2]),
 		TrustedHeight: update.TrustedHeight,
 	}, nil
 }
@@ -311,17 +309,9 @@ func FetchBesuCommitSealSigners(ctx context.Context, chain *ethereum.Ethereum, c
 	if err != nil {
 		return nil, err
 	}
-	mutable, err := decodeMutableBesuHeader(header.HeaderRLP, consensus)
-	if err != nil {
-		return nil, err
-	}
-	seals, err := mutable.commitSeals()
-	if err != nil {
-		return nil, err
-	}
-	digest := mutable.commitSealDigest()
-	signers := make([]ethcommon.Address, len(seals))
-	for i, seal := range seals {
+	digest := crypto.Keccak256Hash(header.HeaderRLP)
+	signers := make([]ethcommon.Address, len(header.CommitSeals))
+	for i, seal := range header.CommitSeals {
 		pubkey, err := crypto.SigToPub(digest.Bytes(), seal)
 		if err != nil {
 			return nil, err
@@ -350,13 +340,13 @@ func buildBesuUpdate(
 		return nil, err
 	}
 
-	headerRLP := header.HeaderRLP
+	headerRLP, commitSeals := header.HeaderRLP, header.CommitSeals
 	if mutate != nil {
 		validatorKeys, err := loadBesuValidatorKeys()
 		if err != nil {
 			return nil, err
 		}
-		if headerRLP, err = resealWithQuorum(header.HeaderRLP, consensus, validatorKeys, mutate); err != nil {
+		if headerRLP, commitSeals, err = resealWithQuorum(header.HeaderRLP, consensus, validatorKeys, mutate); err != nil {
 			return nil, err
 		}
 	}
@@ -364,6 +354,7 @@ func buildBesuUpdate(
 	// The light client expects abi.encode(MsgUpdateClient), without the function selector.
 	return besumsgs.NewBindings().PackUpdateClient(besumsgs.IBesuLightClientMsgsMsgUpdateClient{
 		HeaderRlp:              headerRLP,
+		CommitSeals:            commitSeals,
 		TrustedHeight:          besumsgs.IICS02ClientMsgsHeight{RevisionHeight: trustedHeight},
 		ConsensusStatePreimage: trusted.consensusState(),
 	})[4:], nil
@@ -376,7 +367,7 @@ func buildConflictingFixture(
 	baseHeader liveHeader,
 	validatorKeys map[ethcommon.Address]*ecdsa.PrivateKey,
 ) (besuRejectionUpdateFixture, error) {
-	mutatedHeader, err := resealWithQuorum(baseHeader.HeaderRLP, consensus, validatorKeys, func(h *mutableBesuHeader) {
+	mutatedHeader, commitSeals, err := resealWithQuorum(baseHeader.HeaderRLP, consensus, validatorKeys, func(h *mutableBesuHeader) {
 		h.setHeight(targetHeight)
 	})
 	if err != nil {
@@ -386,34 +377,36 @@ func buildConflictingFixture(
 	return besuRejectionUpdateFixture{
 		Height:        targetHeight,
 		HeaderRlp:     encodeHex(mutatedHeader),
+		CommitSeals:   encodeHexes(commitSeals),
 		TrustedHeight: trustedHeight,
 	}, nil
 }
 
 // resealWithQuorum applies mutate to headerRLP and re-seals it with the keys of the first BFT quorum
-// (ceil(2n/3)) of the header's validators.
+// (ceil(2n/3)) of the header's validators. It returns the signing RLP and the commit seals.
 func resealWithQuorum(
 	headerRLP []byte,
 	consensus string,
 	validatorKeys map[ethcommon.Address]*ecdsa.PrivateKey,
 	mutate func(*mutableBesuHeader),
-) ([]byte, error) {
+) ([]byte, [][]byte, error) {
 	mutable, err := decodeMutableBesuHeader(headerRLP, consensus)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	mutate(mutable)
 	validators, err := mutable.validators()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	quorum := (2*len(validators) + 2) / 3
 	signerKeys, err := signerKeysFor(validators[:quorum], validatorKeys)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	mutable.setCommitSeals(signBesuCommitSeals(mutable, signerKeys))
-	return mutable.encode()
+	seals := signBesuCommitSeals(mutable, signerKeys)
+	signingRLP, err := mutable.signingRLP()
+	return signingRLP, seals, err
 }
 
 func buildLowOverlapFixture(
@@ -460,8 +453,8 @@ func buildLowOverlapFixture(
 		return bytes.Compare(a[:], b[:])
 	})
 	mutable.setValidators(lowOverlapValidators)
-	mutable.setCommitSeals(signBesuCommitSeals(mutable, signerKeys))
-	mutatedHeader, err := mutable.encode()
+	commitSeals := signBesuCommitSeals(mutable, signerKeys)
+	mutatedHeader, err := mutable.signingRLP()
 	if err != nil {
 		return besuRejectionUpdateFixture{}, err
 	}
@@ -469,6 +462,7 @@ func buildLowOverlapFixture(
 	return besuRejectionUpdateFixture{
 		Height:        targetHeight,
 		HeaderRlp:     encodeHex(mutatedHeader),
+		CommitSeals:   encodeHexes(commitSeals),
 		TrustedHeight: trustedHeight,
 	}, nil
 }
@@ -537,9 +531,9 @@ func fetchLiveHeader(ctx context.Context, chain *ethereum.Ethereum, consensus st
 	if err := mutable.sortCommitSeals(); err != nil {
 		return liveHeader{}, fmt.Errorf("sort commit seals at height %d: %w", height, err)
 	}
-	headerRLP, err = mutable.encode()
+	headerRLP, err = mutable.signingRLP()
 	if err != nil {
-		return liveHeader{}, fmt.Errorf("encode sorted header at height %d: %w", height, err)
+		return liveHeader{}, fmt.Errorf("encode signing header at height %d: %w", height, err)
 	}
 	validators, err := mutable.validators()
 	if err != nil {
@@ -547,9 +541,10 @@ func fetchLiveHeader(ctx context.Context, chain *ethereum.Ethereum, consensus st
 	}
 
 	return liveHeader{
-		Header:     header,
-		HeaderRLP:  headerRLP,
-		Validators: validators,
+		Header:      header,
+		HeaderRLP:   headerRLP,
+		CommitSeals: mutable.seals,
+		Validators:  validators,
 	}, nil
 }
 
@@ -610,6 +605,9 @@ func packetCommitment(packet ics26router.IICS26RouterMsgsPacket) []byte {
 	})
 }
 
+// decodeMutableBesuHeader decodes either a full Besu header, whose fifth extraData item holds the commit seals, or a
+// header in its commit seal signing form: four extraData items for IBFT2, or five ending in an empty seal list for
+// QBFT.
 func decodeMutableBesuHeader(headerRLP []byte, consensus string) (*mutableBesuHeader, error) {
 	var items []rlp.RawValue
 	if err := rlp.DecodeBytes(headerRLP, &items); err != nil {
@@ -626,14 +624,26 @@ func decodeMutableBesuHeader(headerRLP []byte, consensus string) (*mutableBesuHe
 	if err := rlp.DecodeBytes(extraData, &extraItems); err != nil {
 		return nil, err
 	}
-	if len(extraItems) != 5 {
-		return nil, fmt.Errorf("expected 5 extraData items, got %d", len(extraItems))
+	if len(extraItems) != 4 && len(extraItems) != 5 {
+		return nil, fmt.Errorf("expected 4 or 5 extraData items, got %d", len(extraItems))
 	}
-	return &mutableBesuHeader{consensus: consensus, items: items, extraItems: extraItems}, nil
+	var seals [][]byte
+	if len(extraItems) == 5 {
+		if err := rlp.DecodeBytes(extraItems[4], &seals); err != nil {
+			return nil, err
+		}
+	}
+	return &mutableBesuHeader{consensus: consensus, items: items, extraItems: extraItems[:4], seals: seals}, nil
 }
 
-func (h *mutableBesuHeader) encode() ([]byte, error) {
-	extraData, err := rlp.EncodeToBytes(h.extraItems)
+// signingRLP encodes the header in the form its commit seals sign, which the light client takes as headerRlp. QBFT
+// signs an empty seal list, whereas IBFT2 omits the seal field.
+func (h *mutableBesuHeader) signingRLP() ([]byte, error) {
+	extraItems := cloneRawValues(h.extraItems)
+	if h.consensus != testvalues.BesuConsensusIBFT2 {
+		extraItems = append(extraItems, rlp.RawValue{0xc0})
+	}
+	extraData, err := rlp.EncodeToBytes(extraItems)
 	if err != nil {
 		return nil, err
 	}
@@ -653,14 +663,6 @@ func (h *mutableBesuHeader) validators() ([]ethcommon.Address, error) {
 	return validators, nil
 }
 
-func (h *mutableBesuHeader) commitSeals() ([][]byte, error) {
-	var seals [][]byte
-	if err := rlp.DecodeBytes(h.extraItems[4], &seals); err != nil {
-		return nil, err
-	}
-	return seals, nil
-}
-
 func (h *mutableBesuHeader) setHeight(height uint64) {
 	h.items[8] = mustRLP(height)
 }
@@ -677,30 +679,21 @@ func (h *mutableBesuHeader) setValidators(validators []ethcommon.Address) {
 	h.extraItems[1] = mustRLP(validators)
 }
 
-func (h *mutableBesuHeader) setCommitSeals(seals [][]byte) {
-	h.extraItems[4] = mustRLP(seals)
-}
-
 // sortCommitSeals orders the commit seals by recovered signer address, as the light client requires.
 func (h *mutableBesuHeader) sortCommitSeals() error {
-	seals, err := h.commitSeals()
-	if err != nil {
-		return err
-	}
 	digest := h.commitSealDigest()
-	signers := make(map[string]ethcommon.Address, len(seals))
-	for _, seal := range seals {
+	signers := make(map[string]ethcommon.Address, len(h.seals))
+	for _, seal := range h.seals {
 		pubkey, err := crypto.SigToPub(digest.Bytes(), seal)
 		if err != nil {
 			return err
 		}
 		signers[string(seal)] = crypto.PubkeyToAddress(*pubkey)
 	}
-	slices.SortFunc(seals, func(a, b []byte) int {
+	slices.SortFunc(h.seals, func(a, b []byte) int {
 		signerA, signerB := signers[string(a)], signers[string(b)]
 		return bytes.Compare(signerA[:], signerB[:])
 	})
-	h.setCommitSeals(seals)
 	return nil
 }
 
@@ -726,29 +719,13 @@ func signCommitSeals(digest ethcommon.Hash, keys []*ecdsa.PrivateKey) [][]byte {
 	return seals
 }
 
-// commitSealDigest is the hash validators sign. QBFT signs an empty seal list, whereas IBFT2 omits the seal field.
+// commitSealDigest is the hash validators sign.
 func (h *mutableBesuHeader) commitSealDigest() ethcommon.Hash {
-	signingExtraItems := cloneRawValues(h.extraItems)
-	if h.consensus == testvalues.BesuConsensusIBFT2 {
-		signingExtraItems = signingExtraItems[:4]
-	} else {
-		signingExtraItems[4] = rlp.RawValue{0xc0}
-	}
-	signingExtraData, err := rlp.EncodeToBytes(signingExtraItems)
+	signingRLP, err := h.signingRLP()
 	if err != nil {
 		panic(err)
 	}
-
-	items := cloneRawValues(h.items)
-	items[12], err = rlp.EncodeToBytes(signingExtraData)
-	if err != nil {
-		panic(err)
-	}
-	payload, err := rlp.EncodeToBytes(items)
-	if err != nil {
-		panic(err)
-	}
-	return crypto.Keccak256Hash(payload)
+	return crypto.Keccak256Hash(signingRLP)
 }
 
 func loadBesuValidatorKeys() (map[ethcommon.Address]*ecdsa.PrivateKey, error) {
@@ -844,6 +821,14 @@ func addressesToHex(addresses []ethcommon.Address) []string {
 
 func encodeHex(value []byte) string {
 	return "0x" + hex.EncodeToString(value)
+}
+
+func encodeHexes(values [][]byte) []string {
+	encoded := make([]string, len(values))
+	for i, value := range values {
+		encoded[i] = encodeHex(value)
+	}
+	return encoded
 }
 
 func newUint64(value uint64) *big.Int {
