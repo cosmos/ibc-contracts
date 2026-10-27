@@ -155,9 +155,8 @@ func testBesuLowOverlapFixture(t *testing.T, consensus string) {
 			digest := header.commitSealDigest()
 			signers := make([]ethcommon.Address, len(seals))
 			for i, seal := range seals {
-				pubkey, err := crypto.SigToPub(digest.Bytes(), seal)
+				signers[i], err = recoverCommitSealSigner(digest, seal)
 				require.NoError(t, err)
-				signers[i] = crypto.PubkeyToAddress(*pubkey)
 			}
 			require.ElementsMatch(t, []ethcommon.Address{
 				trusted,
@@ -168,16 +167,16 @@ func testBesuLowOverlapFixture(t *testing.T, consensus string) {
 	}
 }
 
-func TestBesuSortedCommitSeals(t *testing.T) {
+func TestBesuNormalizedCommitSeals(t *testing.T) {
 	t.Chdir("../../..")
 	for _, consensus := range []string{testvalues.BesuConsensusQBFT, testvalues.BesuConsensusIBFT2} {
 		t.Run(consensus, func(t *testing.T) {
-			testBesuSortedCommitSeals(t, consensus)
+			testBesuNormalizedCommitSeals(t, consensus)
 		})
 	}
 }
 
-func testBesuSortedCommitSeals(t *testing.T, consensus string) {
+func testBesuNormalizedCommitSeals(t *testing.T, consensus string) {
 	t.Helper()
 	fixturePath := filepath.Join(testvalues.BesuBFTFixturesDir, consensus+".json")
 	fixtureJSON, err := os.ReadFile(fixturePath)
@@ -185,7 +184,7 @@ func testBesuSortedCommitSeals(t *testing.T, consensus string) {
 	var fixture besuFixture
 	require.NoError(t, json.Unmarshal(fixtureJSON, &fixture))
 
-	// The live headers keep Besu's seal order unless sorted at generation time.
+	// The live headers keep Besu's seal order and recovery ids unless normalized at generation time.
 	for _, headerRlp := range []*string{
 		&fixture.AdjacentUpdate.HeaderRlp,
 		&fixture.NonAdjacentUpdate.HeaderRlp,
@@ -195,13 +194,13 @@ func testBesuSortedCommitSeals(t *testing.T, consensus string) {
 	} {
 		header, err := decodeMutableBesuHeader(ethcommon.FromHex(*headerRlp), consensus)
 		require.NoError(t, err)
-		require.NoError(t, header.sortCommitSeals())
-		sortedRLP, err := header.encode()
+		require.NoError(t, header.normalizeCommitSeals())
+		normalizedRLP, err := header.encode()
 		require.NoError(t, err)
 		if *updateBesuSynthetic {
-			*headerRlp = encodeHex(sortedRLP)
+			*headerRlp = encodeHex(normalizedRLP)
 		}
-		require.Equal(t, encodeHex(sortedRLP), *headerRlp)
+		require.Equal(t, encodeHex(normalizedRLP), *headerRlp)
 	}
 	if *updateBesuSynthetic {
 		fixtureJSON, err = json.MarshalIndent(fixture, "", "  ")
