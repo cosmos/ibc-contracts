@@ -1168,9 +1168,17 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             expectedState: emptyExpectedState
         });
 
+        _setCommitSealUpdateCases(testCases, 28);
+    }
+
+    /// @dev Fills `testCases[offset:offset + 5]` with commit seal and `extraData` shape failures. Kept apart from
+    /// `fixtureUpdate` to stay within the stack limit when compiled without via-IR, as `forge coverage` does.
+    function _setCommitSealUpdateCases(BesuUpdateTestCase[] memory testCases, uint256 offset) internal view {
+        BesuUpdateFixture memory emptyExpectedState;
+
         BesuUpdateFixture memory noSealsUpdate = fixture.nonAdjacentUpdate;
         noSealsUpdate.commitSeals = new bytes[](0);
-        testCases[28] = BesuUpdateTestCase({
+        testCases[offset] = BesuUpdateTestCase({
             name: "failure: no commit seals",
             timestamp: fixture.initialTrustedTimestamp + 1,
             update: _encodeUpdate(noSealsUpdate),
@@ -1182,7 +1190,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         });
 
         bytes[] memory extraItems = _signingExtraItems(3);
-        testCases[29] = BesuUpdateTestCase({
+        testCases[offset + 1] = BesuUpdateTestCase({
             name: "failure: three extraData items",
             timestamp: fixture.initialTrustedTimestamp + 1,
             update: _extraDataUpdate(extraItems),
@@ -1194,7 +1202,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         extraItems = _signingExtraItems(6);
         extraItems[4] = hex"c0";
         extraItems[5] = hex"c0";
-        testCases[30] = BesuUpdateTestCase({
+        testCases[offset + 2] = BesuUpdateTestCase({
             name: "failure: six extraData items",
             timestamp: fixture.initialTrustedTimestamp + 1,
             update: _extraDataUpdate(extraItems),
@@ -1210,7 +1218,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         }
         extraItems = _signingExtraItems(5);
         extraItems[4] = RLP.encode(encodedSeals);
-        testCases[31] = BesuUpdateTestCase({
+        testCases[offset + 3] = BesuUpdateTestCase({
             name: "failure: commit seals in extraData",
             timestamp: fixture.initialTrustedTimestamp + 1,
             update: _extraDataUpdate(extraItems),
@@ -1221,7 +1229,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
 
         extraItems = _signingExtraItems(5);
         extraItems[4] = hex"80";
-        testCases[32] = BesuUpdateTestCase({
+        testCases[offset + 4] = BesuUpdateTestCase({
             name: "failure: empty string as commit seal list",
             timestamp: fixture.initialTrustedTimestamp + 1,
             update: _extraDataUpdate(extraItems),
