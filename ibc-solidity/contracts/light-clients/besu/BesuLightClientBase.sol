@@ -63,6 +63,11 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         );
 
         require(timestamp != 0, InvalidHeaderTimestamp());
+        require(
+            initialConsensusState.stateRoot != bytes32(0)
+                && initialConsensusState.stateRoot != TrieProof.EMPTY_ROOT_HASH,
+            InvalidStateRoot(initialConsensusState.stateRoot)
+        );
         _validateValidators(initialConsensusState.validators);
         require(
             uint256(timestamp) + trustingPeriod > block.timestamp,
@@ -408,6 +413,10 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         Header.Data memory header = Header.decodeRlp(msg_.headerRlp);
         require(header.height != 0, InvalidHeaderHeight());
         require(header.timestamp != 0, InvalidHeaderTimestamp());
+        require(
+            header.stateRoot != bytes32(0) && header.stateRoot != TrieProof.EMPTY_ROOT_HASH,
+            InvalidStateRoot(header.stateRoot)
+        );
         _validateValidators(header.validators);
         require(
             header.height > msg_.trustedHeight.revisionHeight,
