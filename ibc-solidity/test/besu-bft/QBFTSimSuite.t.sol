@@ -622,6 +622,48 @@ abstract contract QBFTSimSuiteTest is Test {
         vm.stopPrank();
     }
 
+    /// @dev Exactly one third of the trusted set is not enough at a 1/3 trust level: more than a third must sign.
+    function test_trustLevelOneThirdNeedsMoreThanAThird() public {
+        uint256[2] memory counts = [uint256(3), 6];
+        for (uint256 c = 0; c < counts.length; ++c) {
+            QBFTSimSuite s = _setUp(counts[c]);
+            IBesuLightClient lenient = s.deployLightClient(
+                TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(1, 3), ics26Router
+            );
+
+            uint256 third = counts[c] / 3;
+            address[] memory signers = new address[](third);
+            for (uint256 i = 0; i < third; ++i) {
+                signers[i] = s.validators()[i];
+            }
+            bytes memory update = s.updateMsg(2, s.seal(s.nextBlock(), signers));
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, third, third + 1
+                )
+            );
+            vm.prank(ics26Router);
+            lenient.updateClient(update);
+        }
+    }
+
+    /// @dev Besu seals each block with exactly ceil(2n / 3) commit seals, which a 2/3 trust level must accept for an
+    /// unchanged validator set, including set sizes divisible by 3.
+    function test_trustLevelTwoThirdsAcceptsExactQuorum() public {
+        uint256[3] memory counts = [uint256(3), 4, 6];
+        for (uint256 c = 0; c < counts.length; ++c) {
+            QBFTSimSuite s = _setUp(counts[c]);
+            uint256 quorum = Math.ceilDiv(2 * counts[c], 3);
+            address[] memory signers = new address[](quorum);
+            for (uint256 i = 0; i < quorum; ++i) {
+                signers[i] = s.validators()[i];
+            }
+            bytes memory update = s.updateMsg(2, s.seal(s.nextBlock(), signers));
+            vm.prank(ics26Router);
+            assertEq(uint8(client.updateClient(update)), uint8(ILightClientMsgs.UpdateResult.Update));
+        }
+    }
+
     function test_packetProofs() public {
         IICS26RouterMsgs.Packet memory packet;
         packet.sequence = 7;

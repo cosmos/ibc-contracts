@@ -555,12 +555,16 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
     }
 
     /// @notice Checks that enough trusted validators signed.
-    /// @dev Requires at least `ceil(n * trustLevel)` trusted validators to have signed.
+    /// @dev Requires at least `ceil(n * trustLevel)` trusted validators to have signed, and always more than a third
+    /// (`floor(n / 3) + 1`) so that at least one honest trusted validator signed even at a 1/3 trust level.
     /// @param actual The number of trusted signers.
     /// @param trustedCount The trusted validator set size.
     function _requireTrustLevel(uint256 actual, uint256 trustedCount) private view {
         IBesuLightClientMsgs.TrustThreshold memory trustLevel = clientState.trustLevel;
-        uint256 required = Math.ceilDiv(trustedCount * trustLevel.numerator, trustLevel.denominator);
+        uint256 required = Math.max(
+            Math.mulDiv(trustedCount, trustLevel.numerator, trustLevel.denominator, Math.Rounding.Ceil),
+            trustedCount / 3 + 1
+        );
         require(actual >= required, InsufficientTrustedValidatorOverlap(actual, required));
     }
 
