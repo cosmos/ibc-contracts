@@ -355,8 +355,8 @@ The IBC solidity contracts use [`AccessManager`](https://github.com/OpenZeppelin
 |:---:|:---:|:---:|
 | `ADMIN_ROLE` | 0 | Can grant and set target functions for all roles. |
 | `RELAYER_ROLE` | 1 | Whitelisted relayer addresses. |
-| `PAUSER_ROLE` | 2 | Can pause the IBC application contracts. |
-| `UNPAUSER_ROLE` | 3 | Can unpause the IBC application contract. |
+| `PAUSER_ROLE` | 2 | Can pause the IBC application contracts and app and client registration in the router. |
+| `UNPAUSER_ROLE` | 3 | Can unpause the IBC application contracts and app and client registration in the router. |
 | `DELEGATE_SENDER_ROLE` | 4 | Has permission to call `sendTransferWithSender`. |
 | `RATE_LIMITER_ROLE` | 5 | Can set withdrawal rate limits per `ERC20` token. |
 | `ID_CUSTOMIZER_ROLE` | 6 | Can set custom client and port ids for applications. |

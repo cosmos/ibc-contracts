@@ -24,10 +24,11 @@ library IBCRolesLib {
     /// @notice Only addresses with this role may relay packets.
     uint64 internal constant RELAYER_ROLE = 1;
 
-    /// @notice The pauser role can pause IBC applications and light clients bound to the router.
+    /// @notice The pauser role can pause router registrations, IBC applications and light clients bound to the router.
     uint64 internal constant PAUSER_ROLE = 2;
 
-    /// @notice The unpauser role can unpause IBC applications and light clients bound to the router.
+    /// @notice The unpauser role can unpause router registrations, IBC applications and light clients bound to the
+    /// router.
     uint64 internal constant UNPAUSER_ROLE = 3;
 
     /// @notice Has permission to call `ICS20Transfer.sendTransferWithSender`.
