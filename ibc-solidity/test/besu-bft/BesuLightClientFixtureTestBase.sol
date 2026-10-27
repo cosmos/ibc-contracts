@@ -367,7 +367,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     function fixtureDeployment() public view returns (BesuConstructorTestCase[] memory testCases) {
         uint64 timestamp = fixture.initialTrustedTimestamp;
 
-        testCases = new BesuConstructorTestCase[](17);
+        testCases = new BesuConstructorTestCase[](16);
         testCases[0] = _constructorCase("success: fixture values", timestamp, "");
         testCases[1] = _constructorCase(
             "failure: zero router", timestamp, abi.encodeWithSelector(IBesuLightClientErrors.InvalidIbcRouter.selector)
@@ -398,7 +398,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         );
         testCases[5].clientState.trustingPeriod = 0;
         testCases[6] = _trustLevelConstructorCase("success: minimum trust level", 1, 3, "");
-        testCases[7] = _trustLevelConstructorCase("success: highest trust level below one", 254, 255, "");
+        testCases[7] = _trustLevelConstructorCase("success: maximum trust level", 1, 1, "");
         testCases[8] = _trustLevelConstructorCase(
             "failure: zero trust level denominator",
             0,
@@ -451,18 +451,12 @@ abstract contract BesuLightClientFixtureTestBase is Test {
                 fixture.maxClockDrift
             )
         );
-        testCases[16] = _trustLevelConstructorCase(
-            "failure: full trust level",
-            1,
-            1,
-            abi.encodeWithSelector(IBesuLightClientErrors.InvalidTrustLevel.selector, 1, 1)
-        );
     }
 
     /// @dev Quorum thresholds are ceil(2n / 3): 3 of 4, 4 of 6 and 5 of 7. With a 2/3 trust level the trusted overlap
-    /// check runs before the quorum check and needs more than 2n / 3 trusted signers, which is the same 3 of 4, so
-    /// quorum failures need a header validator set larger than the trusted set. A 1/3 trust level only needs more
-    /// than 4 / 3, i.e. 2 of the 4 trusted signers, so the quorum check is what rejects under-signed headers there.
+    /// check runs before the quorum check with the same threshold, so quorum failures need a header validator set
+    /// larger than the trusted set. A 1/3 trust level only needs 2 of the 4 trusted signers, so the quorum check is
+    /// what rejects under-signed headers there.
     function fixtureQuorum() public pure returns (BesuQuorumTestCase[] memory testCases) {
         IBesuLightClientMsgs.TrustThreshold memory twoThirds = IBesuLightClientMsgs.TrustThreshold(2, 3);
         IBesuLightClientMsgs.TrustThreshold memory oneThird = IBesuLightClientMsgs.TrustThreshold(1, 3);
@@ -491,10 +485,10 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 2, 3)
         );
         testCases[5] = BesuQuorumTestCase(
-            "failure: three of four signers with three-quarters trust level",
+            "failure: three of four signers with full trust level",
             3,
             4,
-            IBesuLightClientMsgs.TrustThreshold(3, 4),
+            IBesuLightClientMsgs.TrustThreshold(1, 1),
             abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 3, 4)
         );
         testCases[6] = BesuQuorumTestCase("success: three of four signers with minimum trust level", 3, 4, oneThird, "");
@@ -909,8 +903,8 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         });
         testCases[6] = BesuUpdateTestCase({
             // The low quorum fixture keeps 2 of 4 seals with an unchanged validator set, so the trusted overlap
-            // check (which runs first and needs more than 2n / 3, the same 3 of 4, at a 2/3 trust level) rejects it
-            // before the quorum check. Quorum failures are covered by `tableQuorumTest`.
+            // check (which runs first and uses the same ceil(2n / 3) threshold at a 2/3 trust level) rejects it before
+            // the quorum check. Quorum failures are covered by `tableQuorumTest`.
             name: "failure: insufficient overlap with partial seals",
             timestamp: fixture.initialTrustedTimestamp + 1,
             update: _encodeUpdate(fixture.lowQuorumUpdate),

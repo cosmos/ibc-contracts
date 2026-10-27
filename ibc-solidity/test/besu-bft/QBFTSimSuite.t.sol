@@ -486,7 +486,7 @@ abstract contract QBFTSimSuiteTest is Test {
         IBesuLightClient lenient =
             sim.deployLightClient(TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(1, 3));
         IBesuLightClient strict =
-            sim.deployLightClient(TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(3, 4));
+            sim.deployLightClient(TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(1, 1));
 
         address[] memory three = new address[](3);
         (three[0], three[1], three[2]) = (sim.validators()[0], sim.validators()[1], sim.validators()[2]);
@@ -507,7 +507,7 @@ abstract contract QBFTSimSuiteTest is Test {
     }
 
     /// @dev Exactly one third of the trusted set is not enough at a 1/3 trust level: more than a third must sign.
-    function test_trustLevelOneThirdIsStrict() public {
+    function test_trustLevelOneThirdNeedsMoreThanAThird() public {
         uint256[2] memory counts = [uint256(3), 6];
         for (uint256 c = 0; c < counts.length; ++c) {
             QBFTSimSuite s = _setUp(counts[c]);
@@ -526,6 +526,22 @@ abstract contract QBFTSimSuiteTest is Test {
                 )
             );
             lenient.updateClient(update);
+        }
+    }
+
+    /// @dev Besu seals each block with exactly ceil(2n / 3) commit seals, which a 2/3 trust level must accept for an
+    /// unchanged validator set, including set sizes divisible by 3.
+    function test_trustLevelTwoThirdsAcceptsExactQuorum() public {
+        uint256[3] memory counts = [uint256(3), 4, 6];
+        for (uint256 c = 0; c < counts.length; ++c) {
+            QBFTSimSuite s = _setUp(counts[c]);
+            uint256 quorum = Math.ceilDiv(2 * counts[c], 3);
+            address[] memory signers = new address[](quorum);
+            for (uint256 i = 0; i < quorum; ++i) {
+                signers[i] = s.validators()[i];
+            }
+            bytes memory update = s.updateMsg(2, s.seal(s.nextBlock(), signers));
+            assertEq(uint8(client.updateClient(update)), uint8(ILightClientMsgs.UpdateResult.Update));
         }
     }
 
@@ -637,7 +653,7 @@ abstract contract QBFTSimSuiteTest is Test {
         }
         bytes memory update = sim.updateMsg(2, sim.seal(sim.nextBlock(), signers));
 
-        uint256 requiredOverlap = 2 * trusted.length / 3 + 1;
+        uint256 requiredOverlap = Math.ceilDiv(2 * trusted.length, 3);
         uint256 requiredQuorum = Math.ceilDiv(2 * current.length, 3);
         if (overlap < requiredOverlap) {
             vm.expectRevert(

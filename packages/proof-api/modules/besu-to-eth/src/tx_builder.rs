@@ -618,14 +618,14 @@ fn parse_create_client_params(parameters: &HashMap<String, String>) -> Result<Cr
     })
 }
 
-/// Default trust level: more than two thirds of the trusted validator set must sign.
+/// Default trust level, matching the `ceil(2n / 3)` commit-seal quorum.
 const DEFAULT_TRUST_LEVEL: IBesuLightClientMsgs::TrustThreshold =
     IBesuLightClientMsgs::TrustThreshold {
         numerator: 2,
         denominator: 3,
     };
 
-/// Parses a `<numerator>/<denominator>` trust level and checks that it is within `[1/3, 1)`.
+/// Parses a `<numerator>/<denominator>` trust level and checks that it is within `[1/3, 1]`.
 fn parse_trust_level(value: &str) -> Result<IBesuLightClientMsgs::TrustThreshold> {
     let (numerator, denominator) = value
         .split_once('/')
@@ -640,9 +640,9 @@ fn parse_trust_level(value: &str) -> Result<IBesuLightClientMsgs::TrustThreshold
         })?;
     ensure!(
         denominator != 0
-            && numerator < denominator
+            && numerator <= denominator
             && 3 * u16::from(numerator) >= u16::from(denominator),
-        "`{TRUST_LEVEL}` must be within [1/3, 1), got {numerator}/{denominator}"
+        "`{TRUST_LEVEL}` must be within [1/3, 1], got {numerator}/{denominator}"
     );
     Ok(IBesuLightClientMsgs::TrustThreshold {
         numerator,
@@ -1041,10 +1041,8 @@ mod tests {
 
         assert_eq!(params(None).unwrap(), (2, 3));
         assert_eq!(params(Some("1/3")).unwrap(), (1, 3));
-        assert_eq!(params(Some("254/255")).unwrap(), (254, 255));
-        for invalid in [
-            "", "2", "2/", "a/3", "1/0", "0/0", "1/4", "1/1", "4/3", "256/256",
-        ] {
+        assert_eq!(params(Some("1/1")).unwrap(), (1, 1));
+        for invalid in ["", "2", "2/", "a/3", "1/0", "0/0", "1/4", "4/3", "256/256"] {
             assert!(
                 params(Some(invalid)).is_err(),
                 "{invalid} should be rejected"

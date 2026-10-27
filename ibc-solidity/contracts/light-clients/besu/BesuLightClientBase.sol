@@ -57,7 +57,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         require(!initialClientState.isFrozen, FrozenClientState());
         require(trustingPeriod != 0, InvalidTrustingPeriod());
         require(
-            trustLevel.denominator != 0 && trustLevel.numerator < trustLevel.denominator
+            trustLevel.denominator != 0 && trustLevel.numerator <= trustLevel.denominator
                 && 3 * uint256(trustLevel.numerator) >= trustLevel.denominator,
             InvalidTrustLevel(trustLevel.numerator, trustLevel.denominator)
         );
@@ -522,13 +522,16 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     }
 
     /// @notice Checks that enough trusted validators signed.
-    /// @dev Requires strictly more than `n * trustLevel` trusted validators to have signed, i.e.
-    /// `floor(n * trustLevel) + 1`, matching ICS07 Tendermint.
+    /// @dev Requires at least `ceil(n * trustLevel)` trusted validators to have signed, and always more than a third
+    /// (`floor(n / 3) + 1`) so that at least one honest trusted validator signed even at a 1/3 trust level.
     /// @param actual The number of trusted signers.
     /// @param trustedCount The trusted validator set size.
     function _requireTrustLevel(uint256 actual, uint256 trustedCount) private view {
         IBesuLightClientMsgs.TrustThreshold memory trustLevel = clientState.trustLevel;
-        uint256 required = Math.mulDiv(trustedCount, trustLevel.numerator, trustLevel.denominator) + 1;
+        uint256 required = Math.max(
+            Math.mulDiv(trustedCount, trustLevel.numerator, trustLevel.denominator, Math.Rounding.Ceil),
+            Math.mulDiv(trustedCount, 1, 3) + 1
+        );
         require(actual >= required, InsufficientTrustedValidatorOverlap(actual, required));
     }
 
