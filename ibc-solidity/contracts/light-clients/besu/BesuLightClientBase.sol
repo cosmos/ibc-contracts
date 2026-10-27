@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.28;
 
-import { AccessControl } from "@openzeppelin-contracts/access/AccessControl.sol";
 import { ECDSA } from "@openzeppelin-contracts/utils/cryptography/ECDSA.sol";
 import { RLP } from "@openzeppelin-contracts/utils/RLP.sol";
-import { TrieProof } from "../../utils/TrieProof.sol";
+import { TrieProof } from "../utils/TrieProof.sol";
 import { Memory } from "@openzeppelin-contracts/utils/Memory.sol";
 import { TransientSlot } from "@openzeppelin-contracts/utils/TransientSlot.sol";
 import { Math } from "@openzeppelin-contracts/utils/math/Math.sol";
@@ -17,15 +16,12 @@ import { IBesuLightClientErrors } from "./errors/IBesuLightClientErrors.sol";
 import { IBesuLightClient } from "./interfaces/IBesuLightClient.sol";
 
 import { Header } from "./utils/Header.sol";
+import { ICS26ManagedLightClient } from "../utils/ICS26ManagedLightClient.sol";
 
 /// @title Besu Light Client Base
 /// @notice Shared implementation for Besu BFT light clients that verify headers and EVM storage proofs.
-abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientErrors, AccessControl {
+abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientErrors, ICS26ManagedLightClient {
     using TransientSlot for TransientSlot.Bytes32Slot;
-
-    /// @notice Role allowed to submit client updates and proof verifications. Misbehaviour is permissionless.
-    // natlint-disable-next-line MissingInheritdoc
-    bytes32 public constant PROOF_SUBMITTER_ROLE = keccak256("PROOF_SUBMITTER_ROLE");
 
     /// @notice ERC-7201 storage slot used by `IBCStoreUpgradeable` commitments.
     /// @dev keccak256(abi.encode(uint256(keccak256("ibc.storage.IBCStore")) - 1)) & ~bytes32(uint256(0xff))
@@ -40,12 +36,14 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @dev `initialConsensusState` is trusted at `initialClientState.latestHeight`.
     /// @param initialClientState Initial client state. Must not be frozen and must use revision number `0`.
     /// @param initialConsensusState Initial trusted consensus state at `initialClientState.latestHeight`.
-    /// @param roleManager Address that administers proof submission; if zero, proof submission is open.
+    /// @param ics26Router The ICS26Router that may drive this client and whose authority controls pausing.
     constructor(
         IBesuLightClientMsgs.ClientState memory initialClientState,
         IBesuLightClientMsgs.ConsensusState memory initialConsensusState,
-        address roleManager
-    ) {
+        address ics26Router
+    )
+        ICS26ManagedLightClient(ics26Router)
+    {
         IICS02ClientMsgs.Height memory latestHeight = initialClientState.latestHeight;
         IBesuLightClientMsgs.TrustThreshold memory trustLevel = initialClientState.trustLevel;
         uint64 trustingPeriod = initialClientState.trustingPeriod;
@@ -80,13 +78,6 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
         clientState = initialClientState;
         consensusStateHashes[latestHeight.revisionHeight] = keccak256(abi.encode(initialConsensusState));
-
-        if (roleManager == address(0)) {
-            _grantRole(PROOF_SUBMITTER_ROLE, address(0));
-        } else {
-            _grantRole(DEFAULT_ADMIN_ROLE, roleManager);
-            _grantRole(PROOF_SUBMITTER_ROLE, roleManager);
-        }
     }
 
     /// @inheritdoc ILightClient
@@ -105,7 +96,8 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     function updateClient(bytes calldata updateMsg)
         external
         notFrozen
-        onlyProofSubmitter
+        whenNotPaused
+        onlyICS26Router
         returns (ILightClientMsgs.UpdateResult)
     {
         IBesuLightClientMsgs.MsgUpdateClient memory msg_ = abi.decode(updateMsg, (IBesuLightClientMsgs.MsgUpdateClient));
@@ -152,7 +144,8 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     function verifyMembership(ILightClientMsgs.MsgVerifyMembership calldata msg_)
         external
         notFrozen
-        onlyProofSubmitter
+        whenNotPaused
+        onlyICS26Router
         returns (uint256)
     {
         require(msg_.proofHeight.revisionNumber == 0, InvalidRevisionNumber(msg_.proofHeight.revisionNumber));
@@ -183,7 +176,8 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     function verifyNonMembership(ILightClientMsgs.MsgVerifyNonMembership calldata msg_)
         external
         notFrozen
-        onlyProofSubmitter
+        whenNotPaused
+        onlyICS26Router
         returns (uint256)
     {
         require(msg_.proofHeight.revisionNumber == 0, InvalidRevisionNumber(msg_.proofHeight.revisionNumber));
@@ -206,9 +200,10 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     }
 
     /// @inheritdoc ILightClient
-    /// @dev Permissionless: evidence is either already stored consensus states or headers that pass the same
-    /// signature and trust checks as `updateClient`, so freezing requires genuine validator misbehaviour.
-    function misbehaviour(bytes calldata misbehaviourMsg) external notFrozen {
+    /// @dev Only callable through the router's permissionless `submitMisbehaviour`: evidence is either already stored
+    /// consensus states or headers that pass the same signature and trust checks as `updateClient`, so freezing
+    /// requires genuine validator misbehaviour. Allowed while paused, so a paused client can still be frozen.
+    function misbehaviour(bytes calldata misbehaviourMsg) external notFrozen onlyICS26Router {
         IBesuLightClientMsgs.MsgSubmitMisbehaviour memory msg_ =
             abi.decode(misbehaviourMsg, (IBesuLightClientMsgs.MsgSubmitMisbehaviour));
         if (msg_.misbehaviourType == IBesuLightClientMsgs.MisbehaviourType.ConflictingConsensusStates) {
@@ -649,14 +644,6 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @notice Reverts if the client is frozen. A frozen client can never be unfrozen.
     modifier notFrozen() {
         require(!clientState.isFrozen, FrozenClientState());
-        _;
-    }
-
-    /// @notice Restricts access to proof submitters unless submission is open to anyone.
-    modifier onlyProofSubmitter() {
-        if (!hasRole(PROOF_SUBMITTER_ROLE, address(0))) {
-            _checkRole(PROOF_SUBMITTER_ROLE);
-        }
         _;
     }
 }

@@ -17,13 +17,13 @@ contract BesuIBFT2LightClient is BesuLightClientBase {
     /// @notice Creates a Besu IBFT2 light client from an initial trusted client and consensus state.
     /// @param initialClientState Initial client state. Its `latestHeight` is the height of `initialConsensusState`.
     /// @param initialConsensusState Initial trusted consensus state at `initialClientState.latestHeight`.
-    /// @param roleManager Address that administers proof submission; if zero, proof submission is open.
+    /// @param ics26Router The ICS26Router that may drive this client and whose authority controls pausing.
     constructor(
         IBesuLightClientMsgs.ClientState memory initialClientState,
         IBesuLightClientMsgs.ConsensusState memory initialConsensusState,
-        address roleManager
+        address ics26Router
     )
-        BesuLightClientBase(initialClientState, initialConsensusState, roleManager)
+        BesuLightClientBase(initialClientState, initialConsensusState, ics26Router)
     { }
 
     /// @inheritdoc BesuLightClientBase

@@ -65,7 +65,7 @@ Both wrappers take the same constructor arguments:
 constructor(
     IBesuLightClientMsgs.ClientState memory initialClientState,
     IBesuLightClientMsgs.ConsensusState memory initialConsensusState,
-    address roleManager
+    address ics26Router
 )
 ```
 
@@ -77,7 +77,7 @@ constructor(
   - `isFrozen`: must be `false`.
   - `trustLevel`: minimum fraction of the trusted validator set that must sign an update. Must have a non-zero denominator and lie within `[1/3, 1]`, or the constructor reverts with `InvalidTrustLevel`.
 - `initialConsensusState`: the consensus state trusted at `latestHeight`: the header's timestamp in seconds (non-zero), state root, and validator set (non-empty, sorted ascending, no zero address). It must be within the trusting period and no further than `maxClockDrift` in the future at deployment, the same checks `updateClient` applies.
-- `roleManager`: if non-zero, receives admin and `PROOF_SUBMITTER_ROLE`; if zero, proof submission is open to anyone through the zero-address sentinel.
+- `ics26Router`: the local `ICS26Router` that drives the client, stored as the immutable `ICS26_ROUTER`. Must be non-zero. Only it can call `updateClient`, `verifyMembership`, `verifyNonMembership` and `misbehaviour`. `pause()` and `unpause()` are authorized by `PAUSER_ROLE` and `UNPAUSER_ROLE` from `IBCRolesLib` in the router's `AccessManager`; while paused, updates and (non)membership proofs revert but misbehaviour is still accepted.
 
 No proof is checked for the initial states; the deployer is trusted to supply them.
 
@@ -111,7 +111,7 @@ The header height must be strictly greater than `trustedHeight`, or the update r
 
 ## Misbehaviour
 
-`misbehaviour(bytes)` is permissionless: anyone can submit evidence, regardless of `PROOF_SUBMITTER_ROLE`. It takes `abi.encode(IBesuLightClientMsgs.MsgSubmitMisbehaviour)`, which wraps one ABI-encoded evidence message tagged with its `MisbehaviourType`:
+`misbehaviour(bytes)` is only callable by `ICS26_ROUTER`, but evidence is permissionless: anyone can submit it through the router's `submitMisbehaviour`, and it is accepted while the client is paused. It takes `abi.encode(IBesuLightClientMsgs.MsgSubmitMisbehaviour)`, which wraps one ABI-encoded evidence message tagged with its `MisbehaviourType`:
 
 ```solidity
 enum MisbehaviourType { ConflictingConsensusStates, ConflictingHeaders }
