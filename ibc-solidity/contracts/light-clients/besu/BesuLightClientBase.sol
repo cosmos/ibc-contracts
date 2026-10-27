@@ -121,9 +121,12 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             return ILightClientMsgs.UpdateResult.Misbehaviour;
         }
 
-        (ILightClientMsgs.UpdateResult result, bytes32 newHash) = _freezeOnStoredConflict(height, newConsensusState);
-        if (result != ILightClientMsgs.UpdateResult.Update) {
-            return result;
+        bytes32 newHash = keccak256(abi.encode(newConsensusState));
+        if (consensusStateHashes[height] == newHash) {
+            return ILightClientMsgs.UpdateResult.NoOp;
+        }
+        if (_freezeOnStoredConflict(height, newHash)) {
+            return ILightClientMsgs.UpdateResult.Misbehaviour;
         }
 
         consensusStateHashes[height] = newHash;
@@ -261,8 +264,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             )) {
             return;
         }
-        (ILightClientMsgs.UpdateResult result1,) = _freezeOnStoredConflict(height1, consensusState1);
-        if (result1 == ILightClientMsgs.UpdateResult.Misbehaviour) {
+        if (_freezeOnStoredConflict(height1, keccak256(abi.encode(consensusState1)))) {
             return;
         }
 
@@ -277,39 +279,26 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             )) {
             return;
         }
-        (ILightClientMsgs.UpdateResult result2,) = _freezeOnStoredConflict(height2, consensusState2);
-        if (result2 == ILightClientMsgs.UpdateResult.Misbehaviour) {
+        if (_freezeOnStoredConflict(height2, keccak256(abi.encode(consensusState2)))) {
             return;
         }
 
         require(_freezeOnConflict(height1, consensusState1, height2, consensusState2), NoMisbehaviourDetected());
     }
 
-    /// @notice Freezes the client if a consensus state conflicts with the one already stored at its height.
+    /// @notice Freezes the client if a different consensus state is already stored at `height`.
     /// @param height The height of the consensus state.
-    /// @param consensusState The consensus state to compare against the stored one.
-    /// @return result `Misbehaviour` if the stored consensus state differs and the client was frozen, `NoOp` if it is
-    /// identical, and `Update` if none is stored at `height`.
-    /// @return hash The keccak256 hash of `consensusState`.
-    function _freezeOnStoredConflict(
-        uint64 height,
-        IBesuLightClientMsgs.ConsensusState memory consensusState
-    )
-        private
-        returns (ILightClientMsgs.UpdateResult result, bytes32 hash)
-    {
-        hash = keccak256(abi.encode(consensusState));
+    /// @param hash The keccak256 hash of the consensus state.
+    /// @return frozen True if a different consensus state is stored at `height` and the client was frozen.
+    function _freezeOnStoredConflict(uint64 height, bytes32 hash) private returns (bool frozen) {
         bytes32 existingHash = consensusStateHashes[height];
-        if (existingHash == bytes32(0)) {
-            return (ILightClientMsgs.UpdateResult.Update, hash);
-        }
-        if (existingHash == hash) {
-            return (ILightClientMsgs.UpdateResult.NoOp, hash);
+        if (existingHash != bytes32(0) && existingHash != hash) {
+            clientState.isFrozen = true;
+            emit DoubleSign(height, existingHash, hash);
+            return true;
         }
 
-        clientState.isFrozen = true;
-        emit DoubleSign(height, existingHash, hash);
-        return (ILightClientMsgs.UpdateResult.Misbehaviour, hash);
+        return false;
     }
 
     /// @notice Freezes the client if two consensus states conflict, comparing their validator sets itself.
