@@ -117,6 +117,11 @@
   },
   {
     "type": "error",
+    "name": "InvalidCommitSeal",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "InvalidCommitmentValue",
     "inputs": [
       {
@@ -137,6 +142,17 @@
     "inputs": [
       {
         "name": "actualDifficulty",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InvalidECDSASignatureLength",
+    "inputs": [
+      {
+        "name": "length",
         "type": "uint256",
         "internalType": "uint256"
       }

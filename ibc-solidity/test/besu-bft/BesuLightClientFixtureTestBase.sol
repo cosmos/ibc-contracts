@@ -1117,7 +1117,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             timestamp: fixture.initialTrustedTimestamp + 1,
             update: _firstSealUpdate(seal.asSlice().slice(0, 64).toBytes()),
             preUpdate: "",
-            expectedRevert: abi.encodeWithSelector(ECDSA.ECDSAInvalidSignatureLength.selector, 64),
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidECDSASignatureLength.selector, 64),
             expectedState: emptyExpectedState
         });
         testCases[26] = BesuUpdateTestCase({

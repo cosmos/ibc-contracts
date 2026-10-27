@@ -30,6 +30,8 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @notice ERC-7201 storage slot used by `IBCStoreUpgradeable` commitments.
     /// @dev keccak256(abi.encode(uint256(keccak256("ibc.storage.IBCStore")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant IBCSTORE_STORAGE_SLOT = 0x1260944489272988d9df285149b5aa1b0f48f2136d6f416159f840a3e0747600;
+    /// @notice Length of a compact ECDSA signature (r||s||v).
+    uint256 private constant ECDSA_SIGNATURE_LENGTH = 65;
 
     /// @notice Current client state.
     IBesuLightClientMsgs.ClientState private clientState;
@@ -496,11 +498,24 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         require(seals.length != 0, EmptyCommitSeals());
 
         signers = new address[](seals.length);
-        signers[0] = ECDSA.recover(digest, seals[0]);
+        signers[0] = _recoverSigner(digest, seals[0]);
         for (uint256 i = 1; i < seals.length; ++i) {
-            signers[i] = ECDSA.recover(digest, seals[i]);
+            signers[i] = _recoverSigner(digest, seals[i]);
             require(signers[i - 1] < signers[i], UnsortedCommitSealSigners(i - 1));
         }
+    }
+
+    /// @notice Recovers one commit seal signer.
+    /// @param digest The commit seal digest.
+    /// @param seal The 65-byte ECDSA commit seal (r||s||v).
+    /// @return The recovered signer address.
+    function _recoverSigner(bytes32 digest, bytes memory seal) private pure returns (address) {
+        require(seal.length == ECDSA_SIGNATURE_LENGTH, InvalidECDSASignatureLength(seal.length));
+
+        address signer = ECDSA.recover(digest, seal);
+        require(signer != address(0), InvalidCommitSeal());
+
+        return signer;
     }
 
     /// @notice Checks that enough trusted validators signed.
