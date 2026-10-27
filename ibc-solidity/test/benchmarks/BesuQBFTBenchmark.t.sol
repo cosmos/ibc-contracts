@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.28;
 
-import { IBesuLightClientMsgs } from "../../contracts/light-clients/besu/msgs/IBesuLightClientMsgs.sol";
 import { ILightClientMsgs } from "../../contracts/msgs/ILightClientMsgs.sol";
 import { ILightClient } from "../../contracts/interfaces/ILightClient.sol";
-import { BesuLightClientFixtureTestBase, IBesuLightClient } from "../besu-bft/BesuLightClientFixtureTestBase.sol";
+import { BesuLightClientFixtureTestBase } from "../besu-bft/BesuLightClientFixtureTestBase.sol";
 
 contract BesuQBFTBenchmark is BesuLightClientFixtureTestBase {
     string internal constant SNAPSHOT_GROUP = "BesuQBFT";
@@ -73,27 +72,5 @@ contract BesuQBFTBenchmark is BesuLightClientFixtureTestBase {
 
     function _fixtureFile() internal pure override returns (string memory) {
         return "qbft.json";
-    }
-
-    function _deployPrimaryClient(
-        IBesuLightClientMsgs.ClientState memory clientState,
-        IBesuLightClientMsgs.ConsensusState memory consensusState
-    )
-        internal
-        override
-        returns (IBesuLightClient)
-    {
-        return _deployQBFT(clientState, consensusState);
-    }
-
-    function _deployWrongWrapper(
-        IBesuLightClientMsgs.ClientState memory clientState,
-        IBesuLightClientMsgs.ConsensusState memory consensusState
-    )
-        internal
-        override
-        returns (IBesuLightClient)
-    {
-        return _deployIBFT2(clientState, consensusState);
     }
 }

@@ -49,6 +49,11 @@
   },
   {
     "type": "error",
+    "name": "EmptyCommitSeals",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "EmptyValidatorSet",
     "inputs": []
   },
@@ -333,6 +338,11 @@
   {
     "type": "error",
     "name": "NoMisbehaviourDetected",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NonEmptyCommitSealList",
     "inputs": []
   },
   {

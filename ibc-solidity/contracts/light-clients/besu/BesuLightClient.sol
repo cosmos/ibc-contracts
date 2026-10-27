@@ -18,21 +18,26 @@ import { IBesuLightClient } from "./interfaces/IBesuLightClient.sol";
 import { Header } from "./utils/Header.sol";
 import { ICS26ManagedLightClient } from "../utils/ICS26ManagedLightClient.sol";
 
-/// @title Besu Light Client Base
-/// @notice Shared implementation for Besu BFT light clients that verify headers and EVM storage proofs.
-abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientErrors, ICS26ManagedLightClient {
+/// @title Besu Light Client
+/// @notice Verifies Besu IBFT 2.0 and QBFT headers and ICS26 router storage proofs.
+/// @dev The client does not track which protocol the counterparty runs. Each header is submitted in its protocol's
+/// commit seal signing form, so the commit seal digest is `keccak256(headerRlp)` for both. See `hashBlockForCommitSeal`
+/// in the QBFT specification: https://entethalliance.org/specs/qbft/v1
+contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26ManagedLightClient {
     using TransientSlot for TransientSlot.Bytes32Slot;
 
     /// @notice ERC-7201 storage slot used by `IBCStoreUpgradeable` commitments.
     /// @dev keccak256(abi.encode(uint256(keccak256("ibc.storage.IBCStore")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant IBCSTORE_STORAGE_SLOT = 0x1260944489272988d9df285149b5aa1b0f48f2136d6f416159f840a3e0747600;
+    /// @notice Length of a compact ECDSA signature (r||s||v).
+    uint256 private constant ECDSA_SIGNATURE_LENGTH = 65;
 
     /// @notice Current client state.
     IBesuLightClientMsgs.ClientState private clientState;
     /// @notice Keccak256 hash of trusted consensus states by revision height.
     mapping(uint64 revisionHeight => bytes32 consensusStateHash) private consensusStateHashes;
 
-    /// @notice Initializes shared Besu light client state.
+    /// @notice Creates a Besu light client from an initial trusted client and consensus state.
     /// @dev `initialConsensusState` is trusted at `initialClientState.latestHeight`.
     /// @param initialClientState Initial client state. Must not be frozen and must use revision number `0`.
     /// @param initialConsensusState Initial trusted consensus state at `initialClientState.latestHeight`.
@@ -212,12 +217,6 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             );
         }
     }
-
-    /// @notice Computes the protocol-specific commit seal digest for a parsed header.
-    /// @dev See `hashBlockForCommitSeal` in QBFT specification: https://entethalliance.org/specs/qbft/v1
-    /// @param header The parsed Besu header.
-    /// @return The digest signed by commit seals.
-    function _commitSealDigest(Header.Data memory header) internal pure virtual returns (bytes32);
 
     /// @notice Freezes the client if two stored consensus states violate time monotonicity or change the validator set
     /// by more validators than their height difference.
@@ -447,7 +446,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
         _requireTrustedConsensusState(msg_.trustedHeight.revisionHeight, msg_.consensusStatePreimage);
 
-        address[] memory signers = _recoverSigners(_commitSealDigest(header), header.commitSeals);
+        address[] memory signers = _recoverSigners(keccak256(msg_.headerRlp), msg_.commitSeals);
         address[] memory trustedValidators = msg_.consensusStatePreimage.validators;
         sameValidators = _sameValidatorSet(trustedValidators, header.validators);
         if (sameValidators) {
@@ -522,16 +521,16 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
     /// @notice Recovers commit seal signers for a digest, requiring them to be sorted.
     /// @dev Seals must be ordered by recovered signer in strictly ascending order, which also rejects duplicates.
+    /// Seals must use 27/28 recovery ids; relayers convert Besu's 0/1 ids before submitting.
     /// @param digest The commit seal digest.
     /// @param seals The commit seals to recover.
     /// @return signers The recovered signer addresses, in strictly ascending order.
     function _recoverSigners(bytes32 digest, bytes[] memory seals) private pure returns (address[] memory signers) {
-        signers = new address[](seals.length);
-        if (seals.length == 0) {
-            return signers;
-        }
+        require(seals.length != 0, EmptyCommitSeals());
 
+        signers = new address[](seals.length);
         signers[0] = _recoverSigner(digest, seals[0]);
+        require(signers[0] != address(0), InvalidCommitSeal());
         for (uint256 i = 1; i < seals.length; ++i) {
             signers[i] = _recoverSigner(digest, seals[i]);
             require(signers[i - 1] < signers[i], UnsortedCommitSealSigners(i - 1));
@@ -540,19 +539,11 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
     /// @notice Recovers one commit seal signer.
     /// @param digest The commit seal digest.
-    /// @param seal The 65-byte ECDSA commit seal.
+    /// @param seal The 65-byte ECDSA commit seal (r||s||v).
     /// @return The recovered signer address.
     function _recoverSigner(bytes32 digest, bytes memory seal) private pure returns (address) {
-        require(seal.length == 65, InvalidECDSASignatureLength(seal.length));
-        if (uint8(seal[64]) < 27) {
-            seal[64] = bytes1(uint8(seal[64]) + 27);
-        }
-        (address signer, ECDSA.RecoverError err, bytes32 errorArgument) = ECDSA.tryRecover(digest, seal);
-        require(
-            err == ECDSA.RecoverError.NoError && errorArgument == bytes32(0) && signer != address(0),
-            InvalidCommitSeal()
-        );
-        return signer;
+        require(seal.length == ECDSA_SIGNATURE_LENGTH, InvalidECDSASignatureLength(seal.length));
+        return ECDSA.recover(digest, seal);
     }
 
     /// @notice Checks that enough trusted validators signed.
