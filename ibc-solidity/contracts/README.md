@@ -26,15 +26,14 @@ All contracts are compiled for the **Cancun** EVM (`evm_version = "cancun"` in `
 
 ## Light clients (`light-clients/`)
 - `attestation/AttestationLightClient.sol` – m-of-n attestor-set light client using ECDSA signatures with role-gated proof submission.
-- `besu/BesuIBFT2LightClient.sol` – Besu IBFT 2.0 light client for header-validator mode. Uses weak-subjectivity / trusting-period updates, verifies Besu commit seals under the existing YUI + prover sealing-header model plus EVM account/storage proofs, and proves Eureka commitments against the tracked counterparty `ICS26Router` storage.
-- `besu/BesuQBFTLightClient.sol` – Besu QBFT light client for header-validator mode with the same proof model and storage verification surface as the IBFT2 wrapper, but QBFT-specific seal-digest rules within that same YUI + prover sealing-header model.
+- `besu/BesuLightClientBase.sol` – Besu IBFT 2.0 and QBFT light client for header-validator mode. Uses weak-subjectivity / trusting-period updates, verifies Besu commit seals over the header in its commit-seal signing form plus EVM account/storage proofs, and proves Eureka commitments against the tracked counterparty `ICS26Router` storage.
 - `ics02-wrapper/ICS02PrecompileWrapper.sol` – Thin adapter that exposes the `ILightClient` interface over the Cosmos EVM ICS02 precompile at a fixed address.
 - `sp1-ics07/SP1ICS07Tendermint.sol` – Tendermint light client verified via SP1 programs and verifier contract; supports update, (non)membership proofs, and misbehaviour handling.
 
 ### Besu light-client scope
 - Supported: Besu **IBFT 2.0** and **QBFT** in **header-validator mode**.
 - Verification model: weak subjectivity via **trusting period** and validator-set overlap checks.
-- Commit-seal verification: follows the existing **YUI Solidity client + besu-ibc-relay-prover** sealing-header reconstruction model.
+- Commit-seal verification: the relayer submits the header in its protocol's commit-seal signing form, with the commit seals removed from `extraData`, and the seals separately; the client recovers the signers from `keccak256(headerRlp)`. One deployment serves either protocol, and the client does not track which one. See `light-clients/besu/README.md`.
 - Trusted overlap threshold: requires at least **`ceil(n * trustLevel)`** of the trusted validator set to have signed the new header, where `trustLevel` is configured at deployment within `[1/3, 1]` (the proof-api defaults to `2/3`, the same threshold as Besu commit-seal quorum). Commit-seal quorum stays at **`ceil(2n / 3)`**. See `light-clients/besu/README.md`.
 - Proof surface: Besu block headers, commit seals, Ethereum account proofs, and Ethereum storage proofs.
 - Destination chain requirement: the chain hosting the client must have Cancun (EIP-1153 transient storage) enabled; the proven router storage root is cached in transient storage so a batch of packet proofs at one height pays for a single account proof. See `light-clients/besu/README.md`.

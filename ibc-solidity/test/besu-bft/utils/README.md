@@ -3,17 +3,17 @@
 Test-only, in-process simulator of a Besu QBFT or IBFT 2.0 chain. It replaces docker-captured fixtures
 when a test needs headers signed by an arbitrary validator set, exotic consensus scenarios (double signing,
 clock misbehaviour, low quorum, validator churn), or real state roots and Merkle Patricia proofs for IBC
-commitments that `BesuQBFTLightClient` and `BesuIBFT2LightClient` verify.
+commitments that `BesuLightClientBase` verifies.
 
 This directory was AI generated and reviewed for correctness. Its behaviour is pinned by
-`SimHeader.t.sol` (byte-exact round trips of live Besu headers), `MerklePatriciaTrie.t.sol`
+`SimHeader.t.sol` (byte-exact round trips of live Besu QBFT signing headers), `MerklePatriciaTrie.t.sol`
 (OpenZeppelin trie vectors and round trips through `TrieProof`), and `../QBFTSimSuite.t.sol`
-(scenarios run against the production light clients).
+(scenarios run against the production light client in both modes).
 
 | File | Role |
 | --- | --- |
 | `QBFTSimSuite.sol` | Entry point: validator keys, block production and sealing, light client deployment and message builders. |
-| `SimHeader.sol` | Besu header model with RLP encode/decode, mode-specific commit seal digest and block hash. |
+| `SimHeader.sol` | Besu header model with RLP decode, mode-specific commit seal signing RLP and digest, and block hash. |
 | `SimWorldState.sol` | Height-versioned accounts and storage; state roots, account and storage proofs, IBC commitment slots. |
 | `MerklePatriciaTrie.sol` | Trie builder computing roots and membership or exclusion proofs from a flat key/value set. |
 
