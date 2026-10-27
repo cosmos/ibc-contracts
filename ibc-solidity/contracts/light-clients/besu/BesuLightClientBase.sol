@@ -499,7 +499,6 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
         signers = new address[](seals.length);
         signers[0] = _recoverSigner(digest, seals[0]);
-        // Strict ordering makes every later signer non-zero too.
         require(signers[0] != address(0), InvalidCommitSeal());
         for (uint256 i = 1; i < seals.length; ++i) {
             signers[i] = _recoverSigner(digest, seals[i]);
