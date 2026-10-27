@@ -528,7 +528,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @param trustedCount The trusted validator set size.
     function _requireTrustLevel(uint256 actual, uint256 trustedCount) private view {
         IBesuLightClientMsgs.TrustThreshold memory trustLevel = clientState.trustLevel;
-        uint256 required = trustedCount * trustLevel.numerator / trustLevel.denominator + 1;
+        uint256 required = Math.mulDiv(trustedCount, trustLevel.numerator, trustLevel.denominator) + 1;
         require(actual >= required, InsufficientTrustedValidatorOverlap(actual, required));
     }
 
