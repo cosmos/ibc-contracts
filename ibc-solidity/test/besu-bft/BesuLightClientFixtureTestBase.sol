@@ -840,7 +840,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     function fixtureUpdate() public view returns (BesuUpdateTestCase[] memory testCases) {
         BesuUpdateFixture memory emptyExpectedState;
 
-        testCases = new BesuUpdateTestCase[](28);
+        testCases = new BesuUpdateTestCase[](30);
         testCases[0] = BesuUpdateTestCase({
             name: "success: valid adjacent update",
             timestamp: fixture.initialTrustedTimestamp + 1,
@@ -1117,7 +1117,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             timestamp: fixture.initialTrustedTimestamp + 1,
             update: _firstSealUpdate(seal.asSlice().slice(0, 64).toBytes()),
             preUpdate: "",
-            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidECDSASignatureLength.selector, 64),
+            expectedRevert: abi.encodeWithSelector(ECDSA.ECDSAInvalidSignatureLength.selector, 64),
             expectedState: emptyExpectedState
         });
         testCases[26] = BesuUpdateTestCase({
@@ -1125,20 +1125,40 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             timestamp: fixture.initialTrustedTimestamp + 1,
             update: _firstSealUpdate(new bytes(65)),
             preUpdate: "",
-            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidCommitSeal.selector),
+            expectedRevert: abi.encodeWithSelector(ECDSA.ECDSAInvalidSignature.selector),
             expectedState: emptyExpectedState
         });
 
-        // The malleable twin of a valid seal recovers the same signer but must be rejected. Besu recovery ids are 0/1.
+        // The malleable twin of a valid seal recovers the same signer but must be rejected.
         bytes32 s = seal.asSlice().load(32);
-        bytes memory highSSeal =
-            abi.encodePacked(seal.asSlice().load(0), bytes32(SECP256K1_N - uint256(s)), seal[64] ^ 0x01);
+        bytes32 highS = bytes32(SECP256K1_N - uint256(s));
+        bytes memory highSSeal = abi.encodePacked(seal.asSlice().load(0), highS, bytes1(55 - uint8(seal[64])));
         testCases[27] = BesuUpdateTestCase({
             name: "failure: high-s commit seal",
             timestamp: fixture.initialTrustedTimestamp + 1,
             update: _firstSealUpdate(highSSeal),
             preUpdate: "",
-            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidCommitSeal.selector),
+            expectedRevert: abi.encodeWithSelector(ECDSA.ECDSAInvalidSignatureS.selector, highS),
+            expectedState: emptyExpectedState
+        });
+
+        // Relayers must convert Besu's raw 0/1 recovery ids to 27/28.
+        bytes memory rawRecoveryIdSeal = abi.encodePacked(seal);
+        rawRecoveryIdSeal[64] = bytes1(uint8(seal[64]) - 27);
+        testCases[28] = BesuUpdateTestCase({
+            name: "failure: raw recovery id commit seal",
+            timestamp: fixture.initialTrustedTimestamp + 1,
+            update: _firstSealUpdate(rawRecoveryIdSeal),
+            preUpdate: "",
+            expectedRevert: abi.encodeWithSelector(ECDSA.ECDSAInvalidSignature.selector),
+            expectedState: emptyExpectedState
+        });
+        testCases[29] = BesuUpdateTestCase({
+            name: "failure: empty commit seals",
+            timestamp: fixture.initialTrustedTimestamp + 1,
+            update: _sealsUpdate(new bytes[](0)),
+            preUpdate: "",
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.EmptyCommitSeals.selector),
             expectedState: emptyExpectedState
         });
     }
@@ -1234,7 +1254,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         bytes[] memory encodedSeals = new bytes[](sealItems.length + 1);
         uint256 offset = 0;
         for (uint256 i = 0; i < sealItems.length; ++i) {
-            if (offset == 0 && _sealSigner(digest, RLP.readBytes(sealItems[i])) > unknownSigner) {
+            if (offset == 0 && ECDSA.recover(digest, RLP.readBytes(sealItems[i])) > unknownSigner) {
                 encodedSeals[i] = RLP.encode(abi.encodePacked(r, s, v));
                 offset = 1;
             }
@@ -1286,12 +1306,13 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         return _encodeUpdate(update);
     }
 
-    /// @dev Recovers the signer of a raw commit seal, accepting Besu's 0/1 recovery ids.
-    function _sealSigner(bytes32 digest, bytes memory seal) internal pure returns (address) {
-        if (uint8(seal[64]) < 27) {
-            seal[64] = bytes1(uint8(seal[64]) + 27);
-        }
-        return ECDSA.recover(digest, seal);
+    /// @dev Replaces the commit seals of `nonAdjacentUpdate` with `encodedSeals`.
+    function _sealsUpdate(bytes[] memory encodedSeals) internal view returns (bytes memory) {
+        BesuUpdateFixture memory update = fixture.nonAdjacentUpdate;
+        Memory.Slice[] memory headerItems = update.headerRlp.decodeList();
+        Memory.Slice[] memory extraItems = RLP.readBytes(headerItems[12]).decodeList();
+        update.headerRlp = _encodeHeader(headerItems, extraItems, RLP.encode(encodedSeals));
+        return _encodeUpdate(update);
     }
 
     /// @dev Re-encodes the non-adjacent update header with `validators` and commit seals signed by `signerKeys`.

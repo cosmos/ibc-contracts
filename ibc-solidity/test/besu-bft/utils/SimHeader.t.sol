@@ -29,9 +29,7 @@ contract SimHeaderTest is Test {
             bytes32 digest = h.commitSealDigest(SimHeader.Mode.QBFT);
             assertTrue(h.commitSeals.length != 0);
             for (uint256 j = 0; j < h.commitSeals.length; ++j) {
-                bytes memory seal = h.commitSeals[j];
-                seal[64] = bytes1(uint8(seal[64]) + 27);
-                assertTrue(_contains(h.validators, ECDSA.recover(digest, seal)), "seal signer");
+                assertTrue(_contains(h.validators, ECDSA.recover(digest, h.commitSeals[j])), "seal signer");
             }
         }
     }

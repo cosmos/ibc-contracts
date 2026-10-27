@@ -672,11 +672,12 @@ fn extract_validators_from_extra_data(extra_data: &[u8]) -> Result<Vec<Address>>
     Ok(out)
 }
 
-/// Returns a copy of `header` with its commit seals ordered by recovered signer address.
+/// Returns a copy of `header` with its commit seals ordered by recovered signer address and with
+/// 27/28 recovery ids.
 ///
-/// The light client requires commit seals in strictly ascending signer order, but Besu does not
-/// order them that way. Reordering keeps the header valid because the commit-seal digest excludes
-/// the seal list.
+/// The light client requires commit seals in strictly ascending signer order with 27/28 recovery
+/// ids, but Besu orders them arbitrarily and uses 0/1 recovery ids. Rewriting the seals keeps the
+/// header valid because the commit-seal digest excludes the seal list.
 fn sort_commit_seals(header: &Header, consensus_type: BesuConsensusType) -> Result<Header> {
     let extra_data = Rlp::new(&header.extra_data);
     let item_count = extra_data
@@ -719,10 +720,13 @@ fn sort_commit_seals(header: &Header, consensus_type: BesuConsensusType) -> Resu
     let mut signed_seals = seals
         .into_iter()
         .map(|seal| {
-            let signer = Signature::from_raw(&seal)
-                .and_then(|signature| signature.recover_address_from_prehash(&digest))
+            let signature =
+                Signature::from_raw(&seal).context("failed to decode commit seal signature")?;
+            let signer = signature
+                .recover_address_from_prehash(&digest)
                 .context("failed to recover commit seal signer")?;
-            Ok((signer, seal))
+            // `as_bytes` encodes the recovery id as 27/28, whichever form Besu used.
+            Ok((signer, signature.as_bytes().to_vec()))
         })
         .collect::<Result<Vec<_>>>()?;
     signed_seals.sort_by_key(|(signer, _)| *signer);
@@ -1068,7 +1072,8 @@ mod tests {
         Bytes::from(stream.out().to_vec())
     }
 
-    /// Returns a header sealed by `signers` in the given order, and the commit-seal digest.
+    /// Returns a header sealed by `signers` in the given order with Besu's 0/1 recovery ids, and the
+    /// commit-seal digest.
     fn sealed_header(
         consensus_type: BesuConsensusType,
         signers: &[&PrivateKeySigner],
@@ -1086,7 +1091,11 @@ mod tests {
         let digest = keccak256(alloy_rlp::encode(&header));
         let seals: Vec<_> = signers
             .iter()
-            .map(|signer| signer.sign_hash_sync(&digest).unwrap().as_bytes().to_vec())
+            .map(|signer| {
+                let mut seal = signer.sign_hash_sync(&digest).unwrap().as_bytes();
+                seal[64] -= 27;
+                seal.to_vec()
+            })
             .collect();
         header.extra_data = besu_extra_data(&validators, Some(&seals));
         (header, digest)
@@ -1115,6 +1124,7 @@ mod tests {
                 .unwrap()
                 .iter()
                 .map(|seal| {
+                    assert!(matches!(seal[64], 27 | 28));
                     Signature::from_raw(seal)
                         .unwrap()
                         .recover_address_from_prehash(&digest)

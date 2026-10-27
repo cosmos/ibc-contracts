@@ -69,11 +69,8 @@ interface IBesuLightClientErrors {
     /// @notice The commit seals are not sorted in strictly ascending order of their recovered signers.
     /// @param index The index of the first unsorted commit seal signer.
     error UnsortedCommitSealSigners(uint256 index);
-    /// @notice An ECDSA signature has an invalid length.
-    /// @param length The invalid signature length.
-    error InvalidECDSASignatureLength(uint256 length);
-    /// @notice A commit seal did not recover a valid signer.
-    error InvalidCommitSeal();
+    /// @notice The header has no commit seals.
+    error EmptyCommitSeals();
     /// @notice The submitted signers do not overlap enough with the trusted validator set.
     /// @param actual The number of trusted validators that signed.
     /// @param required The minimum required trusted signer count.
