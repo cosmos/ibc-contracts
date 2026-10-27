@@ -30,7 +30,7 @@ v                     without deliberation
 
 <!-- Remove any items that are not applicable. -->
 
-- [ ] Tag a release version.
+- [ ] Tag a release version: push the `<component>-vX.Y.Z` tag and confirm the [release](https://github.com/cosmos/ibc-contracts/actions/workflows/release.yml) workflow attaches the signed assets to the draft release, and for `proof-api-vX.Y.Z` publishes the signed image.
 - [ ] Branch off main to create release branch in the form of `release/vx.y.z` and add branch protection rules.
 - [ ] Add branch protection rules to new release branch.
 
