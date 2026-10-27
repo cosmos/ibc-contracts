@@ -31,8 +31,8 @@ import (
 
 	"github.com/cosmos/interchaintest/v11/testutil"
 
+	"github.com/cosmos/ibc-contracts/packages/go-abigen/besulightclient"
 	"github.com/cosmos/ibc-contracts/packages/go-abigen/besumsgs"
-	"github.com/cosmos/ibc-contracts/packages/go-abigen/besuqbft"
 	"github.com/cosmos/ibc-contracts/packages/go-abigen/ibcerc20"
 	"github.com/cosmos/ibc-contracts/packages/go-abigen/ics20transfer"
 	"github.com/cosmos/ibc-contracts/packages/go-abigen/ics26router"
@@ -403,7 +403,7 @@ func (s *BesuToBesuTestSuite) ICS20TransferERC20FromChainAToChainBTest(consensus
 				NonAdjacentUpdateHeight: sendHeight,
 				SyntheticSourceHeight:   ackReceipt.BlockNumber.Uint64(),
 				TrustingPeriod:          uint64(testvalues.DefaultTrustPeriod),
-				MaxClockDrift:           uint64(testvalues.DefaultMaxClockDrift),
+				MaxClockDrift:           uint64(testvalues.DefaultBesuMaxClockDrift),
 			}))
 		}))
 	}
@@ -786,7 +786,7 @@ func (s *BesuToBesuTestSuite) DoubleSignFreezesClientTest(consensus string) {
 
 	const doubleSignClientID = "besu-double-sign"
 	var (
-		client        *besuqbft.Contract
+		client        *besulightclient.Contract
 		trustedHeight uint64
 		height        uint64
 		trustedHash   [32]byte
@@ -853,7 +853,7 @@ func (s *BesuToBesuTestSuite) ConflictingConsensusStatesTimeNonMonotonicityFreez
 
 	const timeMisbehaviourClientID = "besu-time-non-monotonicity"
 	var (
-		client          *besuqbft.Contract
+		client          *besulightclient.Contract
 		trustedHeight   uint64
 		height1         uint64
 		height2         uint64
@@ -940,15 +940,16 @@ func (s *BesuToBesuTestSuite) Test_ConflictingHeadersDoubleSignMisbehaviourIsPer
 	s.ConflictingHeadersDoubleSignMisbehaviourIsPermissionlessTest(testvalues.BesuConsensusIBFT2)
 }
 
-// ConflictingHeadersDoubleSignMisbehaviourIsPermissionlessTest submits two conflicting headers at the same height
-// directly to a dedicated client on Chain B from an account without PROOF_SUBMITTER_ROLE. Neither header is stored.
+// ConflictingHeadersDoubleSignMisbehaviourIsPermissionlessTest submits two conflicting headers at the same height to
+// a dedicated client on Chain B through the router's permissionless submitMisbehaviour, from an account without any
+// role. Neither header is stored.
 func (s *BesuToBesuTestSuite) ConflictingHeadersDoubleSignMisbehaviourIsPermissionlessTest(consensus string) {
 	ctx := context.Background()
 	s.SetupSuite(ctx, consensus)
 
 	const clientID = "besu-headers-double-sign"
 	var (
-		client          *besuqbft.Contract
+		client          *besulightclient.Contract
 		height          uint64
 		honestUpdate    []byte
 		misbehaviourMsg []byte
@@ -968,20 +969,20 @@ func (s *BesuToBesuTestSuite) ConflictingHeadersDoubleSignMisbehaviourIsPermissi
 		misbehaviourMsg = s.conflictingHeadersMisbehaviourMsg(honestUpdate, conflictingUpdate)
 	}))
 
-	s.Require().True(s.Run("Account without role cannot update the client", func() {
+	s.Require().True(s.Run("Only the router can call the client", func() {
 		clientAddress, err := s.chainB.ics26.GetClient(nil, clientID)
 		s.Require().NoError(err)
-		updateCalldata := s.besuClientCalldata("updateClient", honestUpdate)
-		unauthorizedErr := s.besuClientErr(
-			"AccessControlUnauthorizedAccount",
-			crypto.PubkeyToAddress(s.chainB.user.PublicKey),
-			crypto.Keccak256Hash([]byte("PROOF_SUBMITTER_ROLE")),
-		)
-		s.requireCallRevert(ctx, s.chainB.user, clientAddress, updateCalldata, unauthorizedErr)
+		unauthorizedErr := s.besuClientErr("LightClientUnauthorizedCaller", crypto.PubkeyToAddress(s.chainB.user.PublicKey))
+		for _, calldata := range [][]byte{
+			s.besuClientCalldata("updateClient", honestUpdate),
+			s.besuClientCalldata("misbehaviour", misbehaviourMsg),
+		} {
+			s.requireCallRevert(ctx, s.chainB.user, clientAddress, calldata, unauthorizedErr)
+		}
 	}))
 
 	s.Require().True(s.Run("Account without role submits misbehaviour and freezes the client", func() {
-		receipt := s.submitBesuMisbehaviour(ctx, client, misbehaviourMsg)
+		receipt := s.submitBesuMisbehaviour(ctx, clientID, misbehaviourMsg)
 
 		doubleSignEvent, err := e2esuite.GetEvmEvent(receipt, client.ParseDoubleSign)
 		s.Require().NoError(err)
@@ -1007,15 +1008,15 @@ func (s *BesuToBesuTestSuite) Test_ConflictingHeadersTimeNonMonotonicityMisbehav
 }
 
 // ConflictingHeadersTimeNonMonotonicityMisbehaviourIsPermissionlessTest submits two headers whose timestamps do not
-// increase with height directly to a dedicated client on Chain B from an account without PROOF_SUBMITTER_ROLE.
-// Neither header is stored.
+// increase with height to a dedicated client on Chain B through the router's permissionless submitMisbehaviour, from
+// an account without any role. Neither header is stored.
 func (s *BesuToBesuTestSuite) ConflictingHeadersTimeNonMonotonicityMisbehaviourIsPermissionlessTest(consensus string) {
 	ctx := context.Background()
 	s.SetupSuite(ctx, consensus)
 
 	const clientID = "besu-headers-time-non-monotonicity"
 	var (
-		client           *besuqbft.Contract
+		client           *besulightclient.Contract
 		height1, height2 uint64
 		timestamp        uint64
 		misbehaviourMsg  []byte
@@ -1040,7 +1041,7 @@ func (s *BesuToBesuTestSuite) ConflictingHeadersTimeNonMonotonicityMisbehaviourI
 	}))
 
 	s.Require().True(s.Run("Account without role submits misbehaviour and freezes the client", func() {
-		receipt := s.submitBesuMisbehaviour(ctx, client, misbehaviourMsg)
+		receipt := s.submitBesuMisbehaviour(ctx, clientID, misbehaviourMsg)
 
 		timeEvent, err := e2esuite.GetEvmEvent(receipt, client.ParseTimeNonMonotonicity)
 		s.Require().NoError(err)
@@ -1077,8 +1078,8 @@ func (s *BesuToBesuTestSuite) ValidatorSetChangesTest(consensus string) {
 		defaultTrustClientID = "besu-validator-change-default-trust"
 	)
 	var (
-		lowTrustClient      *besuqbft.Contract
-		defaultTrustClient  *besuqbft.Contract
+		lowTrustClient      *besulightclient.Contract
+		defaultTrustClient  *besulightclient.Contract
 		defaultTrustHeight  uint64
 		initialValidators   []ethcommon.Address
 		remainingValidators []ethcommon.Address
@@ -1193,11 +1194,10 @@ func (s *BesuToBesuTestSuite) waitForChainAHeader(ctx context.Context, start uin
 	return height
 }
 
-// createDedicatedBesuClient registers a Chain A client on Chain B that the relayer does not use. The QBFT and IBFT2
-// light clients share an ABI, so the besuqbft bindings serve both.
-func (s *BesuToBesuTestSuite) createDedicatedBesuClient(clientID, trustLevel string) *besuqbft.Contract {
+// createDedicatedBesuClient registers a Chain A client on Chain B that the relayer does not use.
+func (s *BesuToBesuTestSuite) createDedicatedBesuClient(clientID, trustLevel string) *besulightclient.Contract {
 	clientAddress := s.createAndRegisterBesuClient(&s.chainA, &s.chainB, clientID, besuToBesuClientOnA, trustLevel)
-	client, err := besuqbft.NewContract(clientAddress, s.chainB.eth.RPCClient)
+	client, err := besulightclient.NewContract(clientAddress, s.chainB.eth.RPCClient)
 	s.Require().NoError(err)
 	s.Require().False(s.besuClientState(client).IsFrozen)
 	return client
@@ -1298,7 +1298,7 @@ func (s *BesuToBesuTestSuite) requireCallRevert(ctx context.Context, from *ecdsa
 
 // besuClientErr returns the revert data of the Besu light client custom error name with args.
 func (s *BesuToBesuTestSuite) besuClientErr(name string, args ...any) []byte {
-	clientABI, err := besuqbft.ContractMetaData.GetAbi()
+	clientABI, err := besulightclient.ContractMetaData.GetAbi()
 	s.Require().NoError(err)
 	customErr, ok := clientABI.Errors[name]
 	s.Require().True(ok, "unknown error %s", name)
@@ -1309,7 +1309,7 @@ func (s *BesuToBesuTestSuite) besuClientErr(name string, args ...any) []byte {
 
 // besuClientCalldata packs a call to a Besu light client method.
 func (s *BesuToBesuTestSuite) besuClientCalldata(method string, args ...any) []byte {
-	clientABI, err := besuqbft.ContractMetaData.GetAbi()
+	clientABI, err := besulightclient.ContractMetaData.GetAbi()
 	s.Require().NoError(err)
 	calldata, err := clientABI.Pack(method, args...)
 	s.Require().NoError(err)
@@ -1334,9 +1334,9 @@ func (s *BesuToBesuTestSuite) conflictingHeadersMisbehaviourMsg(update1, update2
 	})[4:]
 }
 
-// submitBesuMisbehaviour calls misbehaviour on the light client directly from Chain B's user, which holds no role.
-func (s *BesuToBesuTestSuite) submitBesuMisbehaviour(ctx context.Context, client *besuqbft.Contract, misbehaviourMsg []byte) *ethtypes.Receipt {
-	tx, err := client.Misbehaviour(s.mustTransactOpts(&s.chainB, s.chainB.user), misbehaviourMsg)
+// submitBesuMisbehaviour submits misbehaviour through Chain B's router from Chain B's user, which holds no role.
+func (s *BesuToBesuTestSuite) submitBesuMisbehaviour(ctx context.Context, clientID string, misbehaviourMsg []byte) *ethtypes.Receipt {
+	tx, err := s.chainB.ics26.SubmitMisbehaviour(s.mustTransactOpts(&s.chainB, s.chainB.user), clientID, misbehaviourMsg)
 	s.Require().NoError(err)
 	receipt, err := s.chainB.eth.GetTxReciept(ctx, tx.Hash())
 	s.Require().NoError(err)
@@ -1344,7 +1344,7 @@ func (s *BesuToBesuTestSuite) submitBesuMisbehaviour(ctx context.Context, client
 	return receipt
 }
 
-func (s *BesuToBesuTestSuite) besuClientState(client *besuqbft.Contract) besumsgs.IBesuLightClientMsgsClientState {
+func (s *BesuToBesuTestSuite) besuClientState(client *besulightclient.Contract) besumsgs.IBesuLightClientMsgsClientState {
 	clientStateBz, err := client.GetClientState(nil)
 	s.Require().NoError(err)
 	clientState, err := besumsgs.NewBindings().UnpackClientState(clientStateBz)
@@ -1471,9 +1471,8 @@ func (s *BesuToBesuTestSuite) createAndRegisterBesuClient(
 		DstChain: dstChain.eth.ChainID.String(),
 		Parameters: map[string]string{
 			testvalues.ParameterKey_TrustingPeriod: strconv.Itoa(testvalues.DefaultTrustPeriod),
-			testvalues.ParameterKey_MaxClockDrift:  strconv.Itoa(testvalues.DefaultMaxClockDrift),
+			testvalues.ParameterKey_MaxClockDrift:  strconv.Itoa(testvalues.DefaultBesuMaxClockDrift),
 			testvalues.ParameterKey_TrustLevel:     trustLevel,
-			testvalues.ParameterKey_RoleManager:    dstChain.contractAddresses.Ics26Router,
 		},
 	})
 	s.Require().NoError(err)

@@ -24,6 +24,17 @@ interface IBesuLightClient is ILightClient {
     // solhint-disable-next-line gas-indexed-events
     event TimeNonMonotonicity(uint64 indexed height2, uint64 height1, uint64 timestamp2, uint64 timestamp1);
 
+    /// @notice Emitted when the timestamps of two validly signed consensus states increase by less than one second per
+    /// block, which a chain with a block period of at least one second cannot produce.
+    /// @dev The client is permanently frozen when this is emitted. Sub-second block periods are not supported.
+    /// @param height2 The height of the second trusted consensus state.
+    /// @param height1 The height of the first trusted consensus state. Less than `height2`.
+    /// @param timestamp2 The timestamp of the second trusted consensus state. Greater than `timestamp1` and less than
+    /// `timestamp1 + height2 - height1`.
+    /// @param timestamp1 The timestamp of the first trusted consensus state.
+    // solhint-disable-next-line gas-indexed-events
+    event SubSecondBlockTime(uint64 indexed height2, uint64 height1, uint64 timestamp2, uint64 timestamp1);
+
     /// @notice Emitted when two validly signed consensus states have validator sets that differ by more validators
     /// than their height difference, which a header-validator vote of at most one change per block cannot produce.
     /// @dev The client is permanently frozen when this is emitted.

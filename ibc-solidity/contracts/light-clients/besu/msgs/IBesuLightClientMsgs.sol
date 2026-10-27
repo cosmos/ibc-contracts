@@ -17,8 +17,8 @@ interface IBesuLightClientMsgs {
     /// @notice Client state for a Besu BFT light client.
     /// @param ibcRouter Counterparty ICS26 router address whose storage is proven.
     /// @param latestHeight Latest trusted Besu height.
-    /// @param trustingPeriod Maximum age in seconds for a trusted consensus state.
-    /// @param maxClockDrift Maximum allowed future drift in seconds for submitted headers.
+    /// @param trustingPeriod Maximum age in seconds for a trusted consensus state. Must be within `(0, 30 days]`.
+    /// @param maxClockDrift Maximum allowed future drift in seconds for submitted headers. Must be at most 12 seconds.
     /// @param isFrozen Whether the client has been permanently frozen due to misbehaviour.
     /// @param trustLevel Minimum fraction of the trusted validator set that must sign a new header.
     struct ClientState {
@@ -40,12 +40,17 @@ interface IBesuLightClientMsgs {
         address[] validators;
     }
 
-    /// @notice Update message containing a Besu header and the trusted consensus state preimage.
-    /// @param headerRlp RLP-encoded Besu block header.
+    /// @notice Update message containing a Besu header, its commit seals, and the trusted consensus state preimage.
+    /// @param headerRlp RLP-encoded Besu block header in its commit seal signing form: the commit seals are removed
+    /// from `extraData`, leaving 4 `extraData` items for IBFT 2.0 or 5 items ending in an empty seal list for QBFT.
+    /// The commit seal digest is `keccak256(headerRlp)`.
+    /// @param commitSeals 65-byte ECDSA commit seals (r||s||v, with 27/28 recovery ids) over `keccak256(headerRlp)`,
+    /// ordered by recovered signer address in strictly ascending order.
     /// @param trustedHeight Previously trusted height used for weak-subjectivity checks.
     /// @param consensusStatePreimage Preimage of the trusted consensus state at `trustedHeight`.
     struct MsgUpdateClient {
         bytes headerRlp;
+        bytes[] commitSeals;
         IICS02ClientMsgs.Height trustedHeight;
         ConsensusState consensusStatePreimage;
     }
@@ -64,8 +69,9 @@ interface IBesuLightClientMsgs {
     /// @dev Time monotonicity check is done during updateClient, however, it is possible that the check is bypassed if
     /// a suitable trusted consensus state is provided. This misbehavior message is used to freeze the client by simply
     /// providing two consensus states that are trusted but have timestamps that are not monotonic. The same evidence
-    /// also freezes the client if the validator sets of the two states differ by more validators than their height
-    /// difference. The states only need to match their stored hashes; they may be past their trusting period.
+    /// also freezes the client if the timestamps of the two states increase by less than one second per block, or if
+    /// their validator sets differ by more validators than their height difference. The states only need to match their
+    /// stored hashes; they may be past their trusting period.
     /// @param height1 Height of the first trusted consensus state.
     /// @param height2 Height of the second trusted consensus state. Must differ from `height1`; order is irrelevant.
     /// @param consensusStatePreimage1 Preimage of the first trusted consensus state.
@@ -83,9 +89,10 @@ interface IBesuLightClientMsgs {
     /// timestamp proves time non-monotonicity on its own; the other header may then be any valid header, including
     /// the same one. Otherwise, headers at the same height with different consensus states prove a double sign, and
     /// headers at different heights where the lower header's timestamp is not less than the higher header's
-    /// timestamp prove time non-monotonicity. The same applies to a validator set change of more validators than the
-    /// height difference, whether between a header and its trusted consensus state or between the two headers. The
-    /// headers may be in either order and need not be stored.
+    /// timestamp prove time non-monotonicity. The same applies to timestamps that increase by less than one second per
+    /// block and to a validator set change of more validators than the height difference, whether between a header and
+    /// its trusted consensus state or between the two headers. The headers may be in either order and need not be
+    /// stored.
     /// @param update1 The first header with its trusted consensus state.
     /// @param update2 The second header with its trusted consensus state.
     struct MsgConflictingHeadersMisbehaviour {
