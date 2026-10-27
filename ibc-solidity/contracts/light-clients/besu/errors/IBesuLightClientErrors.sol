@@ -108,7 +108,7 @@ interface IBesuLightClientErrors {
     /// @notice The commit seal signer is not in the validator set.
     /// @param signer The commit seal signer address.
     error UnknownCommitSealSigner(address signer);
-    /// @notice The submitted misbehaviour evidence does not prove a double sign, time non-monotonicity, or an invalid
-    /// validator set change.
+    /// @notice The submitted misbehaviour evidence does not prove a double sign, time non-monotonicity, a sub-second
+    /// block time, or an invalid validator set change.
     error NoMisbehaviourDetected();
 }
