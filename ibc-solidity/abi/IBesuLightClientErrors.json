@@ -49,6 +49,11 @@
   },
   {
     "type": "error",
+    "name": "EmptyCommitSeals",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "EmptyValidatorSet",
     "inputs": []
   },
@@ -252,6 +257,17 @@
         "name": "providedRevisionNumber",
         "type": "uint64",
         "internalType": "uint64"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InvalidStateRoot",
+    "inputs": [
+      {
+        "name": "stateRoot",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ]
   },

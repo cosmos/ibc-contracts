@@ -28,7 +28,7 @@ contract SolidityLightClientDriver is ILightClientDriver {
 }
 
 abstract contract WithSolidityLightClient is LightClientDriverTest {
-    function _newDriver(ICS26Router counterparty) internal override returns (ILightClientDriver) {
+    function _newDriver(ICS26Router, ICS26Router counterparty) internal override returns (ILightClientDriver) {
         return new SolidityLightClientDriver(counterparty);
     }
 }

@@ -2,7 +2,9 @@
 pragma solidity ^0.8.28;
 
 import { Test } from "forge-std/Test.sol";
-import { IAccessControl } from "@openzeppelin-contracts/access/IAccessControl.sol";
+import { AccessManager } from "@openzeppelin-contracts/access/manager/AccessManager.sol";
+import { IAccessManaged } from "@openzeppelin-contracts/access/manager/IAccessManaged.sol";
+import { Pausable } from "@openzeppelin-contracts/utils/Pausable.sol";
 import { Math } from "@openzeppelin-contracts/utils/math/Math.sol";
 import { Memory } from "@openzeppelin-contracts/utils/Memory.sol";
 import { RLP } from "@openzeppelin-contracts/utils/RLP.sol";
@@ -13,7 +15,9 @@ import { ILightClientMsgs } from "../../contracts/msgs/ILightClientMsgs.sol";
 import { IBesuLightClient } from "../../contracts/light-clients/besu/interfaces/IBesuLightClient.sol";
 import { IBesuLightClientMsgs } from "../../contracts/light-clients/besu/msgs/IBesuLightClientMsgs.sol";
 import { IBesuLightClientErrors } from "../../contracts/light-clients/besu/errors/IBesuLightClientErrors.sol";
-import { BesuLightClient } from "../../contracts/light-clients/besu/BesuLightClient.sol";
+import { IICS26ManagedLightClient } from "../../contracts/interfaces/IICS26ManagedLightClient.sol";
+import { IICS26ManagedLightClientErrors } from "../../contracts/errors/IICS26ManagedLightClientErrors.sol";
+import { IBCRolesLib } from "../../contracts/utils/IBCRolesLib.sol";
 import { ICS24Host } from "../../contracts/utils/ICS24Host.sol";
 
 import { QBFTSimSuite } from "./utils/QBFTSimSuite.sol";
@@ -26,6 +30,7 @@ abstract contract QBFTSimSuiteTest is Test {
 
     QBFTSimSuite internal sim;
     IBesuLightClient internal client;
+    address internal ics26Router = makeAddr("ics26Router");
 
     function _mode() internal pure virtual returns (SimHeader.Mode);
 
@@ -37,7 +42,9 @@ abstract contract QBFTSimSuiteTest is Test {
         s = new QBFTSimSuite(_mode());
         s.addValidators(validatorCount);
         s.produceBlocks(2);
-        client = s.deployLightClient(TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(2, 3));
+        client = s.deployLightClient(
+            TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(2, 3), ics26Router
+        );
     }
 
     function test_honestChain() public {
@@ -45,17 +52,21 @@ abstract contract QBFTSimSuiteTest is Test {
         for (uint256 c = 0; c < counts.length; ++c) {
             QBFTSimSuite s = _setUp(counts[c]);
             s.produceBlocks(2);
+            vm.startPrank(ics26Router);
             assertEq(uint8(client.updateClient(s.updateMsg(2, 3))), uint8(ILightClientMsgs.UpdateResult.Update));
             assertEq(uint8(client.updateClient(s.updateMsg(3, 4))), uint8(ILightClientMsgs.UpdateResult.Update));
             assertEq(uint8(client.updateClient(s.updateMsg(2, 4))), uint8(ILightClientMsgs.UpdateResult.NoOp));
+            vm.stopPrank();
         }
     }
 
     /// @dev Filling in an older height after a newer one stores it without moving `latestHeight` back.
     function test_backfillKeepsLatestHeight() public {
         sim.produceBlocks(2);
+        vm.startPrank(ics26Router);
         client.updateClient(sim.updateMsg(2, 4));
         assertEq(uint8(client.updateClient(sim.updateMsg(2, 3))), uint8(ILightClientMsgs.UpdateResult.Update));
+        vm.stopPrank();
 
         IBesuLightClientMsgs.ClientState memory state =
             abi.decode(client.getClientState(), (IBesuLightClientMsgs.ClientState));
@@ -86,45 +97,53 @@ abstract contract QBFTSimSuiteTest is Test {
     }
 
     function test_accessControl() public {
-        address manager = makeAddr("manager");
-        address relayer = makeAddr("relayer");
-        IBesuLightClient restricted = sim.deployLightClient(
-            TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(2, 3), manager
-        );
-        IAccessControl acl = IAccessControl(address(restricted));
-        bytes32 role = BesuLightClient(address(restricted)).PROOF_SUBMITTER_ROLE();
-        assertTrue(acl.hasRole(acl.getRoleAdmin(role), manager));
-        assertTrue(acl.hasRole(role, manager));
-        assertFalse(acl.hasRole(role, address(0)));
+        (address pauser, address unpauser) = _mockRouterAuthority();
+        assertEq(IICS26ManagedLightClient(address(client)).ICS26_ROUTER(), ics26Router);
 
         sim.produceBlock();
         bytes memory update = sim.updateMsg(2, 3);
+        address relayer = makeAddr("relayer");
         bytes memory unauthorized =
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, relayer, role);
+            abi.encodeWithSelector(IICS26ManagedLightClientErrors.LightClientUnauthorizedCaller.selector, relayer);
         ILightClientMsgs.MsgVerifyMembership memory membership;
         ILightClientMsgs.MsgVerifyNonMembership memory nonMembership;
 
         vm.startPrank(relayer);
         vm.expectRevert(unauthorized);
-        restricted.updateClient(update);
+        client.updateClient(update);
         vm.expectRevert(unauthorized);
-        restricted.verifyMembership(membership);
+        client.verifyMembership(membership);
         vm.expectRevert(unauthorized);
-        restricted.verifyNonMembership(nonMembership);
+        client.verifyNonMembership(nonMembership);
+        vm.expectRevert(unauthorized);
+        client.misbehaviour("");
         vm.stopPrank();
-        // misbehaviour is permissionless, see `test_misbehaviourIsPermissionless`.
 
-        vm.prank(manager);
-        acl.grantRole(role, relayer);
-        vm.prank(relayer);
-        assertEq(uint8(restricted.updateClient(update)), uint8(ILightClientMsgs.UpdateResult.Update));
+        vm.prank(pauser);
+        IICS26ManagedLightClient(address(client)).pause();
+        vm.startPrank(ics26Router);
+        vm.expectRevert(Pausable.EnforcedPause.selector);
+        client.updateClient(update);
+        vm.expectRevert(Pausable.EnforcedPause.selector);
+        client.verifyMembership(membership);
+        vm.expectRevert(Pausable.EnforcedPause.selector);
+        client.verifyNonMembership(nonMembership);
+        vm.stopPrank();
 
-        // Without a role manager, anyone may submit and no one administers the role.
-        IAccessControl open = IAccessControl(address(client));
-        assertTrue(open.hasRole(role, address(0)));
-        assertFalse(open.hasRole(open.getRoleAdmin(role), manager));
-        vm.prank(relayer);
+        vm.prank(unpauser);
+        IICS26ManagedLightClient(address(client)).unpause();
+        vm.prank(ics26Router);
         assertEq(uint8(client.updateClient(update)), uint8(ILightClientMsgs.UpdateResult.Update));
+    }
+
+    /// @dev Mocks the router's authority with an `AccessManager` that grants the pause roles.
+    function _mockRouterAuthority() internal returns (address pauser, address unpauser) {
+        AccessManager accessManager = new AccessManager(address(this));
+        pauser = makeAddr("pauser");
+        unpauser = makeAddr("unpauser");
+        accessManager.grantRole(IBCRolesLib.PAUSER_ROLE, pauser, 0);
+        accessManager.grantRole(IBCRolesLib.UNPAUSER_ROLE, unpauser, 0);
+        vm.mockCall(ics26Router, abi.encodeCall(IAccessManaged.authority, ()), abi.encode(address(accessManager)));
     }
 
     function _expectUpdateRevert(bytes memory headerRlp, bytes memory revertData) internal {
@@ -134,6 +153,7 @@ abstract contract QBFTSimSuiteTest is Test {
             )
         );
         vm.expectRevert(revertData);
+        vm.prank(ics26Router);
         client.updateClient(update);
     }
 
@@ -165,12 +185,14 @@ abstract contract QBFTSimSuiteTest is Test {
         sim.commit(a);
 
         bytes memory honest = sim.updateMsg(2, a);
+        vm.startPrank(ics26Router);
         client.updateClient(honest);
         bytes memory conflicting = sim.updateMsg(2, b);
         assertEq(uint8(client.updateClient(conflicting)), uint8(ILightClientMsgs.UpdateResult.Misbehaviour));
 
         vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.FrozenClientState.selector));
         client.updateClient(honest);
+        vm.stopPrank();
     }
 
     /// @dev A header not strictly newer than its trusted consensus state freezes the client instead of updating it.
@@ -182,12 +204,37 @@ abstract contract QBFTSimSuiteTest is Test {
 
         vm.expectEmit(address(client));
         emit IBesuLightClient.TimeNonMonotonicity(3, 2, h.timestamp, h.timestamp);
+        vm.startPrank(ics26Router);
         assertEq(uint8(client.updateClient(update)), uint8(ILightClientMsgs.UpdateResult.Misbehaviour));
 
         vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.ConsensusStateNotFound.selector, 3));
         client.getConsensusStateHash(3);
         vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.FrozenClientState.selector));
         client.updateClient(update);
+        vm.stopPrank();
+    }
+
+    /// @dev Blocks are at least one second apart, so a header two blocks after its trusted state that is only one
+    /// second newer freezes the client, while one that is two seconds newer updates it.
+    function test_subSecondBlockTime() public {
+        sim.produceBlock();
+        uint64 trustedTimestamp = sim.blockAt(2).timestamp;
+        SimHeader.Data memory h = sim.nextBlock();
+        h.timestamp = trustedTimestamp + 2;
+        bytes memory oneSecondPerBlock = sim.updateMsg(2, sim.seal(h));
+        h.timestamp = trustedTimestamp + 1;
+        bytes memory subSecondBlocks = sim.updateMsg(2, sim.seal(h));
+
+        vm.startPrank(ics26Router);
+        uint256 snapshot = vm.snapshotState();
+        assertEq(uint8(client.updateClient(oneSecondPerBlock)), uint8(ILightClientMsgs.UpdateResult.Update));
+        vm.revertToState(snapshot);
+
+        vm.expectEmit(address(client));
+        emit IBesuLightClient.SubSecondBlockTime(4, 2, trustedTimestamp + 1, trustedTimestamp);
+        assertEq(uint8(client.updateClient(subSecondBlocks)), uint8(ILightClientMsgs.UpdateResult.Misbehaviour));
+        assertTrue(_isFrozen(client));
+        vm.stopPrank();
     }
 
     /// @dev Each update is only checked against its own trusted height, so a forged height-3 header timestamped
@@ -201,6 +248,7 @@ abstract contract QBFTSimSuiteTest is Test {
 
         bytes memory honestUpdate = sim.updateMsg(2, 4);
         bytes memory forgedUpdate = sim.updateMsg(2, forged);
+        vm.startPrank(ics26Router);
         assertEq(uint8(client.updateClient(honestUpdate)), uint8(ILightClientMsgs.UpdateResult.Update));
         assertEq(uint8(client.updateClient(forgedUpdate)), uint8(ILightClientMsgs.UpdateResult.Update));
 
@@ -226,6 +274,7 @@ abstract contract QBFTSimSuiteTest is Test {
 
         vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.FrozenClientState.selector));
         client.misbehaviour(misbehaviour);
+        vm.stopPrank();
     }
 
     /// @dev Two validly signed headers at the same height prove a double sign, whether or not either is stored.
@@ -237,10 +286,12 @@ abstract contract QBFTSimSuiteTest is Test {
         bytes memory misbehaviour = _conflictingHeadersMisbehaviour(sim.updateMsg(2, a), sim.updateMsg(2, b));
 
         uint256 snapshot = vm.snapshotState();
+        vm.startPrank(ics26Router);
         for (uint256 stored = 0; stored < 2; ++stored) {
             vm.revertToState(snapshot);
             if (stored == 1) {
-                client.updateClient(sim.updateMsg(2, a));
+                bytes memory update = sim.updateMsg(2, a);
+                client.updateClient(update);
             }
 
             vm.expectEmit(address(client));
@@ -250,6 +301,41 @@ abstract contract QBFTSimSuiteTest is Test {
             client.misbehaviour(misbehaviour);
             assertTrue(_isFrozen(client));
         }
+        vm.stopPrank();
+    }
+
+    /// @dev A header conflicting with the consensus state stored at its height is evidence on its own, as in
+    /// `updateClient`, even when paired with a valid later header or with itself.
+    function test_conflictingHeadersDoubleSignAgainstStoredState() public {
+        SimHeader.Data memory a = sim.nextBlock();
+        SimHeader.Data memory b = sim.nextBlock();
+        b.stateRoot = keccak256("equivocation");
+        a = sim.seal(a);
+        b = sim.seal(b);
+        sim.commit(a);
+        sim.produceBlocks(1);
+        bytes memory storedUpdate = sim.updateMsg(2, a);
+        bytes memory conflictingUpdate = sim.updateMsg(2, b);
+        bytes memory honestUpdate = sim.updateMsg(2, 4);
+        vm.startPrank(ics26Router);
+        client.updateClient(storedUpdate);
+
+        uint256 snapshot = vm.snapshotState();
+        bytes[3] memory misbehaviours = [
+            _conflictingHeadersMisbehaviour(conflictingUpdate, honestUpdate),
+            _conflictingHeadersMisbehaviour(honestUpdate, conflictingUpdate),
+            _conflictingHeadersMisbehaviour(conflictingUpdate, conflictingUpdate)
+        ];
+        for (uint256 i = 0; i < misbehaviours.length; ++i) {
+            vm.revertToState(snapshot);
+            vm.expectEmit(address(client));
+            emit IBesuLightClient.DoubleSign(
+                3, keccak256(abi.encode(_consensusState(a))), keccak256(abi.encode(_consensusState(b)))
+            );
+            client.misbehaviour(misbehaviours[i]);
+            assertTrue(_isFrozen(client));
+        }
+        vm.stopPrank();
     }
 
     /// @dev Two validly signed headers whose timestamps do not increase with height freeze the client in either
@@ -272,6 +358,7 @@ abstract contract QBFTSimSuiteTest is Test {
             vm.revertToState(snapshot);
             vm.expectEmit(address(client));
             emit IBesuLightClient.TimeNonMonotonicity(4, 3, honestTimestamp, forged.timestamp);
+            vm.prank(ics26Router);
             client.misbehaviour(misbehaviours[i]);
             assertTrue(_isFrozen(client));
         }
@@ -298,6 +385,7 @@ abstract contract QBFTSimSuiteTest is Test {
             vm.revertToState(snapshot);
             vm.expectEmit(address(client));
             emit IBesuLightClient.TimeNonMonotonicity(3, 2, trustedTimestamp, trustedTimestamp);
+            vm.prank(ics26Router);
             client.misbehaviour(misbehaviours[i]);
             assertTrue(_isFrozen(client));
         }
@@ -312,6 +400,7 @@ abstract contract QBFTSimSuiteTest is Test {
         bytes memory update4 = sim.updateMsg(2, 4);
 
         vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.NoMisbehaviourDetected.selector));
+        vm.startPrank(ics26Router);
         client.misbehaviour(_conflictingHeadersMisbehaviour(update3, update3));
 
         vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.NoMisbehaviourDetected.selector));
@@ -333,30 +422,31 @@ abstract contract QBFTSimSuiteTest is Test {
             )
         );
         client.misbehaviour(_conflictingHeadersMisbehaviour(update3, update4));
+        vm.stopPrank();
 
         assertFalse(_isFrozen(client));
     }
 
-    /// @dev Proof submission is gated, but anyone can submit misbehaviour.
-    function test_misbehaviourIsPermissionless() public {
-        IBesuLightClient gated = sim.deployLightClient(
-            TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(2, 3), address(this)
-        );
+    /// @dev A paused client rejects updates but can still be frozen by misbehaviour submitted through the router.
+    function test_misbehaviourWhilePaused() public {
+        (address pauser,) = _mockRouterAuthority();
         SimHeader.Data memory a = sim.seal(sim.nextBlock());
         SimHeader.Data memory b = sim.nextBlock();
         b.stateRoot = keccak256("equivocation");
         b = sim.seal(b);
         bytes memory update = sim.updateMsg(2, a);
         bytes memory misbehaviour = _conflictingHeadersMisbehaviour(update, sim.updateMsg(2, b));
-        address anyone = makeAddr("anyone");
 
-        vm.expectPartialRevert(IAccessControl.AccessControlUnauthorizedAccount.selector);
-        vm.prank(anyone);
-        gated.updateClient(update);
+        vm.prank(pauser);
+        IICS26ManagedLightClient(address(client)).pause();
 
-        vm.prank(anyone);
-        gated.misbehaviour(misbehaviour);
-        assertTrue(_isFrozen(gated));
+        vm.startPrank(ics26Router);
+        vm.expectRevert(Pausable.EnforcedPause.selector);
+        client.updateClient(update);
+
+        client.misbehaviour(misbehaviour);
+        vm.stopPrank();
+        assertTrue(_isFrozen(client));
     }
 
     function test_timestampFromFuture() public {
@@ -368,6 +458,7 @@ abstract contract QBFTSimSuiteTest is Test {
                 IBesuLightClientErrors.HeaderFromFuture.selector, vm.getBlockTimestamp(), h.timestamp, MAX_CLOCK_DRIFT
             )
         );
+        vm.prank(ics26Router);
         client.updateClient(update);
     }
 
@@ -378,6 +469,7 @@ abstract contract QBFTSimSuiteTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 2, 3)
         );
+        vm.startPrank(ics26Router);
         client.updateClient(update);
 
         uint256[] memory keys = new uint256[](4);
@@ -390,6 +482,7 @@ abstract contract QBFTSimSuiteTest is Test {
             abi.encodeWithSelector(IBesuLightClientErrors.UnknownCommitSealSigner.selector, vm.addr(0xdead))
         );
         client.updateClient(update);
+        vm.stopPrank();
     }
 
     function test_unsortedOrDuplicateSigners() public {
@@ -397,6 +490,7 @@ abstract contract QBFTSimSuiteTest is Test {
         (h.commitSeals[0], h.commitSeals[1]) = (h.commitSeals[1], h.commitSeals[0]);
         bytes memory update = sim.updateMsg(2, h);
         vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.UnsortedCommitSealSigners.selector, 0));
+        vm.startPrank(ics26Router);
         client.updateClient(update);
 
         uint256[] memory keys = new uint256[](4);
@@ -407,11 +501,14 @@ abstract contract QBFTSimSuiteTest is Test {
         update = sim.updateMsg(2, sim.sealWithKeys(sim.nextBlock(), keys));
         vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.UnsortedCommitSealSigners.selector, 2));
         client.updateClient(update);
+        vm.stopPrank();
     }
 
     function test_validatorChurn() public {
         _rotateValidators(1, 1);
-        client.updateClient(sim.updateMsg(2, 4));
+        bytes memory update = sim.updateMsg(2, 4);
+        vm.startPrank(ics26Router);
+        client.updateClient(update);
         assertEq(sim.blockAt(4).validators.length, 4);
 
         // Replacing the whole set in one block also changes it too much, but the overlap check comes first.
@@ -420,11 +517,12 @@ abstract contract QBFTSimSuiteTest is Test {
         }
         sim.addValidators(4);
         sim.produceBlock();
-        bytes memory update = sim.updateMsg(4, 5);
+        update = sim.updateMsg(4, 5);
         vm.expectRevert(
             abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 0, 3)
         );
         client.updateClient(update);
+        vm.stopPrank();
     }
 
     /// @dev Two validator changes need at least two blocks: a header that makes both in one block freezes the client.
@@ -436,12 +534,14 @@ abstract contract QBFTSimSuiteTest is Test {
         bytes memory update4 = sim.updateMsg(2, 4);
 
         uint256 snapshot = vm.snapshotState();
+        vm.startPrank(ics26Router);
         assertEq(uint8(client.updateClient(update4)), uint8(ILightClientMsgs.UpdateResult.Update));
         vm.revertToState(snapshot);
 
         vm.expectEmit(address(client));
         emit IBesuLightClient.InvalidValidatorSetChange(3, 2, 2);
         assertEq(uint8(client.updateClient(update3)), uint8(ILightClientMsgs.UpdateResult.Misbehaviour));
+        vm.stopPrank();
 
         vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.ConsensusStateNotFound.selector, 3));
         client.getConsensusStateHash(3);
@@ -478,6 +578,7 @@ abstract contract QBFTSimSuiteTest is Test {
             _conflictingHeadersMisbehaviour(forgedUpdate, honestUpdate)
         ];
         uint256 snapshot = vm.snapshotState();
+        vm.startPrank(ics26Router);
         for (uint256 i = 0; i < misbehaviours.length; ++i) {
             vm.revertToState(snapshot);
             if (i == 0) {
@@ -490,13 +591,16 @@ abstract contract QBFTSimSuiteTest is Test {
             client.misbehaviour(misbehaviours[i]);
             assertTrue(_isFrozen(client));
         }
+        vm.stopPrank();
     }
 
     function test_trustLevel() public {
-        IBesuLightClient lenient =
-            sim.deployLightClient(TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(1, 3));
-        IBesuLightClient strict =
-            sim.deployLightClient(TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(1, 1));
+        IBesuLightClient lenient = sim.deployLightClient(
+            TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(1, 3), ics26Router
+        );
+        IBesuLightClient strict = sim.deployLightClient(
+            TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(1, 1), ics26Router
+        );
 
         address[] memory three = new address[](3);
         (three[0], three[1], three[2]) = (sim.validators()[0], sim.validators()[1], sim.validators()[2]);
@@ -504,6 +608,7 @@ abstract contract QBFTSimSuiteTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 3, 4)
         );
+        vm.startPrank(ics26Router);
         strict.updateClient(update);
 
         // Rotating half of the validators leaves 2 of 4 trusted signers: below 2/3, above 1/3.
@@ -514,6 +619,7 @@ abstract contract QBFTSimSuiteTest is Test {
         );
         client.updateClient(update);
         assertEq(uint8(lenient.updateClient(update)), uint8(ILightClientMsgs.UpdateResult.Update));
+        vm.stopPrank();
     }
 
     function test_packetProofs() public {
@@ -528,17 +634,21 @@ abstract contract QBFTSimSuiteTest is Test {
 
         sim.commitPacket(packet);
         sim.produceBlock();
+        vm.startPrank(ics26Router);
         client.updateClient(sim.updateMsg(2, 3));
 
         assertEq(client.verifyMembership(sim.membershipMsg(3, commitmentPath)), sim.blockAt(3).timestamp);
         assertEq(client.verifyNonMembership(sim.nonMembershipMsg(3, receiptPath)), sim.blockAt(3).timestamp);
         client.verifyNonMembership(sim.nonMembershipMsg(2, commitmentPath));
+        vm.stopPrank();
 
         sim.setCommitment(commitmentPath, bytes32(0));
         sim.produceBlock();
+        vm.startPrank(ics26Router);
         client.updateClient(sim.updateMsg(3, 4));
         client.verifyNonMembership(sim.nonMembershipMsg(4, commitmentPath));
         client.verifyMembership(sim.membershipMsg(3, commitmentPath));
+        vm.stopPrank();
     }
 
     /// @dev Accounts added later must not leak into the state trie rebuilt for earlier heights.
@@ -546,13 +656,18 @@ abstract contract QBFTSimSuiteTest is Test {
         bytes memory path = ICS24Host.packetCommitmentPathCalldata("client-0", 1);
         sim.setCommitment(path, keccak256("commitment"));
         sim.produceBlock();
-        client.updateClient(sim.updateMsg(2, 3));
+        bytes memory update = sim.updateMsg(2, 3);
+        vm.startPrank(ics26Router);
+        client.updateClient(update);
 
         sim.addAccounts(3);
         sim.produceBlock();
 
         assertEq(sim.stateRootAt(3), sim.blockAt(3).stateRoot);
-        assertEq(client.verifyMembership(sim.membershipMsg(3, path)), sim.blockAt(3).timestamp);
+        ILightClientMsgs.MsgVerifyMembership memory membership = sim.membershipMsg(3, path);
+        uint64 timestamp = sim.blockAt(3).timestamp;
+        assertEq(client.verifyMembership(membership), timestamp);
+        vm.stopPrank();
     }
 
     function _conflictingHeadersMisbehaviour(
@@ -626,7 +741,10 @@ abstract contract QBFTSimSuiteTest is Test {
 
         uint256 requiredOverlap = Math.ceilDiv(2 * trusted.length, 3);
         uint256 requiredQuorum = Math.ceilDiv(2 * current.length, 3);
-        if (overlap < requiredOverlap) {
+        vm.startPrank(ics26Router);
+        if (signerCount == 0) {
+            vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.EmptyCommitSeals.selector));
+        } else if (overlap < requiredOverlap) {
             vm.expectRevert(
                 abi.encodeWithSelector(
                     IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, overlap, requiredOverlap

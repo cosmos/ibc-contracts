@@ -21,6 +21,10 @@ interface IBesuLightClientErrors {
     error InvalidHeaderHeight();
     /// @notice The submitted header timestamp is zero.
     error InvalidHeaderTimestamp();
+    /// @notice The state root is zero or the empty trie root.
+    /// @dev An empty trie root would let any non-membership proof pass without proof nodes.
+    /// @param stateRoot The invalid state root.
+    error InvalidStateRoot(bytes32 stateRoot);
     /// @notice Trusting period must be greater than zero.
     error InvalidTrustingPeriod();
     /// @notice Trust level must be within `[1/3, 1]` with a non-zero denominator.
@@ -71,6 +75,8 @@ interface IBesuLightClientErrors {
     /// @notice The commit seals are not sorted in strictly ascending order of their recovered signers.
     /// @param index The index of the first unsorted commit seal signer.
     error UnsortedCommitSealSigners(uint256 index);
+    /// @notice The update has no commit seals.
+    error EmptyCommitSeals();
     /// @notice An ECDSA signature has an invalid length.
     /// @param length The invalid signature length.
     error InvalidECDSASignatureLength(uint256 length);
@@ -106,7 +112,7 @@ interface IBesuLightClientErrors {
     /// @notice The commit seal signer is not in the validator set.
     /// @param signer The commit seal signer address.
     error UnknownCommitSealSigner(address signer);
-    /// @notice The submitted misbehaviour evidence does not prove a double sign, time non-monotonicity, or an invalid
-    /// validator set change.
+    /// @notice The submitted misbehaviour evidence does not prove a double sign, time non-monotonicity, a sub-second
+    /// block time, or an invalid validator set change.
     error NoMisbehaviourDetected();
 }

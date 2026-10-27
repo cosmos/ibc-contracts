@@ -157,7 +157,7 @@ Module configuration varies by module type:
 
 ## `besu_to_eth` create-client parameters
 
-`besu_to_eth` `CreateClient` returns only deployment calldata for `BesuLightClient`, which serves both QBFT and IBFT2 sources. It does not call `ICS26Router.addClient(...)`.
+`besu_to_eth` `CreateClient` returns only deployment calldata for `BesuLightClient`, which serves both QBFT and IBFT2 sources, bound to `dst_ics26_address` as the only router that can drive the client. It does not call `ICS26Router.addClient(...)`.
 
 Required parameters:
 - `trusting_period`: Decimal seconds for the weak-subjectivity window.
@@ -166,7 +166,6 @@ Required parameters:
 Optional parameters:
 - `trust_level`: Minimum fraction of the trusted validator set that must sign an update, as `<numerator>/<denominator>` within `[1/3, 1]`. Defaults to `2/3`.
 - `trusted_height`: Decimal source block height. Defaults to the latest source block. The header at this height must still be within `trusting_period` when the calldata is deployed, or the constructor reverts.
-- `role_manager`: Hex address. Defaults to the zero address.
 
 Operational notes:
 - `consensus_type` is fixed by module config and selects how client updates encode the header. Besu returns headers with the commit seals inside `extraData`; the update instead carries the header in its commit-seal signing form (QBFT: 5 `extraData` items ending in an empty seal list, IBFT2: 4 items) and the commit seals separately, ordered by recovered signer. A wrong `consensus_type` produces updates that the light client rejects.

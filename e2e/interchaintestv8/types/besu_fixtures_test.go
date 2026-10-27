@@ -157,9 +157,8 @@ func testBesuLowOverlapFixture(t *testing.T, consensus string) {
 			digest := crypto.Keccak256Hash(headerRLP)
 			signers := make([]ethcommon.Address, len(update.CommitSeals))
 			for i, seal := range update.CommitSeals {
-				pubkey, err := crypto.SigToPub(digest.Bytes(), ethcommon.FromHex(seal))
+				signers[i], err = recoverCommitSealSigner(digest, ethcommon.FromHex(seal))
 				require.NoError(t, err)
-				signers[i] = crypto.PubkeyToAddress(*pubkey)
 			}
 			require.ElementsMatch(t, []ethcommon.Address{
 				trusted,
@@ -170,16 +169,16 @@ func testBesuLowOverlapFixture(t *testing.T, consensus string) {
 	}
 }
 
-func TestBesuSortedCommitSeals(t *testing.T) {
+func TestBesuNormalizedCommitSeals(t *testing.T) {
 	t.Chdir("../../..")
 	for _, consensus := range []string{testvalues.BesuConsensusQBFT, testvalues.BesuConsensusIBFT2} {
 		t.Run(consensus, func(t *testing.T) {
-			testBesuSortedCommitSeals(t, consensus)
+			testBesuNormalizedCommitSeals(t, consensus)
 		})
 	}
 }
 
-func testBesuSortedCommitSeals(t *testing.T, consensus string) {
+func testBesuNormalizedCommitSeals(t *testing.T, consensus string) {
 	t.Helper()
 	fixturePath := filepath.Join(testvalues.BesuBFTFixturesDir, consensus+".json")
 	fixtureJSON, err := os.ReadFile(fixturePath)
@@ -187,7 +186,7 @@ func testBesuSortedCommitSeals(t *testing.T, consensus string) {
 	var fixture besuFixture
 	require.NoError(t, json.Unmarshal(fixtureJSON, &fixture))
 
-	// The live headers keep Besu's seal order unless sorted at generation time.
+	// The live headers keep Besu's seal order and recovery ids unless normalized at generation time.
 	for _, update := range []struct {
 		headerRlp   string
 		commitSeals *[]string
@@ -204,7 +203,7 @@ func testBesuSortedCommitSeals(t *testing.T, consensus string) {
 		for _, seal := range *update.commitSeals {
 			header.seals = append(header.seals, ethcommon.FromHex(seal))
 		}
-		require.NoError(t, header.sortCommitSeals())
+		require.NoError(t, header.normalizeCommitSeals())
 		if *updateBesuSynthetic {
 			*update.commitSeals = encodeHexes(header.seals)
 		}

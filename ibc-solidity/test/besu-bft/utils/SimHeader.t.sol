@@ -30,9 +30,7 @@ contract SimHeaderTest is Test {
             bytes[] memory seals = json.readBytesArray(string.concat(".", updates[i], ".commitSeals"));
             assertTrue(seals.length != 0);
             for (uint256 j = 0; j < seals.length; ++j) {
-                bytes memory seal = seals[j];
-                seal[64] = bytes1(uint8(seal[64]) + 27);
-                assertTrue(_contains(h.validators, ECDSA.recover(digest, seal)), "seal signer");
+                assertTrue(_contains(h.validators, ECDSA.recover(digest, seals[j])), "seal signer");
             }
         }
     }

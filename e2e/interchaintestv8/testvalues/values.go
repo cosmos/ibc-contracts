@@ -243,8 +243,6 @@ const (
 	ParameterKey_Sp1Verifier = "sp1_verifier"
 	// Zk algorithm parameter key for the proof API's sp1 light client creation.
 	ParameterKey_ZkAlgorithm = "zk_algorithm"
-	// The role manager address parameter key for proof API light client creation.
-	ParameterKey_RoleManager = "role_manager"
 	// Trusting period parameter key for proof API light client creation.
 	ParameterKey_TrustingPeriod = "trusting_period"
 	// Max clock drift parameter key for proof API light client creation.

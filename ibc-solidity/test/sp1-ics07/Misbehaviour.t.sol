@@ -37,7 +37,7 @@ contract SP1ICS07MisbehaviourTest is SP1ICS07TendermintTest {
             submitMsg: submitMsgBz
         });
 
-        setUpTest(fileName, address(0));
+        setUpTest(fileName);
 
         submitMsg = abi.decode(fixture.submitMsg, (IMisbehaviourMsgs.MsgSubmitMisbehaviour));
         output = abi.decode(submitMsg.sp1Proof.publicValues, (IMisbehaviourMsgs.MisbehaviourOutput));
@@ -48,6 +48,7 @@ contract SP1ICS07MisbehaviourTest is SP1ICS07TendermintTest {
 
         // set a correct timestamp
         vm.warp(_nanosToSeconds(output.time));
+        vm.prank(ics26Router);
         ics07Tendermint.misbehaviour(fixture.submitMsg);
 
         // to console
@@ -63,6 +64,7 @@ contract SP1ICS07MisbehaviourTest is SP1ICS07TendermintTest {
 
         // set a correct timestamp
         vm.warp(_nanosToSeconds(output.time));
+        vm.prank(ics26Router);
         ics07Tendermint.misbehaviour(fixture.submitMsg);
 
         // to console
@@ -78,6 +80,7 @@ contract SP1ICS07MisbehaviourTest is SP1ICS07TendermintTest {
 
         // set a correct timestamp
         vm.warp(_nanosToSeconds(output.time));
+        vm.startPrank(ics26Router);
         ics07Tendermint.misbehaviour(fixture.submitMsg);
 
         // verify that the client is frozen
@@ -101,6 +104,7 @@ contract SP1ICS07MisbehaviourTest is SP1ICS07TendermintTest {
         // try to submit a misbehaviour msg
         vm.expectRevert(abi.encodeWithSelector(FrozenClientState.selector));
         ics07Tendermint.misbehaviour(fixture.submitMsg);
+        vm.stopPrank();
     }
 
     // solhint-disable-next-line function-max-lines
@@ -112,6 +116,7 @@ contract SP1ICS07MisbehaviourTest is SP1ICS07TendermintTest {
         vm.expectRevert(
             abi.encodeWithSelector(ProofIsInTheFuture.selector, block.timestamp, _nanosToSeconds(output.time))
         );
+        vm.startPrank(ics26Router);
         ics07Tendermint.misbehaviour(fixture.submitMsg);
 
         // proof is too old
@@ -189,6 +194,7 @@ contract SP1ICS07MisbehaviourTest is SP1ICS07TendermintTest {
         ics07Tendermint.misbehaviour(fixture.submitMsg); // freeze the client
         vm.expectRevert(abi.encodeWithSelector(FrozenClientState.selector));
         ics07Tendermint.misbehaviour(fixture.submitMsg);
+        vm.stopPrank();
     }
 
     function cloneSubmitMsg() private view returns (MsgSubmitMisbehaviour memory) {

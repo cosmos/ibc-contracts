@@ -2,7 +2,6 @@
 
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
-    str::FromStr,
     time::UNIX_EPOCH,
 };
 
@@ -48,14 +47,12 @@ struct CreateClientParams {
     max_clock_drift: u64,
     trust_level: IBesuLightClientMsgs::TrustThreshold,
     trusted_height: Option<u64>,
-    role_manager: Address,
 }
 
 const TRUSTING_PERIOD: &str = "trusting_period";
 const MAX_CLOCK_DRIFT: &str = "max_clock_drift";
 const TRUST_LEVEL: &str = "trust_level";
 const TRUSTED_HEIGHT: &str = "trusted_height";
-const ROLE_MANAGER: &str = "role_manager";
 
 impl TxBuilder {
     pub fn new(
@@ -90,6 +87,7 @@ impl TxBuilder {
         };
 
         let trusted_state = consensus_state(&self.fetch_source_header(trusted_height).await?)?;
+        let ics26_router = *self.dst_ics26_router.address();
 
         let calldata = besu_light_client::BesuLightClient::deploy_builder(
             self.dst_provider.clone(),
@@ -112,7 +110,7 @@ impl TxBuilder {
                 stateRoot: trusted_state.stateRoot,
                 validators: trusted_state.validators,
             },
-            params.role_manager,
+            ics26_router,
         )
         .calldata()
         .to_vec();
@@ -549,13 +547,12 @@ fn parse_create_client_params(parameters: &HashMap<String, String>) -> Result<Cr
                 MAX_CLOCK_DRIFT,
                 TRUST_LEVEL,
                 TRUSTED_HEIGHT,
-                ROLE_MANAGER,
             ]
             .contains(&key.as_str())
         })
         .map_or(Ok(()), |key| {
             Err(anyhow!(
-                "unexpected parameter `{key}`, only `{TRUSTING_PERIOD}`, `{MAX_CLOCK_DRIFT}`, `{TRUST_LEVEL}`, `{TRUSTED_HEIGHT}`, and `{ROLE_MANAGER}` are allowed"
+                "unexpected parameter `{key}`, only `{TRUSTING_PERIOD}`, `{MAX_CLOCK_DRIFT}`, `{TRUST_LEVEL}`, and `{TRUSTED_HEIGHT}` are allowed"
             ))
         })?;
 
@@ -581,12 +578,6 @@ fn parse_create_client_params(parameters: &HashMap<String, String>) -> Result<Cr
                 })
             })
             .transpose()?,
-        role_manager: parameters
-            .get(ROLE_MANAGER)
-            .map_or(Ok(Address::ZERO), |value| {
-                Address::from_str(value)
-                    .with_context(|| format!("failed to parse `{ROLE_MANAGER}` as hex address"))
-            })?,
     })
 }
 
@@ -645,12 +636,12 @@ fn extract_validators_from_extra_data(extra_data: &[u8]) -> Result<Vec<Address>>
 }
 
 /// Splits `header` into its commit-seal signing RLP and its commit seals, ordered by recovered
-/// signer address.
+/// signer address and with 27/28 recovery ids.
 ///
 /// The light client hashes the signing RLP to get the commit-seal digest, so it must be exactly the
 /// header the validators signed: QBFT signs the header with an empty seal list, IBFT2 with the seal
-/// list dropped. The light client also requires commit seals in strictly ascending signer order,
-/// but Besu does not order them that way.
+/// list dropped. The light client also requires commit seals in strictly ascending signer order
+/// with 27/28 recovery ids, but Besu orders them arbitrarily and uses 0/1 recovery ids.
 fn split_commit_seals(
     header: &Header,
     consensus_type: BesuConsensusType,
@@ -688,10 +679,13 @@ fn split_commit_seals(
     let mut signed_seals = seals
         .into_iter()
         .map(|seal| {
-            let signer = Signature::from_raw(&seal)
-                .and_then(|signature| signature.recover_address_from_prehash(&digest))
+            let signature =
+                Signature::from_raw(&seal).context("failed to decode commit seal signature")?;
+            let signer = signature
+                .recover_address_from_prehash(&digest)
                 .context("failed to recover commit seal signer")?;
-            Ok((signer, Bytes::from(seal)))
+            // `as_bytes` encodes the recovery id as 27/28, whichever form Besu used.
+            Ok((signer, Bytes::from(signature.as_bytes())))
         })
         .collect::<Result<Vec<_>>>()?;
     signed_seals.sort_by_key(|(signer, _)| *signer);
@@ -1037,7 +1031,8 @@ mod tests {
         Bytes::from(stream.out().to_vec())
     }
 
-    /// Returns a header sealed by `signers` in the given order, and the commit-seal digest.
+    /// Returns a header sealed by `signers` in the given order with Besu's 0/1 recovery ids, and the
+    /// commit-seal digest.
     fn sealed_header(
         consensus_type: BesuConsensusType,
         signers: &[&PrivateKeySigner],
@@ -1055,7 +1050,11 @@ mod tests {
         let digest = keccak256(alloy_rlp::encode(&header));
         let seals: Vec<_> = signers
             .iter()
-            .map(|signer| signer.sign_hash_sync(&digest).unwrap().as_bytes().to_vec())
+            .map(|signer| {
+                let mut seal = signer.sign_hash_sync(&digest).unwrap().as_bytes();
+                seal[64] -= 27;
+                seal.to_vec()
+            })
             .collect();
         header.extra_data = besu_extra_data(&validators, Some(&seals));
         (header, digest)
@@ -1099,6 +1098,7 @@ mod tests {
             let recovered: Vec<_> = seals
                 .iter()
                 .map(|seal| {
+                    assert!(matches!(seal[64], 27 | 28));
                     Signature::from_raw(seal)
                         .unwrap()
                         .recover_address_from_prehash(&digest)

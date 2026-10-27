@@ -312,11 +312,10 @@ func FetchBesuCommitSealSigners(ctx context.Context, chain *ethereum.Ethereum, c
 	digest := crypto.Keccak256Hash(header.HeaderRLP)
 	signers := make([]ethcommon.Address, len(header.CommitSeals))
 	for i, seal := range header.CommitSeals {
-		pubkey, err := crypto.SigToPub(digest.Bytes(), seal)
+		signers[i], err = recoverCommitSealSigner(digest, seal)
 		if err != nil {
 			return nil, err
 		}
-		signers[i] = crypto.PubkeyToAddress(*pubkey)
 	}
 	return signers, nil
 }
@@ -527,9 +526,10 @@ func fetchLiveHeader(ctx context.Context, chain *ethereum.Ethereum, consensus st
 	if err != nil {
 		return liveHeader{}, fmt.Errorf("decode header at height %d: %w", height, err)
 	}
-	// Besu does not order commit seals by signer, but the light client requires it.
-	if err := mutable.sortCommitSeals(); err != nil {
-		return liveHeader{}, fmt.Errorf("sort commit seals at height %d: %w", height, err)
+	// Besu does not order commit seals by signer and uses 0/1 recovery ids, but the light client requires sorted seals
+	// with 27/28 recovery ids.
+	if err := mutable.normalizeCommitSeals(); err != nil {
+		return liveHeader{}, fmt.Errorf("normalize commit seals at height %d: %w", height, err)
 	}
 	headerRLP, err = mutable.signingRLP()
 	if err != nil {
@@ -679,16 +679,20 @@ func (h *mutableBesuHeader) setValidators(validators []ethcommon.Address) {
 	h.extraItems[1] = mustRLP(validators)
 }
 
-// sortCommitSeals orders the commit seals by recovered signer address, as the light client requires.
-func (h *mutableBesuHeader) sortCommitSeals() error {
+// normalizeCommitSeals orders the commit seals by recovered signer address and converts their recovery ids to 27/28,
+// as the light client requires.
+func (h *mutableBesuHeader) normalizeCommitSeals() error {
 	digest := h.commitSealDigest()
 	signers := make(map[string]ethcommon.Address, len(h.seals))
 	for _, seal := range h.seals {
-		pubkey, err := crypto.SigToPub(digest.Bytes(), seal)
+		if len(seal) == crypto.SignatureLength && seal[crypto.RecoveryIDOffset] < 27 {
+			seal[crypto.RecoveryIDOffset] += 27
+		}
+		var err error
+		signers[string(seal)], err = recoverCommitSealSigner(digest, seal)
 		if err != nil {
 			return err
 		}
-		signers[string(seal)] = crypto.PubkeyToAddress(*pubkey)
 	}
 	slices.SortFunc(h.seals, func(a, b []byte) int {
 		signerA, signerB := signers[string(a)], signers[string(b)]
@@ -714,9 +718,24 @@ func signCommitSeals(digest ethcommon.Hash, keys []*ecdsa.PrivateKey) [][]byte {
 		if err != nil {
 			panic(err)
 		}
+		seal[crypto.RecoveryIDOffset] += 27
 		seals[i] = seal
 	}
 	return seals
+}
+
+// recoverCommitSealSigner recovers the signer of a commit seal with a 27/28 recovery id.
+func recoverCommitSealSigner(digest ethcommon.Hash, seal []byte) (ethcommon.Address, error) {
+	if len(seal) != crypto.SignatureLength {
+		return ethcommon.Address{}, fmt.Errorf("invalid commit seal length %d", len(seal))
+	}
+	sig := slices.Clone(seal)
+	sig[crypto.RecoveryIDOffset] -= 27
+	pubkey, err := crypto.SigToPub(digest.Bytes(), sig)
+	if err != nil {
+		return ethcommon.Address{}, err
+	}
+	return crypto.PubkeyToAddress(*pubkey), nil
 }
 
 // commitSealDigest is the hash validators sign.
