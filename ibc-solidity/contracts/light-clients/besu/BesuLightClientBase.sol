@@ -61,6 +61,11 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         );
 
         require(timestamp != 0, InvalidHeaderTimestamp());
+        require(
+            initialConsensusState.stateRoot != bytes32(0)
+                && initialConsensusState.stateRoot != TrieProof.EMPTY_ROOT_HASH,
+            InvalidStateRoot(initialConsensusState.stateRoot)
+        );
         _validateValidators(initialConsensusState.validators);
         require(
             uint256(timestamp) + trustingPeriod > block.timestamp,
@@ -98,6 +103,7 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         IBesuLightClientMsgs.MsgUpdateClient memory msg_ = abi.decode(updateMsg, (IBesuLightClientMsgs.MsgUpdateClient));
         (uint64 height, IBesuLightClientMsgs.ConsensusState memory newConsensusState, bool sameValidators) =
             _verifyHeader(msg_);
+        // Checked here rather than in `_verifyHeader` so `misbehaviour` can still use future headers as evidence.
         require(
             block.timestamp + clientState.maxClockDrift >= newConsensusState.timestamp,
             HeaderFromFuture(block.timestamp, newConsensusState.timestamp, clientState.maxClockDrift)
@@ -385,7 +391,9 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     }
 
     /// @notice Verifies a header against its trusted consensus state and derives its consensus state.
-    /// @dev Does not check clock drift, so callers that store the result must check it themselves.
+    /// @dev Does not check clock drift, so callers that store the result must check it themselves. This is
+    /// deliberate: `misbehaviour` must accept validly signed headers from the future, as they can still prove
+    /// misbehaviour.
     /// @param msg_ The header with its trusted height and trusted consensus state preimage.
     /// @return height The header height.
     /// @return consensusState The consensus state derived from the header.
@@ -400,6 +408,10 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
         Header.Data memory header = Header.decodeRlp(msg_.headerRlp);
         require(header.height != 0, InvalidHeaderHeight());
         require(header.timestamp != 0, InvalidHeaderTimestamp());
+        require(
+            header.stateRoot != bytes32(0) && header.stateRoot != TrieProof.EMPTY_ROOT_HASH,
+            InvalidStateRoot(header.stateRoot)
+        );
         _validateValidators(header.validators);
         require(
             header.height > msg_.trustedHeight.revisionHeight,

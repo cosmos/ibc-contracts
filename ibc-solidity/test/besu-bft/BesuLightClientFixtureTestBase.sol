@@ -383,7 +383,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     function fixtureDeployment() public view returns (BesuConstructorTestCase[] memory testCases) {
         uint64 timestamp = fixture.initialTrustedTimestamp;
 
-        testCases = new BesuConstructorTestCase[](16);
+        testCases = new BesuConstructorTestCase[](18);
         testCases[0] = _constructorCase("success: fixture values", timestamp, "");
         testCases[1] = _constructorCase(
             "failure: zero router", timestamp, abi.encodeWithSelector(IBesuLightClientErrors.InvalidIbcRouter.selector)
@@ -467,6 +467,18 @@ abstract contract BesuLightClientFixtureTestBase is Test {
                 fixture.maxClockDrift
             )
         );
+        testCases[16] = _constructorCase(
+            "failure: zero state root",
+            timestamp,
+            abi.encodeWithSelector(IBesuLightClientErrors.InvalidStateRoot.selector, bytes32(0))
+        );
+        testCases[16].consensusState.stateRoot = bytes32(0);
+        testCases[17] = _constructorCase(
+            "failure: empty trie state root",
+            timestamp,
+            abi.encodeWithSelector(IBesuLightClientErrors.InvalidStateRoot.selector, TrieProof.EMPTY_ROOT_HASH)
+        );
+        testCases[17].consensusState.stateRoot = TrieProof.EMPTY_ROOT_HASH;
     }
 
     /// @dev Quorum thresholds are ceil(2n / 3): 3 of 4, 4 of 6 and 5 of 7. With a 2/3 trust level the trusted overlap
@@ -856,7 +868,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     function fixtureUpdate() public view returns (BesuUpdateTestCase[] memory testCases) {
         BesuUpdateFixture memory emptyExpectedState;
 
-        testCases = new BesuUpdateTestCase[](28);
+        testCases = new BesuUpdateTestCase[](30);
         testCases[0] = BesuUpdateTestCase({
             name: "success: valid adjacent update",
             timestamp: fixture.initialTrustedTimestamp + 1,
@@ -1155,6 +1167,24 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             update: _firstSealUpdate(highSSeal),
             preUpdate: "",
             expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidCommitSeal.selector),
+            expectedState: emptyExpectedState
+        });
+        testCases[28] = BesuUpdateTestCase({
+            name: "failure: zero state root",
+            timestamp: fixture.initialTrustedTimestamp + 1,
+            update: _headerItemUpdate(3, 0),
+            preUpdate: "",
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidStateRoot.selector, bytes32(0)),
+            expectedState: emptyExpectedState
+        });
+        testCases[29] = BesuUpdateTestCase({
+            name: "failure: empty trie state root",
+            timestamp: fixture.initialTrustedTimestamp + 1,
+            update: _headerItemUpdate(3, uint256(TrieProof.EMPTY_ROOT_HASH)),
+            preUpdate: "",
+            expectedRevert: abi.encodeWithSelector(
+                IBesuLightClientErrors.InvalidStateRoot.selector, TrieProof.EMPTY_ROOT_HASH
+            ),
             expectedState: emptyExpectedState
         });
     }

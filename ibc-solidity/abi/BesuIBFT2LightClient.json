@@ -673,6 +673,17 @@
   },
   {
     "type": "error",
+    "name": "InvalidStateRoot",
+    "inputs": [
+      {
+        "name": "stateRoot",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "InvalidTrustLevel",
     "inputs": [
       {
