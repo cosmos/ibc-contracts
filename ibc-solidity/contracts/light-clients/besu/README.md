@@ -73,8 +73,8 @@ constructor(
 - `initialClientState`: the initial client state, returned as is by `getClientState()`.
   - `ibcRouter`: counterparty `ICS26Router` proxy address whose account/storage proofs are tracked. Must be non-zero.
   - `latestHeight`: trusted Besu block number. `initialConsensusState` is stored at this height. Revision number must be `0` and revision height non-zero.
-  - `trustingPeriod`: weak-subjectivity window in seconds. Must be non-zero.
-  - `maxClockDrift`: allowed future drift for submitted headers in seconds.
+  - `trustingPeriod`: weak-subjectivity window in seconds. Must be non-zero and at most 30 days (`2592000`), or the constructor reverts with `InvalidTrustingPeriod`.
+  - `maxClockDrift`: allowed future drift for submitted headers in seconds. Must be at most 12 seconds, or the constructor reverts with `InvalidMaxClockDrift`.
   - `isFrozen`: must be `false`.
   - `trustLevel`: minimum fraction of the trusted validator set that must sign an update. Must have a non-zero denominator and lie within `[1/3, 1]`, or the constructor reverts with `InvalidTrustLevel`.
 - `initialConsensusState`: the consensus state trusted at `latestHeight`: the header's timestamp in seconds (non-zero), state root, and validator set (non-empty, sorted ascending, no zero address). It must be within the trusting period and no further than `maxClockDrift` in the future at deployment, the same checks `updateClient` applies.
