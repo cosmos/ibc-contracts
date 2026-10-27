@@ -27,13 +27,9 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
     /// @dev keccak256(abi.encode(uint256(keccak256("ibc.storage.IBCStore")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant IBCSTORE_STORAGE_SLOT = 0x1260944489272988d9df285149b5aa1b0f48f2136d6f416159f840a3e0747600;
     /// @notice Maximum allowed trusting period.
-    /// @dev Besu validators are not bonded, so the trusting period only bounds how long removed validators can fork
-    /// from an old trusted consensus state and how old a consensus state can be to back proofs. The cap also rejects
-    /// values given in the wrong unit, such as milliseconds.
     uint64 private constant MAX_TRUSTING_PERIOD = 30 days;
     /// @notice Maximum allowed clock drift.
-    /// @dev Covers the host `block.timestamp` lagging the time of inclusion by up to one Ethereum slot, plus
-    /// validator clock skew. A tighter drift only delays updates until the host clock catches up.
+    /// @dev Covers the host `block.timestamp` lagging the time of inclusion by up to one Ethereum slot
     uint64 private constant MAX_CLOCK_DRIFT = 12 seconds;
 
     /// @notice Current client state.
