@@ -29,6 +29,11 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
     /// @notice ERC-7201 storage slot used by `IBCStoreUpgradeable` commitments.
     /// @dev keccak256(abi.encode(uint256(keccak256("ibc.storage.IBCStore")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant IBCSTORE_STORAGE_SLOT = 0x1260944489272988d9df285149b5aa1b0f48f2136d6f416159f840a3e0747600;
+    /// @notice Maximum allowed trusting period.
+    uint64 private constant MAX_TRUSTING_PERIOD = 30 days;
+    /// @notice Maximum allowed clock drift.
+    /// @dev Covers the host `block.timestamp` lagging the time of inclusion by up to one Ethereum slot
+    uint64 private constant MAX_CLOCK_DRIFT = 12 seconds;
     /// @notice Length of a compact ECDSA signature (r||s||v).
     uint256 private constant ECDSA_SIGNATURE_LENGTH = 65;
 
@@ -58,7 +63,10 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
         require(latestHeight.revisionNumber == 0, InvalidRevisionNumber(latestHeight.revisionNumber));
         require(latestHeight.revisionHeight != 0, InvalidHeaderHeight());
         require(!initialClientState.isFrozen, FrozenClientState());
-        require(trustingPeriod != 0, InvalidTrustingPeriod());
+        require(trustingPeriod != 0 && trustingPeriod <= MAX_TRUSTING_PERIOD, InvalidTrustingPeriod(trustingPeriod));
+        require(
+            initialClientState.maxClockDrift <= MAX_CLOCK_DRIFT, InvalidMaxClockDrift(initialClientState.maxClockDrift)
+        );
         require(
             trustLevel.denominator != 0 && trustLevel.numerator <= trustLevel.denominator
                 && 3 * uint256(trustLevel.numerator) >= trustLevel.denominator,
