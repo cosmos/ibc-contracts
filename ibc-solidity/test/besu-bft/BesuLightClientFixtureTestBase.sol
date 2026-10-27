@@ -18,7 +18,7 @@ import { IBesuLightClient } from "../../contracts/light-clients/besu/interfaces/
 import { IBesuLightClientMsgs } from "../../contracts/light-clients/besu/msgs/IBesuLightClientMsgs.sol";
 import { IBesuLightClientErrors } from "../../contracts/light-clients/besu/errors/IBesuLightClientErrors.sol";
 import { Header } from "../../contracts/light-clients/besu/utils/Header.sol";
-import { TrieProof } from "../../contracts/utils/TrieProof.sol";
+import { TrieProof } from "../../contracts/light-clients/utils/TrieProof.sol";
 
 /// @dev Successful update input and expected consensus state.
 struct BesuUpdateFixture {
@@ -155,6 +155,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     IBesuLightClientMsgs.TrustThreshold internal trustLevel = IBesuLightClientMsgs.TrustThreshold(2, 3);
     IBesuLightClient internal client;
     IBesuLightClient internal wrongWrapper;
+    address internal ics26Router = makeAddr("ics26Router");
 
     function setUp() public virtual {
         fixture = _loadFixture(_fixtureFile());
@@ -196,6 +197,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         if (quorum.expectedRevert.length != 0) {
             vm.expectRevert(quorum.expectedRevert);
         }
+        vm.prank(ics26Router);
         ILightClientMsgs.UpdateResult result =
             client.updateClient(_signedValidatorsUpdate(headerValidators, signerKeys));
 
@@ -215,6 +217,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
 
     function tableVerifyNonMembershipTest(BesuNonMembershipTestCase memory nonMembership) public {
         vm.warp(fixture.initialTrustedTimestamp + 1);
+        vm.startPrank(ics26Router);
         client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
         vm.warp(nonMembership.timestamp);
 
@@ -222,6 +225,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             vm.expectRevert(nonMembership.expectedRevert);
         }
         uint256 timestamp = client.verifyNonMembership(nonMembership.message);
+        vm.stopPrank();
 
         if (nonMembership.expectedRevert.length == 0) {
             assertEq(timestamp, nonMembership.expectedTimestamp);
@@ -232,6 +236,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     /// relies on the cache within the same transaction.
     function tableCachedStorageRootTest(BesuCachedStorageRootTestCase memory cachedStorageRoot) public {
         vm.warp(fixture.initialTrustedTimestamp + 1);
+        vm.startPrank(ics26Router);
         client.updateClient(_encodeUpdate(fixture.adjacentUpdate));
         client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
         if (cachedStorageRoot.primeWithMembership) {
@@ -252,6 +257,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             : client.verifyNonMembership(
                 _nonMembershipMessageWithProof(cachedStorageRoot.proof, cachedStorageRoot.proofHeight)
             );
+        vm.stopPrank();
 
         if (cachedStorageRoot.expectedRevert.length == 0) {
             assertEq(timestamp, cachedStorageRoot.expectedTimestamp);
@@ -260,10 +266,12 @@ abstract contract BesuLightClientFixtureTestBase is Test {
 
     function test_updateClient_noOpOnSameState() public {
         vm.warp(fixture.initialTrustedTimestamp + 1);
+        vm.startPrank(ics26Router);
         client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
         bytes32 storedHash = client.getConsensusStateHash(fixture.nonAdjacentUpdate.height);
 
         ILightClientMsgs.UpdateResult result = client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
+        vm.stopPrank();
 
         assertEq(uint8(result), uint8(ILightClientMsgs.UpdateResult.NoOp));
         assertEq(client.getConsensusStateHash(fixture.nonAdjacentUpdate.height), storedHash);
@@ -272,6 +280,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
 
     function tableUpdateClientTest(BesuUpdateTestCase memory update) public {
         vm.warp(update.timestamp);
+        vm.startPrank(ics26Router);
         if (update.preUpdate.length != 0) {
             client.updateClient(update.preUpdate);
         }
@@ -296,6 +305,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
 
     function tableVerifyMembershipTest(BesuMembershipTestCase memory membership) public {
         vm.warp(fixture.initialTrustedTimestamp + 1);
+        vm.startPrank(ics26Router);
         client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
         vm.warp(membership.timestamp);
 
@@ -303,6 +313,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             vm.expectRevert(membership.expectedRevert);
         }
         uint256 timestamp = client.verifyMembership(membership.message);
+        vm.stopPrank();
 
         if (membership.expectedRevert.length == 0) {
             assertEq(timestamp, membership.expectedTimestamp);
@@ -311,6 +322,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
 
     function test_updateClient_doubleSignFreezesClient() public {
         vm.warp(fixture.initialTrustedTimestamp + 1);
+        vm.startPrank(ics26Router);
         client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
         uint64 height = fixture.conflictingUpdate.height;
         bytes32 trustedHash = client.getConsensusStateHash(height);
@@ -338,18 +350,21 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         client.verifyNonMembership(_nonMembershipMessage(fixture.nonMembership.proofHeight));
         vm.expectRevert(frozenErr);
         client.misbehaviour(bytes(""));
+        vm.stopPrank();
     }
 
     /// @dev Live fixture headers have monotonic timestamps, so only rejections are covered here; accepted
     /// misbehaviour is covered by `QBFTSimSuiteTest`.
     function tableMisbehaviourTest(BesuMisbehaviourTestCase memory misbehaviour) public {
         vm.warp(fixture.initialTrustedTimestamp + 1);
+        vm.startPrank(ics26Router);
         client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
         bytes memory clientStateBefore = client.getClientState();
         vm.warp(misbehaviour.timestamp);
 
         vm.expectRevert(misbehaviour.expectedRevert);
         client.misbehaviour(misbehaviour.misbehaviour);
+        vm.stopPrank();
 
         assertEq(client.getClientState(), clientStateBefore);
     }
@@ -360,6 +375,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         // The wrong digest recovers arbitrary signers, which fail the signer order check. The failing index depends
         // on the fixture bytes, so only the selector is matched.
         vm.expectPartialRevert(IBesuLightClientErrors.UnsortedCommitSealSigners.selector);
+        vm.prank(ics26Router);
         wrongWrapper.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
     }
 
@@ -367,7 +383,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     function fixtureDeployment() public view returns (BesuConstructorTestCase[] memory testCases) {
         uint64 timestamp = fixture.initialTrustedTimestamp;
 
-        testCases = new BesuConstructorTestCase[](16);
+        testCases = new BesuConstructorTestCase[](18);
         testCases[0] = _constructorCase("success: fixture values", timestamp, "");
         testCases[1] = _constructorCase(
             "failure: zero router", timestamp, abi.encodeWithSelector(IBesuLightClientErrors.InvalidIbcRouter.selector)
@@ -451,6 +467,18 @@ abstract contract BesuLightClientFixtureTestBase is Test {
                 fixture.maxClockDrift
             )
         );
+        testCases[16] = _constructorCase(
+            "failure: zero state root",
+            timestamp,
+            abi.encodeWithSelector(IBesuLightClientErrors.InvalidStateRoot.selector, bytes32(0))
+        );
+        testCases[16].consensusState.stateRoot = bytes32(0);
+        testCases[17] = _constructorCase(
+            "failure: empty trie state root",
+            timestamp,
+            abi.encodeWithSelector(IBesuLightClientErrors.InvalidStateRoot.selector, TrieProof.EMPTY_ROOT_HASH)
+        );
+        testCases[17].consensusState.stateRoot = TrieProof.EMPTY_ROOT_HASH;
     }
 
     /// @dev Quorum thresholds are ceil(2n / 3): 3 of 4, 4 of 6 and 5 of 7. With a 2/3 trust level the trusted overlap
@@ -840,7 +868,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     function fixtureUpdate() public view returns (BesuUpdateTestCase[] memory testCases) {
         BesuUpdateFixture memory emptyExpectedState;
 
-        testCases = new BesuUpdateTestCase[](30);
+        testCases = new BesuUpdateTestCase[](32);
         testCases[0] = BesuUpdateTestCase({
             name: "success: valid adjacent update",
             timestamp: fixture.initialTrustedTimestamp + 1,
@@ -1141,7 +1169,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         });
 
         // Relayers must convert Besu's raw 0/1 recovery ids to 27/28.
-        testCases[28] = BesuUpdateTestCase({
+        testCases[30] = BesuUpdateTestCase({
             name: "failure: raw recovery id commit seal",
             timestamp: fixture.initialTrustedTimestamp + 1,
             update: _firstSealUpdate(
@@ -1151,12 +1179,30 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             expectedRevert: abi.encodeWithSelector(ECDSA.ECDSAInvalidSignature.selector),
             expectedState: emptyExpectedState
         });
-        testCases[29] = BesuUpdateTestCase({
+        testCases[31] = BesuUpdateTestCase({
             name: "failure: empty commit seals",
             timestamp: fixture.initialTrustedTimestamp + 1,
             update: _sealsUpdate(new bytes[](0)),
             preUpdate: "",
             expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.EmptyCommitSeals.selector),
+            expectedState: emptyExpectedState
+        });
+        testCases[28] = BesuUpdateTestCase({
+            name: "failure: zero state root",
+            timestamp: fixture.initialTrustedTimestamp + 1,
+            update: _headerItemUpdate(3, 0),
+            preUpdate: "",
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidStateRoot.selector, bytes32(0)),
+            expectedState: emptyExpectedState
+        });
+        testCases[29] = BesuUpdateTestCase({
+            name: "failure: empty trie state root",
+            timestamp: fixture.initialTrustedTimestamp + 1,
+            update: _headerItemUpdate(3, uint256(TrieProof.EMPTY_ROOT_HASH)),
+            preUpdate: "",
+            expectedRevert: abi.encodeWithSelector(
+                IBesuLightClientErrors.InvalidStateRoot.selector, TrieProof.EMPTY_ROOT_HASH
+            ),
             expectedState: emptyExpectedState
         });
     }
@@ -1746,7 +1792,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         internal
         returns (IBesuLightClient)
     {
-        return new BesuIBFT2LightClient(clientState, consensusState, address(0));
+        return new BesuIBFT2LightClient(clientState, consensusState, ics26Router);
     }
 
     function _deployQBFT(
@@ -1756,7 +1802,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         internal
         returns (IBesuLightClient)
     {
-        return new BesuQBFTLightClient(clientState, consensusState, address(0));
+        return new BesuQBFTLightClient(clientState, consensusState, ics26Router);
     }
 
     function _fixtureFile() internal pure virtual returns (string memory);

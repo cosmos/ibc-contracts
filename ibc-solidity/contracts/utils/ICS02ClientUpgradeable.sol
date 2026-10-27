@@ -140,6 +140,30 @@ abstract contract ICS02ClientUpgradeable is IICS02Client, IICS02ClientErrors, Ac
     }
 
     /// @inheritdoc IICS02ClientAccessControlled
+    function verifyMembership(
+        string calldata clientId,
+        ILightClientMsgs.MsgVerifyMembership calldata msg_
+    )
+        external
+        restricted
+        returns (uint256)
+    {
+        return getClient(clientId).verifyMembership(msg_);
+    }
+
+    /// @inheritdoc IICS02ClientAccessControlled
+    function verifyNonMembership(
+        string calldata clientId,
+        ILightClientMsgs.MsgVerifyNonMembership calldata msg_
+    )
+        external
+        restricted
+        returns (uint256)
+    {
+        return getClient(clientId).verifyNonMembership(msg_);
+    }
+
+    /// @inheritdoc IICS02ClientAccessControlled
     function migrateClient(
         string calldata clientId,
         IICS02ClientMsgs.CounterpartyInfo calldata counterpartyInfo,

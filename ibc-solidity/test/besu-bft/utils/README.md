@@ -23,9 +23,11 @@ Typical use:
 QBFTSimSuite sim = new QBFTSimSuite(SimHeader.Mode.QBFT);
 sim.addValidators(4);
 sim.produceBlocks(2);
-IBesuLightClient client = sim.deployLightClient(1 days, 10, IBesuLightClientMsgs.TrustThreshold(2, 3));
+IBesuLightClient client = sim.deployLightClient(1 days, 10, IBesuLightClientMsgs.TrustThreshold(2, 3), ics26Router);
 sim.commitPacket(packet);
 sim.produceBlock();
+vm.startPrank(ics26Router);
 client.updateClient(sim.updateMsg(2, 3));
 client.verifyMembership(sim.membershipMsg(3, path));
+vm.stopPrank();
 ```

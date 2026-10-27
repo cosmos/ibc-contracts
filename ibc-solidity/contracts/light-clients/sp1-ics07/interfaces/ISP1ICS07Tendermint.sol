@@ -6,13 +6,6 @@ import { ISP1Verifier } from "@sp1-contracts/ISP1Verifier.sol";
 /// @title ISP1ICS07Tendermint
 /// @notice ISP1ICS07Tendermint is the interface for the ICS07 Tendermint light client
 interface ISP1ICS07Tendermint {
-    /// @notice The role identifier for the proof submitter role
-    /// @dev The proof submitter role is used to whitelist addresses that can submit proofs
-    /// @dev If `address(0)` has this role, then anyone can submit proofs
-    /// @dev If this client is hooked up to ICS26Router, the router must be given this role
-    /// @return The role identifier
-    function PROOF_SUBMITTER_ROLE() external view returns (bytes32);
-
     /// @notice Immutable update client program verification key.
     /// @return The verification key for the update client program.
     function UPDATE_CLIENT_PROGRAM_VKEY() external view returns (bytes32);

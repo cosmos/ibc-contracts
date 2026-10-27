@@ -24,10 +24,10 @@ library IBCRolesLib {
     /// @notice Only addresses with this role may relay packets.
     uint64 internal constant RELAYER_ROLE = 1;
 
-    /// @notice The pauser role can pause IBC applications.
+    /// @notice The pauser role can pause IBC applications and light clients bound to the router.
     uint64 internal constant PAUSER_ROLE = 2;
 
-    /// @notice The unpauser role can unpause IBC applications.
+    /// @notice The unpauser role can unpause IBC applications and light clients bound to the router.
     uint64 internal constant UNPAUSER_ROLE = 3;
 
     /// @notice Has permission to call `ICS20Transfer.sendTransferWithSender`.
@@ -45,11 +45,13 @@ library IBCRolesLib {
     /// @notice The functions that can be called by the RELAYER_ROLE in ICS26Router.
     /// @return An array of function selectors that can be called by the RELAYER_ROLE.
     function ics26RelayerSelectors() internal pure returns (bytes4[] memory) {
-        bytes4[] memory relayerFunctions = new bytes4[](4);
+        bytes4[] memory relayerFunctions = new bytes4[](6);
         relayerFunctions[0] = IICS26RouterAccessControlled.recvPacket.selector;
         relayerFunctions[1] = IICS26RouterAccessControlled.timeoutPacket.selector;
         relayerFunctions[2] = IICS26RouterAccessControlled.ackPacket.selector;
         relayerFunctions[3] = IICS02ClientAccessControlled.updateClient.selector;
+        relayerFunctions[4] = IICS02ClientAccessControlled.verifyMembership.selector;
+        relayerFunctions[5] = IICS02ClientAccessControlled.verifyNonMembership.selector;
         return relayerFunctions;
     }
 
