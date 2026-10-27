@@ -27,9 +27,10 @@ Relayers therefore need to keep the preimages of the heights they intend to refe
 
 - Commit-seal verification follows the existing **YUI Solidity client + besu-ibc-relay-prover** model: reconstruct the sealing header by rewriting `extraData` into the protocol-specific signing form, then recover commit-seal signers from the `keccak256(RLP(header))` digest.
 - This module does **not** claim to independently rederive a distinct Besu network-level consensus-message payload beyond that established YUI/prover model.
-- Trusted overlap requires at least **`ceil(n * trustLevel)`** of the trusted validator set to have signed the new header. `trustLevel` is a `TrustThreshold` fraction set at construction and must be within `[1/3, 1]`; the proof-api defaults it to `2/3`, the same threshold Besu uses for commit-seal quorum. Commit-seal quorum on the new header's validator set is always **`ceil(2n / 3)`**.
+- Trusted overlap requires strictly more than `n * trustLevel`, i.e. **`floor(n * trustLevel) + 1`**, of the trusted validator set to have signed the new header. `trustLevel` is a `TrustThreshold` fraction set at construction and must be within `[1/3, 1)`; the proof-api defaults it to `2/3`. Commit-seal quorum on the new header's validator set is always **`ceil(2n / 3)`**.
 - In header-validator mode, a validator vote adds or removes at most one validator per block, so the validator sets of any two consensus states at heights `h1 < h2` can differ by at most `h2 - h1` validators (counting validators in one set but not the other). A larger difference proves the consensus states are not from one valid chain; see "Misbehaviour" below. This relies on the chain staying in header-validator mode; validator-contract mode and mode transitions are out of scope.
-- The trust level comparison is **inclusive**: exactly `n * trustLevel` trusted signers is enough. This differs from ICS07 Tendermint's `TrustThreshold`, which has the same name and shape but requires voting power strictly greater than the fraction. For example, at `1/3` with a trusted set of 6, 2 trusted signers pass here, while ICS07 would require 3.
+- The trust level comparison is **strict**, matching ICS07 Tendermint's `TrustThreshold`: exactly `n * trustLevel` trusted signers is not enough. At `1/3` this guarantees that more than a third of the trusted set signed, so at least one honest validator did as long as at most a third is faulty. For example, at `1/3` with a trusted set of 6, 3 trusted signers are required. A trust level of `1` is rejected because no header could ever satisfy it.
+- Besu seals each block with exactly `ceil(2n / 3)` commit seals, which for `n = 3k` validators is exactly `2n / 3`. At a `2/3` trust level, a client whose trusted validator set has a size divisible by 3 therefore needs one more trusted signer than Besu's quorum and cannot update with headers from an unchanged validator set; for other set sizes the requirement equals Besu's quorum. Use a trust level slightly below `2/3`, such as `65/100`, if the trusted set may have a size divisible by 3.
 
 ## Supported scope
 
@@ -75,7 +76,7 @@ constructor(
   - `trustingPeriod`: weak-subjectivity window in seconds. Must be non-zero.
   - `maxClockDrift`: allowed future drift for submitted headers in seconds.
   - `isFrozen`: must be `false`.
-  - `trustLevel`: minimum fraction of the trusted validator set that must sign an update. Must have a non-zero denominator and lie within `[1/3, 1]`, or the constructor reverts with `InvalidTrustLevel`.
+  - `trustLevel`: minimum fraction of the trusted validator set that must sign an update. Must have a non-zero denominator and lie within `[1/3, 1)`, or the constructor reverts with `InvalidTrustLevel`.
 - `initialConsensusState`: the consensus state trusted at `latestHeight`: the header's timestamp in seconds (non-zero), state root, and validator set (non-empty, sorted ascending, no zero address). It must be within the trusting period and no further than `maxClockDrift` in the future at deployment, the same checks `updateClient` applies.
 - `roleManager`: if non-zero, receives admin and `PROOF_SUBMITTER_ROLE`; if zero, proof submission is open to anyone through the zero-address sentinel.
 

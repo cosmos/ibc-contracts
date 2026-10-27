@@ -486,7 +486,7 @@ abstract contract QBFTSimSuiteTest is Test {
         IBesuLightClient lenient =
             sim.deployLightClient(TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(1, 3));
         IBesuLightClient strict =
-            sim.deployLightClient(TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(1, 1));
+            sim.deployLightClient(TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(3, 4));
 
         address[] memory three = new address[](3);
         (three[0], three[1], three[2]) = (sim.validators()[0], sim.validators()[1], sim.validators()[2]);
@@ -504,6 +504,29 @@ abstract contract QBFTSimSuiteTest is Test {
         );
         client.updateClient(update);
         assertEq(uint8(lenient.updateClient(update)), uint8(ILightClientMsgs.UpdateResult.Update));
+    }
+
+    /// @dev Exactly one third of the trusted set is not enough at a 1/3 trust level: more than a third must sign.
+    function test_trustLevelOneThirdIsStrict() public {
+        uint256[2] memory counts = [uint256(3), 6];
+        for (uint256 c = 0; c < counts.length; ++c) {
+            QBFTSimSuite s = _setUp(counts[c]);
+            IBesuLightClient lenient =
+                s.deployLightClient(TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(1, 3));
+
+            uint256 third = counts[c] / 3;
+            address[] memory signers = new address[](third);
+            for (uint256 i = 0; i < third; ++i) {
+                signers[i] = s.validators()[i];
+            }
+            bytes memory update = s.updateMsg(2, s.seal(s.nextBlock(), signers));
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, third, third + 1
+                )
+            );
+            lenient.updateClient(update);
+        }
     }
 
     function test_packetProofs() public {
@@ -614,7 +637,7 @@ abstract contract QBFTSimSuiteTest is Test {
         }
         bytes memory update = sim.updateMsg(2, sim.seal(sim.nextBlock(), signers));
 
-        uint256 requiredOverlap = Math.ceilDiv(2 * trusted.length, 3);
+        uint256 requiredOverlap = 2 * trusted.length / 3 + 1;
         uint256 requiredQuorum = Math.ceilDiv(2 * current.length, 3);
         if (overlap < requiredOverlap) {
             vm.expectRevert(

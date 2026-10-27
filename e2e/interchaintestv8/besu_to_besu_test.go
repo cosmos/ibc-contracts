@@ -1087,7 +1087,7 @@ func (s *BesuToBesuTestSuite) ValidatorSetChangesTest(consensus string) {
 		additionHeight      uint64
 		newSignerHeight     uint64
 	)
-	// 2 of the 3 original validators sign, but ceil(4 * 2/3) = 3 trusted validators are required.
+	// 2 of the 3 original validators sign, but more than 4 * 2/3, i.e. 3, trusted validators are required.
 	overlapErr := s.besuClientErr("InsufficientTrustedValidatorOverlap", big.NewInt(2), big.NewInt(3))
 
 	s.Require().True(s.Run("Create dedicated clients on Chain B", func() {
