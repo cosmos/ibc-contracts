@@ -29,19 +29,21 @@ interface IBesuLightClientEncoding {
         pure
         returns (IBesuLightClientMsgs.MsgUpdateClient memory);
 
-    /// @notice Exposes the time non-monotonicity misbehaviour payload encoding.
+    /// @notice Exposes the conflicting consensus states misbehaviour payload encoding.
     /// @param message The misbehaviour message.
-    function timeNonMonotonicityMisbehaviour(IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour calldata message)
+    function conflictingConsensusStatesMisbehaviour(
+        IBesuLightClientMsgs.MsgConflictingConsensusStatesMisbehaviour calldata message
+    )
         external
         pure
-        returns (IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour memory);
+        returns (IBesuLightClientMsgs.MsgConflictingConsensusStatesMisbehaviour memory);
 
-    /// @notice Exposes the headers misbehaviour payload encoding.
+    /// @notice Exposes the conflicting headers misbehaviour payload encoding.
     /// @param message The misbehaviour message.
-    function headersMisbehaviour(IBesuLightClientMsgs.MsgHeadersMisbehaviour calldata message)
+    function conflictingHeadersMisbehaviour(IBesuLightClientMsgs.MsgConflictingHeadersMisbehaviour calldata message)
         external
         pure
-        returns (IBesuLightClientMsgs.MsgHeadersMisbehaviour memory);
+        returns (IBesuLightClientMsgs.MsgConflictingHeadersMisbehaviour memory);
 
     /// @notice Exposes the misbehaviour envelope encoding accepted by `misbehaviour(bytes)`.
     /// @param message The misbehaviour envelope.

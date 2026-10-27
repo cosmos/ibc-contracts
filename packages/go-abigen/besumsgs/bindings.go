@@ -48,8 +48,16 @@ type IBesuLightClientMsgsMembershipProof struct {
 	ProofNodes             [][]byte
 }
 
-// IBesuLightClientMsgsMsgHeadersMisbehaviour is an auto generated low-level Go binding around an user-defined struct.
-type IBesuLightClientMsgsMsgHeadersMisbehaviour struct {
+// IBesuLightClientMsgsMsgConflictingConsensusStatesMisbehaviour is an auto generated low-level Go binding around an user-defined struct.
+type IBesuLightClientMsgsMsgConflictingConsensusStatesMisbehaviour struct {
+	Height1                 IICS02ClientMsgsHeight
+	Height2                 IICS02ClientMsgsHeight
+	ConsensusStatePreimage1 IBesuLightClientMsgsConsensusState
+	ConsensusStatePreimage2 IBesuLightClientMsgsConsensusState
+}
+
+// IBesuLightClientMsgsMsgConflictingHeadersMisbehaviour is an auto generated low-level Go binding around an user-defined struct.
+type IBesuLightClientMsgsMsgConflictingHeadersMisbehaviour struct {
 	Update1 IBesuLightClientMsgsMsgUpdateClient
 	Update2 IBesuLightClientMsgsMsgUpdateClient
 }
@@ -58,14 +66,6 @@ type IBesuLightClientMsgsMsgHeadersMisbehaviour struct {
 type IBesuLightClientMsgsMsgSubmitMisbehaviour struct {
 	MisbehaviourType uint8
 	Misbehaviour     []byte
-}
-
-// IBesuLightClientMsgsMsgTimeNonMonotonicityMisbehaviour is an auto generated low-level Go binding around an user-defined struct.
-type IBesuLightClientMsgsMsgTimeNonMonotonicityMisbehaviour struct {
-	Height1                 IICS02ClientMsgsHeight
-	Height2                 IICS02ClientMsgsHeight
-	ConsensusStatePreimage1 IBesuLightClientMsgsConsensusState
-	ConsensusStatePreimage2 IBesuLightClientMsgsConsensusState
 }
 
 // IBesuLightClientMsgsMsgUpdateClient is an auto generated low-level Go binding around an user-defined struct.
@@ -89,7 +89,7 @@ type IICS02ClientMsgsHeight struct {
 
 // BindingsMetaData contains all meta data concerning the Bindings contract.
 var BindingsMetaData = bind.MetaData{
-	ABI: "[{\"type\":\"function\",\"name\":\"clientState\",\"inputs\":[{\"name\":\"state\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ClientState\",\"components\":[{\"name\":\"ibcRouter\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"latestHeight\",\"type\":\"tuple\",\"internalType\":\"structIICS02ClientMsgs.Height\",\"components\":[{\"name\":\"revisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"name\":\"trustingPeriod\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"maxClockDrift\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"isFrozen\",\"type\":\"bool\",\"internalType\":\"bool\"},{\"name\":\"trustLevel\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.TrustThreshold\",\"components\":[{\"name\":\"numerator\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"denominator\",\"type\":\"uint8\",\"internalType\":\"uint8\"}]}]}],\"outputs\":[{\"name\":\"\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ClientState\",\"components\":[{\"name\":\"ibcRouter\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"latestHeight\",\"type\":\"tuple\",\"internalType\":\"structIICS02ClientMsgs.Height\",\"components\":[{\"name\":\"revisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"name\":\"trustingPeriod\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"maxClockDrift\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"isFrozen\",\"type\":\"bool\",\"internalType\":\"bool\"},{\"name\":\"trustLevel\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.TrustThreshold\",\"components\":[{\"name\":\"numerator\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"denominator\",\"type\":\"uint8\",\"internalType\":\"uint8\"}]}]}],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"consensusState\",\"inputs\":[{\"name\":\"state\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]}],\"outputs\":[{\"name\":\"\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]}],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"headersMisbehaviour\",\"inputs\":[{\"name\":\"message\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MsgHeadersMisbehaviour\",\"components\":[{\"name\":\"update1\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MsgUpdateClient\",\"components\":[{\"name\":\"headerRlp\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"trustedHeight\",\"type\":\"tuple\",\"internalType\":\"structIICS02ClientMsgs.Height\",\"components\":[{\"name\":\"revisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"name\":\"consensusStatePreimage\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]}]},{\"name\":\"update2\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MsgUpdateClient\",\"components\":[{\"name\":\"headerRlp\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"trustedHeight\",\"type\":\"tuple\",\"internalType\":\"structIICS02ClientMsgs.Height\",\"components\":[{\"name\":\"revisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"name\":\"consensusStatePreimage\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]}]}]}],\"outputs\":[{\"name\":\"\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MsgHeadersMisbehaviour\",\"components\":[{\"name\":\"update1\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MsgUpdateClient\",\"components\":[{\"name\":\"headerRlp\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"trustedHeight\",\"type\":\"tuple\",\"internalType\":\"structIICS02ClientMsgs.Height\",\"components\":[{\"name\":\"revisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"name\":\"consensusStatePreimage\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]}]},{\"name\":\"update2\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MsgUpdateClient\",\"components\":[{\"name\":\"headerRlp\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"trustedHeight\",\"type\":\"tuple\",\"internalType\":\"structIICS02ClientMsgs.Height\",\"components\":[{\"name\":\"revisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"name\":\"consensusStatePreimage\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]}]}]}],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"membershipProof\",\"inputs\":[{\"name\":\"proof\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MembershipProof\",\"components\":[{\"name\":\"consensusStatePreimage\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]},{\"name\":\"accountProofNodes\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"},{\"name\":\"proofNodes\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"}]}],\"outputs\":[{\"name\":\"\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MembershipProof\",\"components\":[{\"name\":\"consensusStatePreimage\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]},{\"name\":\"accountProofNodes\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"},{\"name\":\"proofNodes\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"}]}],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"proofNodes\",\"inputs\":[{\"name\":\"nodes\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"}],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"submitMisbehaviour\",\"inputs\":[{\"name\":\"message\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MsgSubmitMisbehaviour\",\"components\":[{\"name\":\"misbehaviourType\",\"type\":\"uint8\",\"internalType\":\"enumIBesuLightClientMsgs.MisbehaviourType\"},{\"name\":\"misbehaviour\",\"type\":\"bytes\",\"internalType\":\"bytes\"}]}],\"outputs\":[{\"name\":\"\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MsgSubmitMisbehaviour\",\"components\":[{\"name\":\"misbehaviourType\",\"type\":\"uint8\",\"internalType\":\"enumIBesuLightClientMsgs.MisbehaviourType\"},{\"name\":\"misbehaviour\",\"type\":\"bytes\",\"internalType\":\"bytes\"}]}],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"timeNonMonotonicityMisbehaviour\",\"inputs\":[{\"name\":\"message\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour\",\"components\":[{\"name\":\"height1\",\"type\":\"tuple\",\"internalType\":\"structIICS02ClientMsgs.Height\",\"components\":[{\"name\":\"revisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"name\":\"height2\",\"type\":\"tuple\",\"internalType\":\"structIICS02ClientMsgs.Height\",\"components\":[{\"name\":\"revisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"name\":\"consensusStatePreimage1\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]},{\"name\":\"consensusStatePreimage2\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]}]}],\"outputs\":[{\"name\":\"\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour\",\"components\":[{\"name\":\"height1\",\"type\":\"tuple\",\"internalType\":\"structIICS02ClientMsgs.Height\",\"components\":[{\"name\":\"revisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"name\":\"height2\",\"type\":\"tuple\",\"internalType\":\"structIICS02ClientMsgs.Height\",\"components\":[{\"name\":\"revisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"name\":\"consensusStatePreimage1\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]},{\"name\":\"consensusStatePreimage2\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]}]}],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"updateClient\",\"inputs\":[{\"name\":\"message\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MsgUpdateClient\",\"components\":[{\"name\":\"headerRlp\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"trustedHeight\",\"type\":\"tuple\",\"internalType\":\"structIICS02ClientMsgs.Height\",\"components\":[{\"name\":\"revisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"name\":\"consensusStatePreimage\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]}]}],\"outputs\":[{\"name\":\"\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MsgUpdateClient\",\"components\":[{\"name\":\"headerRlp\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"trustedHeight\",\"type\":\"tuple\",\"internalType\":\"structIICS02ClientMsgs.Height\",\"components\":[{\"name\":\"revisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"name\":\"consensusStatePreimage\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]}]}],\"stateMutability\":\"pure\"}]",
+	ABI: "[{\"type\":\"function\",\"name\":\"clientState\",\"inputs\":[{\"name\":\"state\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ClientState\",\"components\":[{\"name\":\"ibcRouter\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"latestHeight\",\"type\":\"tuple\",\"internalType\":\"structIICS02ClientMsgs.Height\",\"components\":[{\"name\":\"revisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"name\":\"trustingPeriod\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"maxClockDrift\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"isFrozen\",\"type\":\"bool\",\"internalType\":\"bool\"},{\"name\":\"trustLevel\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.TrustThreshold\",\"components\":[{\"name\":\"numerator\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"denominator\",\"type\":\"uint8\",\"internalType\":\"uint8\"}]}]}],\"outputs\":[{\"name\":\"\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ClientState\",\"components\":[{\"name\":\"ibcRouter\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"latestHeight\",\"type\":\"tuple\",\"internalType\":\"structIICS02ClientMsgs.Height\",\"components\":[{\"name\":\"revisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"name\":\"trustingPeriod\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"maxClockDrift\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"isFrozen\",\"type\":\"bool\",\"internalType\":\"bool\"},{\"name\":\"trustLevel\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.TrustThreshold\",\"components\":[{\"name\":\"numerator\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"denominator\",\"type\":\"uint8\",\"internalType\":\"uint8\"}]}]}],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"conflictingConsensusStatesMisbehaviour\",\"inputs\":[{\"name\":\"message\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MsgConflictingConsensusStatesMisbehaviour\",\"components\":[{\"name\":\"height1\",\"type\":\"tuple\",\"internalType\":\"structIICS02ClientMsgs.Height\",\"components\":[{\"name\":\"revisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"name\":\"height2\",\"type\":\"tuple\",\"internalType\":\"structIICS02ClientMsgs.Height\",\"components\":[{\"name\":\"revisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"name\":\"consensusStatePreimage1\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]},{\"name\":\"consensusStatePreimage2\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]}]}],\"outputs\":[{\"name\":\"\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MsgConflictingConsensusStatesMisbehaviour\",\"components\":[{\"name\":\"height1\",\"type\":\"tuple\",\"internalType\":\"structIICS02ClientMsgs.Height\",\"components\":[{\"name\":\"revisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"name\":\"height2\",\"type\":\"tuple\",\"internalType\":\"structIICS02ClientMsgs.Height\",\"components\":[{\"name\":\"revisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"name\":\"consensusStatePreimage1\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]},{\"name\":\"consensusStatePreimage2\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]}]}],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"conflictingHeadersMisbehaviour\",\"inputs\":[{\"name\":\"message\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MsgConflictingHeadersMisbehaviour\",\"components\":[{\"name\":\"update1\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MsgUpdateClient\",\"components\":[{\"name\":\"headerRlp\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"trustedHeight\",\"type\":\"tuple\",\"internalType\":\"structIICS02ClientMsgs.Height\",\"components\":[{\"name\":\"revisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"name\":\"consensusStatePreimage\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]}]},{\"name\":\"update2\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MsgUpdateClient\",\"components\":[{\"name\":\"headerRlp\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"trustedHeight\",\"type\":\"tuple\",\"internalType\":\"structIICS02ClientMsgs.Height\",\"components\":[{\"name\":\"revisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"name\":\"consensusStatePreimage\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]}]}]}],\"outputs\":[{\"name\":\"\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MsgConflictingHeadersMisbehaviour\",\"components\":[{\"name\":\"update1\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MsgUpdateClient\",\"components\":[{\"name\":\"headerRlp\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"trustedHeight\",\"type\":\"tuple\",\"internalType\":\"structIICS02ClientMsgs.Height\",\"components\":[{\"name\":\"revisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"name\":\"consensusStatePreimage\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]}]},{\"name\":\"update2\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MsgUpdateClient\",\"components\":[{\"name\":\"headerRlp\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"trustedHeight\",\"type\":\"tuple\",\"internalType\":\"structIICS02ClientMsgs.Height\",\"components\":[{\"name\":\"revisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"name\":\"consensusStatePreimage\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]}]}]}],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"consensusState\",\"inputs\":[{\"name\":\"state\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]}],\"outputs\":[{\"name\":\"\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]}],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"membershipProof\",\"inputs\":[{\"name\":\"proof\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MembershipProof\",\"components\":[{\"name\":\"consensusStatePreimage\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]},{\"name\":\"accountProofNodes\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"},{\"name\":\"proofNodes\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"}]}],\"outputs\":[{\"name\":\"\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MembershipProof\",\"components\":[{\"name\":\"consensusStatePreimage\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]},{\"name\":\"accountProofNodes\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"},{\"name\":\"proofNodes\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"}]}],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"proofNodes\",\"inputs\":[{\"name\":\"nodes\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"}],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"submitMisbehaviour\",\"inputs\":[{\"name\":\"message\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MsgSubmitMisbehaviour\",\"components\":[{\"name\":\"misbehaviourType\",\"type\":\"uint8\",\"internalType\":\"enumIBesuLightClientMsgs.MisbehaviourType\"},{\"name\":\"misbehaviour\",\"type\":\"bytes\",\"internalType\":\"bytes\"}]}],\"outputs\":[{\"name\":\"\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MsgSubmitMisbehaviour\",\"components\":[{\"name\":\"misbehaviourType\",\"type\":\"uint8\",\"internalType\":\"enumIBesuLightClientMsgs.MisbehaviourType\"},{\"name\":\"misbehaviour\",\"type\":\"bytes\",\"internalType\":\"bytes\"}]}],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"updateClient\",\"inputs\":[{\"name\":\"message\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MsgUpdateClient\",\"components\":[{\"name\":\"headerRlp\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"trustedHeight\",\"type\":\"tuple\",\"internalType\":\"structIICS02ClientMsgs.Height\",\"components\":[{\"name\":\"revisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"name\":\"consensusStatePreimage\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]}]}],\"outputs\":[{\"name\":\"\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.MsgUpdateClient\",\"components\":[{\"name\":\"headerRlp\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"trustedHeight\",\"type\":\"tuple\",\"internalType\":\"structIICS02ClientMsgs.Height\",\"components\":[{\"name\":\"revisionNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"revisionHeight\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]},{\"name\":\"consensusStatePreimage\",\"type\":\"tuple\",\"internalType\":\"structIBesuLightClientMsgs.ConsensusState\",\"components\":[{\"name\":\"timestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"stateRoot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"validators\",\"type\":\"address[]\",\"internalType\":\"address[]\"}]}]}],\"stateMutability\":\"pure\"}]",
 	ID:  "Bindings",
 }
 
@@ -153,6 +153,76 @@ func (bindings *Bindings) UnpackClientState(data []byte) (IBesuLightClientMsgsCl
 	return out0, nil
 }
 
+// PackConflictingConsensusStatesMisbehaviour is the Go binding used to pack the parameters required for calling
+// the contract method with ID 0x9ee3c6b6.  This method will panic if any
+// invalid/nil inputs are passed.
+//
+// Solidity: function conflictingConsensusStatesMisbehaviour(((uint64,uint64),(uint64,uint64),(uint64,bytes32,address[]),(uint64,bytes32,address[])) message) pure returns(((uint64,uint64),(uint64,uint64),(uint64,bytes32,address[]),(uint64,bytes32,address[])))
+func (bindings *Bindings) PackConflictingConsensusStatesMisbehaviour(message IBesuLightClientMsgsMsgConflictingConsensusStatesMisbehaviour) []byte {
+	enc, err := bindings.abi.Pack("conflictingConsensusStatesMisbehaviour", message)
+	if err != nil {
+		panic(err)
+	}
+	return enc
+}
+
+// TryPackConflictingConsensusStatesMisbehaviour is the Go binding used to pack the parameters required for calling
+// the contract method with ID 0x9ee3c6b6.  This method will return an error
+// if any inputs are invalid/nil.
+//
+// Solidity: function conflictingConsensusStatesMisbehaviour(((uint64,uint64),(uint64,uint64),(uint64,bytes32,address[]),(uint64,bytes32,address[])) message) pure returns(((uint64,uint64),(uint64,uint64),(uint64,bytes32,address[]),(uint64,bytes32,address[])))
+func (bindings *Bindings) TryPackConflictingConsensusStatesMisbehaviour(message IBesuLightClientMsgsMsgConflictingConsensusStatesMisbehaviour) ([]byte, error) {
+	return bindings.abi.Pack("conflictingConsensusStatesMisbehaviour", message)
+}
+
+// UnpackConflictingConsensusStatesMisbehaviour is the Go binding that unpacks the parameters returned
+// from invoking the contract method with ID 0x9ee3c6b6.
+//
+// Solidity: function conflictingConsensusStatesMisbehaviour(((uint64,uint64),(uint64,uint64),(uint64,bytes32,address[]),(uint64,bytes32,address[])) message) pure returns(((uint64,uint64),(uint64,uint64),(uint64,bytes32,address[]),(uint64,bytes32,address[])))
+func (bindings *Bindings) UnpackConflictingConsensusStatesMisbehaviour(data []byte) (IBesuLightClientMsgsMsgConflictingConsensusStatesMisbehaviour, error) {
+	out, err := bindings.abi.Unpack("conflictingConsensusStatesMisbehaviour", data)
+	if err != nil {
+		return *new(IBesuLightClientMsgsMsgConflictingConsensusStatesMisbehaviour), err
+	}
+	out0 := *abi.ConvertType(out[0], new(IBesuLightClientMsgsMsgConflictingConsensusStatesMisbehaviour)).(*IBesuLightClientMsgsMsgConflictingConsensusStatesMisbehaviour)
+	return out0, nil
+}
+
+// PackConflictingHeadersMisbehaviour is the Go binding used to pack the parameters required for calling
+// the contract method with ID 0x30d6a557.  This method will panic if any
+// invalid/nil inputs are passed.
+//
+// Solidity: function conflictingHeadersMisbehaviour(((bytes,(uint64,uint64),(uint64,bytes32,address[])),(bytes,(uint64,uint64),(uint64,bytes32,address[]))) message) pure returns(((bytes,(uint64,uint64),(uint64,bytes32,address[])),(bytes,(uint64,uint64),(uint64,bytes32,address[]))))
+func (bindings *Bindings) PackConflictingHeadersMisbehaviour(message IBesuLightClientMsgsMsgConflictingHeadersMisbehaviour) []byte {
+	enc, err := bindings.abi.Pack("conflictingHeadersMisbehaviour", message)
+	if err != nil {
+		panic(err)
+	}
+	return enc
+}
+
+// TryPackConflictingHeadersMisbehaviour is the Go binding used to pack the parameters required for calling
+// the contract method with ID 0x30d6a557.  This method will return an error
+// if any inputs are invalid/nil.
+//
+// Solidity: function conflictingHeadersMisbehaviour(((bytes,(uint64,uint64),(uint64,bytes32,address[])),(bytes,(uint64,uint64),(uint64,bytes32,address[]))) message) pure returns(((bytes,(uint64,uint64),(uint64,bytes32,address[])),(bytes,(uint64,uint64),(uint64,bytes32,address[]))))
+func (bindings *Bindings) TryPackConflictingHeadersMisbehaviour(message IBesuLightClientMsgsMsgConflictingHeadersMisbehaviour) ([]byte, error) {
+	return bindings.abi.Pack("conflictingHeadersMisbehaviour", message)
+}
+
+// UnpackConflictingHeadersMisbehaviour is the Go binding that unpacks the parameters returned
+// from invoking the contract method with ID 0x30d6a557.
+//
+// Solidity: function conflictingHeadersMisbehaviour(((bytes,(uint64,uint64),(uint64,bytes32,address[])),(bytes,(uint64,uint64),(uint64,bytes32,address[]))) message) pure returns(((bytes,(uint64,uint64),(uint64,bytes32,address[])),(bytes,(uint64,uint64),(uint64,bytes32,address[]))))
+func (bindings *Bindings) UnpackConflictingHeadersMisbehaviour(data []byte) (IBesuLightClientMsgsMsgConflictingHeadersMisbehaviour, error) {
+	out, err := bindings.abi.Unpack("conflictingHeadersMisbehaviour", data)
+	if err != nil {
+		return *new(IBesuLightClientMsgsMsgConflictingHeadersMisbehaviour), err
+	}
+	out0 := *abi.ConvertType(out[0], new(IBesuLightClientMsgsMsgConflictingHeadersMisbehaviour)).(*IBesuLightClientMsgsMsgConflictingHeadersMisbehaviour)
+	return out0, nil
+}
+
 // PackConsensusState is the Go binding used to pack the parameters required for calling
 // the contract method with ID 0xc6fe84b1.  This method will panic if any
 // invalid/nil inputs are passed.
@@ -185,41 +255,6 @@ func (bindings *Bindings) UnpackConsensusState(data []byte) (IBesuLightClientMsg
 		return *new(IBesuLightClientMsgsConsensusState), err
 	}
 	out0 := *abi.ConvertType(out[0], new(IBesuLightClientMsgsConsensusState)).(*IBesuLightClientMsgsConsensusState)
-	return out0, nil
-}
-
-// PackHeadersMisbehaviour is the Go binding used to pack the parameters required for calling
-// the contract method with ID 0xb299df6b.  This method will panic if any
-// invalid/nil inputs are passed.
-//
-// Solidity: function headersMisbehaviour(((bytes,(uint64,uint64),(uint64,bytes32,address[])),(bytes,(uint64,uint64),(uint64,bytes32,address[]))) message) pure returns(((bytes,(uint64,uint64),(uint64,bytes32,address[])),(bytes,(uint64,uint64),(uint64,bytes32,address[]))))
-func (bindings *Bindings) PackHeadersMisbehaviour(message IBesuLightClientMsgsMsgHeadersMisbehaviour) []byte {
-	enc, err := bindings.abi.Pack("headersMisbehaviour", message)
-	if err != nil {
-		panic(err)
-	}
-	return enc
-}
-
-// TryPackHeadersMisbehaviour is the Go binding used to pack the parameters required for calling
-// the contract method with ID 0xb299df6b.  This method will return an error
-// if any inputs are invalid/nil.
-//
-// Solidity: function headersMisbehaviour(((bytes,(uint64,uint64),(uint64,bytes32,address[])),(bytes,(uint64,uint64),(uint64,bytes32,address[]))) message) pure returns(((bytes,(uint64,uint64),(uint64,bytes32,address[])),(bytes,(uint64,uint64),(uint64,bytes32,address[]))))
-func (bindings *Bindings) TryPackHeadersMisbehaviour(message IBesuLightClientMsgsMsgHeadersMisbehaviour) ([]byte, error) {
-	return bindings.abi.Pack("headersMisbehaviour", message)
-}
-
-// UnpackHeadersMisbehaviour is the Go binding that unpacks the parameters returned
-// from invoking the contract method with ID 0xb299df6b.
-//
-// Solidity: function headersMisbehaviour(((bytes,(uint64,uint64),(uint64,bytes32,address[])),(bytes,(uint64,uint64),(uint64,bytes32,address[]))) message) pure returns(((bytes,(uint64,uint64),(uint64,bytes32,address[])),(bytes,(uint64,uint64),(uint64,bytes32,address[]))))
-func (bindings *Bindings) UnpackHeadersMisbehaviour(data []byte) (IBesuLightClientMsgsMsgHeadersMisbehaviour, error) {
-	out, err := bindings.abi.Unpack("headersMisbehaviour", data)
-	if err != nil {
-		return *new(IBesuLightClientMsgsMsgHeadersMisbehaviour), err
-	}
-	out0 := *abi.ConvertType(out[0], new(IBesuLightClientMsgsMsgHeadersMisbehaviour)).(*IBesuLightClientMsgsMsgHeadersMisbehaviour)
 	return out0, nil
 }
 
@@ -325,41 +360,6 @@ func (bindings *Bindings) UnpackSubmitMisbehaviour(data []byte) (IBesuLightClien
 		return *new(IBesuLightClientMsgsMsgSubmitMisbehaviour), err
 	}
 	out0 := *abi.ConvertType(out[0], new(IBesuLightClientMsgsMsgSubmitMisbehaviour)).(*IBesuLightClientMsgsMsgSubmitMisbehaviour)
-	return out0, nil
-}
-
-// PackTimeNonMonotonicityMisbehaviour is the Go binding used to pack the parameters required for calling
-// the contract method with ID 0x4d46e216.  This method will panic if any
-// invalid/nil inputs are passed.
-//
-// Solidity: function timeNonMonotonicityMisbehaviour(((uint64,uint64),(uint64,uint64),(uint64,bytes32,address[]),(uint64,bytes32,address[])) message) pure returns(((uint64,uint64),(uint64,uint64),(uint64,bytes32,address[]),(uint64,bytes32,address[])))
-func (bindings *Bindings) PackTimeNonMonotonicityMisbehaviour(message IBesuLightClientMsgsMsgTimeNonMonotonicityMisbehaviour) []byte {
-	enc, err := bindings.abi.Pack("timeNonMonotonicityMisbehaviour", message)
-	if err != nil {
-		panic(err)
-	}
-	return enc
-}
-
-// TryPackTimeNonMonotonicityMisbehaviour is the Go binding used to pack the parameters required for calling
-// the contract method with ID 0x4d46e216.  This method will return an error
-// if any inputs are invalid/nil.
-//
-// Solidity: function timeNonMonotonicityMisbehaviour(((uint64,uint64),(uint64,uint64),(uint64,bytes32,address[]),(uint64,bytes32,address[])) message) pure returns(((uint64,uint64),(uint64,uint64),(uint64,bytes32,address[]),(uint64,bytes32,address[])))
-func (bindings *Bindings) TryPackTimeNonMonotonicityMisbehaviour(message IBesuLightClientMsgsMsgTimeNonMonotonicityMisbehaviour) ([]byte, error) {
-	return bindings.abi.Pack("timeNonMonotonicityMisbehaviour", message)
-}
-
-// UnpackTimeNonMonotonicityMisbehaviour is the Go binding that unpacks the parameters returned
-// from invoking the contract method with ID 0x4d46e216.
-//
-// Solidity: function timeNonMonotonicityMisbehaviour(((uint64,uint64),(uint64,uint64),(uint64,bytes32,address[]),(uint64,bytes32,address[])) message) pure returns(((uint64,uint64),(uint64,uint64),(uint64,bytes32,address[]),(uint64,bytes32,address[])))
-func (bindings *Bindings) UnpackTimeNonMonotonicityMisbehaviour(data []byte) (IBesuLightClientMsgsMsgTimeNonMonotonicityMisbehaviour, error) {
-	out, err := bindings.abi.Unpack("timeNonMonotonicityMisbehaviour", data)
-	if err != nil {
-		return *new(IBesuLightClientMsgsMsgTimeNonMonotonicityMisbehaviour), err
-	}
-	out0 := *abi.ConvertType(out[0], new(IBesuLightClientMsgsMsgTimeNonMonotonicityMisbehaviour)).(*IBesuLightClientMsgsMsgTimeNonMonotonicityMisbehaviour)
 	return out0, nil
 }
 

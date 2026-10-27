@@ -836,18 +836,18 @@ func (s *BesuToBesuTestSuite) DoubleSignFreezesClientTest(consensus string) {
 	}))
 }
 
-func (s *BesuToBesuTestSuite) Test_TimeNonMonotonicityFreezesClient_QBFT() {
-	s.TimeNonMonotonicityFreezesClientTest(testvalues.BesuConsensusQBFT)
+func (s *BesuToBesuTestSuite) Test_ConflictingConsensusStatesTimeNonMonotonicityFreezesClient_QBFT() {
+	s.ConflictingConsensusStatesTimeNonMonotonicityFreezesClientTest(testvalues.BesuConsensusQBFT)
 }
 
-func (s *BesuToBesuTestSuite) Test_TimeNonMonotonicityFreezesClient_IBFT2() {
-	s.TimeNonMonotonicityFreezesClientTest(testvalues.BesuConsensusIBFT2)
+func (s *BesuToBesuTestSuite) Test_ConflictingConsensusStatesTimeNonMonotonicityFreezesClient_IBFT2() {
+	s.ConflictingConsensusStatesTimeNonMonotonicityFreezesClientTest(testvalues.BesuConsensusIBFT2)
 }
 
-// TimeNonMonotonicityFreezesClientTest stores two consensus states whose timestamps do not increase with height on
-// a dedicated client on Chain B, then submits them as misbehaviour. Each update is only checked against its own
-// trusted height, so both updates are accepted.
-func (s *BesuToBesuTestSuite) TimeNonMonotonicityFreezesClientTest(consensus string) {
+// ConflictingConsensusStatesTimeNonMonotonicityFreezesClientTest stores two consensus states whose timestamps do not
+// increase with height on a dedicated client on Chain B, then submits them as misbehaviour. Each update is only
+// checked against its own trusted height, so both updates are accepted.
+func (s *BesuToBesuTestSuite) ConflictingConsensusStatesTimeNonMonotonicityFreezesClientTest(consensus string) {
 	ctx := context.Background()
 	s.SetupSuite(ctx, consensus)
 
@@ -888,12 +888,12 @@ func (s *BesuToBesuTestSuite) TimeNonMonotonicityFreezesClientTest(consensus str
 		state1.Timestamp = timestamp
 
 		// The light client expects abi.encode(MsgSubmitMisbehaviour) wrapping
-		// abi.encode(MsgTimeNonMonotonicityMisbehaviour), both without the function selector.
+		// abi.encode(MsgConflictingConsensusStatesMisbehaviour), both without the function selector.
 		bindings := besumsgs.NewBindings()
 		misbehaviourMsg = bindings.PackSubmitMisbehaviour(besumsgs.IBesuLightClientMsgsMsgSubmitMisbehaviour{
-			MisbehaviourType: 0, // TimeNonMonotonicity
-			Misbehaviour: bindings.PackTimeNonMonotonicityMisbehaviour(
-				besumsgs.IBesuLightClientMsgsMsgTimeNonMonotonicityMisbehaviour{
+			MisbehaviourType: 0, // ConflictingConsensusStates
+			Misbehaviour: bindings.PackConflictingConsensusStatesMisbehaviour(
+				besumsgs.IBesuLightClientMsgsMsgConflictingConsensusStatesMisbehaviour{
 					Height1:                 besumsgs.IICS02ClientMsgsHeight{RevisionHeight: height1},
 					Height2:                 besumsgs.IICS02ClientMsgsHeight{RevisionHeight: height2},
 					ConsensusStatePreimage1: state1,
@@ -932,17 +932,18 @@ func (s *BesuToBesuTestSuite) TimeNonMonotonicityFreezesClientTest(consensus str
 	}))
 }
 
-func (s *BesuToBesuTestSuite) Test_HeadersDoubleSignMisbehaviourIsPermissionless_QBFT() {
-	s.HeadersDoubleSignMisbehaviourIsPermissionlessTest(testvalues.BesuConsensusQBFT)
+func (s *BesuToBesuTestSuite) Test_ConflictingHeadersDoubleSignMisbehaviourIsPermissionless_QBFT() {
+	s.ConflictingHeadersDoubleSignMisbehaviourIsPermissionlessTest(testvalues.BesuConsensusQBFT)
 }
 
-func (s *BesuToBesuTestSuite) Test_HeadersDoubleSignMisbehaviourIsPermissionless_IBFT2() {
-	s.HeadersDoubleSignMisbehaviourIsPermissionlessTest(testvalues.BesuConsensusIBFT2)
+func (s *BesuToBesuTestSuite) Test_ConflictingHeadersDoubleSignMisbehaviourIsPermissionless_IBFT2() {
+	s.ConflictingHeadersDoubleSignMisbehaviourIsPermissionlessTest(testvalues.BesuConsensusIBFT2)
 }
 
-// HeadersDoubleSignMisbehaviourIsPermissionlessTest submits two conflicting headers at the same height directly to a
-// dedicated client on Chain B from an account without PROOF_SUBMITTER_ROLE. Neither header is stored.
-func (s *BesuToBesuTestSuite) HeadersDoubleSignMisbehaviourIsPermissionlessTest(consensus string) {
+// ConflictingHeadersDoubleSignMisbehaviourIsPermissionlessTest submits two conflicting headers at the same height to
+// a dedicated client on Chain B through the router's permissionless submitMisbehaviour, from an account without any
+// role. Neither header is stored.
+func (s *BesuToBesuTestSuite) ConflictingHeadersDoubleSignMisbehaviourIsPermissionlessTest(consensus string) {
 	ctx := context.Background()
 	s.SetupSuite(ctx, consensus)
 
@@ -965,23 +966,23 @@ func (s *BesuToBesuTestSuite) HeadersDoubleSignMisbehaviourIsPermissionlessTest(
 		s.Require().NoError(err)
 		conflictingUpdate, err := e2etypes.BuildBesuDoubleSignUpdate(ctx, &s.chainA.eth, s.consensus, trustedHeight, height)
 		s.Require().NoError(err)
-		misbehaviourMsg = s.headersMisbehaviourMsg(honestUpdate, conflictingUpdate)
+		misbehaviourMsg = s.conflictingHeadersMisbehaviourMsg(honestUpdate, conflictingUpdate)
 	}))
 
-	s.Require().True(s.Run("Account without role cannot update the client", func() {
+	s.Require().True(s.Run("Only the router can call the client", func() {
 		clientAddress, err := s.chainB.ics26.GetClient(nil, clientID)
 		s.Require().NoError(err)
-		updateCalldata := s.besuClientCalldata("updateClient", honestUpdate)
-		unauthorizedErr := s.besuClientErr(
-			"AccessControlUnauthorizedAccount",
-			crypto.PubkeyToAddress(s.chainB.user.PublicKey),
-			crypto.Keccak256Hash([]byte("PROOF_SUBMITTER_ROLE")),
-		)
-		s.requireCallRevert(ctx, s.chainB.user, clientAddress, updateCalldata, unauthorizedErr)
+		unauthorizedErr := s.besuClientErr("LightClientUnauthorizedCaller", crypto.PubkeyToAddress(s.chainB.user.PublicKey))
+		for _, calldata := range [][]byte{
+			s.besuClientCalldata("updateClient", honestUpdate),
+			s.besuClientCalldata("misbehaviour", misbehaviourMsg),
+		} {
+			s.requireCallRevert(ctx, s.chainB.user, clientAddress, calldata, unauthorizedErr)
+		}
 	}))
 
 	s.Require().True(s.Run("Account without role submits misbehaviour and freezes the client", func() {
-		receipt := s.submitBesuMisbehaviour(ctx, client, misbehaviourMsg)
+		receipt := s.submitBesuMisbehaviour(ctx, clientID, misbehaviourMsg)
 
 		doubleSignEvent, err := e2esuite.GetEvmEvent(receipt, client.ParseDoubleSign)
 		s.Require().NoError(err)
@@ -998,18 +999,18 @@ func (s *BesuToBesuTestSuite) HeadersDoubleSignMisbehaviourIsPermissionlessTest(
 	}))
 }
 
-func (s *BesuToBesuTestSuite) Test_HeadersTimeNonMonotonicityMisbehaviourIsPermissionless_QBFT() {
-	s.HeadersTimeNonMonotonicityMisbehaviourIsPermissionlessTest(testvalues.BesuConsensusQBFT)
+func (s *BesuToBesuTestSuite) Test_ConflictingHeadersTimeNonMonotonicityMisbehaviourIsPermissionless_QBFT() {
+	s.ConflictingHeadersTimeNonMonotonicityMisbehaviourIsPermissionlessTest(testvalues.BesuConsensusQBFT)
 }
 
-func (s *BesuToBesuTestSuite) Test_HeadersTimeNonMonotonicityMisbehaviourIsPermissionless_IBFT2() {
-	s.HeadersTimeNonMonotonicityMisbehaviourIsPermissionlessTest(testvalues.BesuConsensusIBFT2)
+func (s *BesuToBesuTestSuite) Test_ConflictingHeadersTimeNonMonotonicityMisbehaviourIsPermissionless_IBFT2() {
+	s.ConflictingHeadersTimeNonMonotonicityMisbehaviourIsPermissionlessTest(testvalues.BesuConsensusIBFT2)
 }
 
-// HeadersTimeNonMonotonicityMisbehaviourIsPermissionlessTest submits two headers whose timestamps do not increase
-// with height directly to a dedicated client on Chain B from an account without PROOF_SUBMITTER_ROLE. Neither header
-// is stored.
-func (s *BesuToBesuTestSuite) HeadersTimeNonMonotonicityMisbehaviourIsPermissionlessTest(consensus string) {
+// ConflictingHeadersTimeNonMonotonicityMisbehaviourIsPermissionlessTest submits two headers whose timestamps do not
+// increase with height to a dedicated client on Chain B through the router's permissionless submitMisbehaviour, from
+// an account without any role. Neither header is stored.
+func (s *BesuToBesuTestSuite) ConflictingHeadersTimeNonMonotonicityMisbehaviourIsPermissionlessTest(consensus string) {
 	ctx := context.Background()
 	s.SetupSuite(ctx, consensus)
 
@@ -1036,11 +1037,11 @@ func (s *BesuToBesuTestSuite) HeadersTimeNonMonotonicityMisbehaviourIsPermission
 		// Height1 is re-sealed with the timestamp of height2.
 		forgedUpdate, err := e2etypes.BuildBesuTimestampUpdate(ctx, &s.chainA.eth, s.consensus, trustedHeight, height1, timestamp)
 		s.Require().NoError(err)
-		misbehaviourMsg = s.headersMisbehaviourMsg(honestUpdate, forgedUpdate)
+		misbehaviourMsg = s.conflictingHeadersMisbehaviourMsg(honestUpdate, forgedUpdate)
 	}))
 
 	s.Require().True(s.Run("Account without role submits misbehaviour and freezes the client", func() {
-		receipt := s.submitBesuMisbehaviour(ctx, client, misbehaviourMsg)
+		receipt := s.submitBesuMisbehaviour(ctx, clientID, misbehaviourMsg)
 
 		timeEvent, err := e2esuite.GetEvmEvent(receipt, client.ParseTimeNonMonotonicity)
 		s.Require().NoError(err)
@@ -1316,9 +1317,9 @@ func (s *BesuToBesuTestSuite) besuClientCalldata(method string, args ...any) []b
 	return calldata
 }
 
-// headersMisbehaviourMsg wraps two abi-encoded MsgUpdateClient payloads into abi.encode(MsgSubmitMisbehaviour) of
-// type Headers, without function selectors.
-func (s *BesuToBesuTestSuite) headersMisbehaviourMsg(update1, update2 []byte) []byte {
+// conflictingHeadersMisbehaviourMsg wraps two abi-encoded MsgUpdateClient payloads into
+// abi.encode(MsgSubmitMisbehaviour) of type ConflictingHeaders, without function selectors.
+func (s *BesuToBesuTestSuite) conflictingHeadersMisbehaviourMsg(update1, update2 []byte) []byte {
 	bindings := besumsgs.NewBindings()
 	msg1, err := bindings.UnpackUpdateClient(update1)
 	s.Require().NoError(err)
@@ -1326,17 +1327,17 @@ func (s *BesuToBesuTestSuite) headersMisbehaviourMsg(update1, update2 []byte) []
 	s.Require().NoError(err)
 
 	return bindings.PackSubmitMisbehaviour(besumsgs.IBesuLightClientMsgsMsgSubmitMisbehaviour{
-		MisbehaviourType: 1, // Headers
-		Misbehaviour: bindings.PackHeadersMisbehaviour(besumsgs.IBesuLightClientMsgsMsgHeadersMisbehaviour{
+		MisbehaviourType: 1, // ConflictingHeaders
+		Misbehaviour: bindings.PackConflictingHeadersMisbehaviour(besumsgs.IBesuLightClientMsgsMsgConflictingHeadersMisbehaviour{
 			Update1: msg1,
 			Update2: msg2,
 		})[4:],
 	})[4:]
 }
 
-// submitBesuMisbehaviour calls misbehaviour on the light client directly from Chain B's user, which holds no role.
-func (s *BesuToBesuTestSuite) submitBesuMisbehaviour(ctx context.Context, client *besuqbft.Contract, misbehaviourMsg []byte) *ethtypes.Receipt {
-	tx, err := client.Misbehaviour(s.mustTransactOpts(&s.chainB, s.chainB.user), misbehaviourMsg)
+// submitBesuMisbehaviour submits misbehaviour through Chain B's router from Chain B's user, which holds no role.
+func (s *BesuToBesuTestSuite) submitBesuMisbehaviour(ctx context.Context, clientID string, misbehaviourMsg []byte) *ethtypes.Receipt {
+	tx, err := s.chainB.ics26.SubmitMisbehaviour(s.mustTransactOpts(&s.chainB, s.chainB.user), clientID, misbehaviourMsg)
 	s.Require().NoError(err)
 	receipt, err := s.chainB.eth.GetTxReciept(ctx, tx.Hash())
 	s.Require().NoError(err)
@@ -1473,7 +1474,6 @@ func (s *BesuToBesuTestSuite) createAndRegisterBesuClient(
 			testvalues.ParameterKey_TrustingPeriod: strconv.Itoa(testvalues.DefaultTrustPeriod),
 			testvalues.ParameterKey_MaxClockDrift:  strconv.Itoa(testvalues.DefaultMaxClockDrift),
 			testvalues.ParameterKey_TrustLevel:     trustLevel,
-			testvalues.ParameterKey_RoleManager:    dstChain.contractAddresses.Ics26Router,
 		},
 	})
 	s.Require().NoError(err)

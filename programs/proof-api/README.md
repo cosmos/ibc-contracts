@@ -157,7 +157,7 @@ Module configuration varies by module type:
 
 ## `besu_to_eth` create-client parameters
 
-`besu_to_eth` `CreateClient` returns only deployment calldata for `BesuQBFTLightClient` or `BesuIBFT2LightClient`. It does not call `ICS26Router.addClient(...)`.
+`besu_to_eth` `CreateClient` returns only deployment calldata for `BesuQBFTLightClient` or `BesuIBFT2LightClient`, bound to `dst_ics26_address` as the only router that can drive the client. It does not call `ICS26Router.addClient(...)`.
 
 Required parameters:
 - `trusting_period`: Decimal seconds for the weak-subjectivity window.
@@ -166,7 +166,6 @@ Required parameters:
 Optional parameters:
 - `trust_level`: Minimum fraction of the trusted validator set that must sign an update, as `<numerator>/<denominator>` within `[1/3, 1]`. Defaults to `2/3`.
 - `trusted_height`: Decimal source block height. Defaults to the latest source block. The header at this height must still be within `trusting_period` when the calldata is deployed, or the constructor reverts.
-- `role_manager`: Hex address. Defaults to the zero address.
 
 Operational notes:
 - `consensus_type` is fixed by module config and only affects `CreateClient` wrapper selection.

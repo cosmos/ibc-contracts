@@ -34,6 +34,32 @@ interface IICS02ClientAccessControlled {
         external
         returns (ILightClientMsgs.UpdateResult);
 
+    /// @notice Verifies a membership proof with the client with the given client identifier.
+    /// @dev Can only be called with the `RELAYER_ROLE`. Light clients only accept proofs from the router, so this
+    /// lets relayers verify proofs ahead of packet handling, e.g. to cache a batch proof in the same transaction.
+    /// @param clientId The client identifier
+    /// @param msg_ The membership proof verification message
+    /// @return The unix timestamp of the verification height in the counterparty chain in seconds.
+    function verifyMembership(
+        string calldata clientId,
+        ILightClientMsgs.MsgVerifyMembership calldata msg_
+    )
+        external
+        returns (uint256);
+
+    /// @notice Verifies a non-membership proof with the client with the given client identifier.
+    /// @dev Can only be called with the `RELAYER_ROLE`. Light clients only accept proofs from the router, so this
+    /// lets relayers verify proofs ahead of packet handling, e.g. to cache a batch proof in the same transaction.
+    /// @param clientId The client identifier
+    /// @param msg_ The non-membership proof verification message
+    /// @return The unix timestamp of the verification height in the counterparty chain in seconds.
+    function verifyNonMembership(
+        string calldata clientId,
+        ILightClientMsgs.MsgVerifyNonMembership calldata msg_
+    )
+        external
+        returns (uint256);
+
     /// @notice Migrate a client by replacing the existing counterparty information and contract address.
     /// @dev This is a privilaged operation, only one with `getLightClientMigratorRole(clientId)` can call this.
     /// @param clientId The client identifier of the client to migrate
