@@ -242,6 +242,37 @@ abstract contract QBFTSimSuiteTest is Test {
         }
     }
 
+    /// @dev A header conflicting with the consensus state stored at its height is evidence on its own, as in
+    /// `updateClient`, even when paired with a valid later header or with itself.
+    function test_conflictingHeadersDoubleSignAgainstStoredState() public {
+        SimHeader.Data memory a = sim.nextBlock();
+        SimHeader.Data memory b = sim.nextBlock();
+        b.stateRoot = keccak256("equivocation");
+        a = sim.seal(a);
+        b = sim.seal(b);
+        sim.commit(a);
+        sim.produceBlocks(1);
+        client.updateClient(sim.updateMsg(2, a));
+        bytes memory conflictingUpdate = sim.updateMsg(2, b);
+        bytes memory honestUpdate = sim.updateMsg(2, 4);
+
+        uint256 snapshot = vm.snapshotState();
+        bytes[3] memory misbehaviours = [
+            _conflictingHeadersMisbehaviour(conflictingUpdate, honestUpdate),
+            _conflictingHeadersMisbehaviour(honestUpdate, conflictingUpdate),
+            _conflictingHeadersMisbehaviour(conflictingUpdate, conflictingUpdate)
+        ];
+        for (uint256 i = 0; i < misbehaviours.length; ++i) {
+            vm.revertToState(snapshot);
+            vm.expectEmit(address(client));
+            emit IBesuLightClient.DoubleSign(
+                3, keccak256(abi.encode(_consensusState(a))), keccak256(abi.encode(_consensusState(b)))
+            );
+            client.misbehaviour(misbehaviours[i]);
+            assertTrue(_isFrozen(client));
+        }
+    }
+
     /// @dev Two validly signed headers whose timestamps do not increase with height freeze the client in either
     /// order, even though neither is stored and the forged header is ahead of the clock.
     function test_conflictingHeadersTimeNonMonotonicity() public {

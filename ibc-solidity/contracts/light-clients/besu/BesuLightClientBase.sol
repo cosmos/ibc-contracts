@@ -121,16 +121,9 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             return ILightClientMsgs.UpdateResult.Misbehaviour;
         }
 
-        bytes32 newHash = keccak256(abi.encode(newConsensusState));
-        bytes32 existingHash = consensusStateHashes[height];
-        if (existingHash != bytes32(0)) {
-            if (existingHash == newHash) {
-                return ILightClientMsgs.UpdateResult.NoOp;
-            }
-
-            clientState.isFrozen = true;
-            emit DoubleSign(height, existingHash, newHash);
-            return ILightClientMsgs.UpdateResult.Misbehaviour;
+        (ILightClientMsgs.UpdateResult result, bytes32 newHash) = _freezeOnStoredConflict(height, newConsensusState);
+        if (result != ILightClientMsgs.UpdateResult.Update) {
+            return result;
         }
 
         consensusStateHashes[height] = newHash;
@@ -250,8 +243,9 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
 
     /// @notice Freezes the client if two validly signed headers prove a double sign, time non-monotonicity, or an
     /// invalid validator set change.
-    /// @dev Each header is first checked against its own trusted consensus state, as in `updateClient`, and only then
-    /// against the other header. If the first header is misbehaviour on its own, the second header is not verified.
+    /// @dev Each header is first checked against its own trusted consensus state and any consensus state stored at its
+    /// height, as in `updateClient`, and only then against the other header. If the first header is misbehaviour on its
+    /// own, the second header is not verified.
     /// @param msg_ The conflicting headers misbehaviour message.
     function _conflictingHeadersMisbehaviour(IBesuLightClientMsgs.MsgConflictingHeadersMisbehaviour memory msg_)
         private
@@ -267,6 +261,10 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             )) {
             return;
         }
+        (ILightClientMsgs.UpdateResult result1,) = _freezeOnStoredConflict(height1, consensusState1);
+        if (result1 == ILightClientMsgs.UpdateResult.Misbehaviour) {
+            return;
+        }
 
         (uint64 height2, IBesuLightClientMsgs.ConsensusState memory consensusState2, bool sameValidators2) =
             _verifyHeader(msg_.update2);
@@ -279,8 +277,39 @@ abstract contract BesuLightClientBase is IBesuLightClient, IBesuLightClientError
             )) {
             return;
         }
+        (ILightClientMsgs.UpdateResult result2,) = _freezeOnStoredConflict(height2, consensusState2);
+        if (result2 == ILightClientMsgs.UpdateResult.Misbehaviour) {
+            return;
+        }
 
         require(_freezeOnConflict(height1, consensusState1, height2, consensusState2), NoMisbehaviourDetected());
+    }
+
+    /// @notice Freezes the client if a consensus state conflicts with the one already stored at its height.
+    /// @param height The height of the consensus state.
+    /// @param consensusState The consensus state to compare against the stored one.
+    /// @return result `Misbehaviour` if the stored consensus state differs and the client was frozen, `NoOp` if it is
+    /// identical, and `Update` if none is stored at `height`.
+    /// @return hash The keccak256 hash of `consensusState`.
+    function _freezeOnStoredConflict(
+        uint64 height,
+        IBesuLightClientMsgs.ConsensusState memory consensusState
+    )
+        private
+        returns (ILightClientMsgs.UpdateResult result, bytes32 hash)
+    {
+        hash = keccak256(abi.encode(consensusState));
+        bytes32 existingHash = consensusStateHashes[height];
+        if (existingHash == bytes32(0)) {
+            return (ILightClientMsgs.UpdateResult.Update, hash);
+        }
+        if (existingHash == hash) {
+            return (ILightClientMsgs.UpdateResult.NoOp, hash);
+        }
+
+        clientState.isFrozen = true;
+        emit DoubleSign(height, existingHash, hash);
+        return (ILightClientMsgs.UpdateResult.Misbehaviour, hash);
     }
 
     /// @notice Freezes the client if two consensus states conflict, comparing their validator sets itself.
