@@ -26,7 +26,7 @@ All contracts are compiled for the **Cancun** EVM (`evm_version = "cancun"` in `
 
 ## Light clients (`light-clients/`)
 - `attestation/AttestationLightClient.sol` – m-of-n attestor-set light client using ECDSA signatures with role-gated proof submission.
-- `besu/BesuLightClientBase.sol` – Besu IBFT 2.0 and QBFT light client for header-validator mode. Uses weak-subjectivity / trusting-period updates, verifies Besu commit seals over the header in its commit-seal signing form plus EVM account/storage proofs, and proves Eureka commitments against the tracked counterparty `ICS26Router` storage.
+- `besu/BesuLightClient.sol` – Besu IBFT 2.0 and QBFT light client for header-validator mode. Uses weak-subjectivity / trusting-period updates, verifies Besu commit seals over the header in its commit-seal signing form plus EVM account/storage proofs, and proves Eureka commitments against the tracked counterparty `ICS26Router` storage.
 - `ics02-wrapper/ICS02PrecompileWrapper.sol` – Thin adapter that exposes the `ILightClient` interface over the Cosmos EVM ICS02 precompile at a fixed address.
 - `sp1-ics07/SP1ICS07Tendermint.sol` – Tendermint light client verified via SP1 programs and verifier contract; supports update, (non)membership proofs, and misbehaviour handling.
 

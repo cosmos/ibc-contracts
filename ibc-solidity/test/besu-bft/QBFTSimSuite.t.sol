@@ -13,7 +13,7 @@ import { ILightClientMsgs } from "../../contracts/msgs/ILightClientMsgs.sol";
 import { IBesuLightClient } from "../../contracts/light-clients/besu/interfaces/IBesuLightClient.sol";
 import { IBesuLightClientMsgs } from "../../contracts/light-clients/besu/msgs/IBesuLightClientMsgs.sol";
 import { IBesuLightClientErrors } from "../../contracts/light-clients/besu/errors/IBesuLightClientErrors.sol";
-import { BesuLightClientBase } from "../../contracts/light-clients/besu/BesuLightClientBase.sol";
+import { BesuLightClient } from "../../contracts/light-clients/besu/BesuLightClient.sol";
 import { ICS24Host } from "../../contracts/utils/ICS24Host.sol";
 
 import { QBFTSimSuite } from "./utils/QBFTSimSuite.sol";
@@ -92,7 +92,7 @@ abstract contract QBFTSimSuiteTest is Test {
             TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(2, 3), manager
         );
         IAccessControl acl = IAccessControl(address(restricted));
-        bytes32 role = BesuLightClientBase(address(restricted)).PROOF_SUBMITTER_ROLE();
+        bytes32 role = BesuLightClient(address(restricted)).PROOF_SUBMITTER_ROLE();
         assertTrue(acl.hasRole(acl.getRoleAdmin(role), manager));
         assertTrue(acl.hasRole(role, manager));
         assertFalse(acl.hasRole(role, address(0)));

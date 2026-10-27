@@ -5,13 +5,13 @@ pub mod besu_light_client {
     alloy_sol_types::sol!(
         #[sol(rpc)]
         #[allow(clippy::nursery, clippy::too_many_arguments)]
-        BesuLightClientBase,
-        "../../ibc-solidity/abi/bytecode/BesuLightClientBase.json"
+        BesuLightClient,
+        "../../ibc-solidity/abi/bytecode/BesuLightClient.json"
     );
 
     #[cfg(not(feature = "rpc"))]
     alloy_sol_types::sol!(
-        BesuLightClientBase,
-        "../../ibc-solidity/abi/BesuLightClientBase.json"
+        BesuLightClient,
+        "../../ibc-solidity/abi/BesuLightClient.json"
     );
 }

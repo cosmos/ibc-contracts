@@ -1,6 +1,6 @@
 # Besu IBFT 2.0 / QBFT Light Client
 
-This module contains `BesuLightClientBase.sol`, a Solidity light client for Besu BFT chains originally forked from [yui-ibc-solidity](https://github.com/hyperledger-labs/yui-ibc-solidity). One contract serves both Besu **IBFT 2.0** and **QBFT** counterparties.
+This module contains `BesuLightClient.sol`, a Solidity light client for Besu BFT chains originally forked from [yui-ibc-solidity](https://github.com/hyperledger-labs/yui-ibc-solidity). One contract serves both Besu **IBFT 2.0** and **QBFT** counterparties.
 
 The two protocols differ only in the header their validators sign for a commit seal. The relayer submits each header already in its protocol's commit-seal signing form, with the commit seals separately, so the client hashes the submitted header the same way for both and does not track which protocol the counterparty runs. See "Commit-seal signing form" below.
 
@@ -40,7 +40,7 @@ Relayers therefore need to keep the preimages of the heights they intend to refe
 
 The Besu light clients are deployed on the **destination** EVM chain, next to that chain's `ICS26Router`. That chain must have the **Cancun** hard fork enabled, in particular [EIP-1153](https://eips.ethereum.org/EIPS/eip-1153) transient storage (`TSTORE` / `TLOAD`):
 
-- `BesuLightClientBase` caches each proven router storage root in transient storage (see "Membership / non-membership proofs" below). On a chain without EIP-1153, every `verifyMembership` and `verifyNonMembership` call reverts with an invalid-opcode error when it tries to write that cache, so packet proof verification fails even when the proof itself is valid.
+- `BesuLightClient` caches each proven router storage root in transient storage (see "Membership / non-membership proofs" below). On a chain without EIP-1153, every `verifyMembership` and `verifyNonMembership` call reverts with an invalid-opcode error when it tries to write that cache, so packet proof verification fails even when the proof itself is valid.
 - This is not a new requirement relative to the rest of the stack: `ICS26Router`, `ICS20Transfer`, and `ICS27GMP` already use OpenZeppelin's `ReentrancyGuardTransient`, and `SP1ICS07Tendermint` caches proofs in transient storage, so a chain that can run the router can run these clients.
 - All contracts in `ibc-solidity/` are compiled with `evm_version = "cancun"` (`ibc-solidity/foundry.toml`), so the compiled artifacts may also rely on other Shanghai and Cancun opcodes such as `PUSH0` and `MCOPY`. Do not lower `evm_version` to target an older chain; the transient cache has no fallback.
 

@@ -3,7 +3,7 @@
 Test-only, in-process simulator of a Besu QBFT or IBFT 2.0 chain. It replaces docker-captured fixtures
 when a test needs headers signed by an arbitrary validator set, exotic consensus scenarios (double signing,
 clock misbehaviour, low quorum, validator churn), or real state roots and Merkle Patricia proofs for IBC
-commitments that `BesuLightClientBase` verifies.
+commitments that `BesuLightClient` verifies.
 
 This directory was AI generated and reviewed for correctness. Its behaviour is pinned by
 `SimHeader.t.sol` (byte-exact round trips of live Besu QBFT signing headers), `MerklePatriciaTrie.t.sol`

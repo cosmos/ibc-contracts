@@ -23,7 +23,7 @@ import { Header } from "./utils/Header.sol";
 /// @dev The client does not track which protocol the counterparty runs. Each header is submitted in its protocol's
 /// commit seal signing form, so the commit seal digest is `keccak256(headerRlp)` for both. See `hashBlockForCommitSeal`
 /// in the QBFT specification: https://entethalliance.org/specs/qbft/v1
-contract BesuLightClientBase is IBesuLightClient, IBesuLightClientErrors, AccessControl {
+contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, AccessControl {
     using TransientSlot for TransientSlot.Bytes32Slot;
 
     /// @notice Role allowed to submit client updates and proof verifications. Misbehaviour is permissionless.

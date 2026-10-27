@@ -12,7 +12,7 @@ import { ECDSA } from "@openzeppelin-contracts/utils/cryptography/ECDSA.sol";
 
 import { ILightClientMsgs } from "../../contracts/msgs/ILightClientMsgs.sol";
 import { IICS02ClientMsgs } from "../../contracts/msgs/IICS02ClientMsgs.sol";
-import { BesuLightClientBase } from "../../contracts/light-clients/besu/BesuLightClientBase.sol";
+import { BesuLightClient } from "../../contracts/light-clients/besu/BesuLightClient.sol";
 import { IBesuLightClient } from "../../contracts/light-clients/besu/interfaces/IBesuLightClient.sol";
 import { IBesuLightClientMsgs } from "../../contracts/light-clients/besu/msgs/IBesuLightClientMsgs.sol";
 import { IBesuLightClientErrors } from "../../contracts/light-clients/besu/errors/IBesuLightClientErrors.sol";
@@ -1799,7 +1799,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         internal
         returns (IBesuLightClient)
     {
-        return new BesuLightClientBase(clientState, consensusState, address(0));
+        return new BesuLightClient(clientState, consensusState, address(0));
     }
 
     function _fixtureFile() internal pure virtual returns (string memory);

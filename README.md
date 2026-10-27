@@ -81,7 +81,7 @@ This project is structured with the following directories:
 | `ICS26Router.sol` | IBC router handles sequencing, replay protection, and timeout checks. Passes proofs to light clients for verification, and resolves `portId` for app callbacks. Provable IBC storage is stored in this contract.  | ✅ |
 | `ICS20Transfer.sol` | IBC transfer application to send and receive tokens to/from another IBC transfer implementation. | ✅ |
 | `SP1ICS07Tendermint.sol` | Tendermint light client powered by SP1. The entry point for SP1 proofs. | ✅ |
-| `BesuLightClientBase.sol` | Besu IBFT 2.0 and QBFT light client for header-validator mode with weak-subjectivity updates and EVM proof verification. | ⏳ |
+| `BesuLightClient.sol` | Besu IBFT 2.0 and QBFT light client for header-validator mode with weak-subjectivity updates and EVM proof verification. | ⏳ |
 | `ICS27GMP.sol` | IBC General Message Passing via Interchain Accounts. | ✅ |
 | `AttestationLightClient.sol` | The multisig contract implementing IBC Light Client specs. | ✅ |
 | `utils/IFTBaseUpgradeable.sol` | Interchain Fungible Token standard. Mint and burn alternative to ICS-20. | ⏳ |

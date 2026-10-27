@@ -120,7 +120,7 @@ We also considered using AccessManager's `setTargetClosed` as the application pa
 
 ### Light Clients
 
-**Decision: [`SP1ICS07Tendermint`](../../../ibc-solidity/contracts/light-clients/sp1-ics07/SP1ICS07Tendermint.sol), [`BesuLightClientBase`](../../../ibc-solidity/contracts/light-clients/besu/BesuLightClientBase.sol) and [`AttestationLightClient`](../../../ibc-solidity/contracts/light-clients/attestation/AttestationLightClient.sol) get a reversible pause, controlled by roles that are granted to the client's role manager.**
+**Decision: [`SP1ICS07Tendermint`](../../../ibc-solidity/contracts/light-clients/sp1-ics07/SP1ICS07Tendermint.sol), [`BesuLightClient`](../../../ibc-solidity/contracts/light-clients/besu/BesuLightClient.sol) and [`AttestationLightClient`](../../../ibc-solidity/contracts/light-clients/attestation/AttestationLightClient.sol) get a reversible pause, controlled by roles that are granted to the client's role manager.**
 
 A per-client pause halts a single connection, for every application that uses it, without touching any other connection. It is the response to a suspected light client problem that cannot be proven on chain: a prover bug, a compromised attestor key, or a validator set behaving strangely.
 
@@ -167,7 +167,7 @@ This ADR does not change any code. Implementation follows in separate pull reque
 
 - **Router**: add `PausableUpgradeable` and `IPausable` to `ICS26Router`, and gate both overloads of `addIBCApp` and `addClient` with `whenNotPaused`.
 - **IFT**: add the three hooks to `IFTBaseUpgradeable`, next to the existing `_consumeIFTRateLimit` calls. Add `PausableUpgradeable` and `IPausable` to `IFTOwnable` and `IFTAccessManaged`, and override the hooks.
-- **Light clients**: add `Pausable`, `PAUSER_ROLE` and `UNPAUSER_ROLE` to `SP1ICS07Tendermint`, `BesuLightClientBase` and `AttestationLightClient`, and gate `updateClient`, `verifyMembership` and `verifyNonMembership` with `whenNotPaused`.
+- **Light clients**: add `Pausable`, `PAUSER_ROLE` and `UNPAUSER_ROLE` to `SP1ICS07Tendermint`, `BesuLightClient` and `AttestationLightClient`, and gate `updateClient`, `verifyMembership` and `verifyNonMembership` with `whenNotPaused`.
 - **Deployment**: wire `ICS26Router` and `IFTAccessManaged` deployments to `PAUSER_ROLE` and `UNPAUSER_ROLE` using the existing `IBCRolesLib` selectors.
 - **Tooling**: run `just solidity::generate-abi` after the interface changes, and add tests for each flow while paused, including retrying acknowledgements and timeouts after unpausing.
 - **Docs**: link this ADR from [`ibc-solidity/contracts/README.md`](../../../ibc-solidity/contracts/README.md).

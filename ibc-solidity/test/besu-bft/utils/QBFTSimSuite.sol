@@ -11,7 +11,7 @@ import { ILightClientMsgs } from "../../../contracts/msgs/ILightClientMsgs.sol";
 import { IBesuLightClientMsgs } from "../../../contracts/light-clients/besu/msgs/IBesuLightClientMsgs.sol";
 import { IBesuLightClient } from "../../../contracts/light-clients/besu/interfaces/IBesuLightClient.sol";
 
-import { BesuLightClientBase } from "../../../contracts/light-clients/besu/BesuLightClientBase.sol";
+import { BesuLightClient } from "../../../contracts/light-clients/besu/BesuLightClient.sol";
 import { ICS24Host } from "../../../contracts/utils/ICS24Host.sol";
 import { IBCStoreUpgradeable } from "../../../contracts/utils/IBCStoreUpgradeable.sol";
 import { SimHeader } from "./SimHeader.sol";
@@ -240,7 +240,7 @@ contract QBFTSimSuite is Test, SimWorldState {
             isFrozen: false,
             trustLevel: trustLevel
         });
-        return new BesuLightClientBase(clientState, consensusState(height), roleManager);
+        return new BesuLightClient(clientState, consensusState(height), roleManager);
     }
 
     function consensusState(uint64 height) public view returns (IBesuLightClientMsgs.ConsensusState memory) {

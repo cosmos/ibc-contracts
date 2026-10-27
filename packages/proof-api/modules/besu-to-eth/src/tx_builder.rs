@@ -91,7 +91,7 @@ impl TxBuilder {
 
         let trusted_state = consensus_state(&self.fetch_source_header(trusted_height).await?)?;
 
-        let calldata = besu_light_client::BesuLightClientBase::deploy_builder(
+        let calldata = besu_light_client::BesuLightClient::deploy_builder(
             self.dst_provider.clone(),
             besu_light_client::IBesuLightClientMsgs::ClientState {
                 ibcRouter: *self.src_ics26_router.address(),
@@ -349,7 +349,7 @@ impl TxBuilder {
                 format!("failed to fetch destination client address for {dst_client_id}")
             })?;
         let client_state_bz: Bytes =
-            besu_light_client::BesuLightClientBase::new(client_address, self.dst_provider.clone())
+            besu_light_client::BesuLightClient::new(client_address, self.dst_provider.clone())
                 .getClientState()
                 .call()
                 .await

@@ -157,7 +157,7 @@ Module configuration varies by module type:
 
 ## `besu_to_eth` create-client parameters
 
-`besu_to_eth` `CreateClient` returns only deployment calldata for `BesuLightClientBase`, which serves both QBFT and IBFT2 sources. It does not call `ICS26Router.addClient(...)`.
+`besu_to_eth` `CreateClient` returns only deployment calldata for `BesuLightClient`, which serves both QBFT and IBFT2 sources. It does not call `ICS26Router.addClient(...)`.
 
 Required parameters:
 - `trusting_period`: Decimal seconds for the weak-subjectivity window.
