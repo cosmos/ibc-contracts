@@ -170,7 +170,7 @@ contract ICS26Router is
             path: ICS24Host.prefixedPath(cInfo.merklePrefix, commitmentPath),
             value: abi.encodePacked(commitmentBz)
         });
-        // NOTE: The verification timestamp is not used here in the IBC Eureka Specifications
+        // NOTE: The verification timestamp is not used here in the IBC v2 Specifications
         // slither-disable-next-line unused-return
         getClient(msg_.packet.destClient).verifyMembership(membershipMsg);
 
