@@ -246,6 +246,22 @@
   },
   {
     "type": "error",
+    "name": "InvalidPathElementLength",
+    "inputs": [
+      {
+        "name": "expectedLength",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "actualLength",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "InvalidPathLength",
     "inputs": [
       {

@@ -1483,9 +1483,11 @@ func (s *BesuToBesuTestSuite) createAndRegisterBesuClient(
 	s.Require().Equal(ethtypes.ReceiptStatusSuccessful, createClientReceipt.Status)
 	s.Require().NotEqual(ethcommon.Address{}, createClientReceipt.ContractAddress)
 
+	// The Besu light client proves paths of the form [counterpartyRouter, commitmentPath].
+	srcRouter := ethcommon.HexToAddress(srcChain.contractAddresses.Ics26Router)
 	counterpartyInfo := ics26router.IICS02ClientMsgsCounterpartyInfo{
 		ClientId:     counterpartyClientID,
-		MerklePrefix: [][]byte{[]byte("")},
+		MerklePrefix: [][]byte{[]byte(srcRouter.Hex()), []byte("")},
 	}
 	addClientTx, err := dstChain.ics26.AddClient(
 		s.mustTransactOpts(dstChain, dstChain.deployer),

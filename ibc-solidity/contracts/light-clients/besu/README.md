@@ -172,10 +172,15 @@ Both calls first verify `accountProofNodes` against the preimage `stateRoot` to 
 For Besu / EVM counterparties, the expected merkle prefix is:
 
 ```solidity
-[bytes("")]
+[bytes(Strings.toHexString(counterpartyRouter)), bytes("")]
 ```
 
-That means `msg_.path[0]` is the raw Eureka commitment path bytes.
+That means `msg_.path` must contain exactly two elements:
+
+- `msg_.path[0]` is the counterparty `ICS26Router` address as a hex string (with or without `0x`, any case). It must equal the client state's `ibcRouter`, otherwise the call reverts with `InvalidIbcRouter`; a malformed address reverts with `Strings.StringsInvalidAddressFormat`.
+- `msg_.path[1]` is the raw Eureka commitment path bytes.
+
+Any other path length reverts with `InvalidPathLength(2, actualLength)`.
 
 ### Storage slot derivation
 
@@ -203,7 +208,7 @@ where `IBCSTORE_STORAGE_SLOT` is the ERC-7201 namespace constant used by `IBCSto
 
 ### Non-membership
 
-- `msg_.path` must contain exactly one element: the raw Eureka commitment path.
+- `msg_.path` must be `[counterpartyRouter, rawPath]`, as described above.
 - `proofNodes` must establish that `storageKey` is absent from the router storage root recovered from `accountProofNodes`. Accepted exclusion witnesses include an empty trie (encoded as an empty `bytes[]`), an empty branch child or value, and a leaf or extension path that diverges from the derived key.
 - The proof must end at the node that establishes exclusion; extra trailing proof nodes are rejected.
 - A valid exclusion proof returns the trusted consensus timestamp in seconds for `msg_.proofHeight`, taken from the verified preimage. If the decoded trie proof does not establish exclusion for the trusted root and derived key, including when it proves an existing value, the call reverts with `InvalidExclusionProof`. Malformed ABI or RLP data may revert while being decoded.
