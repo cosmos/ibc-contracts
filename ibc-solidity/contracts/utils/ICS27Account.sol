@@ -9,7 +9,6 @@ import { IICS27Account } from "../interfaces/IICS27Account.sol";
 import { ContextUpgradeable } from "@openzeppelin-upgradeable/utils/ContextUpgradeable.sol";
 import { Address } from "@openzeppelin-contracts/utils/Address.sol";
 import { Errors } from "@openzeppelin-contracts/utils/Errors.sol";
-import { LowLevelCall } from "@openzeppelin-contracts/utils/LowLevelCall.sol";
 
 /// @title ICS27Account
 /// @notice This contract is the implementation of the ICS27 Account, which is used to make the GMP calls
@@ -61,9 +60,9 @@ contract ICS27Account is IICS27Errors, IICS27Account, ContextUpgradeable {
     function sendValue(address payable recipient, uint256 amount) external onlySelf {
         _checkBalance(amount);
         uint256 gasBefore = gasleft();
-        if (!LowLevelCall.callNoReturn(recipient, amount, "")) {
-            _revert(gasBefore);
-        }
+        // solhint-disable-next-line avoid-low-level-calls
+        (bool success, bytes memory returndata) = recipient.call{ value: amount }("");
+        _verifyCallResult(success, returndata, gasBefore);
     }
 
     /// @inheritdoc IICS27Account
@@ -89,10 +88,13 @@ contract ICS27Account is IICS27Errors, IICS27Account, ContextUpgradeable {
     /// @inheritdoc IICS27Account
     function delegateExecute(address target, bytes calldata data) external onlySelf returns (bytes memory) {
         uint256 gasBefore = gasleft();
-        return _result(target, LowLevelCall.delegatecallNoReturn(target, data), gasBefore);
+        // solhint-disable-next-line avoid-low-level-calls
+        (bool success, bytes memory returndata) = target.delegatecall(data);
+        return _verifyCallResultFromTarget(target, success, returndata, gasBefore);
     }
 
-    /// @notice Calls `target` like openzeppelin's `Address.functionCallWithValue`, but reverts like `_revert`
+    /// @notice Calls `target` like openzeppelin's `Address.functionCallWithValue`, but reverts like
+    /// `_verifyCallResult`
     /// @param target The target address to call
     /// @param data The data to send to the target address
     /// @param value The value to send to the target address
@@ -100,37 +102,44 @@ contract ICS27Account is IICS27Errors, IICS27Account, ContextUpgradeable {
     function _call(address target, bytes memory data, uint256 value) private returns (bytes memory) {
         _checkBalance(value);
         uint256 gasBefore = gasleft();
-        return _result(target, LowLevelCall.callNoReturn(target, value, data), gasBefore);
+        // solhint-disable-next-line avoid-low-level-calls
+        (bool success, bytes memory returndata) = target.call{ value: value }(data);
+        return _verifyCallResultFromTarget(target, success, returndata, gasBefore);
     }
 
-    /// @notice Returns the result of the last call, reverting like `_revert` if it failed
-    /// @dev Like openzeppelin's `Address`, a successful call to an address without code is an error
+    /// @notice Like `_verifyCallResult`, but a successful call to an address without code is an error, like in
+    /// openzeppelin's `Address.functionCall`
     /// @param target The address that was called
     /// @param success Whether the call succeeded
+    /// @param returndata The data returned by the call
     /// @param gasBefore The gas left before the call
-    /// @return The result of the call
-    function _result(address target, bool success, uint256 gasBefore) private view returns (bytes memory) {
-        if (!success) {
-            _revert(gasBefore);
-        }
-        require(LowLevelCall.returnDataSize() != 0 || target.code.length != 0, Address.AddressEmptyCode(target));
-        return LowLevelCall.returnData();
+    /// @return The data returned by the call
+    function _verifyCallResultFromTarget(
+        address target,
+        bool success,
+        bytes memory returndata,
+        uint256 gasBefore
+    )
+        private
+        view
+        returns (bytes memory)
+    {
+        _verifyCallResult(success, returndata, gasBefore);
+        require(returndata.length != 0 || target.code.length != 0, Address.AddressEmptyCode(target));
+        return returndata;
     }
 
-    /// @notice Bubbles up the revert data of the last call, or reverts with `FailedCall` if it has none
-    /// @dev Reverts without data instead if the call most likely ran out of gas, see `OUT_OF_GAS_DIVISOR`
+    /// @notice Reverts like openzeppelin's `Address.verifyCallResult` if the call failed, but without data if it
+    /// failed without revert data and most likely ran out of gas, see `OUT_OF_GAS_DIVISOR`
+    /// @param success Whether the call succeeded
+    /// @param returndata The data returned by the call
     /// @param gasBefore The gas left before the call
-    function _revert(uint256 gasBefore) private view {
-        if (LowLevelCall.returnDataSize() != 0) {
-            LowLevelCall.bubbleRevert();
+    function _verifyCallResult(bool success, bytes memory returndata, uint256 gasBefore) private view {
+        if (!success && returndata.length == 0 && gasleft() < gasBefore / OUT_OF_GAS_DIVISOR) {
+            // solhint-disable-next-line gas-custom-errors, reason-string
+            revert();
         }
-        if (gasleft() < gasBefore / OUT_OF_GAS_DIVISOR) {
-            // solhint-disable-next-line no-inline-assembly
-            assembly ("memory-safe") {
-                revert(0, 0)
-            }
-        }
-        revert Errors.FailedCall();
+        Address.verifyCallResult(success, returndata);
     }
 
     /// @notice Reverts if this account cannot send `value`
