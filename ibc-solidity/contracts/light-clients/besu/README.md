@@ -172,15 +172,16 @@ Both calls first verify `accountProofNodes` against the preimage `stateRoot` to 
 For Besu / EVM counterparties, the expected merkle prefix is:
 
 ```solidity
-[abi.encodePacked(counterpartyRouter), bytes("")]
+[abi.encodePacked(counterpartyRouter), abi.encodePacked(IBCSTORE_STORAGE_SLOT), bytes("")]
 ```
 
-That means `msg_.path` must contain exactly two elements:
+That means `msg_.path` must contain exactly three elements:
 
 - `msg_.path[0]` is the raw 20-byte counterparty `ICS26Router` address. Any other length reverts with `InvalidPathElementLength(20, actualLength)`, and an address other than the client state's `ibcRouter` reverts with `CounterpartyRouterMismatch(ibcRouter, actual)`.
-- `msg_.path[1]` is the raw Eureka commitment path bytes.
+- `msg_.path[1]` is the 32-byte `IBCSTORE_STORAGE_SLOT` (see below). Any other length reverts with `InvalidPathElementLength(32, actualLength)`, and any other slot reverts with `StorageSlotMismatch(IBCSTORE_STORAGE_SLOT, actual)`. The slot is fixed: it names the mapping the commitment path is derived under, so a prefix cannot redirect proofs to other storage.
+- `msg_.path[2]` is the raw Eureka commitment path bytes.
 
-Any other path length reverts with `InvalidPathLength(2, actualLength)`.
+Any other path length reverts with `InvalidPathLength(3, actualLength)`.
 
 ### Storage slot derivation
 
@@ -209,7 +210,7 @@ where `IBCSTORE_STORAGE_SLOT` is the ERC-7201 namespace constant used by `IBCSto
 
 ### Non-membership
 
-- `msg_.path` must be `[counterpartyRouter, rawPath]`, as described above.
+- `msg_.path` must be `[counterpartyRouter, IBCSTORE_STORAGE_SLOT, rawPath]`, as described above.
 - `proofNodes` must establish that `storageKey` is absent from the router storage root recovered from `accountProofNodes`. Accepted exclusion witnesses include an empty trie (encoded as an empty `bytes[]`), an empty branch child or value, and a leaf or extension path that diverges from the derived key.
 - The proof must end at the node that establishes exclusion; extra trailing proof nodes are rejected.
 - A valid exclusion proof returns the trusted consensus timestamp in seconds for `msg_.proofHeight`, taken from the verified preimage. If the decoded trie proof does not establish exclusion for the trusted root and derived key, including when it proves an existing value, the call reverts with `InvalidExclusionProof`. Malformed ABI or RLP data may revert while being decoded.

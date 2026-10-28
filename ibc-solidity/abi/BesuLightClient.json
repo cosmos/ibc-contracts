@@ -934,6 +934,22 @@
   },
   {
     "type": "error",
+    "name": "StorageSlotMismatch",
+    "inputs": [
+      {
+        "name": "expected",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "actual",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "TrieProofTraversalError",
     "inputs": [
       {

@@ -157,7 +157,7 @@ Module configuration varies by module type:
 
 ## `besu_to_eth` create-client parameters
 
-`besu_to_eth` `CreateClient` returns only deployment calldata for `BesuLightClient`, which serves both QBFT and IBFT2 sources, bound to `dst_ics26_address` as the only router that can drive the client. It does not call `ICS26Router.addClient(...)`. Register the deployed client with the counterparty merkle prefix `[src_ics26_address, ""]`, with the source router address as its raw 20 bytes, because the client rejects proofs whose path does not start with the router it tracks.
+`besu_to_eth` `CreateClient` returns only deployment calldata for `BesuLightClient`, which serves both QBFT and IBFT2 sources, bound to `dst_ics26_address` as the only router that can drive the client. It does not call `ICS26Router.addClient(...)`. Register the deployed client with the counterparty merkle prefix `[src_ics26_address, IBCSTORE_STORAGE_SLOT, ""]`, with the source router address as its raw 20 bytes and the `IBCStoreUpgradeable` ERC-7201 slot (`0x1260944489272988d9df285149b5aa1b0f48f2136d6f416159f840a3e0747600`) as its 32 bytes, because the client rejects proofs whose path does not start with the router it tracks and that slot.
 
 Required parameters:
 - `trusting_period`: Decimal seconds for the weak-subjectivity window.

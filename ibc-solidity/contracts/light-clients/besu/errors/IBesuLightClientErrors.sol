@@ -13,6 +13,10 @@ interface IBesuLightClientErrors {
     /// @param expected The client state's `ibcRouter`.
     /// @param actual The router address in the proof path.
     error CounterpartyRouterMismatch(address expected, address actual);
+    /// @notice The storage slot in the proof path is not the `IBCStoreUpgradeable` namespace slot.
+    /// @param expected The `IBCStoreUpgradeable` namespace slot.
+    /// @param actual The storage slot in the proof path.
+    error StorageSlotMismatch(bytes32 expected, bytes32 actual);
     /// @notice The submitted header has an invalid RLP item count.
     /// @param itemsLength The decoded header item count.
     error InvalidHeaderFormat(uint256 itemsLength);

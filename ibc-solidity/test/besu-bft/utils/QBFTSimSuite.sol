@@ -247,11 +247,12 @@ contract QBFTSimSuite is Test, SimWorldState {
         return _updateMsg(trustedHeight, header.signingRlp(MODE), header.commitSeals);
     }
 
-    /// @notice The `[IBC_ROUTER, ""]` merkle prefix a router must register for the light client.
+    /// @notice The `[IBC_ROUTER, IBCSTORE_STORAGE_SLOT, ""]` merkle prefix a router must register for the light client.
     function merklePrefix() public view returns (bytes[] memory prefix) {
-        prefix = new bytes[](2);
+        prefix = new bytes[](3);
         prefix[0] = abi.encodePacked(IBC_ROUTER);
-        prefix[1] = "";
+        prefix[1] = abi.encodePacked(IBCSTORE_STORAGE_SLOT);
+        prefix[2] = "";
     }
 
     function membershipMsg(

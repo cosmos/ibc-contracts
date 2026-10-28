@@ -230,19 +230,23 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
     }
 
     /// @notice Parses the Merkle path for a commitment proof.
-    /// @param path The Merkle path, which must be of [counterpartyRouter, commitmentPath] form, where
-    /// `counterpartyRouter` is the raw 20-byte router address.
+    /// @param path The Merkle path, which must be of [counterpartyRouter, storageSlot, commitmentPath] form, where
+    /// `counterpartyRouter` is the raw 20-byte router address and `storageSlot` is `IBCSTORE_STORAGE_SLOT`.
     /// @return counterpartyRouter The counterparty router address, must match the client state's `ibcRouter`.
     /// @return storageKey The key used in the contract storage trie.
     function _parseMerklePath(bytes[] calldata path) private view returns (address, bytes memory) {
-        require(path.length == 2, InvalidPathLength(2, path.length));
+        require(path.length == 3, InvalidPathLength(3, path.length));
         require(path[0].length == 20, InvalidPathElementLength(20, path[0].length));
+        require(path[1].length == 32, InvalidPathElementLength(32, path[1].length));
 
         address counterpartyRouter = address(bytes20(path[0]));
         address ibcRouter = clientState.ibcRouter;
         require(counterpartyRouter == ibcRouter, CounterpartyRouterMismatch(ibcRouter, counterpartyRouter));
 
-        bytes32 storageSlot = _commitmentStorageSlot(path[1]);
+        bytes32 namespaceSlot = bytes32(path[1]);
+        require(namespaceSlot == IBCSTORE_STORAGE_SLOT, StorageSlotMismatch(IBCSTORE_STORAGE_SLOT, namespaceSlot));
+
+        bytes32 storageSlot = _commitmentStorageSlot(path[2]);
         bytes memory storageKey = abi.encodePacked(keccak256(abi.encodePacked(storageSlot)));
 
         return (counterpartyRouter, storageKey);

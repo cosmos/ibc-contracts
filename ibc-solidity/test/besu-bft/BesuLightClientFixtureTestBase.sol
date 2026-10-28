@@ -150,6 +150,9 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     using Memory for bytes;
 
     string internal constant FIXTURE_DIR = "/test/besu-bft/fixtures/";
+    /// @dev ERC-7201 namespace slot of `IBCStoreUpgradeable`, the second element of the Besu merkle prefix.
+    bytes32 internal constant IBCSTORE_STORAGE_SLOT =
+        0x1260944489272988d9df285149b5aa1b0f48f2136d6f416159f840a3e0747600;
     /// @dev secp256k1 curve order.
     uint256 internal constant SECP256K1_N = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141;
 
@@ -614,12 +617,13 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     }
 
     function fixtureMembership() public view returns (BesuMembershipTestCase[] memory testCases) {
-        bytes[] memory unprefixedPath = new bytes[](1);
-        unprefixedPath[0] = fixture.membership.path;
+        bytes[] memory slotlessPath = new bytes[](2);
+        slotlessPath[0] = abi.encodePacked(fixture.routerAddress);
+        slotlessPath[1] = fixture.membership.path;
 
         bytes memory wrongValue = abi.encodePacked(bytes32(uint256(1)));
         uint64 timestamp = fixture.initialTrustedTimestamp + 1;
-        testCases = new BesuMembershipTestCase[](12);
+        testCases = new BesuMembershipTestCase[](14);
         testCases[0] = BesuMembershipTestCase({
             name: "success",
             timestamp: timestamp,
@@ -635,10 +639,10 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             expectedTimestamp: 0
         });
         testCases[2] = BesuMembershipTestCase({
-            name: "failure: unprefixed path",
+            name: "failure: path without storage slot",
             timestamp: timestamp,
-            message: _membershipMessage(0, unprefixedPath, fixture.membership.value),
-            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidPathLength.selector, 2, 1),
+            message: _membershipMessage(0, slotlessPath, fixture.membership.value),
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidPathLength.selector, 3, 2),
             expectedTimestamp: 0
         });
         testCases[3] = BesuMembershipTestCase({
@@ -738,12 +742,13 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         });
 
         address wrongRouter = address(uint160(fixture.routerAddress) ^ 1);
+        ILightClientMsgs.MsgVerifyMembership memory wrongRouterMessage =
+            _membershipMessage(0, _prefixedPath(fixture.membership.path), fixture.membership.value);
+        wrongRouterMessage.path[0] = abi.encodePacked(wrongRouter);
         testCases[10] = BesuMembershipTestCase({
             name: "failure: wrong counterparty router",
             timestamp: timestamp,
-            message: _membershipMessage(
-                0, _routerPath(abi.encodePacked(wrongRouter), fixture.membership.path), fixture.membership.value
-            ),
+            message: wrongRouterMessage,
             expectedRevert: abi.encodeWithSelector(
                 IBesuLightClientErrors.CounterpartyRouterMismatch.selector, fixture.routerAddress, wrongRouter
             ),
@@ -751,13 +756,39 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         });
 
         // A 32-byte ABI-encoded address is not accepted in place of the raw 20-byte address.
+        ILightClientMsgs.MsgVerifyMembership memory nonRawRouterMessage =
+            _membershipMessage(0, _prefixedPath(fixture.membership.path), fixture.membership.value);
+        nonRawRouterMessage.path[0] = abi.encode(fixture.routerAddress);
         testCases[11] = BesuMembershipTestCase({
             name: "failure: non-raw counterparty router",
             timestamp: timestamp,
-            message: _membershipMessage(
-                0, _routerPath(abi.encode(fixture.routerAddress), fixture.membership.path), fixture.membership.value
-            ),
+            message: nonRawRouterMessage,
             expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidPathElementLength.selector, 20, 32),
+            expectedTimestamp: 0
+        });
+
+        bytes32 wrongSlot = IBCSTORE_STORAGE_SLOT ^ bytes32(uint256(1));
+        ILightClientMsgs.MsgVerifyMembership memory wrongSlotMessage =
+            _membershipMessage(0, _prefixedPath(fixture.membership.path), fixture.membership.value);
+        wrongSlotMessage.path[1] = abi.encodePacked(wrongSlot);
+        testCases[12] = BesuMembershipTestCase({
+            name: "failure: wrong storage slot",
+            timestamp: timestamp,
+            message: wrongSlotMessage,
+            expectedRevert: abi.encodeWithSelector(
+                IBesuLightClientErrors.StorageSlotMismatch.selector, IBCSTORE_STORAGE_SLOT, wrongSlot
+            ),
+            expectedTimestamp: 0
+        });
+
+        ILightClientMsgs.MsgVerifyMembership memory shortSlotMessage =
+            _membershipMessage(0, _prefixedPath(fixture.membership.path), fixture.membership.value);
+        shortSlotMessage.path[1] = abi.encodePacked(bytes31(IBCSTORE_STORAGE_SLOT));
+        testCases[13] = BesuMembershipTestCase({
+            name: "failure: wrong storage slot length",
+            timestamp: timestamp,
+            message: shortSlotMessage,
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidPathElementLength.selector, 32, 31),
             expectedTimestamp: 0
         });
     }
@@ -767,7 +798,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         IBesuLightClientMsgs.ConsensusState memory expectedPreimage = _provenConsensusState(proofHeight);
 
         uint64 timestamp = fixture.initialTrustedTimestamp + 1;
-        testCases = new BesuNonMembershipTestCase[](9);
+        testCases = new BesuNonMembershipTestCase[](10);
         testCases[0] = BesuNonMembershipTestCase({
             name: "success",
             timestamp: timestamp,
@@ -786,14 +817,15 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             expectedTimestamp: 0
         });
 
-        ILightClientMsgs.MsgVerifyNonMembership memory unprefixedPathMessage = _nonMembershipMessage(proofHeight);
-        unprefixedPathMessage.path = new bytes[](1);
-        unprefixedPathMessage.path[0] = fixture.nonMembership.path;
+        ILightClientMsgs.MsgVerifyNonMembership memory slotlessPathMessage = _nonMembershipMessage(proofHeight);
+        slotlessPathMessage.path = new bytes[](2);
+        slotlessPathMessage.path[0] = abi.encodePacked(fixture.routerAddress);
+        slotlessPathMessage.path[1] = fixture.nonMembership.path;
         testCases[2] = BesuNonMembershipTestCase({
-            name: "failure: unprefixed path",
+            name: "failure: path without storage slot",
             timestamp: timestamp,
-            message: unprefixedPathMessage,
-            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidPathLength.selector, 2, 1),
+            message: slotlessPathMessage,
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidPathLength.selector, 3, 2),
             expectedTimestamp: 0
         });
 
@@ -860,13 +892,26 @@ abstract contract BesuLightClientFixtureTestBase is Test {
 
         address wrongRouter = address(uint160(fixture.routerAddress) ^ 1);
         ILightClientMsgs.MsgVerifyNonMembership memory wrongRouterMessage = _nonMembershipMessage(proofHeight);
-        wrongRouterMessage.path = _routerPath(abi.encodePacked(wrongRouter), fixture.nonMembership.path);
+        wrongRouterMessage.path[0] = abi.encodePacked(wrongRouter);
         testCases[8] = BesuNonMembershipTestCase({
             name: "failure: wrong counterparty router",
             timestamp: timestamp,
             message: wrongRouterMessage,
             expectedRevert: abi.encodeWithSelector(
                 IBesuLightClientErrors.CounterpartyRouterMismatch.selector, fixture.routerAddress, wrongRouter
+            ),
+            expectedTimestamp: 0
+        });
+
+        bytes32 wrongSlot = IBCSTORE_STORAGE_SLOT ^ bytes32(uint256(1));
+        ILightClientMsgs.MsgVerifyNonMembership memory wrongSlotMessage = _nonMembershipMessage(proofHeight);
+        wrongSlotMessage.path[1] = abi.encodePacked(wrongSlot);
+        testCases[9] = BesuNonMembershipTestCase({
+            name: "failure: wrong storage slot",
+            timestamp: timestamp,
+            message: wrongSlotMessage,
+            expectedRevert: abi.encodeWithSelector(
+                IBesuLightClientErrors.StorageSlotMismatch.selector, IBCSTORE_STORAGE_SLOT, wrongSlot
             ),
             expectedTimestamp: 0
         });
@@ -1758,15 +1803,14 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         nodes[0][0] ^= 0x01;
     }
 
-    /// @dev The router path for `path` under the fixture router's `[routerAddress, ""]` merkle prefix.
+    /// @dev The router path for `path` under the fixture router's `[routerAddress, IBCSTORE_STORAGE_SLOT, ""]` merkle
+    /// prefix.
     function _prefixedPath(bytes memory path) internal view returns (bytes[] memory) {
-        return _routerPath(abi.encodePacked(fixture.routerAddress), path);
-    }
-
-    function _routerPath(bytes memory router, bytes memory path) internal pure returns (bytes[] memory out) {
-        out = new bytes[](2);
-        out[0] = router;
-        out[1] = path;
+        bytes[] memory out = new bytes[](3);
+        out[0] = abi.encodePacked(fixture.routerAddress);
+        out[1] = abi.encodePacked(IBCSTORE_STORAGE_SLOT);
+        out[2] = path;
+        return out;
     }
 
     function _membershipMessage(
