@@ -584,16 +584,24 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
     }
 
     /// @notice Checks that enough trusted validators signed.
-    /// @dev Requires at least `ceil(n * trustLevel)` trusted validators to have signed, and always more than a third
-    /// (`floor(n / 3) + 1`) so that at least one honest trusted validator signed even at a 1/3 trust level.
+    /// @dev Requires `ceil(n * trustLevel)` trusted validators to have signed, capped at `floor(2n / 3) - 1` so that
+    /// updates can continue after a single validator set change, and always more than a third (`floor(n / 3) + 1`)
+    /// so that at least one honest trusted validator signed. The more-than-a-third floor takes precedence over the cap.
     /// @param actual The number of trusted signers.
     /// @param trustedCount The trusted validator set size.
     function _requireTrustLevel(uint256 actual, uint256 trustedCount) private view {
         IBesuLightClientMsgs.TrustThreshold memory trustLevel = clientState.trustLevel;
-        uint256 required = Math.max(
-            Math.mulDiv(trustedCount, trustLevel.numerator, trustLevel.denominator, Math.Rounding.Ceil),
-            trustedCount / 3 + 1
-        );
+
+        // Always require more than 1/3 of the trusted validators for BFT safety
+        uint256 lowerBound = trustedCount / 3 + 1;
+        // Always require less than 2/3 of the trusted validators, so that the light client can still be updated
+        // if one of the validators is voted out.
+        uint256 upperBound = Math.saturatingSub(2 * trustedCount / 3, 1);
+
+        uint256 required = Math.mulDiv(trustedCount, trustLevel.numerator, trustLevel.denominator, Math.Rounding.Ceil);
+        required = Math.min(required, upperBound);
+        required = Math.max(required, lowerBound);
+
         require(actual >= required, InsufficientTrustedValidatorOverlap(actual, required));
     }
 
