@@ -1062,41 +1062,34 @@ func (s *BesuToBesuTestSuite) Test_ValidatorSetChanges_IBFT2() {
 	s.ValidatorSetChangesTest(testvalues.BesuConsensusIBFT2)
 }
 
-// ValidatorSetChangesTest removes a Chain A validator and then votes in a new one through live validator votes, while
-// dedicated clients on Chain B follow the chain. Besu seals each block with exactly ceil(2n / 3) commit seals. With 3
-// validators that is 2 seals, so a client trusting the original 4 validators at the default 2/3 trust level cannot
-// update past the removal, while a client at 1/3 can. Once the new validator joins, the default client can only catch
-// up through a header that the new validator did not sign.
+// ValidatorSetChangesTest removes a Chain A validator and then votes in a new one through live validator votes, while a
+// dedicated client on Chain B at the default 2/3 trust level follows the chain. Besu seals each block with exactly
+// ceil(2n / 3) commit seals: 2 of the 3 validators left after the removal, and 3 of the 4 after the addition, one of
+// which can be the new validator. The light client caps the trusted overlap requirement at floor(2n / 3) - 1, raised to
+// more than a third, so 2 of the 4 or 3 trusted validators are enough and neither change stalls the client.
 func (s *BesuToBesuTestSuite) ValidatorSetChangesTest(consensus string) {
 	ctx := context.Background()
 	s.SetupSuite(ctx, consensus)
 
 	const (
-		removedValidator     = "validator4"
-		addedValidator       = "validator5"
-		lowTrustClientID     = "besu-validator-change-low-trust"
-		defaultTrustClientID = "besu-validator-change-default-trust"
+		removedValidator = "validator4"
+		addedValidator   = "validator5"
+		clientID         = "besu-validator-change"
 	)
 	var (
-		lowTrustClient      *besulightclient.Contract
-		defaultTrustClient  *besulightclient.Contract
-		defaultTrustHeight  uint64
+		client              *besulightclient.Contract
 		initialValidators   []ethcommon.Address
 		remainingValidators []ethcommon.Address
 		newValidator        ethcommon.Address
 		removalHeight       uint64
 		additionHeight      uint64
-		newSignerHeight     uint64
 	)
-	// 2 of the 3 original validators sign, but ceil(4 * 2/3) = 3 trusted validators are required.
-	overlapErr := s.besuClientErr("InsufficientTrustedValidatorOverlap", big.NewInt(2), big.NewInt(3))
 
-	s.Require().True(s.Run("Create dedicated clients on Chain B", func() {
-		lowTrustClient = s.createDedicatedBesuClient(lowTrustClientID, "1/3")
-		defaultTrustClient = s.createDedicatedBesuClient(defaultTrustClientID, besuToBesuDefaultTrustLevel)
-		defaultTrustHeight = s.besuClientState(defaultTrustClient).LatestHeight.RevisionHeight
+	s.Require().True(s.Run("Create dedicated client on Chain B", func() {
+		client = s.createDedicatedBesuClient(clientID, besuToBesuDefaultTrustLevel)
+		trustedHeight := s.besuClientState(client).LatestHeight.RevisionHeight
 
-		initialState, err := e2etypes.FetchBesuConsensusState(ctx, &s.chainA.eth, s.consensus, defaultTrustHeight)
+		initialState, err := e2etypes.FetchBesuConsensusState(ctx, &s.chainA.eth, s.consensus, trustedHeight)
 		s.Require().NoError(err)
 		initialValidators = initialState.Validators
 		s.Require().Len(initialValidators, 4)
@@ -1114,18 +1107,12 @@ func (s *BesuToBesuTestSuite) ValidatorSetChangesTest(consensus string) {
 		s.Require().Subset(initialValidators, remainingValidators)
 	}))
 
-	s.Require().True(s.Run("Low trust client follows the removal", func() {
-		trustedHeight := s.besuClientState(lowTrustClient).LatestHeight.RevisionHeight
+	s.Require().True(s.Run("Client follows the removal", func() {
+		trustedHeight := s.besuClientState(client).LatestHeight.RevisionHeight
 		updateMsg, err := e2etypes.BuildBesuUpdate(ctx, &s.chainA.eth, s.consensus, trustedHeight, removalHeight)
 		s.Require().NoError(err)
-		s.requireUpdateResult(s.updateClient(ctx, lowTrustClientID, updateMsg), 0) // Update
-		s.Require().Equal(removalHeight, s.besuClientState(lowTrustClient).LatestHeight.RevisionHeight)
-	}))
-
-	s.Require().True(s.Run("Default trust client cannot update past the removal", func() {
-		updateMsg, err := e2etypes.BuildBesuUpdate(ctx, &s.chainA.eth, s.consensus, defaultTrustHeight, removalHeight)
-		s.Require().NoError(err)
-		s.requireICS26Revert(ctx, overlapErr, "updateClient", defaultTrustClientID, updateMsg)
+		s.requireUpdateResult(s.updateClient(ctx, clientID, updateMsg), 0) // Update
+		s.Require().Equal(removalHeight, s.besuClientState(client).LatestHeight.RevisionHeight)
 	}))
 
 	s.Require().True(s.Run("Add a new validator to Chain A", func() {
@@ -1145,30 +1132,14 @@ func (s *BesuToBesuTestSuite) ValidatorSetChangesTest(consensus string) {
 		s.Require().NotContains(initialValidators, newValidator)
 	}))
 
-	s.Require().True(s.Run("Low trust client follows a header signed by the new validator", func() {
-		newSignerHeight = s.waitForChainAHeader(ctx, additionHeight, func(signers []ethcommon.Address) bool {
+	s.Require().True(s.Run("Client follows a header signed by the new validator", func() {
+		height := s.waitForChainAHeader(ctx, additionHeight, func(signers []ethcommon.Address) bool {
 			return slices.Contains(signers, newValidator)
 		})
-		updateMsg, err := e2etypes.BuildBesuUpdate(ctx, &s.chainA.eth, s.consensus, removalHeight, newSignerHeight)
+		updateMsg, err := e2etypes.BuildBesuUpdate(ctx, &s.chainA.eth, s.consensus, removalHeight, height)
 		s.Require().NoError(err)
-		s.requireUpdateResult(s.updateClient(ctx, lowTrustClientID, updateMsg), 0) // Update
-		s.Require().Equal(newSignerHeight, s.besuClientState(lowTrustClient).LatestHeight.RevisionHeight)
-	}))
-
-	s.Require().True(s.Run("Default trust client rejects a header signed by the new validator", func() {
-		updateMsg, err := e2etypes.BuildBesuUpdate(ctx, &s.chainA.eth, s.consensus, defaultTrustHeight, newSignerHeight)
-		s.Require().NoError(err)
-		s.requireICS26Revert(ctx, overlapErr, "updateClient", defaultTrustClientID, updateMsg)
-	}))
-
-	s.Require().True(s.Run("Default trust client catches up through a header not signed by the new validator", func() {
-		height := s.waitForChainAHeader(ctx, additionHeight, func(signers []ethcommon.Address) bool {
-			return !slices.Contains(signers, newValidator)
-		})
-		updateMsg, err := e2etypes.BuildBesuUpdate(ctx, &s.chainA.eth, s.consensus, defaultTrustHeight, height)
-		s.Require().NoError(err)
-		s.requireUpdateResult(s.updateClient(ctx, defaultTrustClientID, updateMsg), 0) // Update
-		s.Require().Equal(height, s.besuClientState(defaultTrustClient).LatestHeight.RevisionHeight)
+		s.requireUpdateResult(s.updateClient(ctx, clientID, updateMsg), 0) // Update
+		s.Require().Equal(height, s.besuClientState(client).LatestHeight.RevisionHeight)
 	}))
 }
 
