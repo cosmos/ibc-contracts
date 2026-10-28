@@ -598,22 +598,11 @@ abstract contract QBFTSimSuiteTest is Test {
         IBesuLightClient lenient = sim.deployLightClient(
             TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(1, 3), ics26Router
         );
-        IBesuLightClient strict = sim.deployLightClient(
-            TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(1, 1), ics26Router
-        );
-
-        address[] memory three = new address[](3);
-        (three[0], three[1], three[2]) = (sim.validators()[0], sim.validators()[1], sim.validators()[2]);
-        bytes memory update = sim.updateMsg(2, sim.seal(sim.nextBlock(), three));
-        vm.expectRevert(
-            abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 3, 4)
-        );
         vm.startPrank(ics26Router);
-        strict.updateClient(update);
 
         // Rotating half of the validators leaves 2 of 4 trusted signers: below 2/3, above 1/3.
         _rotateValidators(2, 2);
-        update = sim.updateMsg(2, 6);
+        bytes memory update = sim.updateMsg(2, 6);
         vm.expectRevert(
             abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 2, 3)
         );

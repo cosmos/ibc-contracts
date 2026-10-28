@@ -69,8 +69,8 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
             initialClientState.maxClockDrift <= MAX_CLOCK_DRIFT, InvalidMaxClockDrift(initialClientState.maxClockDrift)
         );
         require(
-            trustLevel.denominator != 0 && trustLevel.numerator <= trustLevel.denominator
-                && 3 * uint256(trustLevel.numerator) >= trustLevel.denominator,
+            trustLevel.denominator != 0 && 3 * uint256(trustLevel.numerator) >= trustLevel.denominator
+                && 3 * uint256(trustLevel.numerator) <= 2 * uint256(trustLevel.denominator),
             InvalidTrustLevel(trustLevel.numerator, trustLevel.denominator)
         );
 

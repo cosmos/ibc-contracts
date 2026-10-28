@@ -443,7 +443,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         );
         testCases[5].clientState.trustingPeriod = 0;
         testCases[6] = _trustLevelConstructorCase("success: minimum trust level", 1, 3, "");
-        testCases[7] = _trustLevelConstructorCase("success: maximum trust level", 1, 1, "");
+        testCases[7] = _trustLevelConstructorCase("success: maximum trust level", 2, 3, "");
         testCases[8] = _trustLevelConstructorCase(
             "failure: zero trust level denominator",
             0,
@@ -457,10 +457,10 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             abi.encodeWithSelector(IBesuLightClientErrors.InvalidTrustLevel.selector, 1, 4)
         );
         testCases[10] = _trustLevelConstructorCase(
-            "failure: trust level above one",
-            4,
+            "failure: trust level above two thirds",
             3,
-            abi.encodeWithSelector(IBesuLightClientErrors.InvalidTrustLevel.selector, 4, 3)
+            4,
+            abi.encodeWithSelector(IBesuLightClientErrors.InvalidTrustLevel.selector, 3, 4)
         );
         testCases[11] = _constructorCase(
             "failure: zero timestamp",
@@ -533,7 +533,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     function fixtureQuorum() public pure returns (BesuQuorumTestCase[] memory testCases) {
         IBesuLightClientMsgs.TrustThreshold memory twoThirds = IBesuLightClientMsgs.TrustThreshold(2, 3);
         IBesuLightClientMsgs.TrustThreshold memory oneThird = IBesuLightClientMsgs.TrustThreshold(1, 3);
-        testCases = new BesuQuorumTestCase[](9);
+        testCases = new BesuQuorumTestCase[](8);
         testCases[0] = BesuQuorumTestCase("success: three of four signers", 3, 4, twoThirds, "");
         testCases[1] = BesuQuorumTestCase("success: four signers with validator set grown to six", 4, 6, twoThirds, "");
         testCases[2] = BesuQuorumTestCase(
@@ -557,22 +557,15 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             twoThirds,
             abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 2, 3)
         );
-        testCases[5] = BesuQuorumTestCase(
-            "failure: three of four signers with full trust level",
-            3,
-            4,
-            IBesuLightClientMsgs.TrustThreshold(1, 1),
-            abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 3, 4)
-        );
-        testCases[6] = BesuQuorumTestCase("success: three of four signers with minimum trust level", 3, 4, oneThird, "");
-        testCases[7] = BesuQuorumTestCase(
+        testCases[5] = BesuQuorumTestCase("success: three of four signers with minimum trust level", 3, 4, oneThird, "");
+        testCases[6] = BesuQuorumTestCase(
             "failure: two of four signers with minimum trust level",
             2,
             4,
             oneThird,
             abi.encodeWithSelector(IBesuLightClientErrors.InsufficientValidatorQuorum.selector, 2, 3)
         );
-        testCases[8] = BesuQuorumTestCase(
+        testCases[7] = BesuQuorumTestCase(
             "failure: three signers with validator set grown to six with minimum trust level",
             3,
             6,
