@@ -83,6 +83,14 @@ contract ICS27AccountTest is Test {
         ics27Account.functionCall{ gas: 1_000_000 }(
             address(ics27Account), abi.encodeCall(ICS27Account.executeBatch, (calls))
         );
+
+        // Recipient of a transfer runs out of gas, through the account calling itself
+        address payable burnGasRecipient = payable(address(new TestBurnGasRecipient()));
+        vm.expectRevert(bytes(""));
+        vm.prank(ics27);
+        ics27Account.functionCall{ gas: 1_000_000 }(
+            address(ics27Account), abi.encodeCall(ICS27Account.sendValue, (burnGasRecipient, 0))
+        );
     }
 
     function testFuzz_success_sendValue(uint256 amount) public {
@@ -120,6 +128,13 @@ contract ICS27AccountTest is Test {
         vm.prank(address(ics27Account));
         vm.expectRevert(abi.encodeWithSelector(Errors.InsufficientBalance.selector, amount, amount + 1));
         ics27Account.sendValue(recipient, amount + 1);
+
+        // Recipient reverts
+        bytes memory resp = abi.encode("mockedResponse");
+        vm.mockCallRevert(recipient, bytes(""), resp);
+        vm.prank(address(ics27Account));
+        vm.expectRevert(resp);
+        ics27Account.sendValue(recipient, amount);
 
         // Recipient reverts without data, as it has no receive function
         address payable noReceive = payable(address(new TestCallContract()));
@@ -294,5 +309,11 @@ contract TestCallContract {
     /// @dev Runs a call out of gas, whose empty revert data is bubbled up
     function nestedBurnGas() external view {
         this.burnGas();
+    }
+}
+
+contract TestBurnGasRecipient {
+    receive() external payable {
+        while (true) { }
     }
 }
