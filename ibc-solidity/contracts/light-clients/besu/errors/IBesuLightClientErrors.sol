@@ -98,6 +98,10 @@ interface IBesuLightClientErrors {
     /// @param expectedLength The expected path length.
     /// @param actualLength The actual path length.
     error InvalidPathLength(uint256 expectedLength, uint256 actualLength);
+    /// @notice A proof path element has an invalid length.
+    /// @param expectedLength The expected path element length.
+    /// @param actualLength The actual path element length.
+    error InvalidPathElementLength(uint256 expectedLength, uint256 actualLength);
     /// @notice A membership value has an invalid length.
     /// @param expectedLength The expected value length.
     /// @param actualLength The actual value length.
