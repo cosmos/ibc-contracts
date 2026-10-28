@@ -70,11 +70,6 @@ contract ICS27Account is IICS27Errors, IICS27Account, ContextUpgradeable {
         return results;
     }
 
-    /// @inheritdoc IICS27Account
-    function delegateExecute(address target, bytes calldata data) external onlySelf returns (bytes memory) {
-        return Address.functionDelegateCall(target, data);
-    }
-
     /// @notice Returns the storage of the ICS27Account contract
     /// @return $ The storage of the ICS27Account contract
     function _getICS27AccountStorage() private pure returns (ICS27AccountStorage storage $) {
