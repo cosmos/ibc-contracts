@@ -37,7 +37,7 @@ contract BesuQBFTBenchmark is BesuLightClientFixtureTestBase {
         vm.startPrank(ics26Router);
         client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
         ILightClientMsgs.MsgVerifyMembership memory message =
-            _membershipMessage(0, _singlePath(fixture.membership.path), fixture.membership.value);
+            _membershipMessage(0, _prefixedPath(fixture.membership.path), fixture.membership.value);
 
         uint256 timestamp = client.verifyMembership(message);
         vm.stopPrank();

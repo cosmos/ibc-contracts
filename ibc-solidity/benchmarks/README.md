@@ -45,10 +45,10 @@ These isolated transactions use the live Besu QBFT header and proof fixture in `
 
 | Operation | Gas | ABI calldata bytes |
 | --- | ---: | ---: |
-| Adjacent client update | 152,169 | 1,764 |
-| Non-adjacent client update | 152,207 | 1,764 |
-| Membership verification | 154,582 | 2,308 |
-| Non-membership verification | 166,921 | 2,212 |
+| Adjacent client update | 152,040 | 1,764 |
+| Non-adjacent client update | 152,078 | 1,764 |
+| Membership verification | 169,032 | 2,436 |
+| Non-membership verification | 181,374 | 2,340 |
 
 ## Besu QBFT light-client scaling benchmarks
 
@@ -56,12 +56,12 @@ These isolated transactions use headers and proofs produced in-process by the `Q
 
 | Validators | Client update gas | ABI calldata bytes |
 | ---: | ---: | ---: |
-| 4 | 157,603 | 1,924 |
-| 7 | 189,016 | 2,564 |
-| 16 | 283,204 | 4,484 |
-| 32 | 450,993 | 7,908 |
-| 64 | 786,854 | 14,724 |
-| 100 | 1,165,551 | 22,372 |
+| 4 | 157,432 | 1,924 |
+| 7 | 188,719 | 2,564 |
+| 16 | 282,529 | 4,484 |
+| 32 | 449,646 | 7,908 |
+| 64 | 784,163 | 14,724 |
+| 100 | 1,161,348 | 22,372 |
 
 Membership verification against a world state trie with the given number of accounts (router included) and a router storage trie with the given number of commitments.
 
@@ -69,16 +69,16 @@ Gas:
 
 | Accounts | 1 commitments | 16 commitments | 128 commitments | 1024 commitments |
 | ---: | ---: | ---: | ---: | ---: |
-| 1 | 71,332 | 99,899 | 130,721 | 161,532 |
-| 16 | 100,376 | 128,957 | 159,767 | 190,579 |
-| 128 | 131,221 | 159,803 | 190,615 | 221,452 |
-| 1024 | 162,580 | 191,188 | 221,989 | 252,803 |
+| 1 | 86,105 | 114,643 | 145,411 | 176,180 |
+| 16 | 115,107 | 143,647 | 174,416 | 205,198 |
+| 128 | 145,911 | 174,452 | 205,234 | 236,017 |
+| 1024 | 177,216 | 205,794 | 236,554 | 267,326 |
 
 ABI calldata bytes:
 
 | Accounts | 1 commitments | 16 commitments | 128 commitments | 1024 commitments |
 | ---: | ---: | ---: | ---: | ---: |
-| 1 | 1,220 | 1,636 | 2,180 | 2,724 |
-| 16 | 1,668 | 2,084 | 2,628 | 3,172 |
-| 128 | 2,212 | 2,628 | 3,172 | 3,716 |
-| 1024 | 2,788 | 3,204 | 3,748 | 4,292 |
+| 1 | 1,348 | 1,764 | 2,308 | 2,852 |
+| 16 | 1,796 | 2,212 | 2,756 | 3,300 |
+| 128 | 2,340 | 2,756 | 3,300 | 3,844 |
+| 1024 | 2,916 | 3,332 | 3,876 | 4,420 |

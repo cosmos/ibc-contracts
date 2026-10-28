@@ -20,6 +20,11 @@ contract SolidityLightClientDriver is ILightClientDriver {
     }
 
     /// @inheritdoc ILightClientDriver
+    function merklePrefix() external pure returns (bytes[] memory) {
+        return new bytes[](1);
+    }
+
+    /// @inheritdoc ILightClientDriver
     function prove(bytes calldata)
         external
         pure

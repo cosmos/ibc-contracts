@@ -9,6 +9,7 @@ import { RLP } from "@openzeppelin-contracts/utils/RLP.sol";
 import { Memory } from "@openzeppelin-contracts/utils/Memory.sol";
 import { SafeCast } from "@openzeppelin-contracts/utils/math/SafeCast.sol";
 import { ECDSA } from "@openzeppelin-contracts/utils/cryptography/ECDSA.sol";
+import { Strings } from "@openzeppelin-contracts/utils/Strings.sol";
 
 import { ILightClientMsgs } from "../../contracts/msgs/ILightClientMsgs.sol";
 import { IICS02ClientMsgs } from "../../contracts/msgs/IICS02ClientMsgs.sol";
@@ -241,7 +242,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
         if (cachedStorageRoot.primeWithMembership) {
             client.verifyMembership(
-                _membershipMessage(0, _singlePath(fixture.membership.path), fixture.membership.value)
+                _membershipMessage(0, _prefixedPath(fixture.membership.path), fixture.membership.value)
             );
         } else {
             client.verifyNonMembership(_nonMembershipMessage(fixture.nonMembership.proofHeight));
@@ -345,7 +346,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         vm.expectRevert(frozenErr);
         client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
         vm.expectRevert(frozenErr);
-        client.verifyMembership(_membershipMessage(0, _singlePath(fixture.membership.path), fixture.membership.value));
+        client.verifyMembership(_membershipMessage(0, _prefixedPath(fixture.membership.path), fixture.membership.value));
         vm.expectRevert(frozenErr);
         client.verifyNonMembership(_nonMembershipMessage(fixture.nonMembership.proofHeight));
         vm.expectRevert(frozenErr);
@@ -614,38 +615,37 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     }
 
     function fixtureMembership() public view returns (BesuMembershipTestCase[] memory testCases) {
-        bytes[] memory path = new bytes[](2);
-        path[0] = fixture.membership.path;
-        path[1] = fixture.nonMembership.path;
+        bytes[] memory unprefixedPath = new bytes[](1);
+        unprefixedPath[0] = fixture.membership.path;
 
         bytes memory wrongValue = abi.encodePacked(bytes32(uint256(1)));
         uint64 timestamp = fixture.initialTrustedTimestamp + 1;
-        testCases = new BesuMembershipTestCase[](10);
+        testCases = new BesuMembershipTestCase[](12);
         testCases[0] = BesuMembershipTestCase({
             name: "success",
             timestamp: timestamp,
-            message: _membershipMessage(0, _singlePath(fixture.membership.path), fixture.membership.value),
+            message: _membershipMessage(0, _prefixedPath(fixture.membership.path), fixture.membership.value),
             expectedRevert: "",
             expectedTimestamp: fixture.membership.expectedTimestamp
         });
         testCases[1] = BesuMembershipTestCase({
             name: "failure: wrong revision number",
             timestamp: timestamp,
-            message: _membershipMessage(1, _singlePath(fixture.membership.path), fixture.membership.value),
+            message: _membershipMessage(1, _prefixedPath(fixture.membership.path), fixture.membership.value),
             expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidRevisionNumber.selector, 1),
             expectedTimestamp: 0
         });
         testCases[2] = BesuMembershipTestCase({
-            name: "failure: wrong path shape",
+            name: "failure: unprefixed path",
             timestamp: timestamp,
-            message: _membershipMessage(0, path, fixture.membership.value),
-            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidPathLength.selector, 1, 2),
+            message: _membershipMessage(0, unprefixedPath, fixture.membership.value),
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidPathLength.selector, 2, 1),
             expectedTimestamp: 0
         });
         testCases[3] = BesuMembershipTestCase({
             name: "failure: wrong commitment value",
             timestamp: timestamp,
-            message: _membershipMessage(0, _singlePath(fixture.membership.path), wrongValue),
+            message: _membershipMessage(0, _prefixedPath(fixture.membership.path), wrongValue),
             expectedRevert: abi.encodeWithSelector(
                 IBesuLightClientErrors.InvalidCommitmentValue.selector,
                 bytes32(uint256(1)),
@@ -660,7 +660,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             _provenConsensusState(fixture.membership.proofHeight);
         ++tamperedPreimage.timestamp;
         ILightClientMsgs.MsgVerifyMembership memory wrongPreimageMessage =
-            _membershipMessage(0, _singlePath(fixture.membership.path), fixture.membership.value);
+            _membershipMessage(0, _prefixedPath(fixture.membership.path), fixture.membership.value);
         wrongPreimageMessage.proof = _encodeProof(fixture.membership, tamperedPreimage);
 
         testCases[4] = BesuMembershipTestCase({
@@ -677,7 +677,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
 
         uint64 unknownHeight = fixture.membership.proofHeight + 1000;
         ILightClientMsgs.MsgVerifyMembership memory unknownHeightMessage =
-            _membershipMessage(0, _singlePath(fixture.membership.path), fixture.membership.value);
+            _membershipMessage(0, _prefixedPath(fixture.membership.path), fixture.membership.value);
         unknownHeightMessage.proofHeight.revisionHeight = unknownHeight;
 
         testCases[5] = BesuMembershipTestCase({
@@ -694,7 +694,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         testCases[6] = BesuMembershipTestCase({
             name: "failure: expired consensus state",
             timestamp: expiredAt,
-            message: _membershipMessage(0, _singlePath(fixture.membership.path), fixture.membership.value),
+            message: _membershipMessage(0, _prefixedPath(fixture.membership.path), fixture.membership.value),
             expectedRevert: abi.encodeWithSelector(
                 IBesuLightClientErrors.ConsensusStateExpired.selector,
                 expectedPreimage.timestamp,
@@ -717,7 +717,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         });
 
         ILightClientMsgs.MsgVerifyMembership memory tamperedAccountProofMessage =
-            _membershipMessage(0, _singlePath(fixture.membership.path), fixture.membership.value);
+            _membershipMessage(0, _prefixedPath(fixture.membership.path), fixture.membership.value);
         tamperedAccountProofMessage.proof = _encodeProof(fixture.membership, expectedPreimage, _tamperedAccountProof());
 
         testCases[8] = BesuMembershipTestCase({
@@ -733,8 +733,27 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         testCases[9] = BesuMembershipTestCase({
             name: "failure: wrong value length",
             timestamp: timestamp,
-            message: _membershipMessage(0, _singlePath(fixture.membership.path), abi.encodePacked(bytes31(0))),
+            message: _membershipMessage(0, _prefixedPath(fixture.membership.path), abi.encodePacked(bytes31(0))),
             expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidValueLength.selector, 32, 31),
+            expectedTimestamp: 0
+        });
+
+        address wrongRouter = address(uint160(fixture.routerAddress) ^ 1);
+        testCases[10] = BesuMembershipTestCase({
+            name: "failure: wrong counterparty router",
+            timestamp: timestamp,
+            message: _membershipMessage(
+                0, _routerPath(Strings.toHexString(wrongRouter), fixture.membership.path), fixture.membership.value
+            ),
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidIbcRouter.selector),
+            expectedTimestamp: 0
+        });
+
+        testCases[11] = BesuMembershipTestCase({
+            name: "failure: malformed counterparty router",
+            timestamp: timestamp,
+            message: _membershipMessage(0, _routerPath("ibc", fixture.membership.path), fixture.membership.value),
+            expectedRevert: abi.encodeWithSelector(Strings.StringsInvalidAddressFormat.selector),
             expectedTimestamp: 0
         });
     }
@@ -744,7 +763,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         IBesuLightClientMsgs.ConsensusState memory expectedPreimage = _provenConsensusState(proofHeight);
 
         uint64 timestamp = fixture.initialTrustedTimestamp + 1;
-        testCases = new BesuNonMembershipTestCase[](8);
+        testCases = new BesuNonMembershipTestCase[](9);
         testCases[0] = BesuNonMembershipTestCase({
             name: "success",
             timestamp: timestamp,
@@ -763,15 +782,14 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             expectedTimestamp: 0
         });
 
-        ILightClientMsgs.MsgVerifyNonMembership memory wrongPathMessage = _nonMembershipMessage(proofHeight);
-        wrongPathMessage.path = new bytes[](2);
-        wrongPathMessage.path[0] = fixture.nonMembership.path;
-        wrongPathMessage.path[1] = fixture.membership.path;
+        ILightClientMsgs.MsgVerifyNonMembership memory unprefixedPathMessage = _nonMembershipMessage(proofHeight);
+        unprefixedPathMessage.path = new bytes[](1);
+        unprefixedPathMessage.path[0] = fixture.nonMembership.path;
         testCases[2] = BesuNonMembershipTestCase({
-            name: "failure: wrong path shape",
+            name: "failure: unprefixed path",
             timestamp: timestamp,
-            message: wrongPathMessage,
-            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidPathLength.selector, 1, 2),
+            message: unprefixedPathMessage,
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidPathLength.selector, 2, 1),
             expectedTimestamp: 0
         });
 
@@ -827,12 +845,23 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         // The membership proof is a valid inclusion proof, so it cannot prove its key absent.
         ILightClientMsgs.MsgVerifyNonMembership memory existingKeyMessage =
             _nonMembershipMessageWithProof(_encodeProof(fixture.membership, expectedPreimage), proofHeight);
-        existingKeyMessage.path = _singlePath(fixture.membership.path);
+        existingKeyMessage.path = _prefixedPath(fixture.membership.path);
         testCases[7] = BesuNonMembershipTestCase({
             name: "failure: key exists",
             timestamp: timestamp,
             message: existingKeyMessage,
             expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidExclusionProof.selector),
+            expectedTimestamp: 0
+        });
+
+        ILightClientMsgs.MsgVerifyNonMembership memory wrongRouterMessage = _nonMembershipMessage(proofHeight);
+        wrongRouterMessage.path =
+            _routerPath(Strings.toHexString(address(uint160(fixture.routerAddress) ^ 1)), fixture.nonMembership.path);
+        testCases[8] = BesuNonMembershipTestCase({
+            name: "failure: wrong counterparty router",
+            timestamp: timestamp,
+            message: wrongRouterMessage,
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidIbcRouter.selector),
             expectedTimestamp: 0
         });
     }
@@ -1723,9 +1752,15 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         nodes[0][0] ^= 0x01;
     }
 
-    function _singlePath(bytes memory path) internal pure returns (bytes[] memory out) {
-        out = new bytes[](1);
-        out[0] = path;
+    /// @dev The router path for `path` under the fixture router's `[routerAddress, ""]` merkle prefix.
+    function _prefixedPath(bytes memory path) internal view returns (bytes[] memory) {
+        return _routerPath(Strings.toHexString(fixture.routerAddress), path);
+    }
+
+    function _routerPath(string memory router, bytes memory path) internal pure returns (bytes[] memory out) {
+        out = new bytes[](2);
+        out[0] = bytes(router);
+        out[1] = path;
     }
 
     function _membershipMessage(
@@ -1759,7 +1794,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         return ILightClientMsgs.MsgVerifyMembership({
             proof: proof,
             proofHeight: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: proofHeight }),
-            path: _singlePath(fixture.membership.path),
+            path: _prefixedPath(fixture.membership.path),
             value: fixture.membership.value
         });
     }
@@ -1786,7 +1821,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         return ILightClientMsgs.MsgVerifyNonMembership({
             proof: proof,
             proofHeight: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: proofHeight }),
-            path: _singlePath(fixture.nonMembership.path)
+            path: _prefixedPath(fixture.nonMembership.path)
         });
     }
 
