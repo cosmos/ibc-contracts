@@ -278,73 +278,12 @@ contract ICS27AccountTest is Test {
         assertEq(address(ics27Account).balance, totalValue, "ICS27Account balance should match totalValue");
         assertEq(target.balance, 0, "Target balance should still be zero");
     }
-
-    function test_success_delegateExecute() public {
-        address target = address(new TestCallContract());
-        bytes32 testSlot = TestCallContract(target).TEST_STORAGE_SLOT();
-        bytes32 testValue = keccak256("testValue");
-        bytes memory data = abi.encodeCall(TestCallContract.writeCall, (testValue));
-        bytes memory resp = abi.encode("mockedResponse");
-
-        vm.expectCall(target, data);
-        vm.prank(address(ics27Account));
-        bytes memory result = ics27Account.delegateExecute(target, data);
-        assertEq(result, resp, "Result should match mocked response");
-
-        // Assert storage was written
-        bytes32 storedValue = vm.load(address(ics27Account), bytes32(testSlot));
-        assertEq(storedValue, testValue, "Storage value should match written value");
-    }
-
-    function test_failure_delegateExecute() public {
-        address target = address(new TestCallContract());
-        bytes32 testSlot = TestCallContract(target).TEST_STORAGE_SLOT();
-        bytes32 testValue = keccak256("testValue");
-        bytes memory data = abi.encodeCall(TestCallContract.writeCall, (testValue));
-        bytes memory errResp = abi.encode("mockedError");
-
-        // Unauthorized call
-        address unauthorized = makeAddr("unauthorized");
-        vm.expectRevert(
-            abi.encodeWithSelector(IICS27Errors.ICS27Unauthorized.selector, address(ics27Account), unauthorized)
-        );
-        vm.prank(unauthorized);
-        ics27Account.delegateExecute(target, data);
-
-        // Call reverts
-        vm.mockCallRevert(target, data, errResp);
-        vm.expectRevert(errResp);
-        vm.prank(address(ics27Account));
-        ics27Account.delegateExecute(target, data);
-
-        // Call reverts without data
-        vm.mockCallRevert(target, data, "");
-        vm.expectRevert(Errors.FailedCall.selector);
-        vm.prank(address(ics27Account));
-        ics27Account.delegateExecute(target, data);
-
-        // Assert storage was not written
-        bytes32 storedValue = vm.load(address(ics27Account), bytes32(testSlot));
-        assertEq(storedValue, bytes32(0), "Storage value should be empty");
-    }
 }
 
 contract TestCallContract {
-    struct Storage {
-        bytes32 value;
-    }
-
-    bytes32 public constant TEST_STORAGE_SLOT = keccak256("test.storage.slot");
-
     // TODO: Remove this once the foundry bug is addressed
     // https://github.com/foundry-rs/foundry/issues/10812
     function payableCall() external payable returns (bytes memory) {
-        return "mockedResponse";
-    }
-
-    function writeCall(bytes32 value) external returns (bytes memory) {
-        Storage storage $ = _getStorage();
-        $.value = value;
         return "mockedResponse";
     }
 
@@ -355,12 +294,5 @@ contract TestCallContract {
     /// @dev Runs a call out of gas, whose empty revert data is bubbled up
     function nestedBurnGas() external view {
         this.burnGas();
-    }
-
-    function _getStorage() internal pure returns (Storage storage $) {
-        bytes32 slot = TEST_STORAGE_SLOT;
-        assembly {
-            $.slot := slot
-        }
     }
 }

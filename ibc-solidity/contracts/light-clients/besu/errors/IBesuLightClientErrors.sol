@@ -9,6 +9,14 @@ interface IBesuLightClientErrors {
     error InvalidRevisionNumber(uint64 providedRevisionNumber);
     /// @notice The counterparty ICS26 router address is zero.
     error InvalidIbcRouter();
+    /// @notice The counterparty router in the proof path does not match the tracked router.
+    /// @param expected The client state's `ibcRouter`.
+    /// @param actual The router address in the proof path.
+    error CounterpartyRouterMismatch(address expected, address actual);
+    /// @notice The storage slot in the proof path is not the `IBCStoreUpgradeable` namespace slot.
+    /// @param expected The `IBCStoreUpgradeable` namespace slot.
+    /// @param actual The storage slot in the proof path.
+    error StorageSlotMismatch(bytes32 expected, bytes32 actual);
     /// @notice The submitted header has an invalid RLP item count.
     /// @param itemsLength The decoded header item count.
     error InvalidHeaderFormat(uint256 itemsLength);
@@ -98,6 +106,10 @@ interface IBesuLightClientErrors {
     /// @param expectedLength The expected path length.
     /// @param actualLength The actual path length.
     error InvalidPathLength(uint256 expectedLength, uint256 actualLength);
+    /// @notice A proof path element has an invalid length.
+    /// @param expectedLength The expected path element length.
+    /// @param actualLength The actual path element length.
+    error InvalidPathElementLength(uint256 expectedLength, uint256 actualLength);
     /// @notice A membership value has an invalid length.
     /// @param expectedLength The expected value length.
     /// @param actualLength The actual value length.

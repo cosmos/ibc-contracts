@@ -86,12 +86,6 @@ contract ICS27Account is IICS27Errors, IICS27Account, ContextUpgradeable {
         return results;
     }
 
-    /// @inheritdoc IICS27Account
-    function delegateExecute(address target, bytes calldata data) external onlySelf returns (bytes memory) {
-        uint256 gasBefore = gasleft();
-        return _result(target, LowLevelCall.delegatecallNoReturn(target, data), gasBefore);
-    }
-
     /// @notice Calls `target` like openzeppelin's `Address.functionCallWithValue`, but reverts like `_revert`
     /// @param target The target address to call
     /// @param data The data to send to the target address

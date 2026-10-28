@@ -42,14 +42,6 @@ interface IICS27Account {
     /// @return results The array of results from the calls
     function executeBatch(IICS27AccountMsgs.Call[] calldata calls) external returns (bytes[] memory results);
 
-    /// @notice Performs a Solidity function call using a low level `delegatecall`.
-    /// @dev Like openzeppelin's `Address.functionDelegateCall`, but reverts like `functionCall`.
-    /// @dev This function can only be called by self.
-    /// @param target The target address to call
-    /// @param data The data to send to the target address
-    /// @return result The result of the call
-    function delegateExecute(address target, bytes calldata data) external returns (bytes memory result);
-
     /// @notice Initializes the ICS27Account contract
     /// @dev This function is meant to be called by a proxy
     /// @param ics27_ The ICS27GMP contract address
