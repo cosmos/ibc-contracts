@@ -237,14 +237,13 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
     function _parseMerklePath(bytes[] calldata path) private view returns (address, bytes memory) {
         require(path.length == 3, InvalidPathLength(3, path.length));
         require(path[0].length == 20, InvalidPathElementLength(20, path[0].length));
-        require(path[1].length == 32, InvalidPathElementLength(32, path[1].length));
+
+        bytes32 namespaceSlot = bytes32(path[1]);
+        require(namespaceSlot == IBCSTORE_STORAGE_SLOT, StorageSlotMismatch(IBCSTORE_STORAGE_SLOT, namespaceSlot));
 
         address counterpartyRouter = address(bytes20(path[0]));
         address ibcRouter = clientState.ibcRouter;
         require(counterpartyRouter == ibcRouter, CounterpartyRouterMismatch(ibcRouter, counterpartyRouter));
-
-        bytes32 namespaceSlot = bytes32(path[1]);
-        require(namespaceSlot == IBCSTORE_STORAGE_SLOT, StorageSlotMismatch(IBCSTORE_STORAGE_SLOT, namespaceSlot));
 
         bytes32 storageSlot = _commitmentStorageSlot(path[2]);
         bytes memory storageKey = abi.encodePacked(keccak256(abi.encodePacked(storageSlot)));
