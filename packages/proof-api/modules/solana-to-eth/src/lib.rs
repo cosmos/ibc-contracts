@@ -46,6 +46,9 @@ struct SolanaToEthProofApiModuleService {
     tx_builder: SolanaToEthTxBuilder,
     /// ICS26 contract address on Ethereum.
     ics26_eth_address: Address,
+    /// `IBCMulticall` address on Ethereum that relay and update client transactions are submitted
+    /// to.
+    ibc_multicall_eth_address: Address,
 }
 
 /// Enum wrapping transaction builders for different modes.
@@ -65,6 +68,9 @@ pub struct SolanaToEthConfig {
     pub eth_rpc_url: String,
     /// The ICS26 contract address on Ethereum.
     pub ics26_address: Address,
+    /// The `IBCMulticall` address on Ethereum that relay and update client transactions are
+    /// submitted to.
+    pub ibc_multicall_address: Address,
     /// Transaction builder mode.
     pub mode: SolanaToEthTxBuilderMode,
 }
@@ -97,8 +103,12 @@ impl SolanaToEthProofApiModuleService {
 
         let tx_builder = match config.mode {
             SolanaToEthTxBuilderMode::Attested(aggregator_config) => {
-                let attested =
-                    tx_builder::AttestedTxBuilder::new(aggregator_config, provider).await?;
+                let attested = tx_builder::AttestedTxBuilder::new(
+                    aggregator_config,
+                    config.ics26_address,
+                    provider,
+                )
+                .await?;
                 SolanaToEthTxBuilder::Attested(attested)
             }
         };
@@ -108,6 +118,7 @@ impl SolanaToEthProofApiModuleService {
             target_listener,
             tx_builder,
             ics26_eth_address: config.ics26_address,
+            ibc_multicall_eth_address: config.ibc_multicall_address,
         })
     }
 }
@@ -210,7 +221,7 @@ impl ProofApiService for SolanaToEthProofApiModuleService {
 
         Ok(Response::new(api::RelayByTxResponse {
             tx,
-            address: self.ics26_eth_address.to_string(),
+            address: self.ibc_multicall_eth_address.to_string(),
         }))
     }
 
@@ -247,7 +258,7 @@ impl ProofApiService for SolanaToEthProofApiModuleService {
 
         Ok(Response::new(api::UpdateClientResponse {
             tx,
-            address: self.ics26_eth_address.to_string(),
+            address: self.ibc_multicall_eth_address.to_string(),
         }))
     }
 }

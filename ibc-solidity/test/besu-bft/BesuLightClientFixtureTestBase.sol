@@ -12,18 +12,19 @@ import { ECDSA } from "@openzeppelin-contracts/utils/cryptography/ECDSA.sol";
 
 import { ILightClientMsgs } from "../../contracts/msgs/ILightClientMsgs.sol";
 import { IICS02ClientMsgs } from "../../contracts/msgs/IICS02ClientMsgs.sol";
-import { BesuIBFT2LightClient } from "../../contracts/light-clients/besu/BesuIBFT2LightClient.sol";
-import { BesuQBFTLightClient } from "../../contracts/light-clients/besu/BesuQBFTLightClient.sol";
+import { BesuLightClient } from "../../contracts/light-clients/besu/BesuLightClient.sol";
 import { IBesuLightClient } from "../../contracts/light-clients/besu/interfaces/IBesuLightClient.sol";
 import { IBesuLightClientMsgs } from "../../contracts/light-clients/besu/msgs/IBesuLightClientMsgs.sol";
 import { IBesuLightClientErrors } from "../../contracts/light-clients/besu/errors/IBesuLightClientErrors.sol";
 import { Header } from "../../contracts/light-clients/besu/utils/Header.sol";
-import { TrieProof } from "../../contracts/utils/TrieProof.sol";
+import { TrieProof } from "../../contracts/light-clients/utils/TrieProof.sol";
 
 /// @dev Successful update input and expected consensus state.
+/// @dev `headerRlp` is the header in its commit seal signing form and `commitSeals` its sorted commit seals.
 struct BesuUpdateFixture {
     uint64 height;
     bytes headerRlp;
+    bytes[] commitSeals;
     uint64 trustedHeight;
     uint64 expectedTimestamp;
     bytes32 expectedStateRoot;
@@ -34,6 +35,7 @@ struct BesuUpdateFixture {
 struct BesuRejectionUpdateFixture {
     uint64 height;
     bytes headerRlp;
+    bytes[] commitSeals;
     uint64 trustedHeight;
 }
 
@@ -93,7 +95,7 @@ struct BesuCachedStorageRootTestCase {
     uint64 expectedTimestamp;
 }
 
-/// @dev Rejected time non-monotonicity misbehaviour, submitted once `fixture.nonAdjacentUpdate` is stored.
+/// @dev Rejected conflicting consensus states misbehaviour, submitted once `fixture.nonAdjacentUpdate` is stored.
 /// @dev `timestamp` is the block timestamp at which the misbehaviour is submitted.
 struct BesuMisbehaviourTestCase {
     string name;
@@ -154,13 +156,12 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     BesuFixture internal fixture;
     IBesuLightClientMsgs.TrustThreshold internal trustLevel = IBesuLightClientMsgs.TrustThreshold(2, 3);
     IBesuLightClient internal client;
-    IBesuLightClient internal wrongWrapper;
+    address internal ics26Router = makeAddr("ics26Router");
 
     function setUp() public virtual {
         fixture = _loadFixture(_fixtureFile());
         vm.warp(fixture.initialTrustedTimestamp);
-        client = _deployPrimaryClient(_initialClientState(), _initialConsensusState());
-        wrongWrapper = _deployWrongWrapper(_initialClientState(), _initialConsensusState());
+        client = _deployClient(_initialClientState(), _initialConsensusState());
     }
 
     function tableConstructorTest(BesuConstructorTestCase memory deployment) public {
@@ -168,7 +169,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         if (deployment.expectedRevert.length != 0) {
             vm.expectRevert(deployment.expectedRevert);
         }
-        client = _deployPrimaryClient(deployment.clientState, deployment.consensusState);
+        client = _deployClient(deployment.clientState, deployment.consensusState);
 
         if (deployment.expectedRevert.length == 0) {
             assertEq(client.getClientState(), abi.encode(deployment.clientState));
@@ -184,7 +185,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     function tableQuorumTest(BesuQuorumTestCase memory quorum) public {
         fixture.initialTrustedValidators = _syntheticValidators(4);
         trustLevel = quorum.trustLevel;
-        client = _deployPrimaryClient(_initialClientState(), _initialConsensusState());
+        client = _deployClient(_initialClientState(), _initialConsensusState());
 
         address[] memory headerValidators = _syntheticValidators(quorum.headerValidatorCount);
         uint256[] memory signerKeys = new uint256[](quorum.signerCount);
@@ -196,6 +197,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         if (quorum.expectedRevert.length != 0) {
             vm.expectRevert(quorum.expectedRevert);
         }
+        vm.prank(ics26Router);
         ILightClientMsgs.UpdateResult result =
             client.updateClient(_signedValidatorsUpdate(headerValidators, signerKeys));
 
@@ -215,6 +217,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
 
     function tableVerifyNonMembershipTest(BesuNonMembershipTestCase memory nonMembership) public {
         vm.warp(fixture.initialTrustedTimestamp + 1);
+        vm.startPrank(ics26Router);
         client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
         vm.warp(nonMembership.timestamp);
 
@@ -222,6 +225,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             vm.expectRevert(nonMembership.expectedRevert);
         }
         uint256 timestamp = client.verifyNonMembership(nonMembership.message);
+        vm.stopPrank();
 
         if (nonMembership.expectedRevert.length == 0) {
             assertEq(timestamp, nonMembership.expectedTimestamp);
@@ -232,6 +236,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     /// relies on the cache within the same transaction.
     function tableCachedStorageRootTest(BesuCachedStorageRootTestCase memory cachedStorageRoot) public {
         vm.warp(fixture.initialTrustedTimestamp + 1);
+        vm.startPrank(ics26Router);
         client.updateClient(_encodeUpdate(fixture.adjacentUpdate));
         client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
         if (cachedStorageRoot.primeWithMembership) {
@@ -252,6 +257,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             : client.verifyNonMembership(
                 _nonMembershipMessageWithProof(cachedStorageRoot.proof, cachedStorageRoot.proofHeight)
             );
+        vm.stopPrank();
 
         if (cachedStorageRoot.expectedRevert.length == 0) {
             assertEq(timestamp, cachedStorageRoot.expectedTimestamp);
@@ -260,10 +266,12 @@ abstract contract BesuLightClientFixtureTestBase is Test {
 
     function test_updateClient_noOpOnSameState() public {
         vm.warp(fixture.initialTrustedTimestamp + 1);
+        vm.startPrank(ics26Router);
         client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
         bytes32 storedHash = client.getConsensusStateHash(fixture.nonAdjacentUpdate.height);
 
         ILightClientMsgs.UpdateResult result = client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
+        vm.stopPrank();
 
         assertEq(uint8(result), uint8(ILightClientMsgs.UpdateResult.NoOp));
         assertEq(client.getConsensusStateHash(fixture.nonAdjacentUpdate.height), storedHash);
@@ -272,6 +280,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
 
     function tableUpdateClientTest(BesuUpdateTestCase memory update) public {
         vm.warp(update.timestamp);
+        vm.startPrank(ics26Router);
         if (update.preUpdate.length != 0) {
             client.updateClient(update.preUpdate);
         }
@@ -296,6 +305,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
 
     function tableVerifyMembershipTest(BesuMembershipTestCase memory membership) public {
         vm.warp(fixture.initialTrustedTimestamp + 1);
+        vm.startPrank(ics26Router);
         client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
         vm.warp(membership.timestamp);
 
@@ -303,6 +313,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             vm.expectRevert(membership.expectedRevert);
         }
         uint256 timestamp = client.verifyMembership(membership.message);
+        vm.stopPrank();
 
         if (membership.expectedRevert.length == 0) {
             assertEq(timestamp, membership.expectedTimestamp);
@@ -311,6 +322,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
 
     function test_updateClient_doubleSignFreezesClient() public {
         vm.warp(fixture.initialTrustedTimestamp + 1);
+        vm.startPrank(ics26Router);
         client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
         uint64 height = fixture.conflictingUpdate.height;
         bytes32 trustedHash = client.getConsensusStateHash(height);
@@ -338,36 +350,66 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         client.verifyNonMembership(_nonMembershipMessage(fixture.nonMembership.proofHeight));
         vm.expectRevert(frozenErr);
         client.misbehaviour(bytes(""));
+        vm.stopPrank();
     }
 
     /// @dev Live fixture headers have monotonic timestamps, so only rejections are covered here; accepted
     /// misbehaviour is covered by `QBFTSimSuiteTest`.
     function tableMisbehaviourTest(BesuMisbehaviourTestCase memory misbehaviour) public {
         vm.warp(fixture.initialTrustedTimestamp + 1);
+        vm.startPrank(ics26Router);
         client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
         bytes memory clientStateBefore = client.getClientState();
         vm.warp(misbehaviour.timestamp);
 
         vm.expectRevert(misbehaviour.expectedRevert);
         client.misbehaviour(misbehaviour.misbehaviour);
+        vm.stopPrank();
 
         assertEq(client.getClientState(), clientStateBefore);
     }
 
-    function test_updateClient_revertThroughWrongWrapper() public {
+    /// @dev Converts the header to the other protocol's signing form, IBFT2 to QBFT or QBFT to IBFT2, keeping the
+    /// commit seals. The changed digest recovers arbitrary signers, which must be rejected.
+    function test_updateClient_revertOtherSigningForm() public {
         vm.warp(fixture.initialTrustedTimestamp + 1);
 
-        // The wrong digest recovers arbitrary signers, which fail the signer order check. The failing index depends
-        // on the fixture bytes, so only the selector is matched.
-        vm.expectPartialRevert(IBesuLightClientErrors.UnsortedCommitSealSigners.selector);
-        wrongWrapper.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
+        BesuUpdateFixture memory update = fixture.nonAdjacentUpdate;
+        Memory.Slice[] memory headerItems = update.headerRlp.decodeList();
+        Memory.Slice[] memory extraItems = RLP.readBytes(headerItems[12]).decodeList();
+        bytes[] memory encodedExtraItems = new bytes[](extraItems.length == 4 ? 5 : 4);
+        for (uint256 i = 0; i < 4; ++i) {
+            encodedExtraItems[i] = extraItems[i].toBytes();
+        }
+        if (extraItems.length == 4) {
+            encodedExtraItems[4] = hex"c0";
+        }
+        update.headerRlp = _encodeHeader(headerItems, encodedExtraItems);
+
+        bytes32 digest = keccak256(update.headerRlp);
+        address previousSigner = ECDSA.recover(digest, update.commitSeals[0]);
+        bytes memory expectedRevert =
+            abi.encodeWithSelector(IBesuLightClientErrors.UnknownCommitSealSigner.selector, previousSigner);
+        for (uint256 i = 1; i < update.commitSeals.length; ++i) {
+            address signer = ECDSA.recover(digest, update.commitSeals[i]);
+            if (previousSigner >= signer) {
+                expectedRevert =
+                    abi.encodeWithSelector(IBesuLightClientErrors.UnsortedCommitSealSigners.selector, i - 1);
+                break;
+            }
+            previousSigner = signer;
+        }
+
+        vm.expectRevert(expectedRevert);
+        vm.prank(ics26Router);
+        client.updateClient(_encodeUpdate(update));
     }
 
     /// @dev Each case starts from the fixture's initial states; failure cases then change the one field under test.
     function fixtureDeployment() public view returns (BesuConstructorTestCase[] memory testCases) {
         uint64 timestamp = fixture.initialTrustedTimestamp;
 
-        testCases = new BesuConstructorTestCase[](16);
+        testCases = new BesuConstructorTestCase[](22);
         testCases[0] = _constructorCase("success: fixture values", timestamp, "");
         testCases[1] = _constructorCase(
             "failure: zero router", timestamp, abi.encodeWithSelector(IBesuLightClientErrors.InvalidIbcRouter.selector)
@@ -394,7 +436,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         testCases[5] = _constructorCase(
             "failure: zero trusting period",
             timestamp,
-            abi.encodeWithSelector(IBesuLightClientErrors.InvalidTrustingPeriod.selector)
+            abi.encodeWithSelector(IBesuLightClientErrors.InvalidTrustingPeriod.selector, 0)
         );
         testCases[5].clientState.trustingPeriod = 0;
         testCases[6] = _trustLevelConstructorCase("success: minimum trust level", 1, 3, "");
@@ -451,6 +493,34 @@ abstract contract BesuLightClientFixtureTestBase is Test {
                 fixture.maxClockDrift
             )
         );
+        testCases[16] = _constructorCase(
+            "failure: zero state root",
+            timestamp,
+            abi.encodeWithSelector(IBesuLightClientErrors.InvalidStateRoot.selector, bytes32(0))
+        );
+        testCases[16].consensusState.stateRoot = bytes32(0);
+        testCases[17] = _constructorCase(
+            "failure: empty trie state root",
+            timestamp,
+            abi.encodeWithSelector(IBesuLightClientErrors.InvalidStateRoot.selector, TrieProof.EMPTY_ROOT_HASH)
+        );
+        testCases[17].consensusState.stateRoot = TrieProof.EMPTY_ROOT_HASH;
+        testCases[18] = _constructorCase("success: max trusting period", timestamp, "");
+        testCases[18].clientState.trustingPeriod = 30 days;
+        testCases[19] = _constructorCase(
+            "failure: trusting period above max",
+            timestamp,
+            abi.encodeWithSelector(IBesuLightClientErrors.InvalidTrustingPeriod.selector, 30 days + 1)
+        );
+        testCases[19].clientState.trustingPeriod = 30 days + 1;
+        testCases[20] = _constructorCase("success: max clock drift", timestamp, "");
+        testCases[20].clientState.maxClockDrift = 12;
+        testCases[21] = _constructorCase(
+            "failure: clock drift above max",
+            timestamp,
+            abi.encodeWithSelector(IBesuLightClientErrors.InvalidMaxClockDrift.selector, 13)
+        );
+        testCases[21].clientState.maxClockDrift = 13;
     }
 
     /// @dev Quorum thresholds are ceil(2n / 3): 3 of 4, 4 of 6 and 5 of 7. With a 2/3 trust level the trusted overlap
@@ -840,7 +910,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     function fixtureUpdate() public view returns (BesuUpdateTestCase[] memory testCases) {
         BesuUpdateFixture memory emptyExpectedState;
 
-        testCases = new BesuUpdateTestCase[](28);
+        testCases = new BesuUpdateTestCase[](36);
         testCases[0] = BesuUpdateTestCase({
             name: "success: valid adjacent update",
             timestamp: fixture.initialTrustedTimestamp + 1,
@@ -1125,20 +1195,116 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             timestamp: fixture.initialTrustedTimestamp + 1,
             update: _firstSealUpdate(new bytes(65)),
             preUpdate: "",
-            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidCommitSeal.selector),
+            expectedRevert: abi.encodeWithSelector(ECDSA.ECDSAInvalidSignature.selector),
             expectedState: emptyExpectedState
         });
 
-        // The malleable twin of a valid seal recovers the same signer but must be rejected. Besu recovery ids are 0/1.
-        bytes32 s = seal.asSlice().load(32);
-        bytes memory highSSeal =
-            abi.encodePacked(seal.asSlice().load(0), bytes32(SECP256K1_N - uint256(s)), seal[64] ^ 0x01);
+        // The malleable twin of a valid seal recovers the same signer but must be rejected.
+        bytes32 highS = bytes32(SECP256K1_N - uint256(seal.asSlice().load(32)));
         testCases[27] = BesuUpdateTestCase({
             name: "failure: high-s commit seal",
             timestamp: fixture.initialTrustedTimestamp + 1,
-            update: _firstSealUpdate(highSSeal),
+            update: _firstSealUpdate(abi.encodePacked(seal.asSlice().load(0), highS, bytes1(55 - uint8(seal[64])))),
             preUpdate: "",
-            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidCommitSeal.selector),
+            expectedRevert: abi.encodeWithSelector(ECDSA.ECDSAInvalidSignatureS.selector, highS),
+            expectedState: emptyExpectedState
+        });
+
+        // Relayers must convert Besu's raw 0/1 recovery ids to 27/28.
+        testCases[30] = BesuUpdateTestCase({
+            name: "failure: raw recovery id commit seal",
+            timestamp: fixture.initialTrustedTimestamp + 1,
+            update: _firstSealUpdate(
+                abi.encodePacked(seal.asSlice().slice(0, 64).toBytes(), bytes1(uint8(seal[64]) - 27))
+            ),
+            preUpdate: "",
+            expectedRevert: abi.encodeWithSelector(ECDSA.ECDSAInvalidSignature.selector),
+            expectedState: emptyExpectedState
+        });
+        testCases[28] = BesuUpdateTestCase({
+            name: "failure: zero state root",
+            timestamp: fixture.initialTrustedTimestamp + 1,
+            update: _headerItemUpdate(3, 0),
+            preUpdate: "",
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidStateRoot.selector, bytes32(0)),
+            expectedState: emptyExpectedState
+        });
+        testCases[29] = BesuUpdateTestCase({
+            name: "failure: empty trie state root",
+            timestamp: fixture.initialTrustedTimestamp + 1,
+            update: _headerItemUpdate(3, uint256(TrieProof.EMPTY_ROOT_HASH)),
+            preUpdate: "",
+            expectedRevert: abi.encodeWithSelector(
+                IBesuLightClientErrors.InvalidStateRoot.selector, TrieProof.EMPTY_ROOT_HASH
+            ),
+            expectedState: emptyExpectedState
+        });
+
+        _setCommitSealUpdateCases(testCases, 31);
+    }
+
+    /// @dev Fills `testCases[offset:offset + 5]` with commit seal and `extraData` shape failures. Kept apart from
+    /// `fixtureUpdate` to stay within the stack limit when compiled without via-IR, as `forge coverage` does.
+    function _setCommitSealUpdateCases(BesuUpdateTestCase[] memory testCases, uint256 offset) internal view {
+        BesuUpdateFixture memory emptyExpectedState;
+
+        BesuUpdateFixture memory noSealsUpdate = fixture.nonAdjacentUpdate;
+        noSealsUpdate.commitSeals = new bytes[](0);
+        testCases[offset] = BesuUpdateTestCase({
+            name: "failure: empty commit seals",
+            timestamp: fixture.initialTrustedTimestamp + 1,
+            update: _encodeUpdate(noSealsUpdate),
+            preUpdate: "",
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.EmptyCommitSeals.selector),
+            expectedState: emptyExpectedState
+        });
+
+        bytes[] memory extraItems = _signingExtraItems(3);
+        testCases[offset + 1] = BesuUpdateTestCase({
+            name: "failure: three extraData items",
+            timestamp: fixture.initialTrustedTimestamp + 1,
+            update: _extraDataUpdate(extraItems),
+            preUpdate: "",
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidExtraDataFormat.selector, 3),
+            expectedState: emptyExpectedState
+        });
+
+        extraItems = _signingExtraItems(6);
+        extraItems[4] = hex"c0";
+        extraItems[5] = hex"c0";
+        testCases[offset + 2] = BesuUpdateTestCase({
+            name: "failure: six extraData items",
+            timestamp: fixture.initialTrustedTimestamp + 1,
+            update: _extraDataUpdate(extraItems),
+            preUpdate: "",
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidExtraDataFormat.selector, 6),
+            expectedState: emptyExpectedState
+        });
+
+        // A header submitted with its commit seals still in `extraData`, as Besu returns it.
+        bytes[] memory encodedSeals = new bytes[](fixture.nonAdjacentUpdate.commitSeals.length);
+        for (uint256 i = 0; i < encodedSeals.length; ++i) {
+            encodedSeals[i] = RLP.encode(fixture.nonAdjacentUpdate.commitSeals[i]);
+        }
+        extraItems = _signingExtraItems(5);
+        extraItems[4] = RLP.encode(encodedSeals);
+        testCases[offset + 3] = BesuUpdateTestCase({
+            name: "failure: commit seals in extraData",
+            timestamp: fixture.initialTrustedTimestamp + 1,
+            update: _extraDataUpdate(extraItems),
+            preUpdate: "",
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.NonEmptyCommitSealList.selector),
+            expectedState: emptyExpectedState
+        });
+
+        extraItems = _signingExtraItems(5);
+        extraItems[4] = hex"80";
+        testCases[offset + 4] = BesuUpdateTestCase({
+            name: "failure: empty string as commit seal list",
+            timestamp: fixture.initialTrustedTimestamp + 1,
+            update: _extraDataUpdate(extraItems),
+            preUpdate: "",
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.NonEmptyCommitSealList.selector),
             expectedState: emptyExpectedState
         });
     }
@@ -1170,7 +1336,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.NoMisbehaviourDetected.selector)
         });
 
-        IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour memory wrongRevision =
+        IBesuLightClientMsgs.MsgConflictingConsensusStatesMisbehaviour memory wrongRevision =
             _misbehaviourMsg(height1, state1, height2, state2);
         wrongRevision.height1.revisionNumber = 1;
         testCases[3] = BesuMisbehaviourTestCase({
@@ -1218,80 +1384,47 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     }
 
     /// @dev Adds a commit seal from a non-validator key to `nonAdjacentUpdate` and returns that signer.
-    /// The seal is inserted at its sorted position, and the fixture's seals stay valid because the commit seal
-    /// digest excludes the seal list.
+    /// The seal is inserted at its sorted position.
     function _unknownSignerUpdate() internal view returns (bytes memory, address) {
         BesuUpdateFixture memory update = fixture.nonAdjacentUpdate;
-        Memory.Slice[] memory headerItems = update.headerRlp.decodeList();
-        Memory.Slice[] memory extraItems = RLP.readBytes(headerItems[12]).decodeList();
-        Memory.Slice[] memory sealItems = RLP.readList(extraItems[4]);
-
-        bytes32 digest = _commitSealDigest(headerItems, extraItems);
+        bytes32 digest = keccak256(update.headerRlp);
         uint256 unknownSignerKey = 0xdead;
         address unknownSigner = vm.addr(unknownSignerKey);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(unknownSignerKey, digest);
 
-        bytes[] memory encodedSeals = new bytes[](sealItems.length + 1);
+        bytes[] memory seals = new bytes[](update.commitSeals.length + 1);
         uint256 offset = 0;
-        for (uint256 i = 0; i < sealItems.length; ++i) {
-            if (offset == 0 && _sealSigner(digest, RLP.readBytes(sealItems[i])) > unknownSigner) {
-                encodedSeals[i] = RLP.encode(abi.encodePacked(r, s, v));
+        for (uint256 i = 0; i < update.commitSeals.length; ++i) {
+            if (offset == 0 && ECDSA.recover(digest, update.commitSeals[i]) > unknownSigner) {
+                seals[i] = abi.encodePacked(r, s, v);
                 offset = 1;
             }
-            encodedSeals[i + offset] = sealItems[i].toBytes();
+            seals[i + offset] = update.commitSeals[i];
         }
         if (offset == 0) {
-            encodedSeals[sealItems.length] = RLP.encode(abi.encodePacked(r, s, v));
+            seals[update.commitSeals.length] = abi.encodePacked(r, s, v);
         }
-        update.headerRlp = _encodeHeader(headerItems, extraItems, RLP.encode(encodedSeals));
+        update.commitSeals = seals;
         return (_encodeUpdate(update), unknownSigner);
     }
 
     /// @dev Swaps the first two commit seals of `nonAdjacentUpdate`, breaking their signer order.
     function _swappedSealsUpdate() internal view returns (bytes memory) {
         BesuUpdateFixture memory update = fixture.nonAdjacentUpdate;
-        Memory.Slice[] memory headerItems = update.headerRlp.decodeList();
-        Memory.Slice[] memory extraItems = RLP.readBytes(headerItems[12]).decodeList();
-        Memory.Slice[] memory sealItems = RLP.readList(extraItems[4]);
-
-        bytes[] memory encodedSeals = new bytes[](sealItems.length);
-        for (uint256 i = 0; i < sealItems.length; ++i) {
-            encodedSeals[i] = sealItems[i].toBytes();
-        }
-        (encodedSeals[0], encodedSeals[1]) = (encodedSeals[1], encodedSeals[0]);
-        update.headerRlp = _encodeHeader(headerItems, extraItems, RLP.encode(encodedSeals));
+        (update.commitSeals[0], update.commitSeals[1]) = (update.commitSeals[1], update.commitSeals[0]);
         return _encodeUpdate(update);
     }
 
     /// @dev First commit seal of `nonAdjacentUpdate`.
     function _firstSeal() internal view returns (bytes memory) {
-        Memory.Slice[] memory headerItems = fixture.nonAdjacentUpdate.headerRlp.decodeList();
-        Memory.Slice[] memory extraItems = RLP.readBytes(headerItems[12]).decodeList();
-        return RLP.readBytes(RLP.readList(extraItems[4])[0]);
+        return fixture.nonAdjacentUpdate.commitSeals[0];
     }
 
     /// @dev Replaces the first commit seal of `nonAdjacentUpdate` with `seal`.
     function _firstSealUpdate(bytes memory seal) internal view returns (bytes memory) {
         BesuUpdateFixture memory update = fixture.nonAdjacentUpdate;
-        Memory.Slice[] memory headerItems = update.headerRlp.decodeList();
-        Memory.Slice[] memory extraItems = RLP.readBytes(headerItems[12]).decodeList();
-        Memory.Slice[] memory sealItems = RLP.readList(extraItems[4]);
-
-        bytes[] memory encodedSeals = new bytes[](sealItems.length);
-        encodedSeals[0] = RLP.encode(seal);
-        for (uint256 i = 1; i < sealItems.length; ++i) {
-            encodedSeals[i] = sealItems[i].toBytes();
-        }
-        update.headerRlp = _encodeHeader(headerItems, extraItems, RLP.encode(encodedSeals));
+        update.commitSeals[0] = seal;
         return _encodeUpdate(update);
-    }
-
-    /// @dev Recovers the signer of a raw commit seal, accepting Besu's 0/1 recovery ids.
-    function _sealSigner(bytes32 digest, bytes memory seal) internal pure returns (address) {
-        if (uint8(seal[64]) < 27) {
-            seal[64] = bytes1(uint8(seal[64]) + 27);
-        }
-        return ECDSA.recover(digest, seal);
     }
 
     /// @dev Re-encodes the non-adjacent update header with `validators` and commit seals signed by `signerKeys`.
@@ -1304,14 +1437,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         returns (bytes memory)
     {
         BesuUpdateFixture memory update = fixture.nonAdjacentUpdate;
-        Memory.Slice[] memory headerItems = update.headerRlp.decodeList();
-        Memory.Slice[] memory extraItems = RLP.readBytes(headerItems[12]).decodeList();
-
-        bytes[] memory encodedValidators = new bytes[](validators.length);
-        for (uint256 i = 0; i < validators.length; ++i) {
-            encodedValidators[i] = RLP.encode(abi.encodePacked(validators[i]));
-        }
-        extraItems[1] = RLP.encode(encodedValidators).asSlice();
+        update.headerRlp = _validatorsHeader(validators);
 
         // Seals must be ordered by signer address.
         for (uint256 i = 1; i < signerKeys.length; ++i) {
@@ -1319,13 +1445,12 @@ abstract contract BesuLightClientFixtureTestBase is Test {
                 (signerKeys[j - 1], signerKeys[j]) = (signerKeys[j], signerKeys[j - 1]);
             }
         }
-        bytes32 digest = _commitSealDigest(headerItems, extraItems);
-        bytes[] memory encodedSeals = new bytes[](signerKeys.length);
+        bytes32 digest = keccak256(update.headerRlp);
+        update.commitSeals = new bytes[](signerKeys.length);
         for (uint256 i = 0; i < signerKeys.length; ++i) {
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKeys[i], digest);
-            encodedSeals[i] = RLP.encode(abi.encodePacked(r, s, v));
+            update.commitSeals[i] = abi.encodePacked(r, s, v);
         }
-        update.headerRlp = _encodeHeader(headerItems, extraItems, RLP.encode(encodedSeals));
         return _encodeUpdate(update);
     }
 
@@ -1343,37 +1468,15 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         }
     }
 
-    /// @dev Digest signed by the commit seals of a header with the given items.
-    /// QBFT signs the header with an empty seal list, IBFT2 with the seal list dropped.
-    function _commitSealDigest(
-        Memory.Slice[] memory headerItems,
-        Memory.Slice[] memory extraItems
-    )
-        internal
-        pure
-        returns (bytes32)
-    {
-        bool isQBFT = keccak256(bytes(_fixtureFile())) == keccak256("qbft.json");
-        return keccak256(_encodeHeader(headerItems, extraItems, isQBFT ? bytes(hex"c0") : bytes("")));
-    }
-
-    /// @dev Re-encodes a header with its commit seal list replaced by `encodedSeals`, or dropped if empty.
+    /// @dev Re-encodes a header with its `extraData` items replaced by `encodedExtraItems`.
     function _encodeHeader(
         Memory.Slice[] memory headerItems,
-        Memory.Slice[] memory extraItems,
-        bytes memory encodedSeals
+        bytes[] memory encodedExtraItems
     )
         internal
         pure
         returns (bytes memory)
     {
-        bytes[] memory encodedExtraItems = new bytes[](encodedSeals.length == 0 ? 4 : 5);
-        for (uint256 i = 0; i < 4; ++i) {
-            encodedExtraItems[i] = extraItems[i].toBytes();
-        }
-        if (encodedSeals.length != 0) {
-            encodedExtraItems[4] = encodedSeals;
-        }
         bytes[] memory encodedHeaderItems = new bytes[](headerItems.length);
         for (uint256 i = 0; i < headerItems.length; ++i) {
             encodedHeaderItems[i] = i == 12 ? RLP.encode(RLP.encode(encodedExtraItems)) : headerItems[i].toBytes();
@@ -1381,9 +1484,27 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         return RLP.encode(encodedHeaderItems);
     }
 
-    function _validatorsUpdate(address[] memory validators) internal view returns (bytes memory) {
+    /// @dev Array of `length` encoded items starting with the first four `extraData` items of the non-adjacent update
+    /// header. Items past the fourth are left empty.
+    function _signingExtraItems(uint256 length) internal view returns (bytes[] memory encodedExtraItems) {
+        Memory.Slice[] memory headerItems = fixture.nonAdjacentUpdate.headerRlp.decodeList();
+        Memory.Slice[] memory extraItems = RLP.readBytes(headerItems[12]).decodeList();
+        encodedExtraItems = new bytes[](length);
+        for (uint256 i = 0; i < length && i < 4; ++i) {
+            encodedExtraItems[i] = extraItems[i].toBytes();
+        }
+    }
+
+    /// @dev Re-encodes the non-adjacent update header with its `extraData` items replaced by `encodedExtraItems`.
+    function _extraDataUpdate(bytes[] memory encodedExtraItems) internal view returns (bytes memory) {
         BesuUpdateFixture memory update = fixture.nonAdjacentUpdate;
-        Memory.Slice[] memory headerItems = update.headerRlp.decodeList();
+        update.headerRlp = _encodeHeader(update.headerRlp.decodeList(), encodedExtraItems);
+        return _encodeUpdate(update);
+    }
+
+    /// @dev Non-adjacent update header with its `extraData` validators replaced by `validators`.
+    function _validatorsHeader(address[] memory validators) internal view returns (bytes memory) {
+        Memory.Slice[] memory headerItems = fixture.nonAdjacentUpdate.headerRlp.decodeList();
         Memory.Slice[] memory extraItems = RLP.readBytes(headerItems[12]).decodeList();
         bytes[] memory encodedValidators = new bytes[](validators.length);
         for (uint256 i = 0; i < validators.length; ++i) {
@@ -1393,11 +1514,13 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         for (uint256 i = 0; i < extraItems.length; ++i) {
             encodedExtraItems[i] = i == 1 ? RLP.encode(encodedValidators) : extraItems[i].toBytes();
         }
-        bytes[] memory encodedHeaderItems = new bytes[](headerItems.length);
-        for (uint256 i = 0; i < headerItems.length; ++i) {
-            encodedHeaderItems[i] = i == 12 ? RLP.encode(RLP.encode(encodedExtraItems)) : headerItems[i].toBytes();
-        }
-        update.headerRlp = RLP.encode(encodedHeaderItems);
+        return _encodeHeader(headerItems, encodedExtraItems);
+    }
+
+    /// @dev Re-encodes the non-adjacent update header with `validators`, keeping its commit seals.
+    function _validatorsUpdate(address[] memory validators) internal view returns (bytes memory) {
+        BesuUpdateFixture memory update = fixture.nonAdjacentUpdate;
+        update.headerRlp = _validatorsHeader(validators);
         return _encodeUpdate(update);
     }
 
@@ -1494,17 +1617,26 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     }
 
     function _encodeUpdate(BesuUpdateFixture memory update) internal view returns (bytes memory) {
-        return _encodeUpdate(update.headerRlp, update.trustedHeight);
+        return _encodeUpdate(update.headerRlp, update.commitSeals, update.trustedHeight);
     }
 
     function _encodeUpdate(BesuRejectionUpdateFixture memory update) internal view returns (bytes memory) {
-        return _encodeUpdate(update.headerRlp, update.trustedHeight);
+        return _encodeUpdate(update.headerRlp, update.commitSeals, update.trustedHeight);
     }
 
-    function _encodeUpdate(bytes memory headerRlp, uint64 trustedHeight) internal view returns (bytes memory) {
+    function _encodeUpdate(
+        bytes memory headerRlp,
+        bytes[] memory commitSeals,
+        uint64 trustedHeight
+    )
+        internal
+        view
+        returns (bytes memory)
+    {
         return abi.encode(
             IBesuLightClientMsgs.MsgUpdateClient({
                 headerRlp: headerRlp,
+                commitSeals: commitSeals,
                 trustedHeight: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: trustedHeight }),
                 consensusStatePreimage: _trustedConsensusState(trustedHeight)
             })
@@ -1519,9 +1651,9 @@ abstract contract BesuLightClientFixtureTestBase is Test {
     )
         internal
         pure
-        returns (IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour memory)
+        returns (IBesuLightClientMsgs.MsgConflictingConsensusStatesMisbehaviour memory)
     {
-        return IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour({
+        return IBesuLightClientMsgs.MsgConflictingConsensusStatesMisbehaviour({
             height1: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: height1 }),
             height2: IICS02ClientMsgs.Height({ revisionNumber: 0, revisionHeight: height2 }),
             consensusStatePreimage1: state1,
@@ -1529,14 +1661,14 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         });
     }
 
-    function _encodeMisbehaviour(IBesuLightClientMsgs.MsgTimeNonMonotonicityMisbehaviour memory misbehaviour)
+    function _encodeMisbehaviour(IBesuLightClientMsgs.MsgConflictingConsensusStatesMisbehaviour memory misbehaviour)
         internal
         pure
         returns (bytes memory)
     {
         return abi.encode(
             IBesuLightClientMsgs.MsgSubmitMisbehaviour(
-                IBesuLightClientMsgs.MisbehaviourType.TimeNonMonotonicity, abi.encode(misbehaviour)
+                IBesuLightClientMsgs.MisbehaviourType.ConflictingConsensusStates, abi.encode(misbehaviour)
             )
         );
     }
@@ -1685,6 +1817,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         return BesuUpdateFixture({
             height: uint64(json.readUint(string.concat(path, ".height"))),
             headerRlp: json.readBytes(string.concat(path, ".headerRlp")),
+            commitSeals: json.readBytesArray(string.concat(path, ".commitSeals")),
             trustedHeight: uint64(json.readUint(string.concat(path, ".trustedHeight"))),
             expectedTimestamp: uint64(json.readUint(string.concat(path, ".expectedTimestamp"))),
             expectedStateRoot: json.readBytes32(string.concat(path, ".expectedStateRoot")),
@@ -1703,6 +1836,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         return BesuRejectionUpdateFixture({
             height: uint64(json.readUint(string.concat(path, ".height"))),
             headerRlp: json.readBytes(string.concat(path, ".headerRlp")),
+            commitSeals: json.readBytesArray(string.concat(path, ".commitSeals")),
             trustedHeight: uint64(json.readUint(string.concat(path, ".trustedHeight")))
         });
     }
@@ -1720,39 +1854,15 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         });
     }
 
-    function _deployIBFT2(
+    function _deployClient(
         IBesuLightClientMsgs.ClientState memory clientState,
         IBesuLightClientMsgs.ConsensusState memory consensusState
     )
         internal
         returns (IBesuLightClient)
     {
-        return new BesuIBFT2LightClient(clientState, consensusState, address(0));
-    }
-
-    function _deployQBFT(
-        IBesuLightClientMsgs.ClientState memory clientState,
-        IBesuLightClientMsgs.ConsensusState memory consensusState
-    )
-        internal
-        returns (IBesuLightClient)
-    {
-        return new BesuQBFTLightClient(clientState, consensusState, address(0));
+        return new BesuLightClient(clientState, consensusState, ics26Router);
     }
 
     function _fixtureFile() internal pure virtual returns (string memory);
-    function _deployPrimaryClient(
-        IBesuLightClientMsgs.ClientState memory clientState,
-        IBesuLightClientMsgs.ConsensusState memory consensusState
-    )
-        internal
-        virtual
-        returns (IBesuLightClient);
-    function _deployWrongWrapper(
-        IBesuLightClientMsgs.ClientState memory clientState,
-        IBesuLightClientMsgs.ConsensusState memory consensusState
-    )
-        internal
-        virtual
-        returns (IBesuLightClient);
 }

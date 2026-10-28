@@ -5,18 +5,21 @@ pragma solidity ^0.8.28;
 // custom-errors,max-line-length,max-states-count,var-name-mixedcase,gas-small-strings
 
 import { IICS26RouterMsgs } from "../../../../contracts/msgs/IICS26RouterMsgs.sol";
-import { IICS26Router } from "../../../../contracts/interfaces/IICS26Router.sol";
+import { IICS26Router, IICS26RouterAccessControlled } from "../../../../contracts/interfaces/IICS26Router.sol";
 import { IIFTMsgs } from "../../../../contracts/msgs/IIFTMsgs.sol";
+import { IIBCMulticallMsgs } from "../../../../contracts/msgs/IIBCMulticallMsgs.sol";
 
 import { IIFT } from "../../../../contracts/interfaces/IIFT.sol";
 import { IIFTRateLimit } from "../../../../contracts/interfaces/IIFTRateLimit.sol";
 import { IIFTErrors } from "../../../../contracts/errors/IIFTErrors.sol";
+import { IIBCMulticall } from "../../../../contracts/interfaces/IIBCMulticall.sol";
 
 import { IbcImpl } from "../../utils/IbcImpl.sol";
 import { LightClientDriverTest } from "../drivers/LightClientDriverTest.sol";
 import { TestHelper } from "../../utils/TestHelper.sol";
 import { IntegrationEnv } from "../../utils/IntegrationEnv.sol";
 import { IFTAccessManaged } from "../../../../contracts/utils/IFTAccessManaged.sol";
+import { IBCMulticall } from "../../../../contracts/utils/IBCMulticall.sol";
 import { EVMIFTSendCallConstructor } from "../../../../contracts/utils/EVMIFTSendCallConstructor.sol";
 import { ICS24Host } from "../../../../contracts/utils/ICS24Host.sol";
 import { Strings } from "@openzeppelin-contracts/utils/Strings.sol";
@@ -48,10 +51,10 @@ abstract contract IFTIntegrationSuite is LightClientDriverTest {
         ibcImplB = new IbcImpl(integrationEnv.permit2());
 
         string memory clientId;
-        clientId = ibcImplA.addClient(th.FIRST_CLIENT_ID(), _newDriver(ibcImplB.ics26Router()));
+        clientId = ibcImplA.addClient(th.FIRST_CLIENT_ID(), _newDriver(ibcImplA.ics26Router(), ibcImplB.ics26Router()));
         assertEq(clientId, th.FIRST_CLIENT_ID());
 
-        clientId = ibcImplB.addClient(th.FIRST_CLIENT_ID(), _newDriver(ibcImplA.ics26Router()));
+        clientId = ibcImplB.addClient(th.FIRST_CLIENT_ID(), _newDriver(ibcImplB.ics26Router(), ibcImplA.ics26Router()));
         assertEq(clientId, th.FIRST_CLIENT_ID());
 
         sendCallConstructor = new EVMIFTSendCallConstructor();
@@ -330,6 +333,51 @@ abstract contract IFTIntegrationSuite is LightClientDriverTest {
         bytes[] memory acks1 = ibcImplB.recvPacket(packet1);
         ibcImplA.ackPacket(packet1, acks1);
         assertEq(iftOnB.balanceOf(receiver1), amount1);
+    }
+
+    /// @dev Two refunds that only fit the rate limit one at a time are relayed in one batch where each may fail. The
+    /// first refund lands and the second packet stays relayable until its refund fits.
+    function test_success_partialTimeoutBatch() public {
+        uint256 amount = 1000;
+        address sender = integrationEnv.createUser();
+        string memory clientId = th.FIRST_CLIENT_ID();
+        string memory receiverStr = Strings.toHexString(integrationEnv.createUser());
+        uint64 timeout = uint64(block.timestamp) + 1;
+
+        deal(address(iftOnA), sender, 2 * amount, true);
+        IICS26RouterMsgs.Packet[2] memory packets;
+        for (uint256 i = 0; i < 2; ++i) {
+            vm.recordLogs();
+            vm.prank(sender);
+            iftOnA.iftTransfer(clientId, receiverStr, amount, timeout);
+            packets[i] = _extractPacketFromLogs();
+        }
+        vm.warp(block.timestamp + 100);
+
+        IIBCMulticallMsgs.Call[] memory calls = new IIBCMulticallMsgs.Call[](2);
+        for (uint256 i = 0; i < 2; ++i) {
+            calls[i] = IIBCMulticallMsgs.Call({
+                target: address(ibcImplA.ics26Router()),
+                allowFailure: true,
+                callData: abi.encodeCall(
+                    IICS26RouterAccessControlled.timeoutPacket, (ibcImplA.timeoutPacketMsg(packets[i]))
+                )
+            });
+        }
+
+        iftOnA.setIFTRateLimit(uint208(amount), RATE_LIMIT_WINDOW);
+        IBCMulticall multicall = ibcImplA.ibcMulticall();
+        vm.expectEmit(address(multicall));
+        emit IIBCMulticall.CallFailed(1, abi.encodeWithSelector(RateLimiter.RateLimitExceeded.selector));
+        multicall.multicall(calls);
+
+        assertEq(iftOnA.balanceOf(sender), amount, "only the first transfer should be refunded");
+        assertEq(iftOnA.getPendingTransfer(clientId, packets[1].sequence).amount, amount, "should stay pending");
+
+        // Once the refund fits, relaying the failed timeout again refunds the sender
+        iftOnA.setIFTRateLimit(MAX_RATE_LIMIT_CAPACITY, RATE_LIMIT_WINDOW);
+        ibcImplA.timeoutPacket(packets[1]);
+        assertEq(iftOnA.balanceOf(sender), 2 * amount, "both transfers should be refunded");
     }
 
     function test_upgrade_success() public {

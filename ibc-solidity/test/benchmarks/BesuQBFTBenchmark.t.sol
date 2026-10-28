@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.28;
 
-import { IBesuLightClientMsgs } from "../../contracts/light-clients/besu/msgs/IBesuLightClientMsgs.sol";
 import { ILightClientMsgs } from "../../contracts/msgs/ILightClientMsgs.sol";
 import { ILightClient } from "../../contracts/interfaces/ILightClient.sol";
-import { BesuLightClientFixtureTestBase, IBesuLightClient } from "../besu-bft/BesuLightClientFixtureTestBase.sol";
+import { BesuLightClientFixtureTestBase } from "../besu-bft/BesuLightClientFixtureTestBase.sol";
 
 contract BesuQBFTBenchmark is BesuLightClientFixtureTestBase {
     string internal constant SNAPSHOT_GROUP = "BesuQBFT";
@@ -13,6 +12,7 @@ contract BesuQBFTBenchmark is BesuLightClientFixtureTestBase {
         vm.warp(fixture.initialTrustedTimestamp + 1);
         bytes memory update = _encodeUpdate(fixture.adjacentUpdate);
 
+        vm.prank(ics26Router);
         client.updateClient(update);
         vm.snapshotGasLastFrame(SNAPSHOT_GROUP, "update.adjacent.gas");
         vm.snapshotValue(
@@ -24,6 +24,7 @@ contract BesuQBFTBenchmark is BesuLightClientFixtureTestBase {
         vm.warp(fixture.initialTrustedTimestamp + 1);
         bytes memory update = _encodeUpdate(fixture.nonAdjacentUpdate);
 
+        vm.prank(ics26Router);
         client.updateClient(update);
         vm.snapshotGasLastFrame(SNAPSHOT_GROUP, "update.non_adjacent.gas");
         vm.snapshotValue(
@@ -33,11 +34,13 @@ contract BesuQBFTBenchmark is BesuLightClientFixtureTestBase {
 
     function testBenchmark_VerifyMembership() public {
         vm.warp(fixture.initialTrustedTimestamp + 1);
+        vm.startPrank(ics26Router);
         client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
         ILightClientMsgs.MsgVerifyMembership memory message =
             _membershipMessage(0, _singlePath(fixture.membership.path), fixture.membership.value);
 
         uint256 timestamp = client.verifyMembership(message);
+        vm.stopPrank();
         vm.snapshotGasLastFrame(SNAPSHOT_GROUP, "verify_membership.gas");
         vm.snapshotValue(
             SNAPSHOT_GROUP,
@@ -50,11 +53,13 @@ contract BesuQBFTBenchmark is BesuLightClientFixtureTestBase {
 
     function testBenchmark_VerifyNonMembership() public {
         vm.warp(fixture.initialTrustedTimestamp + 1);
+        vm.startPrank(ics26Router);
         client.updateClient(_encodeUpdate(fixture.nonAdjacentUpdate));
         ILightClientMsgs.MsgVerifyNonMembership memory message =
             _nonMembershipMessage(fixture.nonMembership.proofHeight);
 
         uint256 timestamp = client.verifyNonMembership(message);
+        vm.stopPrank();
         vm.snapshotGasLastFrame(SNAPSHOT_GROUP, "verify_non_membership.gas");
         vm.snapshotValue(
             SNAPSHOT_GROUP,
@@ -67,27 +72,5 @@ contract BesuQBFTBenchmark is BesuLightClientFixtureTestBase {
 
     function _fixtureFile() internal pure override returns (string memory) {
         return "qbft.json";
-    }
-
-    function _deployPrimaryClient(
-        IBesuLightClientMsgs.ClientState memory clientState,
-        IBesuLightClientMsgs.ConsensusState memory consensusState
-    )
-        internal
-        override
-        returns (IBesuLightClient)
-    {
-        return _deployQBFT(clientState, consensusState);
-    }
-
-    function _deployWrongWrapper(
-        IBesuLightClientMsgs.ClientState memory clientState,
-        IBesuLightClientMsgs.ConsensusState memory consensusState
-    )
-        internal
-        override
-        returns (IBesuLightClient)
-    {
-        return _deployIBFT2(clientState, consensusState);
     }
 }

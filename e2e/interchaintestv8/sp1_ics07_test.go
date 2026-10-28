@@ -56,8 +56,9 @@ type SP1ICS07TendermintTestSuite struct {
 	generateFixtures bool
 
 	// Addresses of the deployed contracts
-	sp1Ics07Address ethcommon.Address
-	ics26Address    ethcommon.Address
+	sp1Ics07Address     ethcommon.Address
+	ics26Address        ethcommon.Address
+	ibcMulticallAddress ethcommon.Address
 
 	// The private key of a test account
 	key *ecdsa.PrivateKey
@@ -125,6 +126,7 @@ func (s *SP1ICS07TendermintTestSuite) SetupSuite(ctx context.Context, proofType 
 		contractAddresses, err := ethereum.GetEthContractsFromDeployOutput(string(stdout))
 		s.Require().NoError(err)
 		s.ics26Address = ethcommon.HexToAddress(contractAddresses.Ics26Router)
+		s.ibcMulticallAddress = ethcommon.HexToAddress(contractAddresses.IbcMulticall)
 		s.ics26Contract, err = ics26router.NewContract(s.ics26Address, eth.RPCClient)
 		s.Require().NoError(err)
 	}))
@@ -146,11 +148,12 @@ func (s *SP1ICS07TendermintTestSuite) SetupSuite(ctx context.Context, proofType 
 				BeaconAPI:     beaconAPI,
 			}).
 			CosmosToEthSP1(proofapi.CosmosToEthSP1Params{
-				CosmosChainID: simd.Config().ChainID,
-				EthChainID:    eth.ChainID.String(),
-				TmRPC:         simd.GetHostRPCAddress(),
-				ICS26Address:  s.ics26Address.Hex(),
-				EthRPC:        eth.RPC,
+				CosmosChainID:       simd.Config().ChainID,
+				EthChainID:          eth.ChainID.String(),
+				TmRPC:               simd.GetHostRPCAddress(),
+				ICS26Address:        s.ics26Address.Hex(),
+				IBCMulticallAddress: s.ibcMulticallAddress.Hex(),
+				EthRPC:              eth.RPC,
 				Prover: proofapi.SP1ProverConfig{
 					Type:           prover,
 					PrivateCluster: os.Getenv(testvalues.EnvKeyNetworkPrivateCluster) == testvalues.EnvValueSp1Prover_PrivateCluster,
@@ -202,7 +205,6 @@ func (s *SP1ICS07TendermintTestSuite) SetupSuite(ctx context.Context, proofType 
 				Parameters: map[string]string{
 					testvalues.ParameterKey_Sp1Verifier: verifierAddress,
 					testvalues.ParameterKey_ZkAlgorithm: proofType.String(),
-					testvalues.ParameterKey_RoleManager: ethcommon.Address{}.Hex(),
 				},
 			})
 			s.Require().NoError(err)
@@ -370,14 +372,14 @@ func (s *SP1ICS07TendermintTestSuite) MembershipTest(ctx context.Context, proofT
 		)
 		s.Require().NoError(err)
 
-		msg := sp1ics07tendermint.ILightClientMsgsMsgVerifyMembership{
-			ProofHeight: *proofHeight,
+		msg := ics26router.ILightClientMsgsMsgVerifyMembership{
+			ProofHeight: ics26router.IICS02ClientMsgsHeight(*proofHeight),
 			Proof:       ucAndMemProof,
 			Path:        membershipKey,
 			Value:       expValue,
 		}
 
-		tx, err := s.contract.VerifyMembership(s.GetTransactOpts(s.key, eth), msg)
+		tx, err := s.ics26Contract.VerifyMembership(s.GetTransactOpts(s.key, eth), testvalues.CustomClientID, msg)
 		s.Require().NoError(err)
 
 		// wait until transaction is included in a block
@@ -408,13 +410,13 @@ func (s *SP1ICS07TendermintTestSuite) MembershipTest(ctx context.Context, proofT
 		)
 		s.Require().NoError(err)
 
-		msg := sp1ics07tendermint.ILightClientMsgsMsgVerifyNonMembership{
-			ProofHeight: *proofHeight,
+		msg := ics26router.ILightClientMsgsMsgVerifyNonMembership{
+			ProofHeight: ics26router.IICS02ClientMsgsHeight(*proofHeight),
 			Proof:       ucAndMemProof,
 			Path:        nonMembershipKey,
 		}
 
-		tx, err := s.contract.VerifyNonMembership(s.GetTransactOpts(s.key, eth), msg)
+		tx, err := s.ics26Contract.VerifyNonMembership(s.GetTransactOpts(s.key, eth), testvalues.CustomClientID, msg)
 		s.Require().NoError(err)
 
 		// wait until transaction is included in a block
@@ -491,14 +493,14 @@ func (s *SP1ICS07TendermintTestSuite) UpdateClientAndMembershipTest(ctx context.
 		)
 		s.Require().NoError(err)
 
-		msg := sp1ics07tendermint.ILightClientMsgsMsgVerifyMembership{
-			ProofHeight: *proofHeight,
+		msg := ics26router.ILightClientMsgsMsgVerifyMembership{
+			ProofHeight: ics26router.IICS02ClientMsgsHeight(*proofHeight),
 			Proof:       ucAndMemProof,
 			Path:        membershipKey,
 			Value:       expValue,
 		}
 
-		tx, err := s.contract.VerifyMembership(s.GetTransactOpts(s.key, eth), msg)
+		tx, err := s.ics26Contract.VerifyMembership(s.GetTransactOpts(s.key, eth), testvalues.CustomClientID, msg)
 		s.Require().NoError(err)
 
 		// wait until transaction is included in a block
@@ -610,7 +612,7 @@ func (s *SP1ICS07TendermintTestSuite) DoubleSignMisbehaviourTest(ctx context.Con
 		submitMsg, err := operator.MisbehaviourProof(simd.GetCodec(), misbehaviour, fixtureName, args...)
 		s.Require().NoError(err)
 
-		tx, err := s.contract.Misbehaviour(s.GetTransactOpts(s.key, eth), submitMsg)
+		tx, err := s.ics26Contract.SubmitMisbehaviour(s.GetTransactOpts(s.key, eth), testvalues.CustomClientID, submitMsg)
 		s.Require().NoError(err)
 
 		// wait until transaction is included in a block
@@ -699,7 +701,7 @@ func (s *SP1ICS07TendermintTestSuite) BreakingTimeMonotonicityMisbehaviourTest(c
 		submitMsg, err := operator.MisbehaviourProof(simd.GetCodec(), misbehaviour, fixtureName, args...)
 		s.Require().NoError(err)
 
-		tx, err := s.contract.Misbehaviour(s.GetTransactOpts(s.key, eth), submitMsg)
+		tx, err := s.ics26Contract.SubmitMisbehaviour(s.GetTransactOpts(s.key, eth), testvalues.CustomClientID, submitMsg)
 		s.Require().NoError(err)
 
 		// wait until transaction is included in a block
@@ -795,14 +797,14 @@ func (s *SP1ICS07TendermintTestSuite) largeMembershipTest(ctx context.Context, n
 			)
 			s.Require().NoError(err)
 
-			msg := sp1ics07tendermint.ILightClientMsgsMsgVerifyMembership{
-				ProofHeight: *proofHeight,
+			msg := ics26router.ILightClientMsgsMsgVerifyMembership{
+				ProofHeight: ics26router.IICS02ClientMsgsHeight(*proofHeight),
 				Proof:       memProof,
 				Path:        membershipKeys[rndIdx],
 				Value:       expValue,
 			}
 
-			tx, err := s.contract.VerifyMembership(s.GetTransactOpts(s.key, eth), msg)
+			tx, err := s.ics26Contract.VerifyMembership(s.GetTransactOpts(s.key, eth), testvalues.CustomClientID, msg)
 			s.Require().NoError(err)
 
 			// wait until transaction is included in a block
@@ -837,13 +839,13 @@ func (s *SP1ICS07TendermintTestSuite) UpdateClient(ctx context.Context) clientty
 			})
 			s.Require().NoError(err)
 			s.Require().NotEmpty(resp.Tx)
-			s.Require().Equal(s.ics26Address.String(), resp.Address)
+			s.Require().Equal(s.ibcMulticallAddress.String(), resp.Address)
 
 			updateTxBodyBz = resp.Tx
 		}))
 
 		s.Require().True(s.Run("Broadcast relay tx", func() {
-			receipt, err := eth.BroadcastTx(ctx, s.key, 5_000_000, &s.ics26Address, updateTxBodyBz)
+			receipt, err := eth.BroadcastTx(ctx, s.key, 5_000_000, &s.ibcMulticallAddress, updateTxBodyBz)
 			s.Require().NoError(err)
 			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
 		}))

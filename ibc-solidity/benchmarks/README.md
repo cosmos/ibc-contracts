@@ -22,22 +22,22 @@ The send value is the average of 50 separate transactions, including the more ex
 
 | Operation | Groth16 gas | Plonk gas | Groth16 calldata | Plonk calldata |
 | --- | ---: | ---: | ---: | ---: |
-| Send ERC20 (50-transaction average) | 164,808 | 164,808 | 516 | 516 |
-| Acknowledge ERC20 end-to-end | 446,368 | 513,526 | 3,748 | 4,356 |
-| Receive returning ERC20 end-to-end | 553,254 | 620,444 | 3,652 | 4,260 |
-| Receive new Cosmos token end-to-end | 1,126,098 | 1,193,072 | 3,652 | 4,260 |
-| Timeout ERC20 end-to-end | 503,687 | 571,038 | 3,652 | 4,260 |
+| Send ERC20 (50-transaction average) | 164,852 | 164,852 | 516 | 516 |
+| Acknowledge ERC20 end-to-end | 444,271 | 511,429 | 3,748 | 4,356 |
+| Receive returning ERC20 end-to-end | 551,236 | 618,426 | 3,652 | 4,260 |
+| Receive new Cosmos token end-to-end | 1,124,080 | 1,191,054 | 3,652 | 4,260 |
+| Timeout ERC20 end-to-end | 501,682 | 569,033 | 3,652 | 4,260 |
 
 ### Batched router multicalls
 
 | Proof | Packets | Operation | Total gas | Average gas / packet | Calldata bytes |
 | --- | ---: | --- | ---: | ---: | ---: |
-| Groth16 | 25 | Acknowledge ERC20 end-to-end | 2,788,857 | 111,554 | 53,668 |
-| Groth16 | 25 | Receive returning ERC20 end-to-end | 4,565,357 | 182,614 | 51,268 |
-| Groth16 | 50 | Acknowledge ERC20 end-to-end | 5,247,136 | 104,942 | 105,668 |
-| Groth16 | 50 | Receive returning ERC20 end-to-end | 8,750,522 | 175,010 | 100,868 |
-| Plonk | 50 | Acknowledge ERC20 end-to-end | 5,289,356 | 105,787 | 106,276 |
-| Plonk | 50 | Receive returning ERC20 end-to-end | 8,805,688 | 176,113 | 101,476 |
+| Groth16 | 25 | Acknowledge ERC20 end-to-end | 2,781,360 | 111,254 | 53,668 |
+| Groth16 | 25 | Receive returning ERC20 end-to-end | 4,559,835 | 182,393 | 51,268 |
+| Groth16 | 50 | Acknowledge ERC20 end-to-end | 5,234,014 | 104,680 | 105,668 |
+| Groth16 | 50 | Receive returning ERC20 end-to-end | 8,741,350 | 174,827 | 100,868 |
+| Plonk | 50 | Acknowledge ERC20 end-to-end | 5,276,234 | 105,524 | 106,276 |
+| Plonk | 50 | Receive returning ERC20 end-to-end | 8,796,516 | 175,930 | 101,476 |
 
 ## Besu QBFT light-client benchmarks
 
@@ -45,10 +45,10 @@ These isolated transactions use the live Besu QBFT header and proof fixture in `
 
 | Operation | Gas | ABI calldata bytes |
 | --- | ---: | ---: |
-| Adjacent client update | 183,717 | 1,444 |
-| Non-adjacent client update | 184,041 | 1,444 |
-| Membership verification | 153,143 | 2,212 |
-| Non-membership verification | 165,433 | 2,116 |
+| Adjacent client update | 152,169 | 1,764 |
+| Non-adjacent client update | 152,207 | 1,764 |
+| Membership verification | 154,582 | 2,308 |
+| Non-membership verification | 166,921 | 2,212 |
 
 ## Besu QBFT light-client scaling benchmarks
 
@@ -56,12 +56,12 @@ These isolated transactions use headers and proofs produced in-process by the `Q
 
 | Validators | Client update gas | ABI calldata bytes |
 | ---: | ---: | ---: |
-| 4 | 192,673 | 1,508 |
-| 7 | 232,327 | 1,860 |
-| 16 | 351,591 | 2,948 |
-| 32 | 564,009 | 4,868 |
-| 64 | 989,840 | 8,708 |
-| 100 | 1,470,866 | 13,028 |
+| 4 | 157,603 | 1,924 |
+| 7 | 189,016 | 2,564 |
+| 16 | 283,204 | 4,484 |
+| 32 | 450,993 | 7,908 |
+| 64 | 786,854 | 14,724 |
+| 100 | 1,165,551 | 22,372 |
 
 Membership verification against a world state trie with the given number of accounts (router included) and a router storage trie with the given number of commitments.
 
@@ -69,10 +69,10 @@ Gas:
 
 | Accounts | 1 commitments | 16 commitments | 128 commitments | 1024 commitments |
 | ---: | ---: | ---: | ---: | ---: |
-| 1 | 71,490 | 100,057 | 130,879 | 161,690 |
-| 16 | 100,534 | 129,115 | 159,925 | 190,737 |
-| 128 | 131,379 | 159,961 | 190,773 | 221,610 |
-| 1024 | 162,738 | 191,346 | 222,147 | 252,961 |
+| 1 | 71,332 | 99,899 | 130,721 | 161,532 |
+| 16 | 100,376 | 128,957 | 159,767 | 190,579 |
+| 128 | 131,221 | 159,803 | 190,615 | 221,452 |
+| 1024 | 162,580 | 191,188 | 221,989 | 252,803 |
 
 ABI calldata bytes:
 

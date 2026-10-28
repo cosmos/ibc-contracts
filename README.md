@@ -1,19 +1,27 @@
-# IBC Contracts
+# IBC Contracts  [![Full Actions][e2e-full-badge]][gha] [![Minimal Actions][e2e-minimal-badge]][gha] [![Foundry][foundry-badge]][foundry] [![License: Apache 2.0][license-badge]][license] [![Code Coverage][codecov-badge]][codecov] [![OpenSSF Scorecard][scorecard-badge]][scorecard] [![CodeQL][codeql-badge]][codeql] [![Discord][discord-badge]][discord] [![solidity][solidity-badge]][releases] [![sp1-programs][sp1-programs-badge]][releases] [![cw-ics08-wasm-eth][cw-ics08-wasm-eth-badge]][releases] [![proof-api][proof-api-badge]][releases]
 
-[![CodeQL](https://github.com/cosmos/ibc-contracts/actions/workflows/codeql.yml/badge.svg)](https://github.com/cosmos/ibc-contracts/actions/workflows/codeql.yml)
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/cosmos/ibc-contracts/badge)](https://scorecard.dev/viewer/?uri=github.com/cosmos/ibc-contracts)
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/cosmos/ibc-contracts/blob/main/LICENSE.md)
-[![Discord](https://img.shields.io/discord/669268347736686612?logo=discord&label=Discord)](https://discord.com/invite/interchain)
-[![solidity](https://img.shields.io/github/v/tag/cosmos/ibc-contracts?filter=solidity-v*&label=solidity)](https://github.com/cosmos/ibc-contracts/releases)
-[![sp1-programs](https://img.shields.io/github/v/tag/cosmos/ibc-contracts?filter=sp1-programs-v*&label=sp1-programs)](https://github.com/cosmos/ibc-contracts/releases)
-[![cw-ics08-wasm-eth](https://img.shields.io/github/v/tag/cosmos/ibc-contracts?filter=cw-ics08-wasm-eth-v*&label=cw-ics08-wasm-eth)](https://github.com/cosmos/ibc-contracts/releases)
-[![proof-api](https://img.shields.io/github/v/tag/cosmos/ibc-contracts?filter=proof-api-v*&label=proof-api)](https://github.com/cosmos/ibc-contracts/releases)
-[![Full Actions](https://github.com/cosmos/ibc-contracts/actions/workflows/e2e-full.yml/badge.svg)](https://github.com/cosmos/ibc-contracts/actions)
-[![Minimal Actions](https://github.com/cosmos/ibc-contracts/actions/workflows/e2e-minimal.yml/badge.svg)](https://github.com/cosmos/ibc-contracts/actions)
-[![Foundry](https://img.shields.io/badge/Built%20with-Foundry-FFDB1C.svg)](https://getfoundry.sh/)
-[![Code Coverage](https://codecov.io/github/cosmos/solidity-ibc-eureka/graph/badge.svg?token=lhplGORQxX)](https://codecov.io/github/cosmos/solidity-ibc-eureka)
+![IBC in Solidity](.github/assets/cosmos-ibc-contracts-github.svg)
 
-![banner](./.github/assets/cosmos-ibc-contracts-github.svg)
+[gha]: https://github.com/cosmos/ibc-contracts/actions
+[e2e-minimal-badge]: https://github.com/cosmos/ibc-contracts/actions/workflows/e2e-minimal.yml/badge.svg
+[e2e-full-badge]: https://github.com/cosmos/ibc-contracts/actions/workflows/e2e-full.yml/badge.svg
+[foundry]: https://getfoundry.sh/
+[foundry-badge]: https://img.shields.io/badge/Built%20with-Foundry-FFDB1C.svg
+[license]: https://www.apache.org/licenses/LICENSE-2.0
+[license-badge]: https://img.shields.io/badge/License-Apache_2.0-blue.svg
+[codecov]: https://codecov.io/gh/cosmos/ibc-contracts
+[codecov-badge]: https://codecov.io/gh/cosmos/ibc-contracts/graph/badge.svg
+[scorecard]: https://scorecard.dev/viewer/?uri=github.com/cosmos/ibc-contracts
+[scorecard-badge]: https://api.scorecard.dev/projects/github.com/cosmos/ibc-contracts/badge
+[codeql]: https://github.com/cosmos/ibc-contracts/actions/workflows/codeql.yml
+[codeql-badge]: https://github.com/cosmos/ibc-contracts/actions/workflows/codeql.yml/badge.svg
+[discord]: https://discord.com/invite/interchain
+[discord-badge]: https://img.shields.io/discord/669268347736686612?logo=discord&label=Discord
+[releases]: https://github.com/cosmos/ibc-contracts/releases
+[solidity-badge]: https://img.shields.io/github/v/tag/cosmos/ibc-contracts?filter=solidity-v*&label=solidity
+[sp1-programs-badge]: https://img.shields.io/github/v/tag/cosmos/ibc-contracts?filter=sp1-programs-v*&label=sp1-programs
+[cw-ics08-wasm-eth-badge]: https://img.shields.io/github/v/tag/cosmos/ibc-contracts?filter=cw-ics08-wasm-eth-v*&label=cw-ics08-wasm-eth
+[proof-api-badge]: https://img.shields.io/github/v/tag/cosmos/ibc-contracts?filter=proof-api-v*&label=proof-api
 
 This is an implementation of IBC v2 in Solidity and Solana. IBC v2 is a simplified version of the IBC protocol that is encoding agnostic. This enables a trust-minimized IBC connection between Ethereum and a Cosmos SDK chain.
 
@@ -82,8 +90,7 @@ This project is structured with the following directories:
 | `ICS26Router.sol` | IBC router handles sequencing, replay protection, and timeout checks. Passes proofs to light clients for verification, and resolves `portId` for app callbacks. Provable IBC storage is stored in this contract.  | ✅ |
 | `ICS20Transfer.sol` | IBC transfer application to send and receive tokens to/from another IBC transfer implementation. | ✅ |
 | `SP1ICS07Tendermint.sol` | Tendermint light client powered by SP1. The entry point for SP1 proofs. | ✅ |
-| `BesuIBFT2LightClient.sol` | Besu IBFT 2.0 light client for header-validator mode with weak-subjectivity updates and EVM proof verification, following the YUI + prover sealing-header verification model. | ⏳ |
-| `BesuQBFTLightClient.sol` | Besu QBFT light client for header-validator mode with weak-subjectivity updates and EVM proof verification, following the YUI + prover sealing-header verification model. | ⏳ |
+| `BesuLightClient.sol` | Besu IBFT 2.0 and QBFT light client for header-validator mode with weak-subjectivity updates and EVM proof verification. | ⏳ |
 | `ICS27GMP.sol` | IBC General Message Passing via Interchain Accounts. | ✅ |
 | `AttestationLightClient.sol` | The multisig contract implementing IBC Light Client specs. | ✅ |
 | `utils/IFTBaseUpgradeable.sol` | Interchain Fungible Token standard. Mint and burn alternative to ICS-20. | ⏳ |
@@ -300,7 +307,7 @@ The generated [Solidity benchmark tables](./ibc-solidity/benchmarks/README.md) i
 IBC is a peer-to-peer, light-client-based interoperability protocol. This repository contains the following light clients:
 
 - **SP1 Tendermint Light Client** – Verifies the consensus state of a Cosmos SDK chain powered by SP1 and `tendermint-rs`. (Solidity)
-- **Besu IBFT 2.0 / QBFT Light Clients** – Verify Besu BFT headers in header-validator mode, track the counterparty chain state root, and verify EVM account/storage proofs for Eureka commitments. (Solidity)
+- **Besu IBFT 2.0 / QBFT Light Client** – Verifies Besu BFT headers in header-validator mode, tracks the counterparty chain state root, and verifies EVM account/storage proofs for Eureka commitments. (Solidity)
 - [**Ethereum Light Client**](./ibc-solidity/programs/cw-ics08-wasm-eth/README.md) – Verifies the consensus state of the Ethereum chain. (CosmWasm)
 - **Attestation Light Client** – A multisig that can be used if the counterparty chain does not have a light client protocol. (Solidity and Solana)
 - **Solana Tendermint Light Client** - Verifies the consensus state of a Cosmos SDK chain powered by `tendermint-rs`. (Solana)
@@ -357,8 +364,8 @@ The IBC solidity contracts use [`AccessManager`](https://github.com/OpenZeppelin
 |:---:|:---:|:---:|
 | `ADMIN_ROLE` | 0 | Can grant and set target functions for all roles. |
 | `RELAYER_ROLE` | 1 | Whitelisted relayer addresses. |
-| `PAUSER_ROLE` | 2 | Can pause the IBC application contracts. |
-| `UNPAUSER_ROLE` | 3 | Can unpause the IBC application contract. |
+| `PAUSER_ROLE` | 2 | Can pause the IBC application contracts and app and client registration in the router. |
+| `UNPAUSER_ROLE` | 3 | Can unpause the IBC application contracts and app and client registration in the router. |
 | `DELEGATE_SENDER_ROLE` | 4 | Has permission to call `sendTransferWithSender`. |
 | `RATE_LIMITER_ROLE` | 5 | Can set withdrawal rate limits per `ERC20` token. |
 | `ID_CUSTOMIZER_ROLE` | 6 | Can set custom client and port ids for applications. |

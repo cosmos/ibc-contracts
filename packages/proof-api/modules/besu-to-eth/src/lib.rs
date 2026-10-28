@@ -34,6 +34,7 @@ struct BesuToEthProofApiModuleService {
     src_listener: eth_eureka::ChainListener<RootProvider>,
     dst_listener: eth_eureka::ChainListener<RootProvider>,
     tx_builder: TxBuilder,
+    dst_ibc_multicall_address: Address,
 }
 
 #[derive(Clone, Copy, Debug, serde::Deserialize, serde::Serialize)]
@@ -49,6 +50,11 @@ pub struct BesuToEthConfig {
     pub src_ics26_address: Address,
     pub dst_rpc_url: String,
     pub dst_ics26_address: Address,
+    /// The destination `IBCMulticall` address that relay and update client transactions are
+    /// submitted to.
+    pub dst_ibc_multicall_address: Address,
+    /// The source consensus type, which selects the commit-seal signing form of the headers
+    /// submitted in client updates.
     pub consensus_type: BesuConsensusType,
 }
 
@@ -80,6 +86,7 @@ impl BesuToEthProofApiModuleService {
             src_listener,
             dst_listener,
             tx_builder,
+            dst_ibc_multicall_address: config.dst_ibc_multicall_address,
         })
     }
 }
@@ -163,7 +170,7 @@ impl ProofApiService for BesuToEthProofApiModuleService {
 
         Ok(Response::new(api::RelayByTxResponse {
             tx,
-            address: self.tx_builder.ics26_router_address().to_string(),
+            address: self.dst_ibc_multicall_address.to_string(),
         }))
     }
 
@@ -197,7 +204,7 @@ impl ProofApiService for BesuToEthProofApiModuleService {
 
         Ok(Response::new(api::UpdateClientResponse {
             tx,
-            address: self.tx_builder.ics26_router_address().to_string(),
+            address: self.dst_ibc_multicall_address.to_string(),
         }))
     }
 }
@@ -230,6 +237,7 @@ mod tests {
             "src_ics26_address": "0x0000000000000000000000000000000000000001",
             "dst_rpc_url": "http://localhost:9545",
             "dst_ics26_address": "0x0000000000000000000000000000000000000002",
+            "dst_ibc_multicall_address": "0x0000000000000000000000000000000000000003",
             "consensus_type": "qbft"
         }))
         .unwrap();

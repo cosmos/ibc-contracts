@@ -11,8 +11,7 @@ import { ILightClientMsgs } from "../../../contracts/msgs/ILightClientMsgs.sol";
 import { IBesuLightClientMsgs } from "../../../contracts/light-clients/besu/msgs/IBesuLightClientMsgs.sol";
 import { IBesuLightClient } from "../../../contracts/light-clients/besu/interfaces/IBesuLightClient.sol";
 
-import { BesuQBFTLightClient } from "../../../contracts/light-clients/besu/BesuQBFTLightClient.sol";
-import { BesuIBFT2LightClient } from "../../../contracts/light-clients/besu/BesuIBFT2LightClient.sol";
+import { BesuLightClient } from "../../../contracts/light-clients/besu/BesuLightClient.sol";
 import { ICS24Host } from "../../../contracts/utils/ICS24Host.sol";
 import { IBCStoreUpgradeable } from "../../../contracts/utils/IBCStoreUpgradeable.sol";
 import { SimHeader } from "./SimHeader.sol";
@@ -31,7 +30,8 @@ contract QBFTSimSuite is Test, SimWorldState {
         bytes32 stateRoot;
         bytes32 blockHash;
         address[] validators;
-        bytes rlp;
+        bytes signingRlp;
+        bytes[] commitSeals;
     }
 
     SimHeader.Mode public immutable MODE;
@@ -190,7 +190,7 @@ contract QBFTSimSuite is Test, SimWorldState {
     /// @notice Appends a sealed header as the new tip without validating it, and warps the clock forward to it.
     function commit(SimHeader.Data memory h) public {
         require(h.number == _chain.length, "not next height");
-        _chain.push(Block(h.timestamp, h.stateRoot, h.blockHash(MODE), h.validators, h.encode()));
+        _chain.push(Block(h.timestamp, h.stateRoot, h.blockHash(MODE), h.validators, h.signingRlp(MODE), h.commitSeals));
         if (vm.getBlockTimestamp() < h.timestamp) {
             vm.warp(h.timestamp);
         }
@@ -209,26 +209,14 @@ contract QBFTSimSuite is Test, SimWorldState {
 
     // ---------------------------------------------------------------- light client glue
 
-    /// @notice Deploys the light client for `MODE`, trusting the current tip, with open proof submission.
-    function deployLightClient(
-        uint64 trustingPeriod,
-        uint64 maxClockDrift,
-        IBesuLightClientMsgs.TrustThreshold memory trustLevel
-    )
-        external
-        returns (IBesuLightClient)
-    {
-        return deployLightClient(trustingPeriod, maxClockDrift, trustLevel, address(0));
-    }
-
-    /// @notice Deploys the light client for `MODE`, trusting the current tip, with `roleManager` gating submission.
+    /// @notice Deploys the light client, trusting the current tip, driven by `ics26Router`.
     function deployLightClient(
         uint64 trustingPeriod,
         uint64 maxClockDrift,
         IBesuLightClientMsgs.TrustThreshold memory trustLevel,
-        address roleManager
+        address ics26Router
     )
-        public
+        external
         returns (IBesuLightClient)
     {
         uint64 height = tipHeight();
@@ -240,10 +228,7 @@ contract QBFTSimSuite is Test, SimWorldState {
             isFrozen: false,
             trustLevel: trustLevel
         });
-        if (MODE == SimHeader.Mode.QBFT) {
-            return new BesuQBFTLightClient(clientState, consensusState(height), roleManager);
-        }
-        return new BesuIBFT2LightClient(clientState, consensusState(height), roleManager);
+        return new BesuLightClient(clientState, consensusState(height), ics26Router);
     }
 
     function consensusState(uint64 height) public view returns (IBesuLightClientMsgs.ConsensusState memory) {
@@ -253,12 +238,13 @@ contract QBFTSimSuite is Test, SimWorldState {
 
     /// @notice `updateClient` payload submitting the committed header at `height` against `trustedHeight`.
     function updateMsg(uint64 trustedHeight, uint64 height) external view returns (bytes memory) {
-        return _updateMsg(trustedHeight, _chain[height].rlp);
+        Block storage b = _chain[height];
+        return _updateMsg(trustedHeight, b.signingRlp, b.commitSeals);
     }
 
     /// @notice `updateClient` payload submitting any sealed header (committed or not) against `trustedHeight`.
     function updateMsg(uint64 trustedHeight, SimHeader.Data memory header) external view returns (bytes memory) {
-        return _updateMsg(trustedHeight, header.encode());
+        return _updateMsg(trustedHeight, header.signingRlp(MODE), header.commitSeals);
     }
 
     function membershipMsg(
@@ -288,9 +274,19 @@ contract QBFTSimSuite is Test, SimWorldState {
         return ILightClientMsgs.MsgVerifyNonMembership(_proof(height, path), _height(height), _singlePath(path));
     }
 
-    function _updateMsg(uint64 trustedHeight, bytes memory headerRlp) private view returns (bytes memory) {
+    function _updateMsg(
+        uint64 trustedHeight,
+        bytes memory headerRlp,
+        bytes[] memory commitSeals
+    )
+        private
+        view
+        returns (bytes memory)
+    {
         return abi.encode(
-            IBesuLightClientMsgs.MsgUpdateClient(headerRlp, _height(trustedHeight), consensusState(trustedHeight))
+            IBesuLightClientMsgs.MsgUpdateClient(
+                headerRlp, commitSeals, _height(trustedHeight), consensusState(trustedHeight)
+            )
         );
     }
 
