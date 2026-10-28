@@ -172,12 +172,12 @@ Both calls first verify `accountProofNodes` against the preimage `stateRoot` to 
 For Besu / EVM counterparties, the expected merkle prefix is:
 
 ```solidity
-[bytes(Strings.toHexString(counterpartyRouter)), bytes("")]
+[abi.encodePacked(counterpartyRouter), bytes("")]
 ```
 
 That means `msg_.path` must contain exactly two elements:
 
-- `msg_.path[0]` is the counterparty `ICS26Router` address as a hex string (with or without `0x`, any case). It must equal the client state's `ibcRouter`, otherwise the call reverts with `InvalidIbcRouter`; a malformed address reverts with `Strings.StringsInvalidAddressFormat`.
+- `msg_.path[0]` is the raw 20-byte counterparty `ICS26Router` address. Any other length reverts with `InvalidPathElementLength(20, actualLength)`, and an address other than the client state's `ibcRouter` reverts with `CounterpartyRouterMismatch(ibcRouter, actual)`.
 - `msg_.path[1]` is the raw Eureka commitment path bytes.
 
 Any other path length reverts with `InvalidPathLength(2, actualLength)`.

@@ -7,7 +7,6 @@ import { TrieProof } from "../utils/TrieProof.sol";
 import { Memory } from "@openzeppelin-contracts/utils/Memory.sol";
 import { TransientSlot } from "@openzeppelin-contracts/utils/TransientSlot.sol";
 import { Math } from "@openzeppelin-contracts/utils/math/Math.sol";
-import { Strings } from "@openzeppelin-contracts/utils/Strings.sol";
 
 import { ILightClient } from "../../interfaces/ILightClient.sol";
 import { ILightClientMsgs } from "../../msgs/ILightClientMsgs.sol";
@@ -230,14 +229,17 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
     }
 
     /// @notice Parses the Merkle path for a commitment proof.
-    /// @param path The Merkle path, which must be of [counterpartyRouter, storageSlot] form.
+    /// @param path The Merkle path, which must be of [counterpartyRouter, commitmentPath] form, where
+    /// `counterpartyRouter` is the raw 20-byte router address.
     /// @return counterpartyRouter The counterparty router address, must match the client state's `ibcRouter`.
     /// @return storageKey The key used in the contract storage trie.
     function _parseMerklePath(bytes[] memory path) private view returns (address, bytes memory) {
         require(path.length == 2, InvalidPathLength(2, path.length));
+        require(path[0].length == 20, InvalidPathElementLength(20, path[0].length));
 
-        address counterpartyRouter = Strings.parseAddress(string(path[0]));
-        require(counterpartyRouter == clientState.ibcRouter, InvalidIbcRouter());
+        address counterpartyRouter = address(bytes20(path[0]));
+        address ibcRouter = clientState.ibcRouter;
+        require(counterpartyRouter == ibcRouter, CounterpartyRouterMismatch(ibcRouter, counterpartyRouter));
 
         bytes32 storageSlot = _commitmentStorageSlot(path[1]);
         bytes memory storageKey = abi.encodePacked(keccak256(abi.encodePacked(storageSlot)));

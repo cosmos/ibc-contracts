@@ -9,6 +9,10 @@ interface IBesuLightClientErrors {
     error InvalidRevisionNumber(uint64 providedRevisionNumber);
     /// @notice The counterparty ICS26 router address is zero.
     error InvalidIbcRouter();
+    /// @notice The counterparty router in the proof path does not match the tracked router.
+    /// @param expected The client state's `ibcRouter`.
+    /// @param actual The router address in the proof path.
+    error CounterpartyRouterMismatch(address expected, address actual);
     /// @notice The submitted header has an invalid RLP item count.
     /// @param itemsLength The decoded header item count.
     error InvalidHeaderFormat(uint256 itemsLength);

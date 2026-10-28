@@ -14,7 +14,6 @@ import { IBesuLightClient } from "../../../contracts/light-clients/besu/interfac
 import { BesuLightClient } from "../../../contracts/light-clients/besu/BesuLightClient.sol";
 import { ICS24Host } from "../../../contracts/utils/ICS24Host.sol";
 import { IBCStoreUpgradeable } from "../../../contracts/utils/IBCStoreUpgradeable.sol";
-import { Strings } from "@openzeppelin-contracts/utils/Strings.sol";
 import { SimHeader } from "./SimHeader.sol";
 import { SimWorldState } from "./SimWorldState.sol";
 
@@ -251,7 +250,7 @@ contract QBFTSimSuite is Test, SimWorldState {
     /// @notice The `[IBC_ROUTER, ""]` merkle prefix a router must register for the light client.
     function merklePrefix() public view returns (bytes[] memory prefix) {
         prefix = new bytes[](2);
-        prefix[0] = bytes(Strings.toHexString(IBC_ROUTER));
+        prefix[0] = abi.encodePacked(IBC_ROUTER);
         prefix[1] = "";
     }
 

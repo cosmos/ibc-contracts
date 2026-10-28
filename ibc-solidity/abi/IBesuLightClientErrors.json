@@ -49,6 +49,22 @@
   },
   {
     "type": "error",
+    "name": "CounterpartyRouterMismatch",
+    "inputs": [
+      {
+        "name": "expected",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "actual",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "EmptyCommitSeals",
     "inputs": []
   },

@@ -3,8 +3,8 @@
   "update.adjacent.gas": "152040",
   "update.non_adjacent.calldata": "1764",
   "update.non_adjacent.gas": "152078",
-  "verify_membership.calldata": "2436",
-  "verify_membership.gas": "169032",
-  "verify_non_membership.calldata": "2340",
-  "verify_non_membership.gas": "181374"
+  "verify_membership.calldata": "2404",
+  "verify_membership.gas": "155887",
+  "verify_non_membership.calldata": "2308",
+  "verify_non_membership.gas": "168240"
 }

@@ -9,7 +9,6 @@ import { RLP } from "@openzeppelin-contracts/utils/RLP.sol";
 import { Memory } from "@openzeppelin-contracts/utils/Memory.sol";
 import { SafeCast } from "@openzeppelin-contracts/utils/math/SafeCast.sol";
 import { ECDSA } from "@openzeppelin-contracts/utils/cryptography/ECDSA.sol";
-import { Strings } from "@openzeppelin-contracts/utils/Strings.sol";
 
 import { ILightClientMsgs } from "../../contracts/msgs/ILightClientMsgs.sol";
 import { IICS02ClientMsgs } from "../../contracts/msgs/IICS02ClientMsgs.sol";
@@ -743,17 +742,22 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             name: "failure: wrong counterparty router",
             timestamp: timestamp,
             message: _membershipMessage(
-                0, _routerPath(Strings.toHexString(wrongRouter), fixture.membership.path), fixture.membership.value
+                0, _routerPath(abi.encodePacked(wrongRouter), fixture.membership.path), fixture.membership.value
             ),
-            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidIbcRouter.selector),
+            expectedRevert: abi.encodeWithSelector(
+                IBesuLightClientErrors.CounterpartyRouterMismatch.selector, fixture.routerAddress, wrongRouter
+            ),
             expectedTimestamp: 0
         });
 
+        // A 32-byte ABI-encoded address is not accepted in place of the raw 20-byte address.
         testCases[11] = BesuMembershipTestCase({
-            name: "failure: malformed counterparty router",
+            name: "failure: non-raw counterparty router",
             timestamp: timestamp,
-            message: _membershipMessage(0, _routerPath("ibc", fixture.membership.path), fixture.membership.value),
-            expectedRevert: abi.encodeWithSelector(Strings.StringsInvalidAddressFormat.selector),
+            message: _membershipMessage(
+                0, _routerPath(abi.encode(fixture.routerAddress), fixture.membership.path), fixture.membership.value
+            ),
+            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidPathElementLength.selector, 20, 32),
             expectedTimestamp: 0
         });
     }
@@ -854,14 +858,16 @@ abstract contract BesuLightClientFixtureTestBase is Test {
             expectedTimestamp: 0
         });
 
+        address wrongRouter = address(uint160(fixture.routerAddress) ^ 1);
         ILightClientMsgs.MsgVerifyNonMembership memory wrongRouterMessage = _nonMembershipMessage(proofHeight);
-        wrongRouterMessage.path =
-            _routerPath(Strings.toHexString(address(uint160(fixture.routerAddress) ^ 1)), fixture.nonMembership.path);
+        wrongRouterMessage.path = _routerPath(abi.encodePacked(wrongRouter), fixture.nonMembership.path);
         testCases[8] = BesuNonMembershipTestCase({
             name: "failure: wrong counterparty router",
             timestamp: timestamp,
             message: wrongRouterMessage,
-            expectedRevert: abi.encodeWithSelector(IBesuLightClientErrors.InvalidIbcRouter.selector),
+            expectedRevert: abi.encodeWithSelector(
+                IBesuLightClientErrors.CounterpartyRouterMismatch.selector, fixture.routerAddress, wrongRouter
+            ),
             expectedTimestamp: 0
         });
     }
@@ -1754,12 +1760,12 @@ abstract contract BesuLightClientFixtureTestBase is Test {
 
     /// @dev The router path for `path` under the fixture router's `[routerAddress, ""]` merkle prefix.
     function _prefixedPath(bytes memory path) internal view returns (bytes[] memory) {
-        return _routerPath(Strings.toHexString(fixture.routerAddress), path);
+        return _routerPath(abi.encodePacked(fixture.routerAddress), path);
     }
 
-    function _routerPath(string memory router, bytes memory path) internal pure returns (bytes[] memory out) {
+    function _routerPath(bytes memory router, bytes memory path) internal pure returns (bytes[] memory out) {
         out = new bytes[](2);
-        out[0] = bytes(router);
+        out[0] = router;
         out[1] = path;
     }
 

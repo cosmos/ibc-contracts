@@ -486,6 +486,22 @@
   },
   {
     "type": "error",
+    "name": "CounterpartyRouterMismatch",
+    "inputs": [
+      {
+        "name": "expected",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "actual",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "ECDSAInvalidSignature",
     "inputs": []
   },
@@ -915,11 +931,6 @@
         "internalType": "uint64"
       }
     ]
-  },
-  {
-    "type": "error",
-    "name": "StringsInvalidAddressFormat",
-    "inputs": []
   },
   {
     "type": "error",

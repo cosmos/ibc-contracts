@@ -1487,7 +1487,7 @@ func (s *BesuToBesuTestSuite) createAndRegisterBesuClient(
 	srcRouter := ethcommon.HexToAddress(srcChain.contractAddresses.Ics26Router)
 	counterpartyInfo := ics26router.IICS02ClientMsgsCounterpartyInfo{
 		ClientId:     counterpartyClientID,
-		MerklePrefix: [][]byte{[]byte(srcRouter.Hex()), []byte("")},
+		MerklePrefix: [][]byte{srcRouter.Bytes(), []byte("")},
 	}
 	addClientTx, err := dstChain.ics26.AddClient(
 		s.mustTransactOpts(dstChain, dstChain.deployer),

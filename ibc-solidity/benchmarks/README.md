@@ -47,8 +47,8 @@ These isolated transactions use the live Besu QBFT header and proof fixture in `
 | --- | ---: | ---: |
 | Adjacent client update | 152,040 | 1,764 |
 | Non-adjacent client update | 152,078 | 1,764 |
-| Membership verification | 169,032 | 2,436 |
-| Non-membership verification | 181,374 | 2,340 |
+| Membership verification | 155,887 | 2,404 |
+| Non-membership verification | 168,240 | 2,308 |
 
 ## Besu QBFT light-client scaling benchmarks
 
@@ -69,16 +69,16 @@ Gas:
 
 | Accounts | 1 commitments | 16 commitments | 128 commitments | 1024 commitments |
 | ---: | ---: | ---: | ---: | ---: |
-| 1 | 86,105 | 114,643 | 145,411 | 176,180 |
-| 16 | 115,107 | 143,647 | 174,416 | 205,198 |
-| 128 | 145,911 | 174,452 | 205,234 | 236,017 |
-| 1024 | 177,216 | 205,794 | 236,554 | 267,326 |
+| 1 | 72,773 | 101,311 | 132,080 | 162,849 |
+| 16 | 101,776 | 130,315 | 161,084 | 191,866 |
+| 128 | 132,580 | 161,120 | 191,902 | 222,685 |
+| 1024 | 163,897 | 192,463 | 223,222 | 253,995 |
 
 ABI calldata bytes:
 
 | Accounts | 1 commitments | 16 commitments | 128 commitments | 1024 commitments |
 | ---: | ---: | ---: | ---: | ---: |
-| 1 | 1,348 | 1,764 | 2,308 | 2,852 |
-| 16 | 1,796 | 2,212 | 2,756 | 3,300 |
-| 128 | 2,340 | 2,756 | 3,300 | 3,844 |
-| 1024 | 2,916 | 3,332 | 3,876 | 4,420 |
+| 1 | 1,316 | 1,732 | 2,276 | 2,820 |
+| 16 | 1,764 | 2,180 | 2,724 | 3,268 |
+| 128 | 2,308 | 2,724 | 3,268 | 3,812 |
+| 1024 | 2,884 | 3,300 | 3,844 | 4,388 |
