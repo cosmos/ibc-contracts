@@ -247,6 +247,14 @@ contract QBFTSimSuite is Test, SimWorldState {
         return _updateMsg(trustedHeight, header.signingRlp(MODE), header.commitSeals);
     }
 
+    /// @notice The `[IBC_ROUTER, IBCSTORE_STORAGE_SLOT, ""]` merkle prefix a router must register for the light client.
+    function merklePrefix() public view returns (bytes[] memory prefix) {
+        prefix = new bytes[](3);
+        prefix[0] = abi.encodePacked(IBC_ROUTER);
+        prefix[1] = abi.encodePacked(IBCSTORE_STORAGE_SLOT);
+        prefix[2] = "";
+    }
+
     function membershipMsg(
         uint64 height,
         bytes memory path
@@ -258,7 +266,7 @@ contract QBFTSimSuite is Test, SimWorldState {
         bytes32 value = _storageAt(IBC_ROUTER, commitmentSlot(path), height);
         require(value != bytes32(0), "no commitment at height");
         return ILightClientMsgs.MsgVerifyMembership(
-            _proof(height, path), _height(height), _singlePath(path), abi.encodePacked(value)
+            _proof(height, path), _height(height), ICS24Host.prefixedPath(merklePrefix(), path), abi.encodePacked(value)
         );
     }
 
@@ -271,7 +279,9 @@ contract QBFTSimSuite is Test, SimWorldState {
         returns (ILightClientMsgs.MsgVerifyNonMembership memory)
     {
         require(_storageAt(IBC_ROUTER, commitmentSlot(path), height) == bytes32(0), "commitment exists at height");
-        return ILightClientMsgs.MsgVerifyNonMembership(_proof(height, path), _height(height), _singlePath(path));
+        return ILightClientMsgs.MsgVerifyNonMembership(
+            _proof(height, path), _height(height), ICS24Host.prefixedPath(merklePrefix(), path)
+        );
     }
 
     function _updateMsg(
@@ -297,10 +307,5 @@ contract QBFTSimSuite is Test, SimWorldState {
 
     function _height(uint64 height) private pure returns (IICS02ClientMsgs.Height memory) {
         return IICS02ClientMsgs.Height(0, height);
-    }
-
-    function _singlePath(bytes memory path) private pure returns (bytes[] memory out) {
-        out = new bytes[](1);
-        out[0] = path;
     }
 }

@@ -7,6 +7,7 @@ import { TrieProof } from "../utils/TrieProof.sol";
 import { Memory } from "@openzeppelin-contracts/utils/Memory.sol";
 import { TransientSlot } from "@openzeppelin-contracts/utils/TransientSlot.sol";
 import { Math } from "@openzeppelin-contracts/utils/math/Math.sol";
+import { SlotDerivation } from "@openzeppelin-contracts/utils/SlotDerivation.sol";
 
 import { ILightClient } from "../../interfaces/ILightClient.sol";
 import { ILightClientMsgs } from "../../msgs/ILightClientMsgs.sol";
@@ -158,19 +159,20 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
         returns (uint256)
     {
         require(msg_.proofHeight.revisionNumber == 0, InvalidRevisionNumber(msg_.proofHeight.revisionNumber));
-        require(msg_.path.length == 1, InvalidPathLength(1, msg_.path.length));
         require(msg_.value.length == 32, InvalidValueLength(32, msg_.value.length));
+
+        (address counterpartyRouter, bytes memory storageKey) = _parseMerklePath(msg_.path);
 
         IBesuLightClientMsgs.MembershipProof memory proof =
             abi.decode(msg_.proof, (IBesuLightClientMsgs.MembershipProof));
         _requireTrustedConsensusState(msg_.proofHeight.revisionHeight, proof.consensusStatePreimage);
 
         bytes32 storageRoot = _verifiedStorageRoot(
-            msg_.proofHeight.revisionHeight, proof.consensusStatePreimage.stateRoot, proof.accountProofNodes
+            msg_.proofHeight.revisionHeight,
+            counterpartyRouter,
+            proof.consensusStatePreimage.stateRoot,
+            proof.accountProofNodes
         );
-
-        bytes32 storageSlot = _commitmentStorageSlot(msg_.path[0]);
-        bytes memory storageKey = abi.encodePacked(keccak256(abi.encodePacked(storageSlot)));
 
         bytes memory traversedValue = TrieProof.traverse(storageRoot, storageKey, proof.proofNodes);
 
@@ -190,18 +192,19 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
         returns (uint256)
     {
         require(msg_.proofHeight.revisionNumber == 0, InvalidRevisionNumber(msg_.proofHeight.revisionNumber));
-        require(msg_.path.length == 1, InvalidPathLength(1, msg_.path.length));
+
+        (address counterpartyRouter, bytes memory storageKey) = _parseMerklePath(msg_.path);
 
         IBesuLightClientMsgs.MembershipProof memory proof =
             abi.decode(msg_.proof, (IBesuLightClientMsgs.MembershipProof));
         _requireTrustedConsensusState(msg_.proofHeight.revisionHeight, proof.consensusStatePreimage);
 
         bytes32 storageRoot = _verifiedStorageRoot(
-            msg_.proofHeight.revisionHeight, proof.consensusStatePreimage.stateRoot, proof.accountProofNodes
+            msg_.proofHeight.revisionHeight,
+            counterpartyRouter,
+            proof.consensusStatePreimage.stateRoot,
+            proof.accountProofNodes
         );
-
-        bytes32 storageSlot = _commitmentStorageSlot(msg_.path[0]);
-        bytes memory storageKey = abi.encodePacked(keccak256(abi.encodePacked(storageSlot)));
 
         require(TrieProof.verifyExclusion(storageRoot, storageKey, proof.proofNodes), InvalidExclusionProof());
 
@@ -224,6 +227,29 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
                 abi.decode(msg_.misbehaviour, (IBesuLightClientMsgs.MsgConflictingHeadersMisbehaviour))
             );
         }
+    }
+
+    /// @notice Parses the Merkle path for a commitment proof.
+    /// @param path The Merkle path, which must be of [counterpartyRouter, storageSlot, commitmentPath] form, where
+    /// `counterpartyRouter` is the raw 20-byte router address and `storageSlot` is `IBCSTORE_STORAGE_SLOT`.
+    /// @return counterpartyRouter The counterparty router address, must match the client state's `ibcRouter`.
+    /// @return storageKey The key used in the contract storage trie.
+    function _parseMerklePath(bytes[] calldata path) private view returns (address, bytes memory) {
+        require(path.length == 3, InvalidPathLength(3, path.length));
+        require(path[0].length == 20, InvalidPathElementLength(20, path[0].length));
+        require(path[1].length == 32, InvalidPathElementLength(32, path[1].length));
+
+        bytes32 namespaceSlot = bytes32(path[1]);
+        require(namespaceSlot == IBCSTORE_STORAGE_SLOT, StorageSlotMismatch(IBCSTORE_STORAGE_SLOT, namespaceSlot));
+
+        address counterpartyRouter = address(bytes20(path[0]));
+        address ibcRouter = clientState.ibcRouter;
+        require(counterpartyRouter == ibcRouter, CounterpartyRouterMismatch(ibcRouter, counterpartyRouter));
+
+        bytes32 storageSlot = _commitmentStorageSlot(path[2]);
+        bytes memory storageKey = abi.encodePacked(keccak256(abi.encodePacked(storageSlot)));
+
+        return (counterpartyRouter, storageKey);
     }
 
     /// @notice Freezes the client if two stored consensus states violate time monotonicity or change the validator set
@@ -479,18 +505,19 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
     /// @dev If the account proof is empty, the storage root is retrieved from a transient cache
     /// which can only be populated by a previous call to this function with a non-empty account proof.
     /// @param revisionHeight The revision height for the storage root.
+    /// @param counterpartyRouter The counterparty router address.
     /// @param stateRoot The header state root.
     /// @param accountProofNodes The ordered, RLP-encoded MPT nodes from the state trie proving the account.
     /// @return The storage root for the revision height.
     function _verifiedStorageRoot(
         uint64 revisionHeight,
+        address counterpartyRouter,
         bytes32 stateRoot,
         bytes[] memory accountProofNodes
     )
         private
         returns (bytes32)
     {
-        address counterpartyRouter = clientState.ibcRouter;
         if (accountProofNodes.length == 0) {
             return _getCachedStorageRoot(counterpartyRouter, revisionHeight);
         }
@@ -521,10 +548,12 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
     }
 
     /// @notice Computes the storage slot used for an IBC commitment path.
+    /// @dev `commitments` is the first field of `IBCStoreStorage`, so the mapping is rooted at the namespace slot.
+    /// @dev Equals to keccak256(abi.encode(keccak256(rawPath), IBCSTORE_STORAGE_SLOT))
     /// @param rawPath Raw commitment path bytes.
     /// @return The storage slot for the commitment.
     function _commitmentStorageSlot(bytes memory rawPath) private pure returns (bytes32) {
-        return keccak256(abi.encode(keccak256(rawPath), IBCSTORE_STORAGE_SLOT));
+        return SlotDerivation.deriveMapping(IBCSTORE_STORAGE_SLOT, keccak256(rawPath));
     }
 
     /// @notice Recovers commit seal signers for a digest, requiring them to be sorted.
