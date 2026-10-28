@@ -233,7 +233,7 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
     /// `counterpartyRouter` is the raw 20-byte router address.
     /// @return counterpartyRouter The counterparty router address, must match the client state's `ibcRouter`.
     /// @return storageKey The key used in the contract storage trie.
-    function _parseMerklePath(bytes[] memory path) private view returns (address, bytes memory) {
+    function _parseMerklePath(bytes[] calldata path) private view returns (address, bytes memory) {
         require(path.length == 2, InvalidPathLength(2, path.length));
         require(path[0].length == 20, InvalidPathElementLength(20, path[0].length));
 
