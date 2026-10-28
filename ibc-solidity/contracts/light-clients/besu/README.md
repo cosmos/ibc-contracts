@@ -194,7 +194,8 @@ The proof key is derived as:
 
 ```solidity
 bytes32 hashedPath = keccak256(rawPath);
-bytes32 storageSlot = keccak256(abi.encode(hashedPath, IBCSTORE_STORAGE_SLOT));
+bytes32 storageSlot = SlotDerivation.deriveMapping(IBCSTORE_STORAGE_SLOT, hashedPath);
+// == keccak256(abi.encode(hashedPath, IBCSTORE_STORAGE_SLOT))
 bytes memory storageKey = abi.encodePacked(keccak256(abi.encodePacked(storageSlot)));
 ```
 

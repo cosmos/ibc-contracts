@@ -7,6 +7,7 @@ import { TrieProof } from "../utils/TrieProof.sol";
 import { Memory } from "@openzeppelin-contracts/utils/Memory.sol";
 import { TransientSlot } from "@openzeppelin-contracts/utils/TransientSlot.sol";
 import { Math } from "@openzeppelin-contracts/utils/math/Math.sol";
+import { SlotDerivation } from "@openzeppelin-contracts/utils/SlotDerivation.sol";
 
 import { ILightClient } from "../../interfaces/ILightClient.sol";
 import { ILightClientMsgs } from "../../msgs/ILightClientMsgs.sol";
@@ -543,10 +544,12 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
     }
 
     /// @notice Computes the storage slot used for an IBC commitment path.
+    /// @dev `commitments` is the first field of `IBCStoreStorage`, so the mapping is rooted at the namespace slot.
+    /// @dev Equals to keccak256(abi.encode(keccak256(rawPath), IBCSTORE_STORAGE_SLOT))
     /// @param rawPath Raw commitment path bytes.
     /// @return The storage slot for the commitment.
     function _commitmentStorageSlot(bytes memory rawPath) private pure returns (bytes32) {
-        return keccak256(abi.encode(keccak256(rawPath), IBCSTORE_STORAGE_SLOT));
+        return SlotDerivation.deriveMapping(IBCSTORE_STORAGE_SLOT, keccak256(rawPath));
     }
 
     /// @notice Recovers commit seal signers for a digest, requiring them to be sorted.

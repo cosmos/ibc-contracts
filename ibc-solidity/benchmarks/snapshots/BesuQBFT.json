@@ -4,7 +4,7 @@
   "update.non_adjacent.calldata": "1764",
   "update.non_adjacent.gas": "152207",
   "verify_membership.calldata": "2404",
-  "verify_membership.gas": "155503",
+  "verify_membership.gas": "155361",
   "verify_non_membership.calldata": "2308",
-  "verify_non_membership.gas": "167857"
+  "verify_non_membership.gas": "167714"
 }
