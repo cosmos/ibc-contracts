@@ -23,6 +23,7 @@ import { ICS20Lib } from "../../../../contracts/utils/ICS20Lib.sol";
 import { ICS27Lib } from "../../../../contracts/utils/ICS27Lib.sol";
 import { ERC1967Proxy } from "@openzeppelin-contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import { RefImplIBCERC20 } from "../../utils/RefImplIBCERC20.sol";
+import { MulticallTargetMock } from "../../mocks/MulticallTargetMock.sol";
 
 abstract contract Integration2Suite is LightClientDriverTest {
     IbcImpl public ibcImplA;
@@ -666,21 +667,18 @@ abstract contract Integration2Suite is LightClientDriverTest {
         assertEq(storedCommitment, 0);
     }
 
-    function testFuzz_failure_outOfGasGmp(uint16 saltLen) public {
+    function test_failure_outOfGasGmp() public {
         address user = integrationEnv.createUser();
-        address receiver = makeAddr("receiver");
-
-        // any function call as payload, reverting without data like running out of gas
-        bytes memory payload = abi.encodeCall(ILightClient.misbehaviour, (bytes("any")));
-        vm.mockCallRevert(receiver, payload, "");
+        address receiver = address(new MulticallTargetMock(address(0)));
+        bytes memory payload = abi.encodeCall(MulticallTargetMock.burnGas, ());
 
         // send packet
         IICS26RouterMsgs.Packet memory sentPacket =
-            ibcImplA.sendGmpAsUser(user, Strings.toHexString(receiver), payload, vm.randomBytes(saltLen));
+            ibcImplA.sendGmpAsUser(user, Strings.toHexString(receiver), payload, "");
 
-        // Receiving the packet on B fails instead of writing an error acknowledgement
+        // Receiving the packet on B runs out of gas, which fails the relay instead of writing an error acknowledgement
         vm.expectRevert(IICS26RouterErrors.IBCFailedCallback.selector);
-        ibcImplB.recvPacket(sentPacket);
+        ibcImplB.recvPacket{ gas: 30_000_000 }(sentPacket);
         assertFalse(ibcImplB.relayerHelper().isPacketReceived(sentPacket));
 
         // so the packet can be received once the call succeeds

@@ -14,9 +14,9 @@ import { LowLevelCall } from "@openzeppelin-contracts/utils/LowLevelCall.sol";
 /// @title ICS27Account
 /// @notice This contract is the implementation of the ICS27 Account, which is used to make the GMP calls
 /// @dev `ICS26Router.recvPacket` fails the relay instead of writing an error acknowledgement when the app reverts
-/// without data, which is how running out of gas reverts. So calls bubble up empty revert data as is, unlike
-/// openzeppelin's `Address`, which replaces it with `FailedCall`. A failed call that leaves too little gas most likely
-/// ran out of gas below the target, even if a frame there turned that into revert data, so it reverts without data too.
+/// without data, which is how running out of gas reverts. Like openzeppelin's `Address`, calls bubble up revert data
+/// and replace empty revert data with `FailedCall`, but not when the call most likely ran out of gas: then they revert
+/// without data, so the router fails the relay.
 contract ICS27Account is IICS27Errors, IICS27Account, ContextUpgradeable {
     /// @notice Storage of the ICS27Account contract
     /// @dev It's implemented on a custom ERC-7201 namespace to reduce the risk of storage collisions when using with
@@ -32,8 +32,8 @@ contract ICS27Account is IICS27Errors, IICS27Account, ContextUpgradeable {
     bytes32 private constant ICS27ACCOUNT_STORAGE_SLOT =
         0x319583b012a10c350515da7d8fdefe3c302490627bf79c0be5b739020ce32c00;
 
-    /// @notice A failed call that leaves less than 1/OUT_OF_GAS_DIVISOR of the gas it started with is treated as
-    /// running out of gas
+    /// @notice A call that fails without revert data and leaves less than 1/OUT_OF_GAS_DIVISOR of the gas it started
+    /// with is treated as running out of gas
     /// @dev Each frame below the target keeps 1/64 of its gas when a call runs out of gas, so this covers running out
     /// of gas up to about 8 frames below the target
     uint256 private constant OUT_OF_GAS_DIVISOR = 8;
@@ -117,17 +117,20 @@ contract ICS27Account is IICS27Errors, IICS27Account, ContextUpgradeable {
         return LowLevelCall.returnData();
     }
 
-    /// @notice Bubbles up the revert data of the last call as is, or reverts without data if it most likely ran out
-    /// of gas
+    /// @notice Bubbles up the revert data of the last call, or reverts with `FailedCall` if it has none
+    /// @dev Reverts without data instead if the call most likely ran out of gas, see `OUT_OF_GAS_DIVISOR`
     /// @param gasBefore The gas left before the call
     function _revert(uint256 gasBefore) private view {
+        if (LowLevelCall.returnDataSize() != 0) {
+            LowLevelCall.bubbleRevert();
+        }
         if (gasleft() < gasBefore / OUT_OF_GAS_DIVISOR) {
             // solhint-disable-next-line no-inline-assembly
             assembly ("memory-safe") {
                 revert(0, 0)
             }
         }
-        LowLevelCall.bubbleRevert();
+        revert Errors.FailedCall();
     }
 
     /// @notice Reverts if this account cannot send `value`

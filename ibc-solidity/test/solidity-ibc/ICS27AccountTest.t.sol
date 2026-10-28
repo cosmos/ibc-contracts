@@ -10,7 +10,6 @@ import { IICS27Errors } from "../../contracts/errors/IICS27Errors.sol";
 
 import { ERC1967Proxy } from "@openzeppelin-contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import { ICS27Account } from "../../contracts/utils/ICS27Account.sol";
-import { Address } from "@openzeppelin-contracts/utils/Address.sol";
 import { Errors } from "@openzeppelin-contracts/utils/Errors.sol";
 
 contract ICS27AccountTest is Test {
@@ -57,7 +56,7 @@ contract ICS27AccountTest is Test {
 
         // Call reverts without data
         vm.mockCallRevert(target, data, "");
-        vm.expectRevert(bytes(""));
+        vm.expectRevert(Errors.FailedCall.selector);
         vm.prank(ics27);
         ics27Account.functionCall(target, data);
     }
@@ -70,15 +69,15 @@ contract ICS27AccountTest is Test {
         vm.prank(ics27);
         ics27Account.functionCall{ gas: 1_000_000 }(target, abi.encodeCall(TestCallContract.burnGas, ()));
 
-        // Target turns running out of gas into an error
-        bytes memory wrapData = abi.encodeCall(TestCallContract.wrapOutOfGas, ());
+        // A call of the target runs out of gas
+        bytes memory nestedData = abi.encodeCall(TestCallContract.nestedBurnGas, ());
         vm.expectRevert(bytes(""));
         vm.prank(ics27);
-        ics27Account.functionCall{ gas: 1_000_000 }(target, wrapData);
+        ics27Account.functionCall{ gas: 1_000_000 }(target, nestedData);
 
         // Same, through the account calling itself
         IICS27AccountMsgs.Call[] memory calls = new IICS27AccountMsgs.Call[](1);
-        calls[0] = IICS27AccountMsgs.Call({ target: target, data: wrapData, value: 0 });
+        calls[0] = IICS27AccountMsgs.Call({ target: target, data: nestedData, value: 0 });
         vm.expectRevert(bytes(""));
         vm.prank(ics27);
         ics27Account.functionCall{ gas: 1_000_000 }(
@@ -125,7 +124,7 @@ contract ICS27AccountTest is Test {
         // Recipient reverts without data, as it has no receive function
         address payable noReceive = payable(address(new TestCallContract()));
         vm.prank(address(ics27Account));
-        vm.expectRevert(bytes(""));
+        vm.expectRevert(Errors.FailedCall.selector);
         ics27Account.sendValue(noReceive, amount);
 
         // Assert initial balances
@@ -179,7 +178,7 @@ contract ICS27AccountTest is Test {
 
         // Call reverts without data
         vm.mockCallRevert(target, data, "");
-        vm.expectRevert(bytes(""));
+        vm.expectRevert(Errors.FailedCall.selector);
         vm.prank(address(ics27Account));
         ics27Account.execute(target, data, value);
 
@@ -264,7 +263,7 @@ contract ICS27AccountTest is Test {
 
         // Call reverts without data
         vm.mockCallRevert(target, revertData, "");
-        vm.expectRevert(bytes(""));
+        vm.expectRevert(Errors.FailedCall.selector);
         vm.prank(address(ics27Account));
         ics27Account.executeBatch(calls);
         calls[numCalls - 1].data = data; // Reset to original data
@@ -320,7 +319,7 @@ contract ICS27AccountTest is Test {
 
         // Call reverts without data
         vm.mockCallRevert(target, data, "");
-        vm.expectRevert(bytes(""));
+        vm.expectRevert(Errors.FailedCall.selector);
         vm.prank(address(ics27Account));
         ics27Account.delegateExecute(target, data);
 
@@ -353,9 +352,9 @@ contract TestCallContract {
         while (true) { }
     }
 
-    /// @dev Runs a sub-call out of gas, which `Address` turns into `FailedCall`
-    function wrapOutOfGas() external {
-        Address.functionCall(address(this), abi.encodeCall(this.burnGas, ()));
+    /// @dev Runs a call out of gas, whose empty revert data is bubbled up
+    function nestedBurnGas() external view {
+        this.burnGas();
     }
 
     function _getStorage() internal pure returns (Storage storage $) {

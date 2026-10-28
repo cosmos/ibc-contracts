@@ -17,9 +17,9 @@ interface IICS27Account {
     function sendValue(address payable recipient, uint256 amount) external;
 
     /// @notice Performs a Solidity function call using a low level `call`.
-    /// @dev Like openzeppelin's `Address.functionCall`, but bubbles up empty revert data as is, and reverts without
-    /// data when the call most likely ran out of gas, so the router fails the relay instead of writing an error
-    /// acknowledgement. See `ICS27Account`.
+    /// @dev Like openzeppelin's `Address.functionCall`, but reverts without data when the call fails without revert
+    /// data and most likely ran out of gas, so the router fails the relay instead of writing an error acknowledgement.
+    /// See `ICS27Account`.
     /// @dev This function can only be called by ICS27.
     /// @param target The target address to call
     /// @param data The data to send to the target address
