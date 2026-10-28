@@ -10,14 +10,16 @@ interface IICS27Account {
     /// @return The ICS27 contract address
     function ics27() external view returns (address);
 
-    /// @notice This is a wrapper around openzeppelin's `Address.sendValue`.
+    /// @notice Like openzeppelin's `Address.sendValue`, but reverts like `functionCall` when the transfer fails.
     /// @dev This function can only be called by self.
     /// @param recipient The address to send the value to
     /// @param amount The amount of wei to send
     function sendValue(address payable recipient, uint256 amount) external;
 
     /// @notice Performs a Solidity function call using a low level `call`.
-    /// @dev This is a wrapper around openzeppelin's `Address.functionCall`.
+    /// @dev Like openzeppelin's `Address.functionCall`, but bubbles up empty revert data as is, and reverts without
+    /// data when the call most likely ran out of gas, so the router fails the relay instead of writing an error
+    /// acknowledgement. See `ICS27Account`.
     /// @dev This function can only be called by ICS27.
     /// @param target The target address to call
     /// @param data The data to send to the target address
@@ -25,7 +27,7 @@ interface IICS27Account {
     function functionCall(address target, bytes calldata data) external returns (bytes memory result);
 
     /// @notice Performs a Solidity function call using a low level `call`.
-    /// @dev This is a wrapper around openzeppelin's `Address.functionCallWithValue`.
+    /// @dev Like openzeppelin's `Address.functionCallWithValue`, but reverts like `functionCall`.
     /// @dev This function can only be called by self.
     /// @param target The target address to call
     /// @param data The data to send to the target address
@@ -34,14 +36,14 @@ interface IICS27Account {
     function execute(address target, bytes calldata data, uint256 value) external returns (bytes memory result);
 
     /// @notice Performs multiple Solidity function calls using a low level `call`.
-    /// @dev This is a wrapper around openzeppelin's `Address.functionCallWithValue`.
+    /// @dev Like openzeppelin's `Address.functionCallWithValue`, but reverts like `functionCall`.
     /// @dev This function can only be called by self.
     /// @param calls The array of `Call` structs to execute
     /// @return results The array of results from the calls
     function executeBatch(IICS27AccountMsgs.Call[] calldata calls) external returns (bytes[] memory results);
 
     /// @notice Performs a Solidity function call using a low level `delegatecall`.
-    /// @dev This is a wrapper around openzeppelin's `Address.functionDelegateCall`.
+    /// @dev Like openzeppelin's `Address.functionDelegateCall`, but reverts like `functionCall`.
     /// @dev This function can only be called by self.
     /// @param target The target address to call
     /// @param data The data to send to the target address

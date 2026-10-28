@@ -187,11 +187,6 @@
   },
   {
     "type": "error",
-    "name": "FailedCall",
-    "inputs": []
-  },
-  {
-    "type": "error",
     "name": "ICS27AccountNotFound",
     "inputs": [
       {

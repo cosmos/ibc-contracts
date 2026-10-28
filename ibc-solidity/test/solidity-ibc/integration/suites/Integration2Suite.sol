@@ -666,6 +666,32 @@ abstract contract Integration2Suite is LightClientDriverTest {
         assertEq(storedCommitment, 0);
     }
 
+    function testFuzz_failure_outOfGasGmp(uint16 saltLen) public {
+        address user = integrationEnv.createUser();
+        address receiver = makeAddr("receiver");
+
+        // any function call as payload, reverting without data like running out of gas
+        bytes memory payload = abi.encodeCall(ILightClient.misbehaviour, (bytes("any")));
+        vm.mockCallRevert(receiver, payload, "");
+
+        // send packet
+        IICS26RouterMsgs.Packet memory sentPacket =
+            ibcImplA.sendGmpAsUser(user, Strings.toHexString(receiver), payload, vm.randomBytes(saltLen));
+
+        // Receiving the packet on B fails instead of writing an error acknowledgement
+        vm.expectRevert(IICS26RouterErrors.IBCFailedCallback.selector);
+        ibcImplB.recvPacket(sentPacket);
+        assertFalse(ibcImplB.relayerHelper().isPacketReceived(sentPacket));
+
+        // so the packet can be received once the call succeeds
+        bytes memory callResp = bytes("any response");
+        vm.mockCall(receiver, payload, callResp);
+        bytes[] memory acks = ibcImplB.recvPacket(sentPacket);
+        assertEq(acks.length, 1, "ack length mismatch");
+        assertEq(acks[0], ICS27Lib.acknowledgement(callResp), "ack mismatch");
+        assert(ibcImplB.relayerHelper().isPacketReceiveSuccessful(sentPacket));
+    }
+
     function testFuzz_success_timeoutGmp(uint16 saltLen) public {
         address user = integrationEnv.createUser();
         address receiver = makeAddr("receiver");

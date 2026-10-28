@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.28;
 
-// solhint-disable custom-errors,max-line-length,no-inline-assembly,gas-small-strings
+// solhint-disable custom-errors,max-line-length,no-inline-assembly,gas-small-strings,no-empty-blocks
 
 import { Test } from "forge-std/Test.sol";
 
@@ -10,6 +10,7 @@ import { IICS27Errors } from "../../contracts/errors/IICS27Errors.sol";
 
 import { ERC1967Proxy } from "@openzeppelin-contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import { ICS27Account } from "../../contracts/utils/ICS27Account.sol";
+import { Address } from "@openzeppelin-contracts/utils/Address.sol";
 import { Errors } from "@openzeppelin-contracts/utils/Errors.sol";
 
 contract ICS27AccountTest is Test {
@@ -53,6 +54,36 @@ contract ICS27AccountTest is Test {
         vm.expectRevert(resp);
         vm.prank(ics27);
         ics27Account.functionCall(target, data);
+
+        // Call reverts without data
+        vm.mockCallRevert(target, data, "");
+        vm.expectRevert(bytes(""));
+        vm.prank(ics27);
+        ics27Account.functionCall(target, data);
+    }
+
+    function test_failure_functionCallOutOfGas() public {
+        address target = address(new TestCallContract());
+
+        // Target runs out of gas
+        vm.expectRevert(bytes(""));
+        vm.prank(ics27);
+        ics27Account.functionCall{ gas: 1_000_000 }(target, abi.encodeCall(TestCallContract.burnGas, ()));
+
+        // Target turns running out of gas into an error
+        bytes memory wrapData = abi.encodeCall(TestCallContract.wrapOutOfGas, ());
+        vm.expectRevert(bytes(""));
+        vm.prank(ics27);
+        ics27Account.functionCall{ gas: 1_000_000 }(target, wrapData);
+
+        // Same, through the account calling itself
+        IICS27AccountMsgs.Call[] memory calls = new IICS27AccountMsgs.Call[](1);
+        calls[0] = IICS27AccountMsgs.Call({ target: target, data: wrapData, value: 0 });
+        vm.expectRevert(bytes(""));
+        vm.prank(ics27);
+        ics27Account.functionCall{ gas: 1_000_000 }(
+            address(ics27Account), abi.encodeCall(ICS27Account.executeBatch, (calls))
+        );
     }
 
     function testFuzz_success_sendValue(uint256 amount) public {
@@ -90,6 +121,12 @@ contract ICS27AccountTest is Test {
         vm.prank(address(ics27Account));
         vm.expectRevert(abi.encodeWithSelector(Errors.InsufficientBalance.selector, amount, amount + 1));
         ics27Account.sendValue(recipient, amount + 1);
+
+        // Recipient reverts without data, as it has no receive function
+        address payable noReceive = payable(address(new TestCallContract()));
+        vm.prank(address(ics27Account));
+        vm.expectRevert(bytes(""));
+        ics27Account.sendValue(noReceive, amount);
 
         // Assert initial balances
         assertEq(address(ics27Account).balance, amount, "ICS27Account balance should match amount");
@@ -137,6 +174,12 @@ contract ICS27AccountTest is Test {
         // Call reverts
         vm.mockCallRevert(target, data, resp);
         vm.expectRevert(resp);
+        vm.prank(address(ics27Account));
+        ics27Account.execute(target, data, value);
+
+        // Call reverts without data
+        vm.mockCallRevert(target, data, "");
+        vm.expectRevert(bytes(""));
         vm.prank(address(ics27Account));
         ics27Account.execute(target, data, value);
 
@@ -218,6 +261,12 @@ contract ICS27AccountTest is Test {
         vm.expectRevert(revertResp);
         vm.prank(address(ics27Account));
         ics27Account.executeBatch(calls);
+
+        // Call reverts without data
+        vm.mockCallRevert(target, revertData, "");
+        vm.expectRevert(bytes(""));
+        vm.prank(address(ics27Account));
+        ics27Account.executeBatch(calls);
         calls[numCalls - 1].data = data; // Reset to original data
 
         // Insufficient balance
@@ -269,6 +318,12 @@ contract ICS27AccountTest is Test {
         vm.prank(address(ics27Account));
         ics27Account.delegateExecute(target, data);
 
+        // Call reverts without data
+        vm.mockCallRevert(target, data, "");
+        vm.expectRevert(bytes(""));
+        vm.prank(address(ics27Account));
+        ics27Account.delegateExecute(target, data);
+
         // Assert storage was not written
         bytes32 storedValue = vm.load(address(ics27Account), bytes32(testSlot));
         assertEq(storedValue, bytes32(0), "Storage value should be empty");
@@ -292,6 +347,15 @@ contract TestCallContract {
         Storage storage $ = _getStorage();
         $.value = value;
         return "mockedResponse";
+    }
+
+    function burnGas() external pure {
+        while (true) { }
+    }
+
+    /// @dev Runs a sub-call out of gas, which `Address` turns into `FailedCall`
+    function wrapOutOfGas() external {
+        Address.functionCall(address(this), abi.encodeCall(this.burnGas, ()));
     }
 
     function _getStorage() internal pure returns (Storage storage $) {
