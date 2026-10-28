@@ -125,10 +125,9 @@ contract ICS27Account is IICS27Errors, IICS27Account, ContextUpgradeable {
             LowLevelCall.bubbleRevert();
         }
         if (gasleft() < gasBefore / OUT_OF_GAS_DIVISOR) {
-            // solhint-disable-next-line no-inline-assembly
-            assembly ("memory-safe") {
-                revert(0, 0)
-            }
+            // Reverts without data, like running out of gas, so the router fails the relay
+            // solhint-disable-next-line gas-custom-errors, reason-string
+            revert();
         }
         revert Errors.FailedCall();
     }
