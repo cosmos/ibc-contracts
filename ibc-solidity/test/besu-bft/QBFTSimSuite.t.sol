@@ -590,19 +590,19 @@ abstract contract QBFTSimSuiteTest is Test {
         vm.stopPrank();
     }
 
-    /// @dev With 8 trusted validators a 2/3 trust level requires 4 trusted signers (capped from 6) and 1/3 requires 3.
+    /// @dev With 5 trusted validators a 2/3 trust level requires 3 trusted signers (capped from 4) and 1/3 requires 2.
     function test_trustLevel() public {
-        sim = _setUp(8);
+        sim = _setUp(5);
         IBesuLightClient lenient = sim.deployLightClient(
             TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(1, 3), ics26Router
         );
 
-        // Rotating 5 of the 8 validators leaves 3 trusted signers.
-        _rotateValidators(5, 5);
-        bytes memory update = sim.updateMsg(2, 12);
+        // Rotating 3 of the 5 validators leaves 2 trusted signers.
+        _rotateValidators(3, 3);
+        bytes memory update = sim.updateMsg(2, 8);
         vm.startPrank(ics26Router);
         vm.expectRevert(
-            abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 3, 4)
+            abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 2, 3)
         );
         client.updateClient(update);
         assertEq(uint8(lenient.updateClient(update)), uint8(ILightClientMsgs.UpdateResult.Update));
@@ -640,6 +640,42 @@ abstract contract QBFTSimSuiteTest is Test {
             vm.prank(ics26Router);
             assertEq(uint8(client.updateClient(update)), uint8(ILightClientMsgs.UpdateResult.Update));
         }
+    }
+
+    /// @dev Two validator changes between updates can stall a 2/3 trust level: a swap in a set of 6 can leave only 3
+    /// trusted seals in a quorum of 4, below the 4 required. Updating through the header after the removal first
+    /// crosses one change at a time.
+    function test_trustLevelValidatorSwapNeedsIntermediateUpdate() public {
+        sim = _setUp(6);
+        _rotateValidators(1, 1);
+
+        address[] memory trusted = sim.consensusState(2).validators;
+        address[] memory current = sim.validators();
+        address[] memory signers = new address[](4);
+        uint256 trustedSigners = 0;
+        uint256 k = 0;
+        for (uint256 i = 0; k < signers.length; ++i) {
+            bool isTrusted = _contains(trusted, current[i]);
+            if (!isTrusted || trustedSigners < 3) {
+                signers[k] = current[i];
+                ++k;
+                if (isTrusted) {
+                    ++trustedSigners;
+                }
+            }
+        }
+        SimHeader.Data memory h = sim.seal(sim.nextBlock(), signers);
+
+        vm.startPrank(ics26Router);
+        bytes memory update = sim.updateMsg(2, h);
+        vm.expectRevert(
+            abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 3, 4)
+        );
+        client.updateClient(update);
+
+        assertEq(uint8(client.updateClient(sim.updateMsg(2, 3))), uint8(ILightClientMsgs.UpdateResult.Update));
+        assertEq(uint8(client.updateClient(sim.updateMsg(3, h))), uint8(ILightClientMsgs.UpdateResult.Update));
+        vm.stopPrank();
     }
 
     /// @dev Exactly one third of the trusted set is not enough at a 1/3 trust level: more than a third must sign.
@@ -801,10 +837,8 @@ abstract contract QBFTSimSuiteTest is Test {
         }
         bytes memory update = sim.updateMsg(2, sim.seal(sim.nextBlock(), signers));
 
-        uint256 requiredOverlap = Math.max(
-            Math.min(Math.ceilDiv(2 * trusted.length, 3), Math.saturatingSub(2 * trusted.length / 3, 1)),
-            trusted.length / 3 + 1
-        );
+        uint256 requiredOverlap =
+            Math.max(Math.min(Math.ceilDiv(2 * trusted.length, 3), 2 * trusted.length / 3), trusted.length / 3 + 1);
         uint256 requiredQuorum = Math.ceilDiv(2 * current.length, 3);
         vm.startPrank(ics26Router);
         if (signerCount == 0) {

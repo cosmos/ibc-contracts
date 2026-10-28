@@ -1017,7 +1017,7 @@ abstract contract BesuLightClientFixtureTestBase is Test {
         });
         testCases[6] = BesuUpdateTestCase({
             // The low quorum fixture keeps 2 of 4 seals with an unchanged validator set: enough trusted overlap, as the
-            // requirement is capped at floor(2n / 3) - 1, but short of the ceil(2n / 3) quorum.
+            // requirement is capped at floor(2n / 3), but short of the ceil(2n / 3) quorum.
             name: "failure: insufficient quorum with partial seals",
             timestamp: fixture.initialTrustedTimestamp + 1,
             update: _encodeUpdate(fixture.lowQuorumUpdate),

@@ -1065,7 +1065,7 @@ func (s *BesuToBesuTestSuite) Test_ValidatorSetChanges_IBFT2() {
 // ValidatorSetChangesTest removes a Chain A validator and then votes in a new one through live validator votes, while a
 // dedicated client on Chain B at the default 2/3 trust level follows the chain. Besu seals each block with exactly
 // ceil(2n / 3) commit seals: 2 of the 3 validators left after the removal, and 3 of the 4 after the addition, one of
-// which can be the new validator. The light client caps the trusted overlap requirement at floor(2n / 3) - 1, raised to
+// which can be the new validator. The light client caps the trusted overlap requirement at floor(2n / 3), raised to
 // more than a third, so 2 of the 4 or 3 trusted validators are enough and neither change stalls the client.
 func (s *BesuToBesuTestSuite) ValidatorSetChangesTest(consensus string) {
 	ctx := context.Background()
