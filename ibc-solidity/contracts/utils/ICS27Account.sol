@@ -146,8 +146,8 @@ contract ICS27Account is IICS27Errors, IICS27Account, ContextUpgradeable {
     /// @return The result of the call
     function _call(address target, bytes memory data, uint256 value, uint256 gas) private returns (bytes memory) {
         _checkBalance(value);
-        // solhint-disable-next-line avoid-low-level-calls
-        (bool success,) = target.call{ value: value, gas: gas }(data);
+        // slither-disable-next-line arbitrary-send-eth
+        (bool success,) = target.call{ value: value, gas: gas }(data); // solhint-disable-line avoid-low-level-calls
         return _result(target, success, gas);
     }
 
