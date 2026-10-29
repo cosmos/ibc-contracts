@@ -3,6 +3,8 @@ pragma solidity ^0.8.28;
 
 // solhint-disable gas-custom-errors,immutable-vars-naming
 
+import { Vm } from "forge-std/Vm.sol";
+
 import { ICS26Router } from "../../../contracts/ICS26Router.sol";
 import { ICS20Transfer } from "../../../contracts/ICS20Transfer.sol";
 import { ICS27GMP } from "../../../contracts/ICS27GMP.sol";
@@ -25,6 +27,22 @@ library MainnetDeployment {
     address internal constant ACCESS_MANAGER = 0x3fa3f45acE1645614c80679AeEcE0A82A93c77Ec;
     address internal constant TIMELOCKED_ADMIN = 0xb3999B2D30dD8c9faEcE5A8a503fAe42b8b1b614;
     address internal constant RELAYER = 0xC4C09A23dDBd1fF0f313885265113F83622284C2;
+
+    /// @notice Forks are rounded down to a multiple of this many blocks
+    uint256 internal constant FORK_BLOCK_STEP = 32;
+
+    Vm private constant VM = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
+
+    /// @notice Selects a fork of mainnet 32 to 63 blocks behind the tip
+    /// @dev The tip may be unknown to some nodes behind a load balancer. Forks made within the same 32 blocks share
+    /// the block, and with it Foundry's cache of mainnet state.
+    /// @param rpcUrl The mainnet RPC endpoint
+    /// @return forkId The identifier of the selected fork
+    function selectFork(string memory rpcUrl) internal returns (uint256 forkId) {
+        bytes memory tipBz = VM.rpc(rpcUrl, "eth_blockNumber", "[]");
+        uint256 tip = uint256(bytes32(tipBz)) >> (256 - 8 * tipBz.length);
+        return VM.createSelectFork(rpcUrl, tip - tip % FORK_BLOCK_STEP - FORK_BLOCK_STEP);
+    }
 }
 
 /// @notice The mainnet deployment upgraded to the current contracts, administered by the deployer
@@ -92,7 +110,7 @@ abstract contract WithMainnetFork is LightClientDriverTest {
     }
 
     function _beforeSetUp() internal override {
-        vm.createSelectFork(vm.envString("ETH_RPC_URL"));
+        MainnetDeployment.selectFork(vm.envString("ETH_RPC_URL"));
     }
 
     function _newIbcImpl(uint256 slot, address permit2) internal override returns (IbcImpl) {

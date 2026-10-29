@@ -581,7 +581,7 @@ abstract contract Integration2Suite is LightClientDriverTest {
         assertEq(storedCommitment, expCommitment, "packet commitment mismatch");
     }
 
-    function testFuzz_success_fullGmp(uint16 saltLen) public {
+    function testFuzz_success_fullGmp(uint8 saltLen) public {
         address user = integrationEnv.createUser();
         address receiver = makeAddr("receiver");
 
@@ -624,7 +624,7 @@ abstract contract Integration2Suite is LightClientDriverTest {
         assertEq(storedCommitment, 0);
     }
 
-    function testFuzz_success_errorGmp(uint16 saltLen) public {
+    function testFuzz_success_errorGmp(uint8 saltLen) public {
         address user = integrationEnv.createUser();
         address receiver = makeAddr("receiver");
 
@@ -684,7 +684,7 @@ abstract contract Integration2Suite is LightClientDriverTest {
         assert(ibcImplB.relayerHelper().isPacketReceiveSuccessful(sentPacket));
     }
 
-    function testFuzz_success_timeoutGmp(uint16 saltLen) public {
+    function testFuzz_success_timeoutGmp(uint8 saltLen) public {
         address user = integrationEnv.createUser();
         address receiver = makeAddr("receiver");
 

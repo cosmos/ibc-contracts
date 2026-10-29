@@ -42,8 +42,7 @@ contract MainnetForkTest is Test, DeployAccessManagerWithRoles {
     address public relayer = MainnetDeployment.RELAYER;
 
     function setUp() public {
-        uint256 forkId = vm.createFork(ETH_RPC_URL);
-        vm.selectFork(forkId);
+        MainnetDeployment.selectFork(ETH_RPC_URL);
     }
 
     function test_validate_constants() public view {
