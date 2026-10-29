@@ -2,6 +2,8 @@
 
 ![IBC in Solidity](.github/assets/cosmos-ibc-contracts-github.svg)
 
+**Coverage:** [![Solidity contracts][codecov-solidity-badge]][codecov-components] [![CosmWasm Ethereum light client][codecov-cw-eth-badge]][codecov-components] [![Ethereum light client][codecov-eth-lc-badge]][codecov-components] [![Tendermint light client][codecov-tm-lc-badge]][codecov-components]
+
 [gha]: https://github.com/cosmos/ibc-contracts/actions
 [e2e-minimal-badge]: https://github.com/cosmos/ibc-contracts/actions/workflows/e2e-minimal.yml/badge.svg
 [e2e-full-badge]: https://github.com/cosmos/ibc-contracts/actions/workflows/e2e-full.yml/badge.svg
@@ -11,6 +13,11 @@
 [license-badge]: https://img.shields.io/badge/License-Apache_2.0-blue.svg
 [codecov]: https://codecov.io/gh/cosmos/ibc-contracts
 [codecov-badge]: https://codecov.io/gh/cosmos/ibc-contracts/graph/badge.svg
+[codecov-components]: https://app.codecov.io/gh/cosmos/ibc-contracts/components
+[codecov-solidity-badge]: https://codecov.io/gh/cosmos/ibc-contracts/graph/badge.svg?component=solidity-contracts
+[codecov-cw-eth-badge]: https://codecov.io/gh/cosmos/ibc-contracts/graph/badge.svg?component=cw-ics08-wasm-eth
+[codecov-eth-lc-badge]: https://codecov.io/gh/cosmos/ibc-contracts/graph/badge.svg?component=ethereum-light-client
+[codecov-tm-lc-badge]: https://codecov.io/gh/cosmos/ibc-contracts/graph/badge.svg?component=tendermint-light-client
 [scorecard]: https://scorecard.dev/viewer/?uri=github.com/cosmos/ibc-contracts
 [scorecard-badge]: https://api.scorecard.dev/projects/github.com/cosmos/ibc-contracts/badge
 

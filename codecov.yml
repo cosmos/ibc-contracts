@@ -13,4 +13,25 @@ ignore:
   - "packages/utils/**"
   - "packages/sp1-ics07-tendermint-prover/**"
   - "packages/solidity/**"
+  - "packages/constrained_types/**"
   - "ibc-solidity/programs/operator/**"
+
+# Each component gets its own badge and status, shown in the README.
+component_management:
+  individual_components:
+    - component_id: solidity-contracts
+      name: Solidity contracts
+      paths:
+        - "ibc-solidity/contracts/**"
+    - component_id: cw-ics08-wasm-eth
+      name: CosmWasm Ethereum light client
+      paths:
+        - "ibc-solidity/programs/cw-ics08-wasm-eth/**"
+    - component_id: ethereum-light-client
+      name: Ethereum light client
+      paths:
+        - "packages/ethereum/**"
+    - component_id: tendermint-light-client
+      name: Tendermint light client
+      paths:
+        - "packages/tendermint-light-client/**"
