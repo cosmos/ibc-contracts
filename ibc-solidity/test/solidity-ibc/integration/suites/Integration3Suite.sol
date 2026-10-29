@@ -18,43 +18,43 @@ abstract contract Integration3Suite is LightClientDriverTest {
     IbcImpl public ibcImplA;
     IbcImpl public ibcImplB;
     IbcImpl public ibcImplC;
-    // ibcImplA <--> ibcImplB <--> ibcImplC
+    // ibcImplA (clientIdAB) <--> (clientIdBA) ibcImplB (clientIdBC) <--> (clientIdCB) ibcImplC
+    string public clientIdAB;
+    string public clientIdBA;
+    string public clientIdBC;
+    string public clientIdCB;
 
-    TestHelper public th = new TestHelper();
+    TestHelper public th;
     IntegrationEnv public integrationEnv;
 
     function setUp() public {
+        _beforeSetUp();
+        th = new TestHelper();
+
         // Set up the environment
         integrationEnv = new IntegrationEnv();
 
         // Deploy the IBC implementation
-        ibcImplA = new IbcImpl(integrationEnv.permit2());
-        ibcImplB = new IbcImpl(integrationEnv.permit2());
-        ibcImplC = new IbcImpl(integrationEnv.permit2());
+        ibcImplA = _newIbcImpl(0, integrationEnv.permit2());
+        ibcImplB = _newIbcImpl(1, integrationEnv.permit2());
+        ibcImplC = _newIbcImpl(2, integrationEnv.permit2());
 
         // Add the counterparty implementations
-        string memory clientId;
-        clientId = ibcImplA.addClient(th.FIRST_CLIENT_ID(), _newDriver(ibcImplA.ics26Router(), ibcImplB.ics26Router()));
-        assertEq(clientId, th.FIRST_CLIENT_ID());
+        clientIdAB =
+            ibcImplA.addClient(ibcImplB.nextClientId(), _newDriver(ibcImplA.ics26Router(), ibcImplB.ics26Router()));
+        clientIdBA = ibcImplB.addClient(clientIdAB, _newDriver(ibcImplB.ics26Router(), ibcImplA.ics26Router()));
 
-        clientId = ibcImplB.addClient(th.FIRST_CLIENT_ID(), _newDriver(ibcImplB.ics26Router(), ibcImplA.ics26Router()));
-        assertEq(clientId, th.FIRST_CLIENT_ID());
-
-        clientId = ibcImplB.addClient(th.FIRST_CLIENT_ID(), _newDriver(ibcImplB.ics26Router(), ibcImplC.ics26Router()));
-        assertEq(clientId, th.SECOND_CLIENT_ID());
-
-        clientId = ibcImplC.addClient(th.SECOND_CLIENT_ID(), _newDriver(ibcImplC.ics26Router(), ibcImplB.ics26Router()));
-        assertEq(clientId, th.FIRST_CLIENT_ID());
+        clientIdBC =
+            ibcImplB.addClient(ibcImplC.nextClientId(), _newDriver(ibcImplB.ics26Router(), ibcImplC.ics26Router()));
+        clientIdCB = ibcImplC.addClient(clientIdBC, _newDriver(ibcImplC.ics26Router(), ibcImplB.ics26Router()));
     }
 
     function test_deployment() public view {
-        // ibcImplA (client-0) <--> (client-0) ibcImplB
-        assertEq(ibcImplA.ics26Router().getCounterparty(th.FIRST_CLIENT_ID()).clientId, th.FIRST_CLIENT_ID());
-        assertEq(ibcImplB.ics26Router().getCounterparty(th.FIRST_CLIENT_ID()).clientId, th.FIRST_CLIENT_ID());
+        assertEq(ibcImplA.ics26Router().getCounterparty(clientIdAB).clientId, clientIdBA);
+        assertEq(ibcImplB.ics26Router().getCounterparty(clientIdBA).clientId, clientIdAB);
 
-        // ibcImplB (client-1) <--> (client-0) ibcImplC
-        assertEq(ibcImplB.ics26Router().getCounterparty(th.SECOND_CLIENT_ID()).clientId, th.FIRST_CLIENT_ID());
-        assertEq(ibcImplC.ics26Router().getCounterparty(th.FIRST_CLIENT_ID()).clientId, th.SECOND_CLIENT_ID());
+        assertEq(ibcImplB.ics26Router().getCounterparty(clientIdBC).clientId, clientIdCB);
+        assertEq(ibcImplC.ics26Router().getCounterparty(clientIdCB).clientId, clientIdBC);
     }
 
     // solhint-disable-next-line function-max-lines
@@ -81,11 +81,7 @@ abstract contract Integration3Suite is LightClientDriverTest {
 
         // Check that a new IBCERC20 token was created
         string memory expDenomPath = string.concat(
-            ICS20Lib.DEFAULT_PORT_ID,
-            "/",
-            th.FIRST_CLIENT_ID(),
-            "/",
-            Strings.toHexString(address(integrationEnv.erc20()))
+            ICS20Lib.DEFAULT_PORT_ID, "/", clientIdBA, "/", Strings.toHexString(address(integrationEnv.erc20()))
         );
         IERC20 tokenOnB = IERC20(ibcImplB.ics20Transfer().ibcERC20Contract(expDenomPath));
         assertTrue(address(tokenOnB) != address(0), "IBCERC20 token not found");
@@ -96,9 +92,8 @@ abstract contract Integration3Suite is LightClientDriverTest {
 
         // Send from B -> C
         address receiverC = integrationEnv.createUser();
-        sentPacket = ibcImplB.sendTransferAsUser(
-            tokenOnB, receiverB, Strings.toHexString(receiverC), amount, th.SECOND_CLIENT_ID()
-        );
+        sentPacket =
+            ibcImplB.sendTransferAsUser(tokenOnB, receiverB, Strings.toHexString(receiverC), amount, clientIdBC);
         assertEq(tokenOnB.balanceOf(receiverB), 0, "sender balance mismatch");
 
         // Receive the packet on C
@@ -114,11 +109,11 @@ abstract contract Integration3Suite is LightClientDriverTest {
         string memory expDenomPath2 = string.concat(
             ICS20Lib.DEFAULT_PORT_ID,
             "/",
-            th.FIRST_CLIENT_ID(),
+            clientIdCB,
             "/",
             ICS20Lib.DEFAULT_PORT_ID,
             "/",
-            th.FIRST_CLIENT_ID(),
+            clientIdBA,
             "/",
             Strings.toHexString(address(integrationEnv.erc20()))
         );
