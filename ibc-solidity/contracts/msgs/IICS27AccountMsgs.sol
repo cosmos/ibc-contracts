@@ -14,7 +14,7 @@ interface IICS27AccountMsgs {
         uint256 value;
     }
 
-    /// @notice Call struct for the `executeBatch` function.
+    /// @notice Call struct for the `executeBatchWithGas` function.
     /// @param target The target address to call
     /// @param data The data to send to the target address
     /// @param value The value to send to the target address

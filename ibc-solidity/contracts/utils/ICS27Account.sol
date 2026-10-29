@@ -80,7 +80,7 @@ contract ICS27Account is IICS27Errors, IICS27Account, ContextUpgradeable {
     }
 
     /// @inheritdoc IICS27Account
-    function execute(
+    function executeWithGas(
         address target,
         bytes calldata data,
         uint256 value,
@@ -104,7 +104,11 @@ contract ICS27Account is IICS27Errors, IICS27Account, ContextUpgradeable {
     }
 
     /// @inheritdoc IICS27Account
-    function executeBatch(IICS27AccountMsgs.CallWithGas[] calldata calls) external onlySelf returns (bytes[] memory) {
+    function executeBatchWithGas(IICS27AccountMsgs.CallWithGas[] calldata calls)
+        external
+        onlySelf
+        returns (bytes[] memory)
+    {
         bytes[] memory results = new bytes[](calls.length);
         for (uint256 i = 0; i < calls.length; ++i) {
             IICS27AccountMsgs.CallWithGas calldata call = calls[i];

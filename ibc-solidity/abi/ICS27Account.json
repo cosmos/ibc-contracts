@@ -35,41 +35,43 @@
   },
   {
     "type": "function",
-    "name": "execute",
+    "name": "executeBatch",
     "inputs": [
       {
-        "name": "target",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "data",
-        "type": "bytes",
-        "internalType": "bytes"
-      },
-      {
-        "name": "value",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "gas",
-        "type": "uint256",
-        "internalType": "uint256"
+        "name": "calls",
+        "type": "tuple[]",
+        "internalType": "struct IICS27AccountMsgs.Call[]",
+        "components": [
+          {
+            "name": "target",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "data",
+            "type": "bytes",
+            "internalType": "bytes"
+          },
+          {
+            "name": "value",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
       }
     ],
     "outputs": [
       {
         "name": "",
-        "type": "bytes",
-        "internalType": "bytes"
+        "type": "bytes[]",
+        "internalType": "bytes[]"
       }
     ],
     "stateMutability": "nonpayable"
   },
   {
     "type": "function",
-    "name": "executeBatch",
+    "name": "executeBatchWithGas",
     "inputs": [
       {
         "name": "calls",
@@ -110,36 +112,34 @@
   },
   {
     "type": "function",
-    "name": "executeBatch",
+    "name": "executeWithGas",
     "inputs": [
       {
-        "name": "calls",
-        "type": "tuple[]",
-        "internalType": "struct IICS27AccountMsgs.Call[]",
-        "components": [
-          {
-            "name": "target",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "data",
-            "type": "bytes",
-            "internalType": "bytes"
-          },
-          {
-            "name": "value",
-            "type": "uint256",
-            "internalType": "uint256"
-          }
-        ]
+        "name": "target",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "data",
+        "type": "bytes",
+        "internalType": "bytes"
+      },
+      {
+        "name": "value",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "gas",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "outputs": [
       {
         "name": "",
-        "type": "bytes[]",
-        "internalType": "bytes[]"
+        "type": "bytes",
+        "internalType": "bytes"
       }
     ],
     "stateMutability": "nonpayable"

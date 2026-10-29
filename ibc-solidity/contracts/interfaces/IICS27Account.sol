@@ -49,7 +49,7 @@ interface IICS27Account {
     /// @param value The value to send to the target address
     /// @param gas The gas to call the target address with
     /// @return result The result of the call
-    function execute(
+    function executeWithGas(
         address target,
         bytes calldata data,
         uint256 value,
@@ -63,7 +63,9 @@ interface IICS27Account {
     /// @dev This function can only be called by self.
     /// @param calls The array of `CallWithGas` structs to execute
     /// @return results The array of results from the calls
-    function executeBatch(IICS27AccountMsgs.CallWithGas[] calldata calls) external returns (bytes[] memory results);
+    function executeBatchWithGas(IICS27AccountMsgs.CallWithGas[] calldata calls)
+        external
+        returns (bytes[] memory results);
 
     /// @notice Initializes the ICS27Account contract
     /// @dev This function is meant to be called by a proxy
