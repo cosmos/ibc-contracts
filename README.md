@@ -223,7 +223,7 @@ Coverage is reported to [Codecov][codecov] from the Foundry and Rust unit tests,
 | Ethereum light client | `packages/ethereum/` | [![Ethereum light client][codecov-eth-lc-badge]][codecov-components] |
 | Tendermint light client | `packages/tendermint-light-client/` | [![Tendermint light client][codecov-tm-lc-badge]][codecov-components] |
 
-The proof API, operator, SP1 prover, and supporting Rust crates are excluded because they are exercised by the [end-to-end tests](#end-to-end-testing) rather than unit tests. See [`codecov.yml`](codecov.yml) for the full list.
+The proof API, operator, SP1 prover, and their helper crates are excluded: they are relaying infrastructure rather than security-critical software, and are exercised by the [end-to-end tests](#end-to-end-testing). See [`codecov.yml`](codecov.yml) for the full list.
 
 ## End to End Testing
 
