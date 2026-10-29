@@ -2,8 +2,6 @@
 
 ![IBC in Solidity](.github/assets/cosmos-ibc-contracts-github.svg)
 
-**Coverage:** [![Solidity contracts][codecov-solidity-badge]][codecov-components] [![CosmWasm Ethereum light client][codecov-cw-eth-badge]][codecov-components] [![Ethereum light client][codecov-eth-lc-badge]][codecov-components] [![Tendermint light client][codecov-tm-lc-badge]][codecov-components]
-
 [gha]: https://github.com/cosmos/ibc-contracts/actions
 [e2e-minimal-badge]: https://github.com/cosmos/ibc-contracts/actions/workflows/e2e-minimal.yml/badge.svg
 [e2e-full-badge]: https://github.com/cosmos/ibc-contracts/actions/workflows/e2e-full.yml/badge.svg
@@ -37,6 +35,7 @@ This is an implementation of IBC v2 in Solidity and Solana. IBC v2 is a simplifi
     - [Ethereum Requirements](#ethereum-requirements)
     - [Solana Requirements](#solana-requirements)
   - [Unit Testing](#unit-testing)
+  - [Code Coverage](#code-coverage)
   - [End to End Testing](#end-to-end-testing)
     - [Requirements](#requirements)
     - [Running the tests](#running-the-tests)
@@ -212,6 +211,19 @@ The recipe also accepts a `testname` argument that will only run the test with t
 ```shell
 just solidity::test-foundry test_success_sendTransfer
 ```
+
+## Code Coverage
+
+Coverage is reported to [Codecov][codecov] from the Foundry and Rust unit tests, and is tracked separately for each component:
+
+| Component | Path | Coverage |
+| --- | --- | --- |
+| Solidity contracts | `ibc-solidity/contracts/` | [![Solidity contracts][codecov-solidity-badge]][codecov-components] |
+| CosmWasm Ethereum light client | `ibc-solidity/programs/cw-ics08-wasm-eth/` | [![CosmWasm Ethereum light client][codecov-cw-eth-badge]][codecov-components] |
+| Ethereum light client | `packages/ethereum/` | [![Ethereum light client][codecov-eth-lc-badge]][codecov-components] |
+| Tendermint light client | `packages/tendermint-light-client/` | [![Tendermint light client][codecov-tm-lc-badge]][codecov-components] |
+
+The proof API, operator, SP1 prover, and supporting Rust crates are excluded because they are exercised by the [end-to-end tests](#end-to-end-testing) rather than unit tests. See [`codecov.yml`](codecov.yml) for the full list.
 
 ## End to End Testing
 
