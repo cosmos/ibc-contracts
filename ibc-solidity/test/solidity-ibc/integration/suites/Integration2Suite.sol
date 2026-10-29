@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.28;
 
-// solhint-disable custom-errors,max-line-length,max-states-count
+// solhint-disable custom-errors,max-line-length,max-states-count,gas-small-strings
 
 import { IICS26RouterMsgs } from "../../../../contracts/msgs/IICS26RouterMsgs.sol";
 import { IICS27GMPMsgs } from "../../../../contracts/msgs/IICS27GMPMsgs.sol";
@@ -688,6 +688,35 @@ abstract contract Integration2Suite is LightClientDriverTest {
         assertEq(acks.length, 1, "ack length mismatch");
         assertEq(acks[0], ICS27Lib.acknowledgement(callResp), "ack mismatch");
         assert(ibcImplB.relayerHelper().isPacketReceiveSuccessful(sentPacket));
+    }
+
+    function test_failure_outOfGasGmpWithGas() public {
+        address user = integrationEnv.createUser();
+        address receiver = address(new MulticallTargetMock(address(0)));
+        uint256 gas_ = 10_000_000;
+
+        // The account calls the receiver with `gas_` gas
+        IICS27GMPMsgs.AccountIdentifier memory accountId = IICS27GMPMsgs.AccountIdentifier({
+            clientId: th.FIRST_CLIENT_ID(), sender: Strings.toChecksumHexString(user), salt: ""
+        });
+        address account = ibcImplB.ics27Gmp().getOrComputeAccountAddress(accountId);
+        bytes memory payload = abi.encodeWithSignature(
+            "execute(address,bytes,uint256,uint256)", receiver, abi.encodeCall(MulticallTargetMock.burnGas, ()), 0, gas_
+        );
+
+        // send packet
+        IICS26RouterMsgs.Packet memory sentPacket =
+            ibcImplA.sendGmpAsUser(user, Strings.toHexString(account), payload, accountId.salt);
+
+        // Receiving the packet on B without enough gas for the call fails the relay
+        vm.expectRevert(IICS26RouterErrors.IBCFailedCallback.selector);
+        ibcImplB.recvPacket{ gas: gas_ / 2 }(sentPacket);
+        assertFalse(ibcImplB.relayerHelper().isPacketReceived(sentPacket));
+
+        // Running out of the gas given to the call does not depend on the relayer, so it writes an error ack
+        bytes[] memory acks = ibcImplB.recvPacket{ gas: 3 * gas_ }(sentPacket);
+        assertEq(acks, th.SINGLE_ERROR_ACK(), "ack mismatch");
+        assertFalse(ibcImplB.relayerHelper().isPacketReceiveSuccessful(sentPacket));
     }
 
     function testFuzz_success_timeoutGmp(uint16 saltLen) public {

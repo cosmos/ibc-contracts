@@ -13,4 +13,16 @@ interface IICS27AccountMsgs {
         bytes data;
         uint256 value;
     }
+
+    /// @notice Call struct for the `executeBatch` function.
+    /// @param target The target address to call
+    /// @param data The data to send to the target address
+    /// @param value The value to send to the target address
+    /// @param gas The gas to call the target address with, which the relayer must provide
+    struct CallWithGas {
+        address target;
+        bytes data;
+        uint256 value;
+        uint256 gas;
+    }
 }

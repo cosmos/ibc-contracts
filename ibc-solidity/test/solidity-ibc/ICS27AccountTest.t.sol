@@ -16,6 +16,8 @@ contract ICS27AccountTest is Test {
     address public ics27 = makeAddr("ics27");
     ICS27Account public ics27Account;
 
+    string private constant EXECUTE_WITH_GAS = "execute(address,bytes,uint256,uint256)";
+
     function setUp() public {
         address accountLogic = address(new ICS27Account());
 
@@ -81,7 +83,7 @@ contract ICS27AccountTest is Test {
         vm.expectRevert(bytes(""));
         vm.prank(ics27);
         ics27Account.functionCall{ gas: 1_000_000 }(
-            address(ics27Account), abi.encodeCall(ICS27Account.executeBatch, (calls))
+            address(ics27Account), abi.encodeWithSignature("executeBatch((address,bytes,uint256)[])", calls)
         );
 
         // Recipient of a transfer runs out of gas, through the account calling itself
@@ -91,6 +93,82 @@ contract ICS27AccountTest is Test {
         ics27Account.functionCall{ gas: 1_000_000 }(
             address(ics27Account), abi.encodeCall(ICS27Account.sendValue, (burnGasRecipient, 0))
         );
+    }
+
+    function test_success_executeWithGas() public {
+        address target = address(new TestCallContract());
+        bytes memory data = abi.encodeCall(TestCallContract.payableCall, ());
+        uint256 gas_ = 100_000;
+        vm.deal(address(ics27Account), 2);
+
+        vm.expectCall(target, 1, uint64(gas_), data);
+        vm.prank(address(ics27Account));
+        ics27Account.execute(target, data, 1, gas_);
+
+        IICS27AccountMsgs.CallWithGas[] memory calls = new IICS27AccountMsgs.CallWithGas[](1);
+        calls[0] = IICS27AccountMsgs.CallWithGas({ target: target, data: data, value: 1, gas: gas_ });
+        vm.expectCall(target, 1, uint64(gas_), data);
+        vm.prank(address(ics27Account));
+        ics27Account.executeBatch(calls);
+
+        assertEq(target.balance, 2, "Target balance should match value after execute");
+    }
+
+    function testFuzz_success_executeWithGasIsStable(uint64 gasLimit) public {
+        address target = address(new TestCallContract());
+        bytes memory data =
+            abi.encodeWithSignature(EXECUTE_WITH_GAS, target, abi.encodeCall(TestCallContract.gasLeft, ()), 0, 100_000);
+
+        vm.prank(ics27);
+        bytes memory expected = ics27Account.functionCall{ gas: 30_000_000 }(address(ics27Account), data);
+
+        // The target sees the same gas whatever gas the relayer provides, or the relay runs out of gas
+        vm.prank(ics27);
+        // solhint-disable-next-line avoid-low-level-calls
+        (bool success, bytes memory result) = address(ics27Account).call{ gas: bound(gasLimit, 100_000, 300_000) }(
+            abi.encodeCall(ICS27Account.functionCall, (address(ics27Account), data))
+        );
+        if (success) {
+            assertEq(abi.decode(result, (bytes)), expected, "Result should not depend on the gas provided");
+        } else {
+            assertEq(result, bytes(""), "Not enough gas should revert without data");
+        }
+    }
+
+    function test_failure_executeWithGas() public {
+        address target = address(new TestCallContract());
+        bytes memory burnGasData = abi.encodeCall(TestCallContract.burnGas, ());
+        uint256 gas_ = 100_000;
+
+        // Not enough gas for the call runs out of gas, through the account calling itself
+        vm.expectRevert(bytes(""));
+        vm.prank(ics27);
+        ics27Account.functionCall{ gas: 150_000 }(
+            address(ics27Account), abi.encodeWithSignature(EXECUTE_WITH_GAS, target, burnGasData, 0, gas_)
+        );
+
+        // Running out of the gas given to the call is an error, whatever gas the relayer provides
+        vm.expectRevert(Errors.FailedCall.selector);
+        vm.prank(ics27);
+        ics27Account.functionCall{ gas: 1_000_000 }(
+            address(ics27Account), abi.encodeWithSignature(EXECUTE_WITH_GAS, target, burnGasData, 0, gas_)
+        );
+
+        IICS27AccountMsgs.CallWithGas[] memory calls = new IICS27AccountMsgs.CallWithGas[](1);
+        calls[0] = IICS27AccountMsgs.CallWithGas({ target: target, data: burnGasData, value: 0, gas: gas_ });
+        vm.expectRevert(Errors.FailedCall.selector);
+        vm.prank(ics27);
+        ics27Account.functionCall{ gas: 1_000_000 }(
+            address(ics27Account), abi.encodeWithSignature("executeBatch((address,bytes,uint256,uint256)[])", calls)
+        );
+
+        // Unauthorized call
+        address unauthorized = makeAddr("unauthorized");
+        vm.expectRevert(
+            abi.encodeWithSelector(IICS27Errors.ICS27Unauthorized.selector, address(ics27Account), unauthorized)
+        );
+        vm.prank(unauthorized);
+        ics27Account.executeBatch(calls);
     }
 
     function testFuzz_success_sendValue(uint256 amount) public {
@@ -300,6 +378,10 @@ contract TestCallContract {
     // https://github.com/foundry-rs/foundry/issues/10812
     function payableCall() external payable returns (bytes memory) {
         return "mockedResponse";
+    }
+
+    function gasLeft() external view returns (uint256) {
+        return gasleft();
     }
 
     function burnGas() external pure {
