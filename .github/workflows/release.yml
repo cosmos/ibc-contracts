@@ -1,93 +1,565 @@
 # SPDX-License-Identifier: Apache-2.0
 
-name: release
+name: Release
+# Builds the release assets for every solidity, sp1-programs, cw-ics08-wasm-eth and proof-api tag,
+# generates an SBOM and build provenance for them, signs a checksums file over them, and attaches
+# everything to a draft release so the signed assets exist before the release is published. For
+# proof-api, once the assets verify, it also publishes the signed container image built from the
+# same linux archives.
+#
+# The attesting, signing and publishing steps are the shared actions in cosmos/ibc's
+# .github/actions, which cosmos/ibc and cosmos/ibc-go use too. Images for pull requests are built,
+# unsigned, by docker.yml.
 
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - "solidity-v*"
+      - "sp1-programs-v*"
+      - "cw-ics08-wasm-eth-v*"
+      - "proof-api-v*"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions: {}
 
-env:
-  SP1_VERSION: "6.9.0"
+defaults:
+  run:
+    shell: bash
 
+env:
+  TAG: ${{ github.ref_name }}
+  SP1_VERSION: "6.9.0"
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/proof-api
 
 jobs:
-  release-sp1-programs:
-    runs-on: depot-ubuntu-24.04-4
+  validate-tag:
+    name: Validate tag
+    runs-on: ubuntu-latest
     permissions:
-      contents: write
-    if: startsWith(github.ref_name, 'sp1-programs-')
+      contents: read
+    timeout-minutes: 5
+    outputs:
+      name: ${{ steps.tag.outputs.name }}
+      title: ${{ steps.tag.outputs.title }}
+      prerelease: ${{ steps.tag.outputs.prerelease }}
+      component: ${{ steps.tag.outputs.component }}
+      image-tag: ${{ steps.tag.outputs.image-tag }}
+      builds: ${{ steps.tag.outputs.builds }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
-        with:
-          toolchain: 1.93.0
-      - name: Install SP1 toolchain
-        shell: bash
+      - name: Check tag format
+        id: tag
         run: |
-          curl -L https://sp1.succinct.xyz | bash
-          ~/.sp1/bin/sp1up --version ${{ env.SP1_VERSION }} --token ${{ secrets.GITHUB_TOKEN }}
-          ~/.sp1/bin/cargo-prove prove --version
-      - name: Install just
-        uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
-
-      - name: Build SP1 Programs
-        shell: bash
-        run: just solidity::build-sp1-programs
-
-      - name: Upload SP1 programs to release
-        uses: svenstaro/upload-release-action@29e53e917877a24fad85510ded594ab3c9ca12de # 2.11.5
+          if [[ ! "$TAG" =~ ^(solidity|sp1-programs|cw-ics08-wasm-eth|proof-api)-(v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?)$ ]]; then
+            echo "::error::Tag must match <solidity|sp1-programs|cw-ics08-wasm-eth|proof-api>-vX.Y.Z, optionally followed by -<suffix>"
+            exit 1
+          fi
+          # The assets are named after the tag as pushed, the title after the component and version.
+          component="${BASH_REMATCH[1]}"
+          version="${BASH_REMATCH[2]}"
+          suffix="${BASH_REMATCH[3]}"
+          case "$component" in
+            solidity) title="Solidity Contracts ${version}" ;;
+            sp1-programs) title="SP1 Programs ${version}" ;;
+            cw-ics08-wasm-eth) title="CosmWasm ICS08 Wasm Ethereum Light Client ${version}" ;;
+            proof-api) title="Proof API ${version}" ;;
+          esac
+          # The build matrix: one entry per component build. proof-api's binary and image are built on
+          # a native runner per platform; every other component builds once.
+          if [[ "$component" == proof-api ]]; then
+            builds='[
+              {"platform": "linux-amd64", "arch": "amd64", "runner": "ubuntu-latest"},
+              {"platform": "linux-arm64", "arch": "arm64", "runner": "ubuntu-24.04-arm"}
+            ]'
+          else
+            builds='[{"platform": "all", "runner": "ubuntu-latest"}]'
+          fi
+          # A component built per platform names its files <tag>-<platform>.
+          builds=$(jq -c --arg component "$component" --arg tag "$TAG" '
+            map({component: $component, name: (if .platform == "all" then $tag else "\($tag)-\(.platform)" end)} + .)
+          ' <<< "$builds")
+          {
+            echo "name=${TAG}"
+            echo "title=${title}"
+            if [[ -n "$suffix" ]]; then echo "prerelease=true"; else echo "prerelease=false"; fi
+            echo "component=${component}"
+            # Read by the proof-api image jobs only. The image is tagged with the version alone, as for
+            # the images published before this workflow, e.g. ghcr.io/cosmos/proof-api:v0.8.1.
+            echo "image-tag=${version}"
+            # Also the image matrix for proof-api, so each platform image is built from its archive.
+            echo "builds=${builds}"
+          } >> "$GITHUB_OUTPUT"
+      - name: Check the release is not published with assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Checked before any job pushes or attests an image, so a re-run after the release is
+          # published with its assets pushes nothing and cannot move a published image tag. A
+          # release published before its first run finished has no assets yet, so it continues and
+          # the release job attaches them. The by-tag endpoint returns published releases only: a
+          # 404 means there is none, and any other failure fails the step instead of reading as
+          # "not published". Same check as in publish-manifest; change both together.
+          log="${RUNNER_TEMP}/release-lookup.log"
+          if ! published_assets=$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}" --jq '.assets | length' 2> "$log"); then
+            if ! grep -q 'HTTP 404' "$log"; then
+              cat "$log" >&2
+              exit 1
+            fi
+            published_assets=""
+          fi
+          if [[ -n "$published_assets" && "$published_assets" != 0 ]]; then
+            echo "::error::Release ${TAG} is already published with assets, so nothing is re-published"
+            exit 1
+          fi
+          if [[ -n "$published_assets" ]]; then
+            echo "::warning::Release ${TAG} was published before its signed assets were attached"
+          fi
+      # Full history without trees: enough to tell which branches contain the tagged commit.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file_glob: true
-          file: ibc-solidity/programs/sp1-programs/target/elf-compilation/riscv64im-succinct-zkvm-elf/release/sp1-ics07-tendermint-{update-client,membership,uc-and-membership,misbehaviour}
-          tag: ${{ github.ref }}
-          overwrite: true
+          persist-credentials: false
+          fetch-depth: 0
+          filter: tree:0
+      - name: Check tagged commit is on main or a release branch
+        run: |
+          # The check runs from the tagged commit, so it only guards against tagging a commit outside
+          # main or a release/* branch by mistake; the tag ruleset is what limits who can get a
+          # commit signed.
+          branches=$(git branch --remotes --contains "$GITHUB_SHA" --format='%(refname:lstrip=3)')
+          while IFS= read -r branch; do
+            if [[ "$branch" == main || "$branch" == release/* ]]; then
+              exit 0
+            fi
+          done <<< "$branches"
+          echo "::error::Tagged commit ${GITHUB_SHA} is not on main or a release/* branch"
+          exit 1
 
-  release-cw-ics08-wasm-eth:
-    runs-on: depot-ubuntu-24.04-4
+  # Builds and attests the release files, one matrix entry per component build, which validate-tag
+  # derives from the tag. Each entry puts its files in out/assets and attests them. The SBOM is
+  # generated from the component's sources and lockfiles, staged in src from the tagged commit, so
+  # build outputs and installed dependencies stay out of it. Only the image job pushes to the
+  # registry, so this job has no packages permission.
+  build:
+    name: Build ${{ matrix.component }} (${{ matrix.platform }})
+    needs: [validate-tag]
+    runs-on: ${{ matrix.runner }}
     permissions:
-      contents: write
-    if: startsWith(github.ref_name, 'cw-ics08-wasm-eth-')
+      contents: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.validate-tag.outputs.builds) }}
+    env:
+      NAME: ${{ matrix.name }}
+      COMPONENT: ${{ matrix.component }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Upload cw-ics08-wasm-eth to release
-        uses: svenstaro/upload-release-action@29e53e917877a24fad85510ded594ab3c9ca12de # 2.11.5
         with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file_glob: true
-          file: e2e/interchaintestv8/wasm/cw_ics08_wasm_eth.wasm.gz
-          tag: ${{ github.ref }}
-          overwrite: true
+          persist-credentials: false
 
-  release-solidity-contracts:
-    runs-on: depot-ubuntu-24.04-4
-    permissions:
-      contents: write
-    if: startsWith(github.ref_name, 'solidity-')
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
+      # solidity
       - name: Install Foundry
+        if: matrix.component == 'solidity'
         uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
         with:
           version: stable
-
       - name: Install Bun
+        if: matrix.component == 'solidity'
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-
       - name: Build and package the contracts
+        if: matrix.component == 'solidity'
         env:
           TAG_NAME: ${{ github.ref_name }}
         run: ./ibc-solidity/scripts/package-contracts.sh
 
-      - name: Upload solidity contract artifacts to release
-        uses: svenstaro/upload-release-action@29e53e917877a24fad85510ded594ab3c9ca12de # 2.11.5
+      # sp1-programs
+      - name: Set up Rust
+        if: matrix.component == 'sp1-programs'
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
         with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: ibc-solidity/solidity-contracts-${{ github.ref_name }}.tar.gz
-          tag: ${{ github.ref }}
-          overwrite: true
+          toolchain: 1.93.0
+      - name: Install SP1 toolchain
+        if: matrix.component == 'sp1-programs'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          curl -L https://sp1.succinct.xyz | bash
+          ~/.sp1/bin/sp1up --version "$SP1_VERSION" --token "$GITHUB_TOKEN"
+          ~/.sp1/bin/cargo-prove prove --version
+      - name: Install just
+        if: matrix.component == 'sp1-programs' || matrix.component == 'cw-ics08-wasm-eth'
+        uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
+      - name: Build SP1 Programs
+        if: matrix.component == 'sp1-programs'
+        run: just solidity::build-sp1-programs
+
+      # cw-ics08-wasm-eth
+      - name: Build the light client
+        if: matrix.component == 'cw-ics08-wasm-eth'
+        run: |
+          # Release the binary built here from the tagged sources rather than the committed copy,
+          # so the provenance and SBOM describe the released binary. The build overwrites the
+          # committed copy, and must reproduce it, so the release is the binary the e2e tests ran.
+          wasm=e2e/interchaintestv8/wasm/cw_ics08_wasm_eth.wasm.gz
+          committed=$(gunzip -c "$wasm" | sha256sum | cut -d' ' -f1)
+          just solidity::build-cw-ics08-wasm-eth
+          built=$(gunzip -c "$wasm" | sha256sum | cut -d' ' -f1)
+          if [[ "$built" != "$committed" ]]; then
+            echo "::error::The built light client (${built}) does not match the committed ${wasm} (${committed}); rebuild it with 'just solidity::build-cw-ics08-wasm-eth' and commit it"
+            exit 1
+          fi
+
+      # proof-api
+      - name: Build proof-api
+        if: matrix.component == 'proof-api'
+        run: |
+          # Use the builder stage of the image's Dockerfile, so the released binary is built in
+          # the same environment as the image built from source by docker.yml.
+          docker build --target builder -t proof-api-builder -f programs/proof-api/Dockerfile .
+          id=$(docker create proof-api-builder)
+          mkdir -p proof-api-dist
+          docker cp "${id}:/app/target/release/proof-api" proof-api-dist/
+          docker rm "$id"
+
+      - name: Collect assets
+        run: |
+          mkdir -p out/assets src
+          case "$COMPONENT" in
+            solidity)
+              cp "ibc-solidity/solidity-contracts-${TAG}.tar.gz" out/assets/
+              sources=(ibc-solidity/package.json ibc-solidity/bun.lock)
+              ;;
+            sp1-programs)
+              elf_dir=ibc-solidity/programs/sp1-programs/target/elf-compilation/riscv64im-succinct-zkvm-elf/release
+              for program in update-client membership uc-and-membership misbehaviour; do
+                cp "${elf_dir}/sp1-ics07-tendermint-${program}" out/assets/
+              done
+              sources=(ibc-solidity/programs/sp1-programs)
+              ;;
+            cw-ics08-wasm-eth)
+              cp e2e/interchaintestv8/wasm/cw_ics08_wasm_eth.wasm.gz out/assets/
+              sources=(ibc-solidity/programs/cw-ics08-wasm-eth)
+              ;;
+            proof-api)
+              cp LICENSE.md proof-api-dist/
+              tar --sort=name --mtime="@$(git log -1 --format=%ct)" \
+                --owner=0 --group=0 --numeric-owner \
+                -C proof-api-dist -cf - proof-api LICENSE.md \
+                | gzip -n > "out/assets/${NAME}.tar.gz"
+              sources=(Cargo.toml Cargo.lock programs/proof-api)
+              ;;
+            *)
+              echo "::error::No assets defined for component ${COMPONENT}"
+              exit 1
+              ;;
+          esac
+          ls -l out/assets
+          git archive --format=tar "$GITHUB_SHA" -- "${sources[@]}" | tar -x -C src
+      - name: Attest release assets
+        uses: cosmos/ibc/.github/actions/attest-release-assets@2afbb3363fa654d53ec1d0808732a4743b00afc3 # main
+        with:
+          name: ${{ env.NAME }}
+          platform: ${{ matrix.platform }}
+          sbom-dir: src
+
+  # Builds each platform image from the attested linux archive, so the image holds exactly the
+  # released binary. proof-api only.
+  image:
+    name: Image ${{ matrix.platform }}
+    needs: [validate-tag, verify]
+    if: needs.validate-tag.outputs.component == 'proof-api'
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.validate-tag.outputs.builds) }}
+    env:
+      NAME: ${{ matrix.name }}
+      PLATFORM: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            programs/proof-api
+            scripts
+      - name: Download release assets
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-assets-${{ env.PLATFORM }}
+          path: ${{ runner.temp }}/release-assets
+      - name: Extract archive
+        run: |
+          context="${RUNNER_TEMP}/image-context"
+          mkdir -p "${context}/scripts"
+          tar -xzf "${RUNNER_TEMP}/release-assets/assets/${NAME}.tar.gz" -C "$context"
+          cp scripts/proof_api_docker_entrypoint.sh "${context}/scripts/"
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build & Push image
+        id: image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ runner.temp }}/image-context
+          file: programs/proof-api/Dockerfile
+          target: target-artifact
+          platforms: linux/${{ matrix.arch }}
+          # The labels docker.yml's metadata-action set on release images before this workflow.
+          labels: |
+            org.opencontainers.image.title=proof-api
+            org.opencontainers.image.description=IBC Contracts Proof API
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ needs.validate-tag.outputs.image-tag }}
+          # Pushed by digest only. A platform tag could be moved before publish-manifest reads it.
+          outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+          # Disable BuildKit's unsigned attestation, so the pushed digest is the platform image
+          # itself rather than an index wrapping it.
+          provenance: false
+      # The platform image gets its provenance and SBOM; the index is signed in publish-manifest.
+      - name: Attest image
+        uses: cosmos/ibc/.github/actions/attest-image@2afbb3363fa654d53ec1d0808732a4743b00afc3 # main
+        with:
+          image: ${{ env.IMAGE_NAME }}
+          digest: ${{ steps.image.outputs.digest }}
+      # publish-manifest builds the index from these digests, so it only references images
+      # attested above.
+      - name: Save image digest
+        env:
+          DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          mkdir -p "${RUNNER_TEMP}/image-digest"
+          echo "$DIGEST" > "${RUNNER_TEMP}/image-digest/${PLATFORM}"
+      - name: Upload image digest
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: image-digest-${{ env.PLATFORM }}
+          path: ${{ runner.temp }}/image-digest/${{ env.PLATFORM }}
+          if-no-files-found: error
+          # Kept as long as the release assets, so "re-run failed jobs" works days later.
+          retention-days: 7
+
+  # Checks every asset against its attestations, for every component. For proof-api it runs before
+  # the image jobs push or attest anything, so no image is published for a release whose assets do
+  # not verify. The release job checks them again before signing.
+  verify:
+    name: Verify release assets
+    needs: [validate-tag, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 10
+    steps:
+      - name: Verify release assets
+        uses: cosmos/ibc/.github/actions/publish-draft-release@2afbb3363fa654d53ec1d0808732a4743b00afc3 # main
+        with:
+          name: ${{ needs.validate-tag.outputs.name }}
+          verify-only: "true"
+
+  # Publish multi-platform image, so the same tag can be used for various architectures
+  publish-manifest:
+    name: Publish multi-platform image
+    needs: [validate-tag, image]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    timeout-minutes: 10
+    env:
+      IMAGE_TAG: ${{ needs.validate-tag.outputs.image-tag }}
+    steps:
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          # imagetools create --metadata-file needs buildx v0.32.0 or later.
+          version: v0.38.1
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download image digests
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: image-digest-*
+          path: ${{ runner.temp }}/image-digest
+          merge-multiple: true
+      - name: Publish manifest
+        id: index
+        run: |
+          metadata="${RUNNER_TEMP}/index-metadata.json"
+          sources=()
+          # One file per image matrix job, so a platform added to that matrix is included here too.
+          for file in "${RUNNER_TEMP}"/image-digest/*; do
+            digest=$(< "$file")
+            sources+=("${IMAGE_NAME}@${digest}")
+          done
+          # Pushed by digest only, so no tag points at the index until it is signed. --dry-run prints
+          # the index it would push; $(...) strips the trailing newline it adds.
+          index=$(docker buildx imagetools create --dry-run "${sources[@]}")
+          index_digest="sha256:$(printf '%s' "$index" | sha256sum | cut -d' ' -f1)"
+          docker buildx imagetools create \
+            --metadata-file "$metadata" \
+            --tag "${IMAGE_NAME}@${index_digest}" \
+            "${sources[@]}"
+          pushed=$(jq -r '."containerimage.descriptor".digest' "$metadata")
+          if [[ "$pushed" != "$index_digest" ]]; then
+            echo "::error::Pushed index ${pushed} does not match its dry run ${index_digest}"
+            exit 1
+          fi
+          docker buildx imagetools inspect "${IMAGE_NAME}@${pushed}"
+          echo "digest=${pushed}" >> "$GITHUB_OUTPUT"
+      - name: Attest and sign image
+        uses: cosmos/ibc/.github/actions/attest-image@2afbb3363fa654d53ec1d0808732a4743b00afc3 # main
+        with:
+          image: ${{ env.IMAGE_NAME }}
+          digest: ${{ steps.index.outputs.digest }}
+          sbom: "false"
+          sign: "true"
+          # Also signs the platform manifests referenced by the index.
+          recursive: "true"
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      # Verified before the tag moves, with the identity checks RELEASES.md gives users, so the tag
+      # only ever points at an image that passes them.
+      - name: Verify image
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DIGEST: ${{ steps.index.outputs.digest }}
+        run: |
+          index="${IMAGE_NAME}@${DIGEST}"
+          images=("$index")
+          for file in "${RUNNER_TEMP}"/image-digest/*; do
+            images+=("${IMAGE_NAME}@$(< "$file")")
+          done
+          for image in "${images[@]}"; do
+            cosign verify "$image" \
+              --certificate-identity "${GITHUB_SERVER_URL}/${GITHUB_WORKFLOW_REF}" \
+              --certificate-oidc-issuer https://token.actions.githubusercontent.com > /dev/null
+            # The index has build provenance; each platform image has build provenance and an SBOM,
+            # whose predicate type follows the SPDX version syft wrote, so it is read from the
+            # attestations rather than assumed.
+            dir="${RUNNER_TEMP}/image-attestations/${image##*:}"
+            rm -rf "$dir"
+            mkdir -p "$dir"
+            (cd "$dir" && gh attestation download "oci://${image}" --repo "$GITHUB_REPOSITORY")
+            sboms=$(jq -r '.dsseEnvelope.payload | @base64d | fromjson | .predicateType
+              | select(startswith("https://spdx.dev/Document/"))' "$dir"/*.jsonl | sort -u)
+            if [[ "$image" != "$index" && -z "$sboms" ]]; then
+              echo "::error::${image} has no SBOM attestation"
+              exit 1
+            fi
+            predicates=(https://slsa.dev/provenance/v1)
+            if [[ "$image" != "$index" ]]; then
+              while IFS= read -r sbom; do
+                predicates+=("$sbom")
+              done <<< "$sboms"
+            fi
+            for predicate in "${predicates[@]}"; do
+              gh attestation verify "oci://${image}" --repo "$GITHUB_REPOSITORY" \
+                --signer-workflow "${GITHUB_WORKFLOW_REF%@*}" \
+                --source-ref "$GITHUB_REF" \
+                --predicate-type "$predicate" > /dev/null
+            done
+            echo "Verified ${image}: signature, ${predicates[*]}"
+          done
+      # Checked again right before the tag moves, in case the release was published while this run
+      # was building, or this job was re-run on its own after validate-tag. Same check as in
+      # validate-tag; change both together.
+      - name: Check the release is still not published with assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          log="${RUNNER_TEMP}/release-lookup.log"
+          if ! published_assets=$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}" --jq '.assets | length' 2> "$log"); then
+            if ! grep -q 'HTTP 404' "$log"; then
+              cat "$log" >&2
+              exit 1
+            fi
+            published_assets=""
+          fi
+          if [[ -n "$published_assets" && "$published_assets" != 0 ]]; then
+            echo "::error::Release ${TAG} is already published with assets, so nothing is re-published"
+            exit 1
+          fi
+      - name: Tag signed image
+        env:
+          DIGEST: ${{ steps.index.outputs.digest }}
+        run: |
+          # A single index source without annotations is pushed as is, so the release tag gets the
+          # signed digest. Checked with a dry run before the tag moves, since a re-encoded index
+          # would be unsigned.
+          index=$(docker buildx imagetools create --dry-run "${IMAGE_NAME}@${DIGEST}")
+          tagged="sha256:$(printf '%s' "$index" | sha256sum | cut -d' ' -f1)"
+          if [[ "$tagged" != "$DIGEST" ]]; then
+            echo "::error::Tagging would push ${tagged}, not the signed index ${DIGEST}"
+            exit 1
+          fi
+          docker buildx imagetools create --tag "${IMAGE_NAME}:${IMAGE_TAG}" "${IMAGE_NAME}@${DIGEST}"
+
+  # Waits for publish-manifest as well for proof-api, so its draft release always comes with a
+  # signed image. The image jobs are skipped for the other components.
+  release:
+    name: Attach signed assets to draft release
+    needs: [validate-tag, verify, publish-manifest]
+    if: >-
+      !cancelled() && needs.verify.result == 'success' &&
+      (needs.validate-tag.outputs.component != 'proof-api' || needs.publish-manifest.result == 'success')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    timeout-minutes: 15
+    steps:
+      - name: Publish draft release
+        uses: cosmos/ibc/.github/actions/publish-draft-release@2afbb3363fa654d53ec1d0808732a4743b00afc3 # main
+        with:
+          name: ${{ needs.validate-tag.outputs.name }}
+          title: ${{ needs.validate-tag.outputs.title }}
+          prerelease: ${{ needs.validate-tag.outputs.prerelease }}
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      # Checks what the release now holds, as RELEASES.md tells users to, so a file that went wrong
+      # in the upload, or one attached outside this run, fails the run. The action verified every
+      # file against its attestations before signing, and sha256sum ties the files to that list.
+      - name: Verify draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          dir="${RUNNER_TEMP}/release-download"
+          rm -rf "$dir"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir "$dir"
+          cd "$dir"
+          cosign verify-blob checksums.txt \
+            --bundle checksums.txt.sigstore.json \
+            --certificate-identity "${GITHUB_SERVER_URL}/${GITHUB_WORKFLOW_REF}" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com
+          sha256sum --check --strict checksums.txt
+          # sha256sum only checks the files listed, so also fail on any attached file it does not
+          # cover.
+          listed=$(sed -E 's/^[0-9a-f]{64} [ *]//' checksums.txt | sort)
+          attached=$(find . -maxdepth 1 -type f ! -name checksums.txt ! -name checksums.txt.sigstore.json -printf '%f\n' | sort)
+          if [[ "$listed" != "$attached" ]]; then
+            echo "::error::checksums.txt does not list exactly the files attached to ${TAG}"
+            diff <(echo "$listed") <(echo "$attached") || true
+            exit 1
+          fi

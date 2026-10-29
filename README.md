@@ -1,4 +1,4 @@
-# IBC Contracts  [![Full Actions][e2e-full-badge]][gha] [![Minimal Actions][e2e-minimal-badge]][gha] [![Foundry][foundry-badge]][foundry] [![License: Apache 2.0][license-badge]][license] [![Code Coverage][codecov-badge]][codecov] [![OpenSSF Scorecard][scorecard-badge]][scorecard]
+# IBC Contracts  [![Full Actions][e2e-full-badge]][gha] [![Minimal Actions][e2e-minimal-badge]][gha] [![Foundry][foundry-badge]][foundry] [![License: Apache 2.0][license-badge]][license] [![Code Coverage][codecov-badge]][codecov] [![OpenSSF Scorecard][scorecard-badge]][scorecard] [![CodeQL][codeql-badge]][codeql] [![Discord][discord-badge]][discord] [![solidity][solidity-badge]][releases] [![sp1-programs][sp1-programs-badge]][releases] [![cw-ics08-wasm-eth][cw-ics08-wasm-eth-badge]][releases] [![proof-api][proof-api-badge]][releases]
 
 ![IBC in Solidity](.github/assets/cosmos-ibc-contracts-github.svg)
 
@@ -18,6 +18,15 @@
 [codecov-tm-lc-badge]: https://codecov.io/gh/cosmos/ibc-contracts/graph/badge.svg?component=tendermint-light-client
 [scorecard]: https://scorecard.dev/viewer/?uri=github.com/cosmos/ibc-contracts
 [scorecard-badge]: https://api.scorecard.dev/projects/github.com/cosmos/ibc-contracts/badge
+[codeql]: https://github.com/cosmos/ibc-contracts/actions/workflows/codeql.yml
+[codeql-badge]: https://github.com/cosmos/ibc-contracts/actions/workflows/codeql.yml/badge.svg
+[discord]: https://discord.com/invite/interchain
+[discord-badge]: https://img.shields.io/discord/669268347736686612?logo=discord&label=Discord
+[releases]: https://github.com/cosmos/ibc-contracts/releases
+[solidity-badge]: https://img.shields.io/github/v/tag/cosmos/ibc-contracts?filter=solidity-v*&label=solidity
+[sp1-programs-badge]: https://img.shields.io/github/v/tag/cosmos/ibc-contracts?filter=sp1-programs-v*&label=sp1-programs
+[cw-ics08-wasm-eth-badge]: https://img.shields.io/github/v/tag/cosmos/ibc-contracts?filter=cw-ics08-wasm-eth-v*&label=cw-ics08-wasm-eth
+[proof-api-badge]: https://img.shields.io/github/v/tag/cosmos/ibc-contracts?filter=proof-api-v*&label=proof-api
 
 This is an implementation of IBC v2 in Solidity and Solana. IBC v2 is a simplified version of the IBC protocol that is encoding agnostic. This enables a trust-minimized IBC connection between Ethereum and a Cosmos SDK chain.
 
@@ -383,6 +392,8 @@ The IBC solidity contracts use [`AccessManager`](https://github.com/OpenZeppelin
 ## Releases
 
 The release lines currently supported are: `solidity-v2.0.x`, `cw-ics08-wasm-eth-v1.3.x`, and `proof-api-v0.7.x`. Please refer to our [versioning guide](./RELEASES.md) for more information on how to understand our release versioning.
+
+See [`RELEASES.md`](./RELEASES.md) for how to cut a release and how to verify its signed files and image.
 
 ## License
 

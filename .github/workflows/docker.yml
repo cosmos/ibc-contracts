@@ -1,14 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 name: docker
+# Builds the unsigned proof-api image for pull requests and manual runs. Release tags get the signed
+# image from release.yml instead, so this workflow has no tag trigger and pushes no version tag.
 
 permissions: {}
 
 on:
   workflow_dispatch:
-  push:
-    tags:
-      - proof-api-v[0-9]+.[0-9]+.[0-9]+
   pull_request:
     paths:
       - '**.rs'
@@ -20,6 +19,7 @@ on:
       - 'ibc-solidity/abi/**'
       - 'ibc-solidity/contracts/**'
       - 'programs/proof-api/Dockerfile'
+      - 'LICENSE.md'
       - 'scripts/proof_api_docker_entrypoint.sh'
 
 # Cancel the workflow if a new commit is pushed to the branch/PR
@@ -59,9 +59,6 @@ jobs:
             org.opencontainers.image.title=proof-api
             org.opencontainers.image.description=IBC Contracts Proof API
           tags: |
-            # Tag triggered events
-            type=match,event=tag,pattern=^proof-api-(v[0-9]+\.[0-9]+\.[0-9]+)$,group=1,priority=1000
-
             # Latest, but only on main
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' && github.event_name != 'workflow_dispatch' }},priority=900
 
