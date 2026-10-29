@@ -11,6 +11,11 @@
 [license-badge]: https://img.shields.io/badge/License-Apache_2.0-blue.svg
 [codecov]: https://codecov.io/gh/cosmos/ibc-contracts
 [codecov-badge]: https://codecov.io/gh/cosmos/ibc-contracts/graph/badge.svg
+[codecov-components]: https://app.codecov.io/gh/cosmos/ibc-contracts/components
+[codecov-solidity-badge]: https://codecov.io/gh/cosmos/ibc-contracts/graph/badge.svg?component=solidity-contracts
+[codecov-cw-eth-badge]: https://codecov.io/gh/cosmos/ibc-contracts/graph/badge.svg?component=cw-ics08-wasm-eth
+[codecov-eth-lc-badge]: https://codecov.io/gh/cosmos/ibc-contracts/graph/badge.svg?component=ethereum-light-client
+[codecov-tm-lc-badge]: https://codecov.io/gh/cosmos/ibc-contracts/graph/badge.svg?component=tendermint-light-client
 [scorecard]: https://scorecard.dev/viewer/?uri=github.com/cosmos/ibc-contracts
 [scorecard-badge]: https://api.scorecard.dev/projects/github.com/cosmos/ibc-contracts/badge
 
@@ -20,30 +25,31 @@ This is an implementation of IBC v2 in Solidity and Solana. IBC v2 is a simplifi
 
 `ibc-contracts` is an implementation of IBC in Solidity.
 
-- [IBC in Solidity](#ibc-in-solidity------)
-  - [Overview](#overview)
-    - [Project Structure](#project-structure)
-    - [Solidity Contracts](#solidity-contracts)
-    - [SP1 Programs for the Light Client](#sp1-programs-for-the-light-client)
-    - [Solana Programs](#solana-programs)
-  - [Build Requirements](#build-requirements)
-    - [Ethereum Requirements](#ethereum-requirements)
-    - [Solana Requirements](#solana-requirements)
-  - [Unit Testing](#unit-testing)
-  - [End to End Testing](#end-to-end-testing)
-    - [Requirements](#requirements)
-    - [Running the tests](#running-the-tests)
-  - [Development](#development)
-  - [Benchmarks](#benchmarks)
-  - [Security Assumptions](#security-assumptions)
-    - [Handling Frozen Light Clients](#handling-frozen-light-clients)
-    - [Security Council and Governance Admin](#security-council-and-governance-admin)
-      - [Admin Powers and Restrictions](#admin-powers-and-restrictions)
-      - [Key Distinction Between Admins](#key-distinction-between-admins)
-    - [Roles and Permissions](#roles-and-permissions)
-  - [Releases](#releases)
-  - [License](#license)
-  - [Acknowledgements](#acknowledgements)
+- [Overview](#overview)
+  - [Project Structure](#project-structure)
+  - [Solidity Contracts](#solidity-contracts)
+  - [SP1 Programs for the Light Client](#sp1-programs-for-the-light-client)
+  - [Solana Programs](#solana-programs)
+- [Build Requirements](#build-requirements)
+  - [Ethereum Requirements](#ethereum-requirements)
+  - [EVM Deployment Requirements](#evm-deployment-requirements)
+  - [Solana Requirements](#solana-requirements)
+- [Unit Testing](#unit-testing)
+- [Code Coverage](#code-coverage)
+- [End to End Testing](#end-to-end-testing)
+  - [Requirements](#requirements)
+  - [Running the tests](#running-the-tests)
+- [Development](#development)
+- [Benchmarks](#benchmarks)
+- [Security Assumptions](#security-assumptions)
+  - [Handling Frozen Light Clients](#handling-frozen-light-clients)
+  - [Security Council and Governance Admin](#security-council-and-governance-admin)
+    - [Admin Powers and Restrictions](#admin-powers-and-restrictions)
+    - [Key Distinction Between Admins](#key-distinction-between-admins)
+  - [Roles and Permissions](#roles-and-permissions)
+- [Releases](#releases)
+- [License](#license)
+- [Acknowledgements](#acknowledgements)
 
 ### Project Structure
 
@@ -186,8 +192,6 @@ anchor deploy
 > anchor-nix deploy
 > ```
 
-### Solana Programs
-
 For detailed information about Solana IBC programs including deployment, key generation, access control, and upgradability, see the **[Solana Programs README](ibc-solana/README.md)**.
 
 ## Unit Testing
@@ -205,6 +209,19 @@ The recipe also accepts a `testname` argument that will only run the test with t
 ```shell
 just solidity::test-foundry test_success_sendTransfer
 ```
+
+## Code Coverage
+
+Coverage is reported to [Codecov][codecov] from the Foundry and Rust unit tests, and is tracked separately for each component:
+
+| Component | Path | Coverage |
+| --- | --- | --- |
+| Solidity contracts | `ibc-solidity/contracts/` | [![Solidity contracts][codecov-solidity-badge]][codecov-components] |
+| CosmWasm Ethereum light client | `ibc-solidity/programs/cw-ics08-wasm-eth/` | [![CosmWasm Ethereum light client][codecov-cw-eth-badge]][codecov-components] |
+| Ethereum light client | `packages/ethereum/` | [![Ethereum light client][codecov-eth-lc-badge]][codecov-components] |
+| Tendermint light client | `packages/tendermint-light-client/` | [![Tendermint light client][codecov-tm-lc-badge]][codecov-components] |
+
+The proof API, operator, SP1 prover, and their helper crates are excluded: they are relaying infrastructure rather than security-critical software, and are exercised by the [end-to-end tests](#end-to-end-testing). See [`codecov.yml`](codecov.yml) for the full list.
 
 ## End to End Testing
 
