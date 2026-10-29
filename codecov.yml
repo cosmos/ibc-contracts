@@ -5,3 +5,35 @@
 flag_management:
   default_rules:
     carryforward: true
+
+# Exclude prover, RPC and binding plumbing that is exercised by e2e tests, not unit tests.
+ignore:
+  - "packages/proof-api/**"
+  - "programs/proof-api/**"
+  - "packages/utils/**"
+  - "packages/sp1-ics07-tendermint-prover/**"
+  # Mostly generated Solidity ABI bindings.
+  - "packages/solidity/**"
+  # Used by the Solana programs; coverage will be set up alongside them.
+  - "packages/constrained_types/**"
+  - "ibc-solidity/programs/operator/**"
+
+# Each component gets its own badge and status, shown in the README.
+component_management:
+  individual_components:
+    - component_id: solidity-contracts
+      name: Solidity contracts
+      paths:
+        - "ibc-solidity/contracts/**"
+    - component_id: cw-ics08-wasm-eth
+      name: CosmWasm Ethereum light client
+      paths:
+        - "ibc-solidity/programs/cw-ics08-wasm-eth/**"
+    - component_id: ethereum-light-client
+      name: Ethereum light client
+      paths:
+        - "packages/ethereum/**"
+    - component_id: tendermint-light-client
+      name: Tendermint light client
+      paths:
+        - "packages/tendermint-light-client/**"

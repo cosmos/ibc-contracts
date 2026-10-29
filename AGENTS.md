@@ -21,3 +21,4 @@ Hard constraints:
 - If Solidity interfaces, ABI-exposed structs, or contract types change, run `just solidity::generate-abi` before validating Go or e2e code.
 - If Solana program interfaces or IDLs change, run `just solana::generate-solana-types`.
 - If `.proto` files change, run `just generate-buf`.
+- Sign off every commit with `git commit -s`.

@@ -39,7 +39,7 @@ interface IBesuLightClientErrors {
     /// @notice Max clock drift must be at most 12 seconds.
     /// @param maxClockDrift The provided max clock drift.
     error InvalidMaxClockDrift(uint64 maxClockDrift);
-    /// @notice Trust level must be within `[1/3, 1]` with a non-zero denominator.
+    /// @notice Trust level must be within `[1/3, 2/3]` with a non-zero denominator.
     /// @param numerator The provided numerator.
     /// @param denominator The provided denominator.
     error InvalidTrustLevel(uint8 numerator, uint8 denominator);

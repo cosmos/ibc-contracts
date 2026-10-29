@@ -588,7 +588,7 @@ const DEFAULT_TRUST_LEVEL: IBesuLightClientMsgs::TrustThreshold =
         denominator: 3,
     };
 
-/// Parses a `<numerator>/<denominator>` trust level and checks that it is within `[1/3, 1]`.
+/// Parses a `<numerator>/<denominator>` trust level and checks that it is within `[1/3, 2/3]`.
 fn parse_trust_level(value: &str) -> Result<IBesuLightClientMsgs::TrustThreshold> {
     let (numerator, denominator) = value
         .split_once('/')
@@ -603,9 +603,9 @@ fn parse_trust_level(value: &str) -> Result<IBesuLightClientMsgs::TrustThreshold
         })?;
     ensure!(
         denominator != 0
-            && numerator <= denominator
-            && 3 * u16::from(numerator) >= u16::from(denominator),
-        "`{TRUST_LEVEL}` must be within [1/3, 1], got {numerator}/{denominator}"
+            && 3 * u16::from(numerator) >= u16::from(denominator)
+            && 3 * u16::from(numerator) <= 2 * u16::from(denominator),
+        "`{TRUST_LEVEL}` must be within [1/3, 2/3], got {numerator}/{denominator}"
     );
     Ok(IBesuLightClientMsgs::TrustThreshold {
         numerator,
@@ -1004,8 +1004,10 @@ mod tests {
 
         assert_eq!(params(None).unwrap(), (2, 3));
         assert_eq!(params(Some("1/3")).unwrap(), (1, 3));
-        assert_eq!(params(Some("1/1")).unwrap(), (1, 1));
-        for invalid in ["", "2", "2/", "a/3", "1/0", "0/0", "1/4", "4/3", "256/256"] {
+        assert_eq!(params(Some("4/6")).unwrap(), (4, 6));
+        for invalid in [
+            "", "2", "2/", "a/3", "1/0", "0/0", "1/4", "3/4", "1/1", "4/3", "256/256",
+        ] {
             assert!(
                 params(Some(invalid)).is_err(),
                 "{invalid} should be rejected"

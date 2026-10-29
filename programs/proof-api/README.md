@@ -164,7 +164,7 @@ Required parameters:
 - `max_clock_drift`: Decimal seconds for allowed future header drift.
 
 Optional parameters:
-- `trust_level`: Minimum fraction of the trusted validator set that must sign an update, as `<numerator>/<denominator>` within `[1/3, 1]`. Defaults to `2/3`.
+- `trust_level`: Minimum fraction of the trusted validator set that must sign an update, as `<numerator>/<denominator>` within `[1/3, 2/3]`. Defaults to `2/3`.
 - `trusted_height`: Decimal source block height. Defaults to the latest source block. The header at this height must still be within `trusting_period` when the calldata is deployed, or the constructor reverts.
 
 Operational notes:
