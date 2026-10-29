@@ -1,144 +1,105 @@
-# IBC Contracts  [![Full Actions][e2e-full-badge]][gha] [![Minimal Actions][e2e-minimal-badge]][gha] [![Foundry][foundry-badge]][foundry] [![License: Apache 2.0][license-badge]][license] [![Code Coverage][codecov-badge]][codecov] [![OpenSSF Scorecard][scorecard-badge]][scorecard] [![CodeQL][codeql-badge]][codeql] [![Discord][discord-badge]][discord] [![solidity][solidity-badge]][releases] [![sp1-programs][sp1-programs-badge]][releases] [![cw-ics08-wasm-eth][cw-ics08-wasm-eth-badge]][releases] [![proof-api][proof-api-badge]][releases]
+# IBC Contracts
 
-![IBC in Solidity](.github/assets/cosmos-ibc-contracts-github.svg)
+[![Full Actions](https://github.com/cosmos/ibc-contracts/actions/workflows/e2e-full.yml/badge.svg)](https://github.com/cosmos/ibc-contracts/actions)
+[![Minimal Actions](https://github.com/cosmos/ibc-contracts/actions/workflows/e2e-minimal.yml/badge.svg)](https://github.com/cosmos/ibc-contracts/actions)
+[![CodeQL](https://github.com/cosmos/ibc-contracts/actions/workflows/codeql.yml/badge.svg)](https://github.com/cosmos/ibc-contracts/actions/workflows/codeql.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/cosmos/ibc-contracts/badge)](https://scorecard.dev/viewer/?uri=github.com/cosmos/ibc-contracts)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
+[![Discord](https://img.shields.io/discord/669268347736686612?logo=discord&label=Discord)](https://discord.com/invite/interchain)
+[![codecov](https://codecov.io/gh/cosmos/ibc-contracts/graph/badge.svg)](https://codecov.io/gh/cosmos/ibc-contracts)
+[![Built with Foundry](https://img.shields.io/badge/Built%20with-Foundry-FFDB1C.svg)](https://getfoundry.sh/)
+[![solidity](https://img.shields.io/github/v/tag/cosmos/ibc-contracts?filter=solidity-v*&label=solidity)](https://github.com/cosmos/ibc-contracts/releases)
+[![sp1-programs](https://img.shields.io/github/v/tag/cosmos/ibc-contracts?filter=sp1-programs-v*&label=sp1-programs)](https://github.com/cosmos/ibc-contracts/releases)
+[![cw-ics08-wasm-eth](https://img.shields.io/github/v/tag/cosmos/ibc-contracts?filter=cw-ics08-wasm-eth-v*&label=cw-ics08-wasm-eth)](https://github.com/cosmos/ibc-contracts/releases)
+[![proof-api](https://img.shields.io/github/v/tag/cosmos/ibc-contracts?filter=proof-api-v*&label=proof-api)](https://github.com/cosmos/ibc-contracts/releases)
 
-[gha]: https://github.com/cosmos/ibc-contracts/actions
-[e2e-minimal-badge]: https://github.com/cosmos/ibc-contracts/actions/workflows/e2e-minimal.yml/badge.svg
-[e2e-full-badge]: https://github.com/cosmos/ibc-contracts/actions/workflows/e2e-full.yml/badge.svg
-[foundry]: https://getfoundry.sh/
-[foundry-badge]: https://img.shields.io/badge/Built%20with-Foundry-FFDB1C.svg
-[license]: https://www.apache.org/licenses/LICENSE-2.0
-[license-badge]: https://img.shields.io/badge/License-Apache_2.0-blue.svg
-[codecov]: https://codecov.io/gh/cosmos/ibc-contracts
-[codecov-badge]: https://codecov.io/gh/cosmos/ibc-contracts/graph/badge.svg
-[codecov-components]: https://app.codecov.io/gh/cosmos/ibc-contracts/components
-[codecov-solidity-badge]: https://codecov.io/gh/cosmos/ibc-contracts/graph/badge.svg?component=solidity-contracts
-[codecov-cw-eth-badge]: https://codecov.io/gh/cosmos/ibc-contracts/graph/badge.svg?component=cw-ics08-wasm-eth
-[codecov-eth-lc-badge]: https://codecov.io/gh/cosmos/ibc-contracts/graph/badge.svg?component=ethereum-light-client
-[codecov-tm-lc-badge]: https://codecov.io/gh/cosmos/ibc-contracts/graph/badge.svg?component=tendermint-light-client
-[scorecard]: https://scorecard.dev/viewer/?uri=github.com/cosmos/ibc-contracts
-[scorecard-badge]: https://api.scorecard.dev/projects/github.com/cosmos/ibc-contracts/badge
-[codeql]: https://github.com/cosmos/ibc-contracts/actions/workflows/codeql.yml
-[codeql-badge]: https://github.com/cosmos/ibc-contracts/actions/workflows/codeql.yml/badge.svg
-[discord]: https://discord.com/invite/interchain
-[discord-badge]: https://img.shields.io/discord/669268347736686612?logo=discord&label=Discord
-[releases]: https://github.com/cosmos/ibc-contracts/releases
-[solidity-badge]: https://img.shields.io/github/v/tag/cosmos/ibc-contracts?filter=solidity-v*&label=solidity
-[sp1-programs-badge]: https://img.shields.io/github/v/tag/cosmos/ibc-contracts?filter=sp1-programs-v*&label=sp1-programs
-[cw-ics08-wasm-eth-badge]: https://img.shields.io/github/v/tag/cosmos/ibc-contracts?filter=cw-ics08-wasm-eth-v*&label=cw-ics08-wasm-eth
-[proof-api-badge]: https://img.shields.io/github/v/tag/cosmos/ibc-contracts?filter=proof-api-v*&label=proof-api
+![banner](./.github/assets/ibc-contracts-banner.webp)
 
-This is an implementation of IBC v2 in Solidity and Solana. IBC v2 is a simplified version of the IBC protocol that is encoding agnostic. This enables a trust-minimized IBC connection between Ethereum and a Cosmos SDK chain.
+## Synopsis
 
-## Overview
+This repository is the home of IBC contracts for Ethereum and Solana. The files include the Solidity contracts, the Solana programs, and the light clients.
 
-`ibc-contracts` is an implementation of IBC in Solidity.
+The [Inter-Blockchain Communication (IBC) Protocol](https://github.com/cosmos/ibc) is the open standard for secure interoperability between independent systems. Visit the [IBC docs](https://ibcprotocol.dev/docs) for more information.
 
-- [Overview](#overview)
-  - [Project Structure](#project-structure)
-  - [Solidity Contracts](#solidity-contracts)
-  - [SP1 Programs for the Light Client](#sp1-programs-for-the-light-client)
-  - [Solana Programs](#solana-programs)
-- [Build Requirements](#build-requirements)
-  - [Ethereum Requirements](#ethereum-requirements)
-  - [EVM Deployment Requirements](#evm-deployment-requirements)
-  - [Solana Requirements](#solana-requirements)
-- [Unit Testing](#unit-testing)
-- [Code Coverage](#code-coverage)
-- [End to End Testing](#end-to-end-testing)
-  - [Requirements](#requirements)
-  - [Running the tests](#running-the-tests)
-- [Development](#development)
-- [Benchmarks](#benchmarks)
-- [Security Assumptions](#security-assumptions)
-  - [Handling Frozen Light Clients](#handling-frozen-light-clients)
-  - [Security Council and Governance Admin](#security-council-and-governance-admin)
-    - [Admin Powers and Restrictions](#admin-powers-and-restrictions)
-    - [Key Distinction Between Admins](#key-distinction-between-admins)
-  - [Roles and Permissions](#roles-and-permissions)
-- [Releases](#releases)
-- [License](#license)
-- [Acknowledgements](#acknowledgements)
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
 
-### Project Structure
+## Repository layout
 
-This project is structured with the following directories:
+| Path | What it is |
+| ---- | ---------- |
+| [`ibc-solidity/contracts/`](ibc-solidity/contracts/README.md) | IBC core, applications, and light clients for EVM chains. |
+| [`ibc-solidity/programs/`](ibc-solidity/programs/) | The Rust programs maintained alongside the contracts: the SP1 programs, the CosmWasm Ethereum light client, and the SP1 fixture operator. |
+| [`ibc-solana/`](ibc-solana/README.md) | IBC core, applications, and light clients implemented as Anchor programs, with shared crates and integration tests. |
+| [`programs/proof-api/`](programs/proof-api/) | Serves the proofs a relayer submits. |
+| [`packages/`](packages/) | Shared Rust crates, including `go-abigen/` for the Go bindings. |
+| [`e2e/`](e2e/) | End-to-end tests, powered by [interchaintest](https://github.com/strangelove-ventures/interchaintest). |
+| [`docs/`](docs/) | Architecture decision records and [audit reports](docs/audits). |
+| [`scripts/`](scripts/), [`tools/`](tools/) | Repository-wide scripts and test tooling. |
 
-- `ibc-solidity/`: Contains the Solidity implementation of IBC and its related light-client programs.
-    - `solidity.just`: Contains the namespaced `just solidity::...` development recipes.
-    - `benchmarks/`: Contains generated gas snapshots and GitHub-readable benchmark tables.
-    - `contracts/`: Contains the Solidity contracts.
-    - `test/`: Contains the Solidity tests.
-    - `scripts/`: Contains Solidity scripts and tools.
-    - `abi/`: Contains the ABIs of the contracts needed for end-to-end tests.
-    - `programs/`: Contains Rust programs maintained alongside the Solidity implementation.
-        - `sp1-programs/`: Contains the SP1 programs for the Tendermint light client.
-        - `cw-ics08-wasm-eth/`: Contains the `CosmWasm` light client for Ethereum.
-        - `operator/`: Contains the fixture generator for the SP1 light client.
-- `ibc-solana/`: Contains the Solana IBC implementation.
-    - `solana.just`: Contains the namespaced `just solana::...` development recipes.
-    - `programs/`: Contains the Anchor programs.
-    - `packages/`: Contains shared Solana IBC Rust crates.
-    - `integration-tests/`: Contains the Solana integration-test workspace.
-- `docs/`: Contains the ADRs and audits for the project.
-- `scripts/`: Contains repository-wide scripts and tools.
-- `e2e/`: Contains the end-to-end tests, powered by [interchaintest](https://github.com/strangelove-ventures/interchaintest).
-- `programs/`: Contains the Rust programs for the project.
-    - `proof-api/`: Contains the proof API implementation.
-- `packages/`: Contains the Rust packages for the project.
-  - `go-abigen/`: Contains the abi generated go files for the Solidity contracts.
-- `tools/`: Contains various tools used for testing.
+## Documentation
 
-### Solidity Contracts
+The published documentation for this repository lives at [ibcprotocol.dev](https://ibcprotocol.dev/docs/ibc/06-ibc-solidity-contracts/01-overview), and its source lives in [cosmos/ibc](https://github.com/cosmos/ibc/tree/main/docs). Documentation changes are tracked there.
 
-| **Contracts** | **Description** | **Status** |
-|:---:|:---:|:---:|
-| `ICS26Router.sol` | IBC router handles sequencing, replay protection, and timeout checks. Passes proofs to light clients for verification, and resolves `portId` for app callbacks. Provable IBC storage is stored in this contract.  | ✅ |
-| `ICS20Transfer.sol` | IBC transfer application to send and receive tokens to/from another IBC transfer implementation. | ✅ |
+- [IBC Solidity contracts](https://ibcprotocol.dev/docs/ibc/06-ibc-solidity-contracts/01-overview) is the reference for each contract: what it does, its storage, events, and roles.
+- [Permissions and upgrades](https://ibcprotocol.dev/docs/ibc/06-ibc-solidity-contracts/06-permissions-and-upgrades) covers the roles, the proxies, and what each deployment fixes for good.
+- [Solana programs](ibc-solana/README.md) covers deployment, key generation, access control, and upgradability.
+- [`UPGRADEABILITY.md`](UPGRADEABILITY.md) is the procedure for upgrading a deployed contract.
+- [Benchmarks](ibc-solidity/benchmarks/README.md) covers SP1 Tendermint packet costs and Besu QBFT light-client operation costs.
+
+## Releases
+
+See [`RELEASES.md`](RELEASES.md) for the versioning scheme, how to cut a release, and how to verify its signed files and image. Current versions are on the [releases page](https://github.com/cosmos/ibc-contracts/releases).
+
+### Solidity contracts
+
+| Contract | What it does | Released |
+| -------- | ------------ | :------: |
+| `ICS26Router.sol` | Sequencing, replay protection, and timeout checks. Passes proofs to light clients and resolves `portId` for app callbacks. Holds the provable IBC store. | ✅ |
+| `ICS20Transfer.sol` | Sends and receives tokens against another ICS-20 implementation. | ✅ |
+| `ICS27GMP.sol` | General message passing, through per-sender interchain accounts. | ✅ |
 | `SP1ICS07Tendermint.sol` | Tendermint light client powered by SP1. The entry point for SP1 proofs. | ✅ |
-| `BesuLightClient.sol` | Besu IBFT 2.0 and QBFT light client for header-validator mode with weak-subjectivity updates and EVM proof verification. | ⏳ |
-| `ICS27GMP.sol` | IBC General Message Passing via Interchain Accounts. | ✅ |
-| `AttestationLightClient.sol` | The multisig contract implementing IBC Light Client specs. | ✅ |
-| `utils/IFTBaseUpgradeable.sol` | Interchain Fungible Token standard. Mint and burn alternative to ICS-20. | ⏳ |
+| `AttestationLightClient.sol` | Verifies state attestations signed by a quorum of attestors. | ✅ |
+| `utils/IFTBaseUpgradeable.sol` | Interchain Fungible Tokens using mint and burn semantics. | ✅ |
+| `BesuLightClient.sol` | Besu IBFT 2.0 and QBFT light client. | ✅ |
 
-### SP1 Programs for the Light Client
+### SP1 programs
 
-|     **Programs**    |                                                                                                                                     **Description**                                                                                                                                     | **Status** |
-|:-------------------:|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|:----------:|
-|   `update-client`   | Once the initial client state and consensus state are submitted, future consensus states can be added to the client by submitting IBC Headers. These headers contain all necessary information to run the Comet BFT Light Client protocol. Also supports partial misbehavior check.     |      ✅     |
-|     `membership`    | As consensus states are added to the client, they can be used for proof verification by relayers wishing to prove packet flow messages against a particular height on the counterparty. This uses the `verify_membership` and `verify_non_membership` methods on the tendermint client. |      ✅     |
-| `uc-and-membership` | This is a program that combines `update-client` and `membership` to update the client, and prove membership of packet flow messages against the new consensus state.                                                                                                                    |      ✅     |
-|    `misbehaviour`   | In case, the malicious subset of the validators exceeds the trust level of the client; then the client can be deceived into accepting invalid blocks and the connection is no longer secure. The tendermint client has some mitigations in place to prevent this.                       |      ✅     |
+| Program | What it does | Released |
+| ------- | ------------ | :------: |
+| `update-client` | Adds a consensus state from an IBC header, running the CometBFT light client protocol. Also supports a partial misbehaviour check. | ✅ |
+| `membership` | Verifies `verify_membership` and `verify_non_membership` against a consensus state the client already holds. | ✅ |
+| `uc-and-membership` | Updates the client and proves membership against the new consensus state, in one program. | ✅ |
+| `misbehaviour` | Handles the case where a malicious subset of validators exceeds the client's trust level. | ✅ |
 
-### Solana Programs
+### Solana programs
 
-| **Programs** | **Description** | **Status** |
-|:---:|:---:|:---:|
-| `access-manager` | A central contract to store the permissions of a system. | ✅ |
-| `attestation` | The multisig contract implementing IBC Light Client specs. | ✅ |
-| `ics07-tendermint` | ICS-07 tendermint light client, powered by tendermint-rs | ✅ |
-| `ics26-router` | IBC router handles sequencing, replay protection, and timeout checks. Passes proofs to light clients for verification, and resolves `portId` for app callbacks. Provable IBC storage is stored in this contract. | ✅ |
-| `ics27-gmp` | IBC General Message Passing via Interchain Accounts. | ✅ |
-| `ift` | Interchain Fungible Token standard. Mint and burn alternative to ICS-20. | ⏳ |
+No Solana release line is tagged yet. The programs below are on `main`.
 
-## Build Requirements
+| Program | What it does |
+| ------- | ------------ |
+| `ics26-router` | The router, matching the Solidity contract's responsibilities. |
+| `ics27-gmp` | General message passing, through interchain accounts. |
+| `ics07-tendermint` | Tendermint light client, powered by `tendermint-rs`. |
+| `attestation` | The multisig light client. |
+| `access-manager` | Stores the permissions for the whole system. |
+| `ift` | Interchain Fungible Token. |
 
-### Ethereum Requirements
+## Build
 
-- [Rust](https://rustup.rs/)
-- [Foundry](https://getfoundry.sh/introduction/installation)
-- [Bun](https://bun.sh/)
-- [Just](https://just.systems/man/en/)
-- [SP1](https://docs.succinct.xyz/docs/sp1/getting-started/install) (_Note: Homebrew installations of rust may fail here_)
-- [Protobuf compiler](https://grpc.io/docs/protoc-installation/)
+### Ethereum
 
-Foundry typically uses git submodules to manage contract dependencies, but this repository uses Node.js packages (via Bun) because submodules don't scale. You can install the contracts dependencies by running the following command:
+Install [Rust](https://rustup.rs/), [Foundry](https://getfoundry.sh/introduction/installation), [Bun](https://bun.sh/), [Just](https://just.systems/man/en/), [SP1](https://docs.succinct.xyz/docs/sp1/getting-started/install), and the [Protobuf compiler](https://grpc.io/docs/protoc-installation/).
+
+> [!NOTE]
+> A Homebrew installation of Rust can fail the SP1 step. Install Rust through rustup instead.
+
+Foundry usually manages contract dependencies with git submodules. This repository uses Node.js packages through Bun, because submodules do not scale:
 
 ```sh
 cd ibc-solidity && bun install
 ```
 
-You also need to have the operator and proof API binaries installed on your machine to run some of the end-to-end tests. You can install them by running the following commands:
+Some end-to-end tests need the operator and proof API binaries:
 
 ```sh
 just solidity::install-operator
@@ -146,178 +107,85 @@ just install-proof-api
 ```
 
 > [!TIP]
-> Nix users can enter a development shell with all the necessary dependencies by running:
->
-> ```sh
-> nix develop
-> ```
+> Nix users get every dependency with `nix develop`.
 
-### EVM Deployment Requirements
+### Solana
 
-The Solidity contracts are compiled for the **Cancun** EVM and rely on EIP-1153 transient storage at runtime (`ReentrancyGuardTransient` in the router and apps, and transient proof caches in the SP1 Tendermint and Besu light clients). Deploy them only to chains with the Cancun hard fork enabled; on a pre-Cancun chain, packet handling and proof verification revert with an invalid opcode. See [`ibc-solidity/contracts/README.md`](./ibc-solidity/contracts/README.md) and the [Besu light client README](./ibc-solidity/contracts/light-clients/besu/README.md#destination-evm-requirements).
-
-### Solana Requirements
-
-- [Rust 1.89.0](https://rustup.rs/) (selected automatically by `ibc-solana/rust-toolchain.toml`)
-- [Anchor](https://www.anchor-lang.com/docs/installation)
-- [Agave](https://www.anchor-lang.com/docs/installation)
-- [Just](https://just.systems/man/en/)
-
-If you have Anchor installed locally, you can use the standard commands:
+Install [Rust](https://rustup.rs/), [Anchor](https://www.anchor-lang.com/docs/installation), [Agave](https://www.anchor-lang.com/docs/installation), and [Just](https://just.systems/man/en/). `ibc-solana/rust-toolchain.toml` selects the Rust version.
 
 ```sh
 just solana::build-solana-programs
 just solana::test-solana
 ```
 
-List every Solana-specific recipe with:
-
-```sh
-just solana
-```
-
-Or directly:
-
-```sh
-cd ibc-solana
-anchor build
-anchor test
-anchor deploy
-```
+List every Solana recipe with `just solana`.
 
 > [!TIP]
-> Nix users can enter a solana development shell with all the necessary dependencies by running:
->
-> ```sh
-> nix develop .#solana
-> ```
->
-> Then navigate to the Solana programs directory and use anchor-nix commands:
->
-> ```sh
-> cd ibc-solana
-> anchor-nix build
-> anchor-nix test
-> anchor-nix deploy
-> ```
+> Nix users can run `nix develop .#solana`, then use `anchor-nix` in place of `anchor` from `ibc-solana/`.
 
-For detailed information about Solana IBC programs including deployment, key generation, access control, and upgradability, see the **[Solana Programs README](ibc-solana/README.md)**.
+### Deploy to an EVM chain
 
-## Unit Testing
+The Solidity contracts compile for the **Cancun** EVM and use EIP-1153 transient storage at runtime, in `ReentrancyGuardTransient` and in the proof caches of the SP1 Tendermint and Besu light clients. Deploy them only to a chain with Cancun enabled. On a pre-Cancun chain, packet handling and proof verification revert with an invalid opcode.
 
-There are multiple unit tests for the solidity contracts located in the `ibc-solidity/test/` directory. The tests are written in Solidity using [foundry/forge](https://book.getfoundry.sh/forge/writing-tests).
+See the [contracts README](ibc-solidity/contracts/README.md) and the [Besu light client README](ibc-solidity/contracts/light-clients/besu/README.md#destination-evm-requirements).
 
-To run all the tests, run the following command:
+## Test
+
+### Unit tests
+
+Solidity tests live in `ibc-solidity/test/` and are written with [forge](https://book.getfoundry.sh/forge/writing-tests):
 
 ```sh
 just solidity::test-foundry
 ```
 
-The recipe also accepts a `testname` argument that will only run the test with the given name. For example:
+Pass a test name to run one of them:
 
-```shell
+```sh
 just solidity::test-foundry test_success_sendTransfer
 ```
 
-## Code Coverage
+### Coverage
 
-Coverage is reported to [Codecov][codecov] from the Foundry and Rust unit tests, and is tracked separately for each component:
+Coverage is reported to [Codecov](https://codecov.io/gh/cosmos/ibc-contracts) from the Foundry and Rust unit tests, tracked per component:
 
 | Component | Path | Coverage |
-| --- | --- | --- |
-| Solidity contracts | `ibc-solidity/contracts/` | [![Solidity contracts][codecov-solidity-badge]][codecov-components] |
-| CosmWasm Ethereum light client | `ibc-solidity/programs/cw-ics08-wasm-eth/` | [![CosmWasm Ethereum light client][codecov-cw-eth-badge]][codecov-components] |
-| Ethereum light client | `packages/ethereum/` | [![Ethereum light client][codecov-eth-lc-badge]][codecov-components] |
-| Tendermint light client | `packages/tendermint-light-client/` | [![Tendermint light client][codecov-tm-lc-badge]][codecov-components] |
+| --------- | ---- | -------- |
+| Solidity contracts | `ibc-solidity/contracts/` | [![Solidity contracts](https://codecov.io/gh/cosmos/ibc-contracts/graph/badge.svg?component=solidity-contracts)](https://app.codecov.io/gh/cosmos/ibc-contracts/components) |
+| CosmWasm Ethereum light client | `ibc-solidity/programs/cw-ics08-wasm-eth/` | [![CosmWasm Ethereum light client](https://codecov.io/gh/cosmos/ibc-contracts/graph/badge.svg?component=cw-ics08-wasm-eth)](https://app.codecov.io/gh/cosmos/ibc-contracts/components) |
+| Ethereum light client | `packages/ethereum/` | [![Ethereum light client](https://codecov.io/gh/cosmos/ibc-contracts/graph/badge.svg?component=ethereum-light-client)](https://app.codecov.io/gh/cosmos/ibc-contracts/components) |
+| Tendermint light client | `packages/tendermint-light-client/` | [![Tendermint light client](https://codecov.io/gh/cosmos/ibc-contracts/graph/badge.svg?component=tendermint-light-client)](https://app.codecov.io/gh/cosmos/ibc-contracts/components) |
 
-The proof API, operator, SP1 prover, and their helper crates are excluded: they are relaying infrastructure rather than security-critical software, and are exercised by the [end-to-end tests](#end-to-end-testing). See [`codecov.yml`](codecov.yml) for the full list.
+[`codecov.yml`](codecov.yml) has the full list.
 
-## End to End Testing
+### End-to-end tests
 
-There are several end-to-end tests in the `e2e/interchaintestv8` directory. These tests are written in Go and use the [`interchaintest`](https://github.com/strangelove-ventures/interchaintest) library.
-It spins up a local Ethereum and a Tendermint network and runs the tests found in [`e2e/interchaintestv8/ibc_eureka_test.go`](e2e/interchaintestv8/ibc_eureka_test.go).
-Some of the tests use the prover network to generate the proofs, so you need to provide your SP1 network private key to `.env` for these tests to pass.
+The tests in `e2e/interchaintestv8` are written in Go and use [interchaintest](https://github.com/strangelove-ventures/interchaintest). They spin up a local Ethereum network and a Tendermint network. Some generate proofs through the prover network, which needs an SP1 network private key in `.env`.
 
-### Requirements
+Install [Go](https://go.dev/doc/install), [Docker](https://docs.docker.com/get-docker/), and [Kurtosis](https://docs.kurtosis.com/install/). Kurtosis must match the `github.com/kurtosis-tech/kurtosis/api/golang` version in the e2e [`go.mod`](e2e/interchaintestv8/go.mod).
 
-- [Go](https://go.dev/doc/install)
-- [Docker](https://docs.docker.com/get-docker/)
-- [Kurtosis](https://docs.kurtosis.com/install/)
-  - Needs to be the same version as `github.com/kurtosis-tech/kurtosis/api/golang` dependency in e2e [`go.mod`](./e2e/interchaintestv8/go.mod) file.
-
-To prepare for running the e2e tests, you need to make sure you have done the following:
-- Set up an .env file (see the instructions in the `.env.example` file)
-- If you have made changes to the contract interfaces or types, you need to update the ABIs by running `just solidity::generate-abi`
+Then set up `.env` as [`.env.example`](.env.example) describes. After changing a contract interface or type, regenerate the ABIs with `just solidity::generate-abi`.
 
 > [!NOTE]
-> If you are running on a Mac with an M chip, you will need to do the following:
->
-> - Set up Rosetta
-> - Enable Rosetta for Docker (in Docker Desktop: Settings -> General -> enable "Use Rosetta for x86_64/amd64 emulation on Apple Silicon")
-> - Pull the foundry image with the following command:
->
->     ```sh
->     docker pull --platform=linux/amd64 ghcr.io/foundry-rs/foundry:latest
->     ```
+> On a Mac with an M chip: set up Rosetta, enable it for Docker under Settings → General, and pull the Foundry image with `docker pull --platform=linux/amd64 ghcr.io/foundry-rs/foundry:latest`.
 
-### Running the tests
+Five suites are available, each taking a test name:
 
-There are five test suites in the `e2e/interchaintestv8` directory:
+| Suite | Command | Needs |
+| ----- | ------- | ----- |
+| IBC contracts through the proof API | `just test-e2e-eureka $TEST_NAME` | operator, proof API |
+| The proof API itself | `just test-e2e-proof-api $TEST_NAME` | operator, proof API |
+| Cosmos-to-Cosmos connections | `just test-e2e-cosmos-proof-api $TEST_NAME` | operator, proof API |
+| SP1 ICS-07 Tendermint light client | `just test-e2e-sp1-ics07 $TEST_NAME` | operator |
+| Multichain transfers | `just test-e2e-multichain $TEST_NAME` | operator, proof API |
 
-- `TestWithIbcEurekaTestSuite`: This test suite tests the IBC contracts via the proof API (requires the operator and the proof API to be installed).
-  - To run any of the tests, run the following command:
+### Lint
 
-        ```sh
-        just test-e2e-eureka $TEST_NAME
-        ```
-
-- `TestWithProofAPITestSuite`: This test suite tests the proof API via the IBC contracts (requires the proof API and operator to be installed).
-  - To run any of the tests, run the following command:
-
-        ```sh
-        just test-e2e-proof-api $TEST_NAME
-        ```
-
-- `TestWithCosmosProofAPITestSuite`: This test suite tests the proof API via Cosmos to Cosmos connections (requires the proof API and operator to be installed).
-  - To run any of the tests, run the following command:
-
-        ```sh
-        just test-e2e-cosmos-proof-api $TEST_NAME
-        ```
-
-- `TestWithSP1ICS07TendermintTestSuite`: This test suite tests the SP1 ICS07 Tendermint light client (requires the operator to be installed).
-  - To run any of the tests, run the following command:
-
-        ```sh
-        just test-e2e-sp1-ics07 $TEST_NAME
-        ```
-
-- `TestWithMultichainTestSuite`: This test suite tests multi-chain transfers with Ethereum and multiple Cosmos chains (requires the proof API and operator to be installed).
-  - To run any of the tests, run the following command:
-
-        ```sh
-        just test-e2e-multichain $TEST_NAME
-        ```
-
-## Development
-
-You may need these additional tools to develop on this project:
-
-- [Natlint](https://docs.rs/crate/natlint/latest)
-- [Abigen](https://geth.ethereum.org/docs/tools/abigen)
-- [golangci-lint](https://golangci-lint.run/welcome/install/#local-installation)
-- [jq](https://jqlang.org/)
-- [GNU Parallel](https://www.gnu.org/software/parallel/)
-
-Before committing, you should lint your code to ensure it follows the style guide. You can do this by running the following command:
+Development also uses [Natlint](https://docs.rs/crate/natlint/latest), [Abigen](https://geth.ethereum.org/docs/tools/abigen), [golangci-lint](https://golangci-lint.run/welcome/install/#local-installation), [jq](https://jqlang.org/), and [GNU Parallel](https://www.gnu.org/software/parallel/). Lint before committing:
 
 ```sh
 just lint
 ```
-
-## Benchmarks
-
-The generated [Solidity benchmark tables](./ibc-solidity/benchmarks/README.md) include SP1 Tendermint end-to-end packet costs and direct Besu QBFT light-client operation costs. Their machine-readable gas snapshots are committed alongside the tables so benchmark changes are visible in GitHub diffs.
 
 ## Security Assumptions
 
@@ -327,16 +195,15 @@ IBC is a peer-to-peer, light-client-based interoperability protocol. This reposi
 - **Besu IBFT 2.0 / QBFT Light Client** – Verifies Besu BFT headers in header-validator mode, tracks the counterparty chain state root, and verifies EVM account/storage proofs for Eureka commitments. (Solidity)
 - [**Ethereum Light Client**](./ibc-solidity/programs/cw-ics08-wasm-eth/README.md) – Verifies the consensus state of the Ethereum chain. (CosmWasm)
 - **Attestation Light Client** – A multisig that can be used if the counterparty chain does not have a light client protocol. (Solidity and Solana)
-- **Solana Tendermint Light Client** - Verifies the consensus state of a Cosmos SDK chain powered by `tendermint-rs`. (Solana)
+- **Solana Tendermint Light Client** – Verifies the consensus state of a Cosmos SDK chain powered by `tendermint-rs`. (Solana)
 
-The security of an IBC connection depends on the integrity of these light clients and the validator sets of the respective chains. However, IBC light clients can become **frozen** under certain conditions, such as:
+The security of an IBC connection depends on the integrity of its light clients and their underlying trust assumptions, including the relevant validator or attestor sets.
 
-- Detection of two conflicting valid headers.
-- Failure to update the light client for an extended period.
+Depending on the implementation, a light client can become **frozen** after detecting misbehaviour, such as two conflicting valid headers. A client with a trusting period can instead **expire** if it is not updated before that period elapses. Freezing and expiration are distinct conditions; recovery procedures depend on the client implementation.
 
 ### Handling Frozen Light Clients
 
-When a light client freezes, Cosmos SDK chains rely on **governance** to restart the client. However, Ethereum and Solana lack a native governance mechanism for this purpose. **To address this, the Solidity and Solana implementations of IBC requires a timelocked Security Council to restart the light client in case of a freeze.**
+When a light client freezes, Cosmos SDK chains rely on **governance** to restart the client. However, Ethereum and Solana lack a native governance mechanism for this purpose. **To address this, the Solidity and Solana implementations of IBC require a timelocked Security Council to restart the light client in case of a freeze.**
 
 Additionally, the Security Council is responsible for:
 
@@ -347,7 +214,7 @@ Ideally, the Security Council should mirror the validators of the counterparty C
 
 ### Security Council and Governance Admin
 
-Although **`govAdmin`** is not yet implemented, the contract tracking both admins is [`AccessManager`](https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.3.0/contracts/access/manager/AccessManager.sol). We require that the both admins are granted the admin role on `AccessManager.sol`:
+Although **`govAdmin`** is not yet implemented, the contract tracking both admins is [`AccessManager`](https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.3.0/contracts/access/manager/AccessManager.sol). We require that both admins are granted the admin role on `AccessManager.sol`:
 
 - **`timelockedAdmin`** (Security Council)
 - **`govAdmin`** (Governance Admin)
@@ -356,7 +223,7 @@ Other IBC contracts that require access control or upgradability should referenc
 
 #### Admin Powers and Restrictions
 
-Until **govAdmin** is implemented, the **Security Council** remains the sole administrator. Under the `AccessManager` contract, all admins have **equal authority**, including the ability to:
+Until **`govAdmin`** is implemented, the **Security Council** remains the sole administrator. Under the `AccessManager` contract, all admins have **equal authority**, including the ability to:
 
 - Assign or modify the other admin.
 - Manage roles on IBC contracts.
@@ -364,18 +231,18 @@ Until **govAdmin** is implemented, the **Security Council** remains the sole adm
 
 #### Key Distinction Between Admins
 
-The Security Council must **apply a timelock** to itself. This ensures that after delegation, the Security Council only retains power in cases where IBC light clients are **frozen**—effectively making **govAdmin** the primary administrator in normal conditions.
+The Security Council must enforce its own timelock. After delegation, `govAdmin` is intended to handle routine administration, while the Security Council intervenes when a light client is frozen. Both retain equal administrative permissions under `AccessManager`.
 
 > [!WARNING]
 >
 > - The timelock on the **Security Council** is **not** enforced within the IBC contracts but should be self-enforced.
 > - The timelock duration should be at least as long as:
->   - The **govAdmin** timelock (if applicable).
+>   - The **`govAdmin`** timelock (if applicable).
 >   - The time required for governance proposals to pass.
 
 ### Roles and Permissions
 
-The IBC solidity contracts use [`AccessManager`](https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.3.0/contracts/access/manager/AccessManager.sol) to manage roles and permissions and allow the admins to reassign roles. All the roles are defined in [`IBCRolesLib.sol`](./ibc-solidity/contracts/utils/IBCRolesLib.sol):
+The IBC Solidity contracts use [`AccessManager`](https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.3.0/contracts/access/manager/AccessManager.sol) to manage roles and permissions and allow the admins to reassign roles. All the roles are defined in [`IBCRolesLib.sol`](./ibc-solidity/contracts/utils/IBCRolesLib.sol):
 
 | **Role Name** | **Role Id** | **Description** |
 |:---:|:---:|:---:|
@@ -389,16 +256,10 @@ The IBC solidity contracts use [`AccessManager`](https://github.com/OpenZeppelin
 | `ERC20_CUSTOMIZER_ROLE` | 7 | Can set custom `ERC20` contracts for non-native tokens instead of the default `IBCERC20`. |
 | `PUBLIC_ROLE` | `type(uint64).max` | A role that everyone has by default. |
 
-## Releases
-
-The release lines currently supported are: `solidity-v2.0.x`, `cw-ics08-wasm-eth-v1.3.x`, and `proof-api-v0.7.x`. Please refer to our [versioning guide](./RELEASES.md) for more information on how to understand our release versioning.
-
-See [`RELEASES.md`](./RELEASES.md) for how to cut a release and how to verify its signed files and image.
-
 ## License
 
-This project is licensed under the Apache License, Version 2.0. See [LICENSE.md](./LICENSE.md) for the full text.
+Apache License, Version 2.0. See [LICENSE.md](LICENSE.md).
 
 ## Acknowledgements
 
-This project was bootstrapped with this [template](https://github.com/PaulRBerg/foundry-template). Implementations of IBC specifications in [solidity](https://github.com/hyperledger-labs/yui-ibc-solidity/), [CosmWasm](https://github.com/srdtrk/cw-ibc-lite), [golang](https://github.com/cosmos/ibc-go), and [rust](https://github.com/cosmos/ibc-rs) were used as references. We are also grateful to [unionlabs](https://github.com/unionlabs/union/) for their `08-wasm` Ethereum light client implementation for ibc-go which our own implementation is based on.
+Bootstrapped from this [Foundry template](https://github.com/PaulRBerg/foundry-template). The IBC implementations in [Solidity](https://github.com/hyperledger-labs/yui-ibc-solidity/), [CosmWasm](https://github.com/srdtrk/cw-ibc-lite), [Go](https://github.com/cosmos/ibc-go), and [Rust](https://github.com/cosmos/ibc-rs) were used as references. The `08-wasm` Ethereum light client from [unionlabs](https://github.com/unionlabs/union/) is the basis for this repository's own.
