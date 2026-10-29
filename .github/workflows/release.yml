@@ -273,7 +273,7 @@ jobs:
           # shellcheck disable=SC2086
           git archive --format=tar "$GITHUB_SHA" -- $SBOM_PATHS | tar -x -C src
       - name: Attest release assets
-        uses: cosmos/ibc/.github/actions/attest-release-assets@148fd135bbe602e56676592795afa957eff5e559 # cosmos/ibc#1558
+        uses: cosmos/ibc/.github/actions/attest-release-assets@2afbb3363fa654d53ec1d0808732a4743b00afc3 # main
         with:
           name: ${{ env.NAME }}${{ env.ASSET_SUFFIX }}
           platform: ${{ env.PLATFORM }}
@@ -283,7 +283,7 @@ jobs:
   # released binary.
   image:
     name: Image ${{ matrix.platform }}
-    needs: [validate-tag, build, verify]
+    needs: [validate-tag, verify]
     if: needs.validate-tag.outputs.image-builds != '[]'
     runs-on: ${{ matrix.runner }}
     permissions:
@@ -347,7 +347,7 @@ jobs:
           provenance: false
       # The platform image gets its provenance and SBOM; the index is signed in publish-manifest.
       - name: Attest image
-        uses: cosmos/ibc/.github/actions/attest-image@148fd135bbe602e56676592795afa957eff5e559 # cosmos/ibc#1558
+        uses: cosmos/ibc/.github/actions/attest-image@2afbb3363fa654d53ec1d0808732a4743b00afc3 # main
         with:
           image: ${{ env.IMAGE_NAME }}
           digest: ${{ steps.image.outputs.digest }}
@@ -381,16 +381,15 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Verify release assets
-        uses: cosmos/ibc/.github/actions/publish-draft-release@148fd135bbe602e56676592795afa957eff5e559 # cosmos/ibc#1558
+        uses: cosmos/ibc/.github/actions/publish-draft-release@2afbb3363fa654d53ec1d0808732a4743b00afc3 # main
         with:
           name: ${{ needs.validate-tag.outputs.name }}
-          title: ${{ needs.validate-tag.outputs.title }}
           verify-only: "true"
 
   # Publish multi-platform image, so the same tag can be used for various architectures
   publish-manifest:
     name: Publish multi-platform image
-    needs: [validate-tag, image, verify]
+    needs: [validate-tag, image]
     if: needs.validate-tag.outputs.image-builds != '[]'
     runs-on: ubuntu-latest
     permissions:
@@ -445,7 +444,7 @@ jobs:
           docker buildx imagetools inspect "${IMAGE_NAME}@${pushed}"
           echo "digest=${pushed}" >> "$GITHUB_OUTPUT"
       - name: Attest and sign image
-        uses: cosmos/ibc/.github/actions/attest-image@148fd135bbe602e56676592795afa957eff5e559 # cosmos/ibc#1558
+        uses: cosmos/ibc/.github/actions/attest-image@2afbb3363fa654d53ec1d0808732a4743b00afc3 # main
         with:
           image: ${{ env.IMAGE_NAME }}
           digest: ${{ steps.index.outputs.digest }}
@@ -502,7 +501,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Publish draft release
-        uses: cosmos/ibc/.github/actions/publish-draft-release@148fd135bbe602e56676592795afa957eff5e559 # cosmos/ibc#1558
+        uses: cosmos/ibc/.github/actions/publish-draft-release@2afbb3363fa654d53ec1d0808732a4743b00afc3 # main
         with:
           name: ${{ needs.validate-tag.outputs.name }}
           title: ${{ needs.validate-tag.outputs.title }}

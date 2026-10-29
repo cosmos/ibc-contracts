@@ -52,9 +52,9 @@ Each SBOM is generated from the component's sources and lockfiles, so it lists e
    git push origin solidity-v3.0.3
    ```
 
-   Or create it in the GitHub UI while publishing a release, with the notes and **Set as a pre-release** filled in. The UI creates the tag only on publish, so the workflow attaches the signed files to the published release a few minutes later. Steps 3 and 4 are then already done.
+   Or create it in the GitHub UI while publishing a release, with the notes and **Set as a pre-release** filled in. The UI creates the tag only on publish, so the release is live before its files are signed and, for `proof-api`, before its image exists. The workflow attaches the signed files to the published release a few minutes later. Steps 3 and 4 are then already done.
 
-2. Wait for the workflow to attach the signed files. For a tag pushed with `git`, it creates a draft release only after every file is verified and, for `proof-api`, the image is signed. If a job fails, re-run the failed jobs within 7 days, while the run still keeps its build artifacts. After that, re-run all jobs.
+2. Wait for the workflow to attach the signed files. For a tag pushed with `git`, it creates a draft release only after every file is verified and, for `proof-api`, the image is signed. If a job fails, re-run the failed jobs within 7 days, while the run still keeps its build artifacts. After that, re-run all jobs. If the release is already published with some of its files, delete them first. A full re-run stops for a published release that has files.
 3. Write the release notes in the draft. Leave **Set as a pre-release** as it is. The workflow sets it from the tag on every run: checked for a suffix such as `-rc.1`, unchecked otherwise.
 4. Publish the release.
 

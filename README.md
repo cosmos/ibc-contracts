@@ -376,7 +376,7 @@ The IBC solidity contracts use [`AccessManager`](https://github.com/OpenZeppelin
 
 The release lines currently supported are: `solidity-v2.0.x`, `cw-ics08-wasm-eth-v1.3.x`, and `proof-api-v0.7.x`. Please refer to our [versioning guide](./RELEASES.md) for more information on how to understand our release versioning.
 
-See [`RELEASES.md`](./RELEASES.md#cut-a-release) for how to cut a release and how to verify its signed files and image.
+See [`RELEASES.md`](./RELEASES.md) for how to cut a release and how to verify its signed files and image.
 
 ## License
 
