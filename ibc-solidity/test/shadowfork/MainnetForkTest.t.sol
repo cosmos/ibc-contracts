@@ -3,8 +3,6 @@ pragma solidity ^0.8.28;
 
 // solhint-disable gas-small-strings
 
-import { Test } from "forge-std/Test.sol";
-
 import { ICS20Transfer } from "../../contracts/ICS20Transfer.sol";
 import { ICS26Router } from "../../contracts/ICS26Router.sol";
 import { ICS27GMP } from "../../contracts/ICS27GMP.sol";
@@ -25,7 +23,7 @@ import { DeployAccessManagerWithRoles } from "../../scripts/deployments/DeployAc
 import { MulticallTargetMock } from "../solidity-ibc/mocks/MulticallTargetMock.sol";
 import { MainnetDeployment } from "./utils/MainnetIbcImpl.sol";
 
-contract MainnetForkTest is Test, DeployAccessManagerWithRoles {
+contract MainnetForkTest is MainnetDeployment, DeployAccessManagerWithRoles {
     // solhint-disable-next-line var-name-mixedcase
     string public ETH_RPC_URL = vm.envString("ETH_RPC_URL");
 
@@ -34,15 +32,15 @@ contract MainnetForkTest is Test, DeployAccessManagerWithRoles {
     // WARNING: As the mainnet contracts may not be up to date, some interface functions may not work as expected
     // In this case, you should add the necessary interfaces to the `./utils/vX.Y.Z/` directory
 
-    ICS26Router public ics26Proxy = ICS26Router(MainnetDeployment.ICS26_ROUTER);
-    ICS20Transfer public ics20Proxy = ICS20Transfer(MainnetDeployment.ICS20_TRANSFER);
-    ICS27GMP public ics27Proxy = ICS27GMP(MainnetDeployment.ICS27_GMP);
-    AccessManager public accessManager = AccessManager(MainnetDeployment.ACCESS_MANAGER);
-    address public timelockedAdmin = MainnetDeployment.TIMELOCKED_ADMIN;
-    address public relayer = MainnetDeployment.RELAYER;
+    ICS26Router public ics26Proxy = ICS26Router(ICS26_ROUTER);
+    ICS20Transfer public ics20Proxy = ICS20Transfer(ICS20_TRANSFER);
+    ICS27GMP public ics27Proxy = ICS27GMP(ICS27_GMP);
+    AccessManager public accessManager = AccessManager(ACCESS_MANAGER);
+    address public timelockedAdmin = TIMELOCKED_ADMIN;
+    address public relayer = RELAYER;
 
     function setUp() public {
-        MainnetDeployment.selectFork(ETH_RPC_URL);
+        _selectMainnetFork(ETH_RPC_URL);
     }
 
     function test_validate_constants() public view {
