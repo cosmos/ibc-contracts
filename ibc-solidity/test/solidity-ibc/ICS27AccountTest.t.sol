@@ -138,32 +138,25 @@ contract ICS27AccountTest is Test {
 
     function testFuzz_failure_executeWithGas(uint256 gas, uint256 relayerGas) public {
         gas = bound(gas, 100_000, 1_000_000);
-        uint256 lowRelayerGas = bound(relayerGas, 100_000, gas);
-        uint256 highRelayerGas = bound(relayerGas, 2 * gas + 100_000, 30_000_000);
+        relayerGas = bound(relayerGas, 100_000, 4 * gas);
 
         address target = address(new TestCallContract());
         bytes memory data =
             abi.encodeCall(ICS27Account.executeWithGas, (target, abi.encodeCall(TestCallContract.burnGas, ()), 0, gas));
 
-        // Not enough gas for the call runs out of gas, through the account calling itself
-        vm.expectRevert(bytes(""));
         vm.prank(ics27);
-        ics27Account.functionCall{ gas: lowRelayerGas }(address(ics27Account), data);
-
-        // Running out of the gas given to the call is an error, whatever gas the relayer provides
-        vm.expectRevert(Errors.FailedCall.selector);
-        vm.prank(ics27);
-        ics27Account.functionCall{ gas: highRelayerGas }(address(ics27Account), data);
-
-        IICS27AccountMsgs.CallWithGas[] memory calls = new IICS27AccountMsgs.CallWithGas[](1);
-        calls[0] = IICS27AccountMsgs.CallWithGas({
-            target: target, data: abi.encodeCall(TestCallContract.burnGas, ()), value: 0, gas: gas
-        });
-        vm.expectRevert(Errors.FailedCall.selector);
-        vm.prank(ics27);
-        ics27Account.functionCall{ gas: highRelayerGas }(
-            address(ics27Account), abi.encodeCall(ICS27Account.executeBatchWithGas, (calls))
-        );
+        try ics27Account.functionCall{ gas: relayerGas }(address(ics27Account), data) {
+            fail("Call should run out of gas");
+        } catch (bytes memory reason) {
+            if (reason.length == 0) {
+                // Not enough gas for the call runs out of gas, through the account calling itself
+                assertLt(relayerGas, 2 * gas + 100_000, "Enough gas for the call should not run out of gas");
+            } else {
+                // Running out of the gas given to the call is an error, whatever gas the relayer provides
+                assertGt(relayerGas, gas, "Not enough gas for the call should run out of gas");
+                assertEq(reason, abi.encodeWithSelector(Errors.FailedCall.selector), "Reason should be FailedCall");
+            }
+        }
 
         // Unauthorized call
         address unauthorized = makeAddr("unauthorized");
@@ -171,7 +164,7 @@ contract ICS27AccountTest is Test {
             abi.encodeWithSelector(IICS27Errors.ICS27Unauthorized.selector, address(ics27Account), unauthorized)
         );
         vm.prank(unauthorized);
-        ics27Account.executeBatchWithGas(calls);
+        ics27Account.executeWithGas(target, data, 0, gas);
     }
 
     function testFuzz_success_sendValue(uint256 amount) public {

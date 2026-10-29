@@ -692,8 +692,7 @@ abstract contract Integration2Suite is LightClientDriverTest {
 
     function testFuzz_failure_outOfGasGmpWithGas(uint256 relayerGas) public {
         uint256 gas = 10_000_000;
-        uint256 lowRelayerGas = bound(relayerGas, gas / 2, gas);
-        uint256 highRelayerGas = bound(relayerGas, 3 * gas, 5 * gas);
+        relayerGas = bound(relayerGas, gas / 2, 5 * gas);
 
         address user = integrationEnv.createUser();
         address receiver = address(new MulticallTargetMock(address(0)));
@@ -711,15 +710,18 @@ abstract contract Integration2Suite is LightClientDriverTest {
         IICS26RouterMsgs.Packet memory sentPacket =
             ibcImplA.sendGmpAsUser(user, Strings.toHexString(account), payload, accountId.salt);
 
-        // Receiving the packet on B without enough gas for the call fails the relay
-        vm.expectRevert(IICS26RouterErrors.IBCFailedCallback.selector);
-        ibcImplB.recvPacket{ gas: lowRelayerGas }(sentPacket);
-        assertFalse(ibcImplB.relayerHelper().isPacketReceived(sentPacket));
-
-        // Running out of the gas given to the call does not depend on the relayer, so it writes an error ack
-        bytes[] memory acks = ibcImplB.recvPacket{ gas: highRelayerGas }(sentPacket);
-        assertEq(acks, th.SINGLE_ERROR_ACK(), "ack mismatch");
-        assertFalse(ibcImplB.relayerHelper().isPacketReceiveSuccessful(sentPacket));
+        // Receive the packet on B
+        try ibcImplB.recvPacket{ gas: relayerGas }(sentPacket) returns (bytes[] memory acks) {
+            // Running out of the gas given to the call does not depend on the relayer, so it writes an error ack
+            assertGt(relayerGas, gas, "too little gas wrote an ack");
+            assertEq(acks, th.SINGLE_ERROR_ACK(), "ack mismatch");
+            assertFalse(ibcImplB.relayerHelper().isPacketReceiveSuccessful(sentPacket));
+        } catch (bytes memory reason) {
+            // Not enough gas for the call fails the relay
+            assertLt(relayerGas, 3 * gas, "enough gas failed the relay");
+            assertEq(reason, abi.encodeWithSelector(IICS26RouterErrors.IBCFailedCallback.selector), "reason mismatch");
+            assertFalse(ibcImplB.relayerHelper().isPacketReceived(sentPacket));
+        }
     }
 
     function testFuzz_success_timeoutGmp(uint16 saltLen) public {
