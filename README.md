@@ -34,7 +34,6 @@ This is an implementation of IBC v2 in Solidity and Solana. IBC v2 is a simplifi
   - [Ethereum Requirements](#ethereum-requirements)
   - [EVM Deployment Requirements](#evm-deployment-requirements)
   - [Solana Requirements](#solana-requirements)
-  - [Solana Programs](#solana-programs-1)
 - [Unit Testing](#unit-testing)
 - [Code Coverage](#code-coverage)
 - [End to End Testing](#end-to-end-testing)
@@ -192,8 +191,6 @@ anchor deploy
 > anchor-nix test
 > anchor-nix deploy
 > ```
-
-### Solana Programs
 
 For detailed information about Solana IBC programs including deployment, key generation, access control, and upgradability, see the **[Solana Programs README](ibc-solana/README.md)**.
 
