@@ -57,6 +57,7 @@ contract SP1ICS07MembershipTest is MembershipTest {
                 value: VERIFY_MEMBERSHIP_VALUE
             });
 
+            vm.prank(ics26Router);
             ics07Tendermint.verifyMembership(membershipMsg);
 
             console.log("VerifyMembership-", testCases[i].name, " gas used: ", vm.lastCallGas().gasTotalUsed);
@@ -77,6 +78,7 @@ contract SP1ICS07MembershipTest is MembershipTest {
                 path: verifyNonMembershipPath
             });
 
+            vm.prank(ics26Router);
             ics07Tendermint.verifyNonMembership(nonMembershipMsg);
 
             console.log("VerifyNonMembership-", testCases[i].name, " gas used: ", vm.lastCallGas().gasTotalUsed);
@@ -94,6 +96,7 @@ contract SP1ICS07MembershipTest is MembershipTest {
             value: VERIFY_MEMBERSHIP_VALUE
         });
 
+        vm.startPrank(ics26Router);
         ics07Tendermint.verifyMembership(membershipMsg);
 
         // resubmit cached membership proof
@@ -122,6 +125,7 @@ contract SP1ICS07MembershipTest is MembershipTest {
         });
         vm.expectRevert(abi.encodeWithSelector(KeyValuePairNotInCache.selector, verifyMembershipPath, bytes("invalid")));
         ics07Tendermint.verifyMembership(invalidCachedMembershipMsg);
+        vm.stopPrank();
     }
 
     // Confirm that submitting an invalid proof with the real verifier fails.
@@ -143,6 +147,7 @@ contract SP1ICS07MembershipTest is MembershipTest {
             });
 
             vm.expectRevert();
+            vm.prank(ics26Router);
             ics07Tendermint.verifyNonMembership(nonMembershipMsg);
         }
     }
@@ -255,6 +260,7 @@ contract SP1ICS07MembershipTest is MembershipTest {
             expPass: false
         });
 
+        vm.startPrank(ics26Router);
         for (uint256 i = 0; i < testCases.length; ++i) {
             MockInvalidMembershipTestCase memory tc = testCases[i];
 
@@ -295,6 +301,7 @@ contract SP1ICS07MembershipTest is MembershipTest {
                 }
             }
         }
+        vm.stopPrank();
     }
 
     // solhint-disable-next-line gas-struct-packing

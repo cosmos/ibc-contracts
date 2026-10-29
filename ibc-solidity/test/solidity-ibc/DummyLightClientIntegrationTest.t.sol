@@ -376,6 +376,54 @@ contract DummyLightClientIntegrationTest is Test, DeployPermit2, PermitSignature
         assertFalse(relayerHelper.isPacketReceiveSuccessful(recvPacket));
     }
 
+    function test_success_packetLifecycleWhileRouterPaused() public {
+        accessManager.grantRole(IBCRolesLib.PAUSER_ROLE, address(this), 0);
+        ics26Router.pause();
+        assert(ics26Router.paused());
+
+        // Receive
+        (IERC20 receivedERC20,, IICS26RouterMsgs.Packet memory recvPacket) =
+            _receiveICS20Transfer("cosmos1mhmwgrfrcrdex5gnr0vcqt90wknunsxej63feh", defaultSenderStr, "uatom");
+        assert(relayerHelper.isPacketReceiveSuccessful(recvPacket));
+        assertEq(receivedERC20.balanceOf(defaultSender), defaultAmount);
+
+        // Send
+        uint256 halfAmount = defaultAmount / 2;
+        vm.prank(defaultSender);
+        receivedERC20.approve(address(ics20Transfer), defaultAmount);
+        IICS26RouterMsgs.Packet memory ackedPacket = _sendICS20TransferPacket(
+            defaultSenderStr, defaultReceiverStr, address(receivedERC20), halfAmount, clientIdentifier
+        );
+        IICS26RouterMsgs.Packet memory timedOutPacket = _sendICS20TransferPacket(
+            defaultSenderStr, defaultReceiverStr, address(receivedERC20), halfAmount, clientIdentifier
+        );
+        assertEq(receivedERC20.balanceOf(defaultSender), 0);
+
+        // Acknowledge
+        ics26Router.ackPacket(
+            IICS26RouterMsgs.MsgAckPacket({
+                packet: ackedPacket,
+                acknowledgement: ICS20Lib.SUCCESSFUL_ACKNOWLEDGEMENT_JSON,
+                proofAcked: bytes("doesntmatter"), // dummy client will accept
+                proofHeight: IICS02ClientMsgs.Height({ revisionNumber: 1, revisionHeight: 42 }) // will accept
+            })
+        );
+        assertEq(relayerHelper.queryPacketCommitment(ackedPacket.sourceClient, ackedPacket.sequence), 0);
+
+        // Timeout
+        lightClient.setMembershipResult(timedOutPacket.timeoutTimestamp, false);
+        vm.warp(timedOutPacket.timeoutTimestamp);
+        ics26Router.timeoutPacket(
+            IICS26RouterMsgs.MsgTimeoutPacket({
+                packet: timedOutPacket,
+                proofTimeout: bytes("doesntmatter"), // dummy client will accept
+                proofHeight: IICS02ClientMsgs.Height({ revisionNumber: 1, revisionHeight: 42 }) // will accept
+            })
+        );
+        assertEq(relayerHelper.queryPacketCommitment(timedOutPacket.sourceClient, timedOutPacket.sequence), 0);
+        assertEq(receivedERC20.balanceOf(defaultSender), halfAmount);
+    }
+
     function _sendICS20TransferPacket(
         string memory sender,
         string memory receiver,

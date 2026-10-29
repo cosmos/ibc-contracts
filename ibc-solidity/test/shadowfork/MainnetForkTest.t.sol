@@ -7,13 +7,22 @@ import { Test } from "forge-std/Test.sol";
 
 import { ICS20Transfer } from "../../contracts/ICS20Transfer.sol";
 import { ICS26Router } from "../../contracts/ICS26Router.sol";
+import { ICS27GMP } from "../../contracts/ICS27GMP.sol";
+import { ICS27Account } from "../../contracts/utils/ICS27Account.sol";
 import { ICS20Lib } from "../../contracts/utils/ICS20Lib.sol";
+import { ICS27Lib } from "../../contracts/utils/ICS27Lib.sol";
 import { IBCRolesLib } from "../../contracts/utils/IBCRolesLib.sol";
 import { IICS02ClientMsgs } from "../../contracts/msgs/IICS02ClientMsgs.sol";
 import { AccessManager } from "@openzeppelin-contracts/access/manager/AccessManager.sol";
 import { IAccessManaged } from "@openzeppelin-contracts/access/manager/IAccessManaged.sol";
+import { BeaconProxy } from "@openzeppelin-contracts/proxy/beacon/BeaconProxy.sol";
+import { UpgradeableBeacon } from "@openzeppelin-contracts/proxy/beacon/UpgradeableBeacon.sol";
+import { Errors } from "@openzeppelin-contracts/utils/Errors.sol";
+import { IICS02ClientAccessControlled } from "../../contracts/interfaces/IICS02Client.sol";
+import { IICS26RouterAccessControlled } from "../../contracts/interfaces/IICS26Router.sol";
 
 import { DeployAccessManagerWithRoles } from "../../scripts/deployments/DeployAccessManagerWithRoles.sol";
+import { MulticallTargetMock } from "../solidity-ibc/mocks/MulticallTargetMock.sol";
 
 contract MainnetForkTest is Test, DeployAccessManagerWithRoles {
     // solhint-disable-next-line var-name-mixedcase
@@ -26,6 +35,7 @@ contract MainnetForkTest is Test, DeployAccessManagerWithRoles {
 
     ICS26Router public ics26Proxy = ICS26Router(0x3aF134307D5Ee90faa2ba9Cdba14ba66414CF1A7);
     ICS20Transfer public ics20Proxy = ICS20Transfer(0xa348CfE719B63151F228e3C30EB424BA5a983012);
+    ICS27GMP public ics27Proxy = ICS27GMP(0xbebd14A66052d7dc6BDc05e7328E4fEC0a9e3B0e);
     AccessManager public accessManager = AccessManager(0x3fa3f45acE1645614c80679AeEcE0A82A93c77Ec);
     address public timelockedAdmin = 0xb3999B2D30dD8c9faEcE5A8a503fAe42b8b1b614;
     address public relayer = 0xC4C09A23dDBd1fF0f313885265113F83622284C2;
@@ -41,6 +51,10 @@ contract MainnetForkTest is Test, DeployAccessManagerWithRoles {
 
         address router = ics20Proxy.ics26();
         assertEq(router, address(ics26Proxy), "ICS26Router address is not correct");
+
+        address gmp = address(ics26Proxy.getIBCApp(ICS27Lib.DEFAULT_PORT_ID));
+        assertEq(gmp, address(ics27Proxy), "ICS27Proxy address is not correct");
+        assertEq(ics27Proxy.ics26(), address(ics26Proxy), "ICS26Router address is not correct");
 
         address ics07 = address(ics26Proxy.getClient(clientId));
         assertTrue(ics07 != address(0), "Client not found");
@@ -74,5 +88,57 @@ contract MainnetForkTest is Test, DeployAccessManagerWithRoles {
         ics26Proxy.addIBCApp(makeAddr("mockApp"));
         vm.prank(user);
         ics26Proxy.addClient(counterpartyInfo, makeAddr("mockClient"));
+    }
+
+    function test_upgrade_ics26VerifySelectors() public {
+        bytes4[] memory verifySelectors = new bytes4[](2);
+        verifySelectors[0] = IICS02ClientAccessControlled.verifyMembership.selector;
+        verifySelectors[1] = IICS02ClientAccessControlled.verifyNonMembership.selector;
+        uint64 relayerRole =
+            accessManager.getTargetFunctionRole(address(ics26Proxy), IICS26RouterAccessControlled.recvPacket.selector);
+
+        address newLogic = address(new ICS26Router());
+        vm.prank(timelockedAdmin);
+        ics26Proxy.upgradeToAndCall(newLogic, "");
+
+        // the new verification selectors default to ADMIN_ROLE after the upgrade
+        for (uint256 i = 0; i < verifySelectors.length; ++i) {
+            assertEq(
+                accessManager.getTargetFunctionRole(address(ics26Proxy), verifySelectors[i]), IBCRolesLib.ADMIN_ROLE
+            );
+        }
+
+        // the upgrade proposal maps them to the role that relays packets
+        vm.prank(timelockedAdmin);
+        accessManager.setTargetFunctionRole(address(ics26Proxy), verifySelectors, relayerRole);
+        for (uint256 i = 0; i < verifySelectors.length; ++i) {
+            assertEq(accessManager.getTargetFunctionRole(address(ics26Proxy), verifySelectors[i]), relayerRole);
+        }
+    }
+
+    function test_upgrade_ics27Account() public {
+        UpgradeableBeacon beacon = UpgradeableBeacon(ics27Proxy.getAccountBeacon());
+        // An account like the ones ICS27GMP deploys, which all share the beacon
+        ICS27Account account = ICS27Account(
+            address(new BeaconProxy(address(beacon), abi.encodeCall(ICS27Account.initialize, (address(ics27Proxy)))))
+        );
+        address target = address(new MulticallTargetMock(address(0)));
+        bytes memory data = abi.encodeCall(MulticallTargetMock.burnGas, ());
+
+        // the deployed account reports running out of gas as an error, which the router acknowledges
+        vm.expectRevert(Errors.FailedCall.selector);
+        vm.prank(address(ics27Proxy));
+        account.functionCall{ gas: 1_000_000 }(target, data);
+
+        address newLogic = address(new ICS27Account());
+        vm.prank(timelockedAdmin);
+        ics27Proxy.upgradeAccountTo(newLogic);
+        assertEq(beacon.implementation(), newLogic, "Account beacon is not upgraded");
+        assertEq(account.ics27(), address(ics27Proxy), "Account storage is not preserved");
+
+        // the upgraded account reverts without data, so the router fails the relay
+        vm.expectRevert(bytes(""));
+        vm.prank(address(ics27Proxy));
+        account.functionCall{ gas: 1_000_000 }(target, data);
     }
 }
