@@ -18,7 +18,8 @@ interface IICS27AccountMsgs {
     /// @param target The target address to call
     /// @param data The data to send to the target address
     /// @param value The value to send to the target address
-    /// @param gas The gas to call the target address with, which the relayer must provide
+    /// @param gas The gas to call the target address with, which the relayer must provide, plus the 2300 gas stipend
+    /// if `value` is not zero
     struct CallWithGas {
         address target;
         bytes data;

@@ -128,8 +128,9 @@ contract ICS27Account is IICS27Errors, IICS27Account, ContextUpgradeable {
         private
         returns (bytes memory)
     {
-        // A call gets at most 63/64 of the gas left after its own cost
-        if (gasleft() < gas + gas / 63 + CALL_GAS_OVERHEAD) {
+        // A call gets at most 63/64 of the gas left after its own cost, and running out of its gas must leave more
+        // than 1/OUT_OF_GAS_DIVISOR of it, or the call would be treated as the relayer not providing enough gas
+        if (gasleft() < gas + gas / 63 + gas / OUT_OF_GAS_DIVISOR + CALL_GAS_OVERHEAD) {
             // solhint-disable-next-line no-inline-assembly
             assembly {
                 invalid()

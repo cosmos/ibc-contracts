@@ -43,6 +43,7 @@ interface IICS27Account {
 
     /// @notice Performs a Solidity function call using a low level `call` with exactly `gas` gas.
     /// @dev Like `execute`, but runs out of gas if the relayer did not provide enough gas for `gas`.
+    /// @dev Like any call with value, the target also gets a 2300 gas stipend if `value` is not zero.
     /// @dev This function can only be called by self.
     /// @param target The target address to call
     /// @param data The data to send to the target address
@@ -60,6 +61,7 @@ interface IICS27Account {
 
     /// @notice Performs multiple Solidity function calls using a low level `call`, each with exactly its `gas`.
     /// @dev Like `executeBatch`, but runs out of gas if the relayer did not provide enough gas for a call.
+    /// @dev Like any call with value, a target also gets a 2300 gas stipend if its `value` is not zero.
     /// @dev This function can only be called by self.
     /// @param calls The array of `CallWithGas` structs to execute
     /// @return results The array of results from the calls

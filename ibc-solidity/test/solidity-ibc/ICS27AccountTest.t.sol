@@ -151,6 +151,17 @@ contract ICS27AccountTest is Test {
             if (reason.length == 0) {
                 // Not enough gas for the call runs out of gas, through the account calling itself
                 assertLt(relayerGas, 2 * gas + 100_000, "Enough gas for the call should not run out of gas");
+
+                // and the call is not made at all, as the same call to a target that uses no gas runs out of gas too
+                bytes memory gasLeftData = abi.encodeCall(
+                    ICS27Account.executeWithGas, (target, abi.encodeCall(TestCallContract.gasLeft, ()), 0, gas)
+                );
+                vm.prank(ics27);
+                // solhint-disable-next-line avoid-low-level-calls
+                (bool success,) = address(ics27Account).call{ gas: relayerGas }(
+                    abi.encodeCall(ICS27Account.functionCall, (address(ics27Account), gasLeftData))
+                );
+                assertFalse(success, "Running out of the gas given to the call should not fail the relay");
             } else {
                 // Running out of the gas given to the call is an error, whatever gas the relayer provides
                 assertGt(relayerGas, gas, "Not enough gas for the call should run out of gas");
