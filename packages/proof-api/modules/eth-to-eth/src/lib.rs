@@ -307,9 +307,11 @@ impl EthToEthTxBuilder {
 
     fn create_client(&self, parameters: &HashMap<String, String>) -> anyhow::Result<Vec<u8>> {
         match self {
-            Self::Attested(tb) => {
-                build_eth_attestor_create_client_calldata(parameters, tb.provider.clone())
-            }
+            Self::Attested(tb) => build_eth_attestor_create_client_calldata(
+                parameters,
+                tb.ics26_address,
+                tb.provider.clone(),
+            ),
         }
     }
 

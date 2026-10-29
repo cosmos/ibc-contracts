@@ -23,6 +23,7 @@ import { ICS20Lib } from "../../../../contracts/utils/ICS20Lib.sol";
 import { ICS27Lib } from "../../../../contracts/utils/ICS27Lib.sol";
 import { ERC1967Proxy } from "@openzeppelin-contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import { RefImplIBCERC20 } from "../../utils/RefImplIBCERC20.sol";
+import { MulticallTargetMock } from "../../mocks/MulticallTargetMock.sol";
 
 abstract contract Integration2Suite is LightClientDriverTest {
     IbcImpl public ibcImplA;
@@ -38,10 +39,10 @@ abstract contract Integration2Suite is LightClientDriverTest {
 
         // Add the counterparty implementations
         string memory clientId;
-        clientId = ibcImplA.addClient(th.FIRST_CLIENT_ID(), _newDriver(ibcImplB.ics26Router()));
+        clientId = ibcImplA.addClient(th.FIRST_CLIENT_ID(), _newDriver(ibcImplA.ics26Router(), ibcImplB.ics26Router()));
         assertEq(clientId, th.FIRST_CLIENT_ID());
 
-        clientId = ibcImplB.addClient(th.FIRST_CLIENT_ID(), _newDriver(ibcImplA.ics26Router()));
+        clientId = ibcImplB.addClient(th.FIRST_CLIENT_ID(), _newDriver(ibcImplB.ics26Router(), ibcImplA.ics26Router()));
         assertEq(clientId, th.FIRST_CLIENT_ID());
     }
 
@@ -664,6 +665,29 @@ abstract contract Integration2Suite is LightClientDriverTest {
         bytes32 storedCommitment =
             ibcImplA.relayerHelper().queryPacketCommitment(sentPacket.sourceClient, sentPacket.sequence);
         assertEq(storedCommitment, 0);
+    }
+
+    function test_failure_outOfGasGmp() public {
+        address user = integrationEnv.createUser();
+        address receiver = address(new MulticallTargetMock(address(0)));
+        bytes memory payload = abi.encodeCall(MulticallTargetMock.burnGas, ());
+
+        // send packet
+        IICS26RouterMsgs.Packet memory sentPacket =
+            ibcImplA.sendGmpAsUser(user, Strings.toHexString(receiver), payload, "");
+
+        // Receiving the packet on B runs out of gas, which fails the relay instead of writing an error acknowledgement
+        vm.expectRevert(IICS26RouterErrors.IBCFailedCallback.selector);
+        ibcImplB.recvPacket{ gas: 30_000_000 }(sentPacket);
+        assertFalse(ibcImplB.relayerHelper().isPacketReceived(sentPacket));
+
+        // so the packet can be received once the call succeeds
+        bytes memory callResp = bytes("any response");
+        vm.mockCall(receiver, payload, callResp);
+        bytes[] memory acks = ibcImplB.recvPacket(sentPacket);
+        assertEq(acks.length, 1, "ack length mismatch");
+        assertEq(acks[0], ICS27Lib.acknowledgement(callResp), "ack mismatch");
+        assert(ibcImplB.relayerHelper().isPacketReceiveSuccessful(sentPacket));
     }
 
     function testFuzz_success_timeoutGmp(uint16 saltLen) public {

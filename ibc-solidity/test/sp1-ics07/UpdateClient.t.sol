@@ -24,7 +24,7 @@ contract SP1ICS07UpdateClientTest is SP1ICS07TendermintTest {
     function setUpTestWithFixture(string memory fileName) public {
         fixture = loadFixture(fileName);
 
-        setUpTest(fileName, address(0));
+        setUpTest(fileName);
 
         MsgUpdateClient memory updateMsg = abi.decode(fixture.updateMsg, (MsgUpdateClient));
         output = abi.decode(updateMsg.sp1Proof.publicValues, (UpdateClientOutput));
@@ -55,6 +55,7 @@ contract SP1ICS07UpdateClientTest is SP1ICS07TendermintTest {
             vm.warp(_nanosToSeconds(output.time) + 300);
 
             // run verify
+            vm.prank(ics26Router);
             UpdateResult res = ics07Tendermint.updateClient(fixture.updateMsg);
 
             // to console
@@ -79,11 +80,13 @@ contract SP1ICS07UpdateClientTest is SP1ICS07TendermintTest {
         vm.warp(_nanosToSeconds(output.time) + 300);
 
         // run verify
+        vm.startPrank(ics26Router);
         UpdateResult res = ics07Tendermint.updateClient(fixture.updateMsg);
         assert(res == UpdateResult.Update);
 
         // run verify again
         res = ics07Tendermint.updateClient(fixture.updateMsg);
+        vm.stopPrank();
 
         // to console
         console.log("UpdateClient_NoOp gas used: ", vm.lastCallGas().gasTotalUsed);
@@ -95,6 +98,7 @@ contract SP1ICS07UpdateClientTest is SP1ICS07TendermintTest {
         setUpTestWithFixture("update_client_fixture-plonk.json");
 
         vm.expectRevert();
+        vm.prank(ics26Router);
         ics07Tendermint.updateClient(bytes("invalid"));
     }
 
@@ -108,6 +112,7 @@ contract SP1ICS07UpdateClientTest is SP1ICS07TendermintTest {
         MsgUpdateClient memory updateMsg = abi.decode(fixture.updateMsg, (MsgUpdateClient));
         updateMsg.sp1Proof.proof = bytes("");
 
+        vm.startPrank(ics26Router);
         UpdateResult res = mockIcs07Tendermint.updateClient(abi.encode(updateMsg));
         assert(res == UpdateResult.Update);
 
@@ -118,6 +123,7 @@ contract SP1ICS07UpdateClientTest is SP1ICS07TendermintTest {
 
         // run verify again
         res = mockIcs07Tendermint.updateClient(abi.encode(updateMsg));
+        vm.stopPrank();
         assert(res == UpdateResult.Misbehaviour);
 
         ClientState memory clientState = abi.decode(mockIcs07Tendermint.getClientState(), (ClientState));

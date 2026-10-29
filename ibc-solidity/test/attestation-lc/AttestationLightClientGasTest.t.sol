@@ -12,6 +12,8 @@ contract AttestationLightClientGasTest is Test {
     uint64 internal constant INITIAL_HEIGHT = 100;
     uint64 internal constant INITIAL_TS = 1_700_000_000;
 
+    address internal ics26Router = makeAddr("ics26Router");
+
     error NeedAtLeastOneCommitment();
 
     function testGas_VerifyMembership_1of1_1Commit() public {
@@ -58,7 +60,7 @@ contract AttestationLightClientGasTest is Test {
             minRequiredSigs: quorum,
             initialHeight: INITIAL_HEIGHT,
             initialTimestampSeconds: INITIAL_TS,
-            roleManager: address(0)
+            ics26Router: ics26Router
         });
 
         (AM.PacketCompact[] memory packets, AM.PacketCompact memory target) = _makeCommitments(commitmentCount);
@@ -82,6 +84,7 @@ contract AttestationLightClientGasTest is Test {
         msgVerify.path[0] = abi.encodePacked("packet-path", commitmentCount - 1);
         msgVerify.value = abi.encode(target.commitment);
 
+        vm.prank(ics26Router);
         uint256 gasBefore = gasleft();
         uint256 ts = client.verifyMembership(msgVerify);
         uint256 gasUsed = gasBefore - gasleft();

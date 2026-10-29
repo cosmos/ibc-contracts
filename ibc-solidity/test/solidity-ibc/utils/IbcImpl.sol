@@ -115,7 +115,7 @@ contract IbcImpl is Test, DeployAccessManagerWithRoles {
         returns (string memory clientId)
     {
         clientId = ics26Router.addClient(
-            IICS02ClientMsgs.CounterpartyInfo(counterpartyId, _th.EMPTY_MERKLE_PREFIX()), address(driver.lightClient())
+            IICS02ClientMsgs.CounterpartyInfo(counterpartyId, driver.merklePrefix()), address(driver.lightClient())
         );
         _drivers[clientId] = driver;
     }

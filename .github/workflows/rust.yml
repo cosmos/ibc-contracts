@@ -51,6 +51,7 @@ jobs:
     runs-on: depot-ubuntu-24.04-4
     permissions:
       contents: read
+      id-token: write # Codecov OIDC upload
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up environment
@@ -58,10 +59,19 @@ jobs:
 
       - name: Install just
         uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
-      - name: Run unit tests
-        run: just test-cargo
+      - name: Install llvm-tools
+        run: rustup component add llvm-tools-preview
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@c3076e6fa5aeb9a93daf1bd8eff73345250a8a9c # cargo-llvm-cov
+      - name: Run unit tests with coverage
+        run: just coverage-cargo
         env:
           RUST_BACKTRACE: 1
+      - uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          files: lcov.info,lcov-cw.info
+          flags: rust
+          use_oidc: true
 
   build-proof-api:
     name: build-proof-api

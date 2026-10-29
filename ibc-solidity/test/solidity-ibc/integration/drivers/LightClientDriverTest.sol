@@ -9,6 +9,6 @@ import { ILightClientDriver } from "./ILightClientDriver.sol";
 /// @notice Base of integration suites that run on any light client; a mixin picks the client by implementing
 /// `_newDriver`.
 abstract contract LightClientDriverTest is Test {
-    /// @notice Creates a driver whose light client tracks `counterparty`.
-    function _newDriver(ICS26Router counterparty) internal virtual returns (ILightClientDriver);
+    /// @notice Creates a driver whose light client is driven by `host` and tracks `counterparty`.
+    function _newDriver(ICS26Router host, ICS26Router counterparty) internal virtual returns (ILightClientDriver);
 }

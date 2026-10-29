@@ -69,7 +69,7 @@ func TestBesuConsensusStateEncoding(t *testing.T) {
 	}
 	// keccak256(abi.encode(ConsensusState)) for qbft.json's initial trusted state, computed
 	// independently of these bindings with `cast abi-encode "f((uint64,bytes32,address[]))" ... | cast keccak`.
-	want := ethcommon.HexToHash("0xecfbf308ea6a516295fb15952c2b0518e06cf2dcb769175a23d786c04d8ad656")
+	want := ethcommon.HexToHash("0x6a42762d22bc22c0f975f577edc999a99e865a799ed6a081f0832837b3480260")
 	got := crypto.Keccak256Hash(besumsgs.NewBindings().PackConsensusState(state)[4:])
 	require.Equal(t, want, got)
 }
@@ -131,12 +131,16 @@ func testBesuLowOverlapFixture(t *testing.T, consensus string) {
 			base, err := decodeMutableBesuHeader(ethcommon.FromHex(fixture.ConflictingUpdate.HeaderRlp), consensus)
 			require.NoError(t, err)
 			base.setValidators([]ethcommon.Address{trusted})
-			baseRLP, err := base.encode()
+			baseRLP, err := base.signingRLP()
 			require.NoError(t, err)
 			update, err := buildLowOverlapFixture(consensus, 1, 3, liveHeader{HeaderRLP: baseRLP}, toKeyMap([]*ecdsa.PrivateKey{tc.key}))
 			require.NoError(t, err)
-			header, err := decodeMutableBesuHeader(ethcommon.FromHex(update.HeaderRlp), consensus)
+			headerRLP := ethcommon.FromHex(update.HeaderRlp)
+			header, err := decodeMutableBesuHeader(headerRLP, consensus)
 			require.NoError(t, err)
+			signingRLP, err := header.signingRLP()
+			require.NoError(t, err)
+			require.Equal(t, headerRLP, signingRLP)
 			validators, err := header.validators()
 			require.NoError(t, err)
 			require.Len(t, validators, 4)
@@ -149,15 +153,12 @@ func testBesuLowOverlapFixture(t *testing.T, consensus string) {
 				crypto.PubkeyToAddress(syntheticKeys[1].PublicKey),
 				crypto.PubkeyToAddress(syntheticKeys[2].PublicKey),
 			}, validators)
-			seals, err := header.commitSeals()
-			require.NoError(t, err)
-			require.Len(t, seals, 3)
-			digest := header.commitSealDigest()
-			signers := make([]ethcommon.Address, len(seals))
-			for i, seal := range seals {
-				pubkey, err := crypto.SigToPub(digest.Bytes(), seal)
+			require.Len(t, update.CommitSeals, 3)
+			digest := crypto.Keccak256Hash(headerRLP)
+			signers := make([]ethcommon.Address, len(update.CommitSeals))
+			for i, seal := range update.CommitSeals {
+				signers[i], err = recoverCommitSealSigner(digest, ethcommon.FromHex(seal))
 				require.NoError(t, err)
-				signers[i] = crypto.PubkeyToAddress(*pubkey)
 			}
 			require.ElementsMatch(t, []ethcommon.Address{
 				trusted,
@@ -168,16 +169,16 @@ func testBesuLowOverlapFixture(t *testing.T, consensus string) {
 	}
 }
 
-func TestBesuSortedCommitSeals(t *testing.T) {
+func TestBesuNormalizedCommitSeals(t *testing.T) {
 	t.Chdir("../../..")
 	for _, consensus := range []string{testvalues.BesuConsensusQBFT, testvalues.BesuConsensusIBFT2} {
 		t.Run(consensus, func(t *testing.T) {
-			testBesuSortedCommitSeals(t, consensus)
+			testBesuNormalizedCommitSeals(t, consensus)
 		})
 	}
 }
 
-func testBesuSortedCommitSeals(t *testing.T, consensus string) {
+func testBesuNormalizedCommitSeals(t *testing.T, consensus string) {
 	t.Helper()
 	fixturePath := filepath.Join(testvalues.BesuBFTFixturesDir, consensus+".json")
 	fixtureJSON, err := os.ReadFile(fixturePath)
@@ -185,23 +186,28 @@ func testBesuSortedCommitSeals(t *testing.T, consensus string) {
 	var fixture besuFixture
 	require.NoError(t, json.Unmarshal(fixtureJSON, &fixture))
 
-	// The live headers keep Besu's seal order unless sorted at generation time.
-	for _, headerRlp := range []*string{
-		&fixture.AdjacentUpdate.HeaderRlp,
-		&fixture.NonAdjacentUpdate.HeaderRlp,
-		&fixture.LowQuorumUpdate.HeaderRlp,
-		&fixture.ConflictingUpdate.HeaderRlp,
-		&fixture.LowOverlapUpdate.HeaderRlp,
+	// The live headers keep Besu's seal order and recovery ids unless normalized at generation time.
+	for _, update := range []struct {
+		headerRlp   string
+		commitSeals *[]string
+	}{
+		{fixture.AdjacentUpdate.HeaderRlp, &fixture.AdjacentUpdate.CommitSeals},
+		{fixture.NonAdjacentUpdate.HeaderRlp, &fixture.NonAdjacentUpdate.CommitSeals},
+		{fixture.LowQuorumUpdate.HeaderRlp, &fixture.LowQuorumUpdate.CommitSeals},
+		{fixture.ConflictingUpdate.HeaderRlp, &fixture.ConflictingUpdate.CommitSeals},
+		{fixture.LowOverlapUpdate.HeaderRlp, &fixture.LowOverlapUpdate.CommitSeals},
 	} {
-		header, err := decodeMutableBesuHeader(ethcommon.FromHex(*headerRlp), consensus)
+		header, err := decodeMutableBesuHeader(ethcommon.FromHex(update.headerRlp), consensus)
 		require.NoError(t, err)
-		require.NoError(t, header.sortCommitSeals())
-		sortedRLP, err := header.encode()
-		require.NoError(t, err)
-		if *updateBesuSynthetic {
-			*headerRlp = encodeHex(sortedRLP)
+		require.Empty(t, header.seals, "headerRlp must be in its commit seal signing form")
+		for _, seal := range *update.commitSeals {
+			header.seals = append(header.seals, ethcommon.FromHex(seal))
 		}
-		require.Equal(t, encodeHex(sortedRLP), *headerRlp)
+		require.NoError(t, header.normalizeCommitSeals())
+		if *updateBesuSynthetic {
+			*update.commitSeals = encodeHexes(header.seals)
+		}
+		require.Equal(t, encodeHexes(header.seals), *update.commitSeals)
 	}
 	if *updateBesuSynthetic {
 		fixtureJSON, err = json.MarshalIndent(fixture, "", "  ")
