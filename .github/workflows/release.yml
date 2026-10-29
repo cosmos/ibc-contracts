@@ -47,7 +47,7 @@ jobs:
       prerelease: ${{ steps.tag.outputs.prerelease }}
       component: ${{ steps.tag.outputs.component }}
       image-tag: ${{ steps.tag.outputs.image-tag }}
-      proof-api-platforms: ${{ steps.tag.outputs.proof-api-platforms }}
+      builds: ${{ steps.tag.outputs.builds }}
     steps:
       - name: Check tag format
         id: tag
@@ -66,18 +66,30 @@ jobs:
             cw-ics08-wasm-eth) title="CosmWasm ICS08 Wasm Ethereum Light Client ${version}" ;;
             proof-api) title="Proof API ${version}" ;;
           esac
+          # The build matrix: one entry per component build. proof-api's binary and image are built on
+          # a native runner per platform; every other component builds once.
+          if [[ "$component" == proof-api ]]; then
+            builds='[
+              {"platform": "linux-amd64", "arch": "amd64", "runner": "ubuntu-latest"},
+              {"platform": "linux-arm64", "arch": "arm64", "runner": "ubuntu-24.04-arm"}
+            ]'
+          else
+            builds='[{"platform": "all", "runner": "ubuntu-latest"}]'
+          fi
+          # A component built per platform names its files <tag>-<platform>.
+          builds=$(jq -c --arg component "$component" --arg tag "$TAG" '
+            map({component: $component, name: (if .platform == "all" then $tag else "\($tag)-\(.platform)" end)} + .)
+          ' <<< "$builds")
           {
             echo "name=${TAG}"
             echo "title=${title}"
             if [[ -n "$suffix" ]]; then echo "prerelease=true"; else echo "prerelease=false"; fi
-            # Selects the component's build job.
             echo "component=${component}"
             # Read by the proof-api image jobs only. The image is tagged with the version alone, as for
             # the images published before this workflow, e.g. ghcr.io/cosmos/proof-api:v0.8.1.
             echo "image-tag=${version}"
-            # build-proof-api and the image job run once per platform, each on a native runner.
-            # Emitted for every tag, so the matrices are valid while those jobs are skipped.
-            echo 'proof-api-platforms=[{"platform":"linux-amd64","arch":"amd64","runner":"ubuntu-latest"},{"platform":"linux-arm64","arch":"arm64","runner":"ubuntu-24.04-arm"}]'
+            # Also the image matrix for proof-api, so each platform image is built from its archive.
+            echo "builds=${builds}"
           } >> "$GITHUB_OUTPUT"
       - name: Check the release is not published with assets
         env:
@@ -124,66 +136,56 @@ jobs:
           echo "::error::Tagged commit ${GITHUB_SHA} is not on main or a release/* branch"
           exit 1
 
-  # One build job per component; validate-tag selects it from the tag. Each puts its release files in
-  # out/assets and attests them. The SBOM is generated from the component's sources and lockfiles,
-  # staged in src from the tagged commit, so build outputs and installed dependencies stay out of
-  # it. Only the image job pushes to the registry, so the build jobs have no packages permission.
-  build-solidity:
-    name: Build solidity
+  # Builds and attests the release files, one matrix entry per component build, which validate-tag
+  # derives from the tag. Each entry puts its files in out/assets and attests them. The SBOM is
+  # generated from the component's sources and lockfiles, staged in src from the tagged commit, so
+  # build outputs and installed dependencies stay out of it. Only the image job pushes to the
+  # registry, so this job has no packages permission.
+  build:
+    name: Build ${{ matrix.component }} (${{ matrix.platform }})
     needs: [validate-tag]
-    if: needs.validate-tag.outputs.component == 'solidity'
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
       id-token: write
       attestations: write
       artifact-metadata: write
     timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.validate-tag.outputs.builds) }}
+    env:
+      NAME: ${{ matrix.name }}
+      COMPONENT: ${{ matrix.component }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      # solidity
       - name: Install Foundry
+        if: matrix.component == 'solidity'
         uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
         with:
           version: stable
       - name: Install Bun
+        if: matrix.component == 'solidity'
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
       - name: Build and package the contracts
+        if: matrix.component == 'solidity'
         env:
           TAG_NAME: ${{ github.ref_name }}
         run: ./ibc-solidity/scripts/package-contracts.sh
-      - name: Collect assets
-        run: |
-          mkdir -p out/assets src
-          cp "ibc-solidity/solidity-contracts-${TAG}.tar.gz" out/assets/
-          git archive --format=tar "$GITHUB_SHA" -- ibc-solidity/package.json ibc-solidity/bun.lock | tar -x -C src
-      - name: Attest release assets
-        uses: cosmos/ibc/.github/actions/attest-release-assets@2afbb3363fa654d53ec1d0808732a4743b00afc3 # main
-        with:
-          name: ${{ needs.validate-tag.outputs.name }}
-          sbom-dir: src
 
-  build-sp1-programs:
-    name: Build sp1-programs
-    needs: [validate-tag]
-    if: needs.validate-tag.outputs.component == 'sp1-programs'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-      attestations: write
-      artifact-metadata: write
-    timeout-minutes: 90
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
+      # sp1-programs
       - name: Set up Rust
+        if: matrix.component == 'sp1-programs'
         uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
         with:
           toolchain: 1.93.0
       - name: Install SP1 toolchain
+        if: matrix.component == 'sp1-programs'
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
@@ -191,41 +193,15 @@ jobs:
           ~/.sp1/bin/sp1up --version "$SP1_VERSION" --token "$GITHUB_TOKEN"
           ~/.sp1/bin/cargo-prove prove --version
       - name: Install just
+        if: matrix.component == 'sp1-programs' || matrix.component == 'cw-ics08-wasm-eth'
         uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
       - name: Build SP1 Programs
+        if: matrix.component == 'sp1-programs'
         run: just solidity::build-sp1-programs
-      - name: Collect assets
-        run: |
-          mkdir -p out/assets src
-          elf_dir=ibc-solidity/programs/sp1-programs/target/elf-compilation/riscv64im-succinct-zkvm-elf/release
-          for program in update-client membership uc-and-membership misbehaviour; do
-            cp "${elf_dir}/sp1-ics07-tendermint-${program}" out/assets/
-          done
-          git archive --format=tar "$GITHUB_SHA" -- ibc-solidity/programs/sp1-programs | tar -x -C src
-      - name: Attest release assets
-        uses: cosmos/ibc/.github/actions/attest-release-assets@2afbb3363fa654d53ec1d0808732a4743b00afc3 # main
-        with:
-          name: ${{ needs.validate-tag.outputs.name }}
-          sbom-dir: src
 
-  build-cw-ics08-wasm-eth:
-    name: Build cw-ics08-wasm-eth
-    needs: [validate-tag]
-    if: needs.validate-tag.outputs.component == 'cw-ics08-wasm-eth'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-      attestations: write
-      artifact-metadata: write
-    timeout-minutes: 90
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Install just
-        uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
+      # cw-ics08-wasm-eth
       - name: Build the light client
+        if: matrix.component == 'cw-ics08-wasm-eth'
         run: |
           # Release the binary built here from the tagged sources rather than the committed copy,
           # so the provenance and SBOM describe the released binary. The build overwrites the
@@ -238,42 +214,10 @@ jobs:
             echo "::error::The built light client (${built}) does not match the committed ${wasm} (${committed}); rebuild it with 'just solidity::build-cw-ics08-wasm-eth' and commit it"
             exit 1
           fi
-      - name: Collect assets
-        run: |
-          mkdir -p out/assets src
-          cp e2e/interchaintestv8/wasm/cw_ics08_wasm_eth.wasm.gz out/assets/
-          git archive --format=tar "$GITHUB_SHA" -- ibc-solidity/programs/cw-ics08-wasm-eth | tar -x -C src
-      - name: Attest release assets
-        uses: cosmos/ibc/.github/actions/attest-release-assets@2afbb3363fa654d53ec1d0808732a4743b00afc3 # main
-        with:
-          name: ${{ needs.validate-tag.outputs.name }}
-          sbom-dir: src
 
-  # Builds the binary natively per platform, so the image job can build each platform image from
-  # its archive.
-  build-proof-api:
-    name: Build proof-api ${{ matrix.platform }}
-    needs: [validate-tag]
-    if: needs.validate-tag.outputs.component == 'proof-api'
-    runs-on: ${{ matrix.runner }}
-    permissions:
-      contents: read
-      id-token: write
-      attestations: write
-      artifact-metadata: write
-    timeout-minutes: 90
-    strategy:
-      fail-fast: false
-      matrix:
-        include: ${{ fromJSON(needs.validate-tag.outputs.proof-api-platforms) }}
-    env:
-      NAME: ${{ needs.validate-tag.outputs.name }}
-      PLATFORM: ${{ matrix.platform }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
+      # proof-api
       - name: Build proof-api
+        if: matrix.component == 'proof-api'
         run: |
           # Use the builder stage of the image's Dockerfile, so the released binary is built in
           # the same environment as the image built from source by docker.yml.
@@ -282,27 +226,54 @@ jobs:
           mkdir -p proof-api-dist
           docker cp "${id}:/app/target/release/proof-api" proof-api-dist/
           docker rm "$id"
+
       - name: Collect assets
         run: |
           mkdir -p out/assets src
-          cp LICENSE.md proof-api-dist/
-          tar --sort=name --mtime="@$(git log -1 --format=%ct)" \
-            --owner=0 --group=0 --numeric-owner \
-            -C proof-api-dist -cf - proof-api LICENSE.md \
-            | gzip -n > "out/assets/${NAME}-${PLATFORM}.tar.gz"
-          git archive --format=tar "$GITHUB_SHA" -- Cargo.toml Cargo.lock programs/proof-api | tar -x -C src
+          case "$COMPONENT" in
+            solidity)
+              cp "ibc-solidity/solidity-contracts-${TAG}.tar.gz" out/assets/
+              sources=(ibc-solidity/package.json ibc-solidity/bun.lock)
+              ;;
+            sp1-programs)
+              elf_dir=ibc-solidity/programs/sp1-programs/target/elf-compilation/riscv64im-succinct-zkvm-elf/release
+              for program in update-client membership uc-and-membership misbehaviour; do
+                cp "${elf_dir}/sp1-ics07-tendermint-${program}" out/assets/
+              done
+              sources=(ibc-solidity/programs/sp1-programs)
+              ;;
+            cw-ics08-wasm-eth)
+              cp e2e/interchaintestv8/wasm/cw_ics08_wasm_eth.wasm.gz out/assets/
+              sources=(ibc-solidity/programs/cw-ics08-wasm-eth)
+              ;;
+            proof-api)
+              cp LICENSE.md proof-api-dist/
+              tar --sort=name --mtime="@$(git log -1 --format=%ct)" \
+                --owner=0 --group=0 --numeric-owner \
+                -C proof-api-dist -cf - proof-api LICENSE.md \
+                | gzip -n > "out/assets/${NAME}.tar.gz"
+              sources=(Cargo.toml Cargo.lock programs/proof-api)
+              ;;
+            *)
+              echo "::error::No assets defined for component ${COMPONENT}"
+              exit 1
+              ;;
+          esac
+          ls -l out/assets
+          git archive --format=tar "$GITHUB_SHA" -- "${sources[@]}" | tar -x -C src
       - name: Attest release assets
         uses: cosmos/ibc/.github/actions/attest-release-assets@2afbb3363fa654d53ec1d0808732a4743b00afc3 # main
         with:
-          name: ${{ env.NAME }}-${{ env.PLATFORM }}
-          platform: ${{ env.PLATFORM }}
+          name: ${{ env.NAME }}
+          platform: ${{ matrix.platform }}
           sbom-dir: src
 
   # Builds each platform image from the attested linux archive, so the image holds exactly the
-  # released binary.
+  # released binary. proof-api only.
   image:
     name: Image ${{ matrix.platform }}
     needs: [validate-tag, verify]
+    if: needs.validate-tag.outputs.component == 'proof-api'
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
@@ -314,9 +285,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(needs.validate-tag.outputs.proof-api-platforms) }}
+        include: ${{ fromJSON(needs.validate-tag.outputs.builds) }}
     env:
-      NAME: ${{ needs.validate-tag.outputs.name }}
+      NAME: ${{ matrix.name }}
       PLATFORM: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -334,7 +305,7 @@ jobs:
         run: |
           context="${RUNNER_TEMP}/image-context"
           mkdir -p "${context}/scripts"
-          tar -xzf "${RUNNER_TEMP}/release-assets/assets/${NAME}-${PLATFORM}.tar.gz" -C "$context"
+          tar -xzf "${RUNNER_TEMP}/release-assets/assets/${NAME}.tar.gz" -C "$context"
           cp scripts/proof_api_docker_entrypoint.sh "${context}/scripts/"
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Log in to GHCR
@@ -386,12 +357,12 @@ jobs:
           # Kept as long as the release assets, so "re-run failed jobs" works days later.
           retention-days: 7
 
-  # Checks every asset against its attestations before the image jobs push or attest anything, so
-  # no image is published for a release whose assets do not verify. The release job checks them
-  # again before signing.
+  # Checks every asset against its attestations, for every component. For proof-api it runs before
+  # the image jobs push or attest anything, so no image is published for a release whose assets do
+  # not verify. The release job checks them again before signing.
   verify:
     name: Verify release assets
-    needs: [validate-tag, build-proof-api]
+    needs: [validate-tag, build]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -468,6 +439,50 @@ jobs:
           sign: "true"
           # Also signs the platform manifests referenced by the index.
           recursive: "true"
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      # Verified before the tag moves, with the identity checks RELEASES.md gives users, so the tag
+      # only ever points at an image that passes them.
+      - name: Verify image
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DIGEST: ${{ steps.index.outputs.digest }}
+        run: |
+          index="${IMAGE_NAME}@${DIGEST}"
+          images=("$index")
+          for file in "${RUNNER_TEMP}"/image-digest/*; do
+            images+=("${IMAGE_NAME}@$(< "$file")")
+          done
+          for image in "${images[@]}"; do
+            cosign verify "$image" \
+              --certificate-identity "${GITHUB_SERVER_URL}/${GITHUB_WORKFLOW_REF}" \
+              --certificate-oidc-issuer https://token.actions.githubusercontent.com > /dev/null
+            # The index has build provenance; each platform image has build provenance and an SBOM,
+            # whose predicate type follows the SPDX version syft wrote, so it is read from the
+            # attestations rather than assumed.
+            dir="${RUNNER_TEMP}/image-attestations/${image##*:}"
+            rm -rf "$dir"
+            mkdir -p "$dir"
+            (cd "$dir" && gh attestation download "oci://${image}" --repo "$GITHUB_REPOSITORY")
+            sboms=$(jq -r '.dsseEnvelope.payload | @base64d | fromjson | .predicateType
+              | select(startswith("https://spdx.dev/Document/"))' "$dir"/*.jsonl | sort -u)
+            if [[ "$image" != "$index" && -z "$sboms" ]]; then
+              echo "::error::${image} has no SBOM attestation"
+              exit 1
+            fi
+            predicates=(https://slsa.dev/provenance/v1)
+            if [[ "$image" != "$index" ]]; then
+              while IFS= read -r sbom; do
+                predicates+=("$sbom")
+              done <<< "$sboms"
+            fi
+            for predicate in "${predicates[@]}"; do
+              gh attestation verify "oci://${image}" --repo "$GITHUB_REPOSITORY" \
+                --signer-workflow "${GITHUB_WORKFLOW_REF%@*}" \
+                --source-ref "$GITHUB_REF" \
+                --predicate-type "$predicate" > /dev/null
+            done
+            echo "Verified ${image}: signature, ${predicates[*]}"
+          done
       # Checked again right before the tag moves, in case the release was published while this run
       # was building, or this job was re-run on its own after validate-tag. Same check as in
       # validate-tag; change both together.
@@ -502,14 +517,13 @@ jobs:
           fi
           docker buildx imagetools create --tag "${IMAGE_NAME}:${IMAGE_TAG}" "${IMAGE_NAME}@${DIGEST}"
 
-  # Only the tag's build job runs, and the image jobs run for proof-api only, so the other jobs it
-  # needs are skipped. Waits for publish-manifest for proof-api, so its draft release always comes
-  # with a signed image.
+  # Waits for publish-manifest as well for proof-api, so its draft release always comes with a
+  # signed image. The image jobs are skipped for the other components.
   release:
     name: Attach signed assets to draft release
-    needs: [validate-tag, build-solidity, build-sp1-programs, build-cw-ics08-wasm-eth, publish-manifest]
+    needs: [validate-tag, verify, publish-manifest]
     if: >-
-      !cancelled() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') &&
+      !cancelled() && needs.verify.result == 'success' &&
       (needs.validate-tag.outputs.component != 'proof-api' || needs.publish-manifest.result == 'success')
     runs-on: ubuntu-latest
     permissions:
@@ -523,3 +537,29 @@ jobs:
           name: ${{ needs.validate-tag.outputs.name }}
           title: ${{ needs.validate-tag.outputs.title }}
           prerelease: ${{ needs.validate-tag.outputs.prerelease }}
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      # Checks what the release now holds, as RELEASES.md tells users to, so a file that went wrong
+      # in the upload, or one attached outside this run, fails the run. The action verified every
+      # file against its attestations before signing, and sha256sum ties the files to that list.
+      - name: Verify draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          dir="${RUNNER_TEMP}/release-download"
+          rm -rf "$dir"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir "$dir"
+          cd "$dir"
+          cosign verify-blob checksums.txt \
+            --bundle checksums.txt.sigstore.json \
+            --certificate-identity "${GITHUB_SERVER_URL}/${GITHUB_WORKFLOW_REF}" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com
+          sha256sum --check --strict checksums.txt
+          # sha256sum only checks the files listed, so also fail on any attached file it does not
+          # cover.
+          listed=$(sed -E 's/^[0-9a-f]{64} [ *]//' checksums.txt | sort)
+          attached=$(find . -maxdepth 1 -type f ! -name checksums.txt ! -name checksums.txt.sigstore.json -printf '%f\n' | sort)
+          if [[ "$listed" != "$attached" ]]; then
+            echo "::error::checksums.txt does not list exactly the files attached to ${TAG}"
+            diff <(echo "$listed") <(echo "$attached") || true
+            exit 1
+          fi
