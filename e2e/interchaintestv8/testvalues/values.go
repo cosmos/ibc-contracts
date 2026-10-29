@@ -243,8 +243,6 @@ const (
 	ParameterKey_Sp1Verifier = "sp1_verifier"
 	// Zk algorithm parameter key for the proof API's sp1 light client creation.
 	ParameterKey_ZkAlgorithm = "zk_algorithm"
-	// The role manager address parameter key for proof API light client creation.
-	ParameterKey_RoleManager = "role_manager"
 	// Trusting period parameter key for proof API light client creation.
 	ParameterKey_TrustingPeriod = "trusting_period"
 	// Max clock drift parameter key for proof API light client creation.
@@ -305,6 +303,10 @@ var (
 
 	// DefaultMaxClockDrift is the default maximum clock drift used by ICS07Tendermint (in seconds).
 	DefaultMaxClockDrift = 15
+
+	// DefaultBesuMaxClockDrift is the maximum clock drift used by the Besu light client (in seconds).
+	// It must not exceed the 12 second cap enforced by the Besu light client constructor.
+	DefaultBesuMaxClockDrift = 12
 
 	// MaxUint256 is the maximum value for a uint256.
 	MaxUint256 = uint256.MustFromHex("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")

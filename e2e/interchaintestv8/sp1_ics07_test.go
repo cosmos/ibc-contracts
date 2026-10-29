@@ -205,7 +205,6 @@ func (s *SP1ICS07TendermintTestSuite) SetupSuite(ctx context.Context, proofType 
 				Parameters: map[string]string{
 					testvalues.ParameterKey_Sp1Verifier: verifierAddress,
 					testvalues.ParameterKey_ZkAlgorithm: proofType.String(),
-					testvalues.ParameterKey_RoleManager: ethcommon.Address{}.Hex(),
 				},
 			})
 			s.Require().NoError(err)
@@ -373,14 +372,14 @@ func (s *SP1ICS07TendermintTestSuite) MembershipTest(ctx context.Context, proofT
 		)
 		s.Require().NoError(err)
 
-		msg := sp1ics07tendermint.ILightClientMsgsMsgVerifyMembership{
-			ProofHeight: *proofHeight,
+		msg := ics26router.ILightClientMsgsMsgVerifyMembership{
+			ProofHeight: ics26router.IICS02ClientMsgsHeight(*proofHeight),
 			Proof:       ucAndMemProof,
 			Path:        membershipKey,
 			Value:       expValue,
 		}
 
-		tx, err := s.contract.VerifyMembership(s.GetTransactOpts(s.key, eth), msg)
+		tx, err := s.ics26Contract.VerifyMembership(s.GetTransactOpts(s.key, eth), testvalues.CustomClientID, msg)
 		s.Require().NoError(err)
 
 		// wait until transaction is included in a block
@@ -411,13 +410,13 @@ func (s *SP1ICS07TendermintTestSuite) MembershipTest(ctx context.Context, proofT
 		)
 		s.Require().NoError(err)
 
-		msg := sp1ics07tendermint.ILightClientMsgsMsgVerifyNonMembership{
-			ProofHeight: *proofHeight,
+		msg := ics26router.ILightClientMsgsMsgVerifyNonMembership{
+			ProofHeight: ics26router.IICS02ClientMsgsHeight(*proofHeight),
 			Proof:       ucAndMemProof,
 			Path:        nonMembershipKey,
 		}
 
-		tx, err := s.contract.VerifyNonMembership(s.GetTransactOpts(s.key, eth), msg)
+		tx, err := s.ics26Contract.VerifyNonMembership(s.GetTransactOpts(s.key, eth), testvalues.CustomClientID, msg)
 		s.Require().NoError(err)
 
 		// wait until transaction is included in a block
@@ -494,14 +493,14 @@ func (s *SP1ICS07TendermintTestSuite) UpdateClientAndMembershipTest(ctx context.
 		)
 		s.Require().NoError(err)
 
-		msg := sp1ics07tendermint.ILightClientMsgsMsgVerifyMembership{
-			ProofHeight: *proofHeight,
+		msg := ics26router.ILightClientMsgsMsgVerifyMembership{
+			ProofHeight: ics26router.IICS02ClientMsgsHeight(*proofHeight),
 			Proof:       ucAndMemProof,
 			Path:        membershipKey,
 			Value:       expValue,
 		}
 
-		tx, err := s.contract.VerifyMembership(s.GetTransactOpts(s.key, eth), msg)
+		tx, err := s.ics26Contract.VerifyMembership(s.GetTransactOpts(s.key, eth), testvalues.CustomClientID, msg)
 		s.Require().NoError(err)
 
 		// wait until transaction is included in a block
@@ -613,7 +612,7 @@ func (s *SP1ICS07TendermintTestSuite) DoubleSignMisbehaviourTest(ctx context.Con
 		submitMsg, err := operator.MisbehaviourProof(simd.GetCodec(), misbehaviour, fixtureName, args...)
 		s.Require().NoError(err)
 
-		tx, err := s.contract.Misbehaviour(s.GetTransactOpts(s.key, eth), submitMsg)
+		tx, err := s.ics26Contract.SubmitMisbehaviour(s.GetTransactOpts(s.key, eth), testvalues.CustomClientID, submitMsg)
 		s.Require().NoError(err)
 
 		// wait until transaction is included in a block
@@ -702,7 +701,7 @@ func (s *SP1ICS07TendermintTestSuite) BreakingTimeMonotonicityMisbehaviourTest(c
 		submitMsg, err := operator.MisbehaviourProof(simd.GetCodec(), misbehaviour, fixtureName, args...)
 		s.Require().NoError(err)
 
-		tx, err := s.contract.Misbehaviour(s.GetTransactOpts(s.key, eth), submitMsg)
+		tx, err := s.ics26Contract.SubmitMisbehaviour(s.GetTransactOpts(s.key, eth), testvalues.CustomClientID, submitMsg)
 		s.Require().NoError(err)
 
 		// wait until transaction is included in a block
@@ -798,14 +797,14 @@ func (s *SP1ICS07TendermintTestSuite) largeMembershipTest(ctx context.Context, n
 			)
 			s.Require().NoError(err)
 
-			msg := sp1ics07tendermint.ILightClientMsgsMsgVerifyMembership{
-				ProofHeight: *proofHeight,
+			msg := ics26router.ILightClientMsgsMsgVerifyMembership{
+				ProofHeight: ics26router.IICS02ClientMsgsHeight(*proofHeight),
 				Proof:       memProof,
 				Path:        membershipKeys[rndIdx],
 				Value:       expValue,
 			}
 
-			tx, err := s.contract.VerifyMembership(s.GetTransactOpts(s.key, eth), msg)
+			tx, err := s.ics26Contract.VerifyMembership(s.GetTransactOpts(s.key, eth), testvalues.CustomClientID, msg)
 			s.Require().NoError(err)
 
 			// wait until transaction is included in a block

@@ -1,11 +1,8 @@
-# Besu IBFT 2.0 / QBFT Light Clients
+# Besu IBFT 2.0 / QBFT Light Client
 
-This module contains two Solidity light clients for Besu BFT chains originally forked from [yui-ibc-solidity](https://github.com/hyperledger-labs/yui-ibc-solidity):
+This module contains `BesuLightClient.sol`, a Solidity light client for Besu BFT chains originally forked from [yui-ibc-solidity](https://github.com/hyperledger-labs/yui-ibc-solidity). One contract serves both Besu **IBFT 2.0** and **QBFT** counterparties.
 
-- `BesuIBFT2LightClient.sol`
-- `BesuQBFTLightClient.sol`
-
-Both wrappers share the same storage model and proof surface through `BesuLightClientBase.sol`. They differ only in how the commit-seal signing digest is reconstructed from the raw Besu header.
+The two protocols differ only in the header their validators sign for a commit seal. The relayer submits each header already in its protocol's commit-seal signing form, with the commit seals separately, so the client hashes the submitted header the same way for both and does not track which protocol the counterparty runs. See "Commit-seal signing form" below.
 
 ## Storage model
 
@@ -25,10 +22,14 @@ Relayers therefore need to keep the preimages of the heights they intend to refe
 
 ## Verification model notes
 
-- Commit-seal verification follows the existing **YUI Solidity client + besu-ibc-relay-prover** model: reconstruct the sealing header by rewriting `extraData` into the protocol-specific signing form, then recover commit-seal signers from the `keccak256(RLP(header))` digest.
-- This module does **not** claim to independently rederive a distinct Besu network-level consensus-message payload beyond that established YUI/prover model.
-- Trusted overlap requires at least **`ceil(n * trustLevel)`** of the trusted validator set to have signed the new header. `trustLevel` is a `TrustThreshold` fraction set at construction and must be within `[1/3, 1]`; the proof-api defaults it to `2/3`, the same threshold Besu uses for commit-seal quorum. Commit-seal quorum on the new header's validator set is always **`ceil(2n / 3)`**.
-- The trust level comparison is **inclusive**: exactly `n * trustLevel` trusted signers is enough. This differs from ICS07 Tendermint's `TrustThreshold`, which has the same name and shape but requires voting power strictly greater than the fraction. For example, at `1/3` with a trusted set of 6, 2 trusted signers pass here, while ICS07 would require 3.
+- Commit-seal verification recovers the commit-seal signers from `keccak256(headerRlp)`, where `headerRlp` is the submitted header in its commit-seal signing form. This is the digest that `hashBlockForCommitSeal` in the [QBFT specification](https://entethalliance.org/specs/qbft/v1) and Besu's IBFT 2.0 implementation sign.
+- Trusted overlap requires at least **`max(min(ceil(n * trustLevel), floor(2n / 3)), floor(n / 3) + 1)`** of the trusted validator set to have signed the new header. `trustLevel` is a `TrustThreshold` fraction set at construction and must be within `[1/3, 2/3]`; the proof-api defaults it to `2/3`. Commit-seal quorum on the new header's validator set is always **`ceil(2n / 3)`**.
+- In header-validator mode, a validator vote adds or removes at most one validator per block, so the validator sets of any two consensus states at heights `h1 < h2` can differ by at most `h2 - h1` validators (counting validators in one set but not the other). A larger difference proves the consensus states are not from one valid chain; see "Misbehaviour" below. This relies on the chain staying in header-validator mode; validator-contract mode and mode transitions are out of scope.
+- Sub-second block periods are not supported: header timestamps are in whole seconds, so the timestamps of any two consensus states at heights `h1 < h2` must differ by at least `h2 - h1` seconds. A smaller positive difference is a sub-second block time and freezes the client with `SubSecondBlockTime`, separately from time non-monotonicity; see "Misbehaviour" below.
+- The trust level comparison is **inclusive**: exactly `n * trustLevel` trusted signers is enough. ICS07 Tendermint's `TrustThreshold` has the same name and shape but requires voting power strictly greater than the fraction, matching Tendermint's strict `> 2/3` commit rule.
+- The trust level requirement is capped at `floor(2n / 3)` trusted signers so that a single validator vote cannot stall updates. After one validator is voted out of 4, Besu's quorum on the new set of 3 is 2 seals; after one is voted into 5, 1 of the 4 quorum seals can come from the new validator. An uncapped `2/3` would require 3 and 4 trusted signers respectively. With the cap, a `2/3` trust level can require fewer trusted signers than Besu's commit-seal quorum, for example 2 of 4 or 5 of 8.
+- Two or more validator changes between the trusted height and the new header can still leave too few trusted seals: a swap in a set of 6 leaves 3 trusted seals in a quorum of 4, below the 4 required. Relayers then need to update through an intermediate header, crossing one change at a time.
+- Regardless of `trustLevel` and the cap, more than a third of the trusted validator set must sign (`floor(n / 3) + 1`), so at least one honest trusted validator signed as long as at most a third is faulty. This floor takes precedence over the cap for small trusted sets: for example, a trusted set of 1 or 3 requires 1 or 2 trusted signers.
 
 ## Supported scope
 
@@ -41,10 +42,10 @@ Relayers therefore need to keep the preimages of the heights they intend to refe
 
 ## Destination EVM requirements
 
-The Besu light clients are deployed on the **destination** EVM chain, next to that chain's `ICS26Router`. That chain must have the **Cancun** hard fork enabled, in particular [EIP-1153](https://eips.ethereum.org/EIPS/eip-1153) transient storage (`TSTORE` / `TLOAD`):
+The Besu light client is deployed on the **destination** EVM chain, next to that chain's `ICS26Router`. That chain must have the **Cancun** hard fork enabled, in particular [EIP-1153](https://eips.ethereum.org/EIPS/eip-1153) transient storage (`TSTORE` / `TLOAD`):
 
-- `BesuLightClientBase` caches each proven router storage root in transient storage (see "Membership / non-membership proofs" below). On a chain without EIP-1153, every `verifyMembership` and `verifyNonMembership` call reverts with an invalid-opcode error when it tries to write that cache, so packet proof verification fails even when the proof itself is valid.
-- This is not a new requirement relative to the rest of the stack: `ICS26Router`, `ICS20Transfer`, and `ICS27GMP` already use OpenZeppelin's `ReentrancyGuardTransient`, and `SP1ICS07Tendermint` caches proofs in transient storage, so a chain that can run the router can run these clients.
+- `BesuLightClient` caches each proven router storage root in transient storage (see "Membership / non-membership proofs" below). On a chain without EIP-1153, every `verifyMembership` and `verifyNonMembership` call reverts with an invalid-opcode error when it tries to write that cache, so packet proof verification fails even when the proof itself is valid.
+- This is not a new requirement relative to the rest of the stack: `ICS26Router`, `ICS20Transfer`, and `ICS27GMP` already use OpenZeppelin's `ReentrancyGuardTransient`, and `SP1ICS07Tendermint` caches proofs in transient storage, so a chain that can run the router can run this client.
 - All contracts in `ibc-solidity/` are compiled with `evm_version = "cancun"` (`ibc-solidity/foundry.toml`), so the compiled artifacts may also rely on other Shanghai and Cancun opcodes such as `PUSH0` and `MCOPY`. Do not lower `evm_version` to target an older chain; the transient cache has no fallback.
 
 Before deploying to a new destination network, confirm that it reports Cancun as active. A quick check is to `eth_call` a probe that executes `TSTORE`; a pre-Cancun chain returns an invalid-opcode failure. The end-to-end suites exercise this on a Cancun target: Foundry tests run under the `cancun` EVM, and the Besu QBFT e2e genesis enables it with `"cancunTime": 0` (`e2e/interchaintestv8/chainconfig/testdata/besu/genesis.json`).
@@ -58,25 +59,25 @@ The **source** Besu chain, whose headers and proofs are being verified, has no h
 
 ## Constructor
 
-Both wrappers take the same constructor arguments:
+The constructor takes:
 
 ```solidity
 constructor(
     IBesuLightClientMsgs.ClientState memory initialClientState,
     IBesuLightClientMsgs.ConsensusState memory initialConsensusState,
-    address roleManager
+    address ics26Router
 )
 ```
 
 - `initialClientState`: the initial client state, returned as is by `getClientState()`.
   - `ibcRouter`: counterparty `ICS26Router` proxy address whose account/storage proofs are tracked. Must be non-zero.
   - `latestHeight`: trusted Besu block number. `initialConsensusState` is stored at this height. Revision number must be `0` and revision height non-zero.
-  - `trustingPeriod`: weak-subjectivity window in seconds. Must be non-zero.
-  - `maxClockDrift`: allowed future drift for submitted headers in seconds.
+  - `trustingPeriod`: weak-subjectivity window in seconds. Must be non-zero and at most 30 days (`2592000`), or the constructor reverts with `InvalidTrustingPeriod`.
+  - `maxClockDrift`: allowed future drift for submitted headers in seconds. Must be at most 12 seconds, or the constructor reverts with `InvalidMaxClockDrift`.
   - `isFrozen`: must be `false`.
-  - `trustLevel`: minimum fraction of the trusted validator set that must sign an update. Must have a non-zero denominator and lie within `[1/3, 1]`, or the constructor reverts with `InvalidTrustLevel`.
+  - `trustLevel`: minimum fraction of the trusted validator set that must sign an update. Must have a non-zero denominator and lie within `[1/3, 2/3]`, or the constructor reverts with `InvalidTrustLevel`.
 - `initialConsensusState`: the consensus state trusted at `latestHeight`: the header's timestamp in seconds (non-zero), state root, and validator set (non-empty, sorted ascending, no zero address). It must be within the trusting period and no further than `maxClockDrift` in the future at deployment, the same checks `updateClient` applies.
-- `roleManager`: if non-zero, receives admin and `PROOF_SUBMITTER_ROLE`; if zero, proof submission is open to anyone through the zero-address sentinel.
+- `ics26Router`: the local `ICS26Router` that drives the client, stored as the immutable `ICS26_ROUTER`. Must be non-zero. Only it can call `updateClient`, `verifyMembership`, `verifyNonMembership` and `misbehaviour`. `pause()` and `unpause()` are authorized by `PAUSER_ROLE` and `UNPAUSER_ROLE` from `IBCRolesLib` in the router's `AccessManager`; while paused, updates and (non)membership proofs revert but misbehaviour is still accepted.
 
 No proof is checked for the initial states; the deployer is trusted to supply them.
 
@@ -87,33 +88,55 @@ No proof is checked for the initial states; the deployer is trusted to supply th
 ```solidity
 struct MsgUpdateClient {
     bytes headerRlp;
+    bytes[] commitSeals;
     IICS02ClientMsgs.Height trustedHeight;
     ConsensusState consensusStatePreimage;
 }
 ```
 
-- `headerRlp`: full raw Besu block header RLP, including `extraData` and commit seals. The commit seals must be ordered by recovered signer address in strictly ascending order. Besu does not order them this way, so the submitter must reorder them; this is safe because the commit-seal digest excludes the seal list.
+- `headerRlp`: the Besu block header RLP in its commit-seal signing form; see "Commit-seal signing form" below.
+- `commitSeals`: the commit seals from the header's `extraData`, with two rewrites the submitter must apply. Rewriting seals is safe because they sign `headerRlp`, which excludes them.
+  - The commit seals must be ordered by recovered signer address in strictly ascending order. Besu does not order them this way, so the submitter must reorder them.
+  - Each commit seal must be a 65-byte `r || s || v` signature with `v` set to 27 or 28. Besu encodes the recovery id as 0 or 1, so the submitter must add 27 to it. Seals with a 0/1 recovery id revert in OpenZeppelin's `ECDSA.recover`.
+
+  The proof-api `besu-to-eth` module applies both rewrites.
+
 - `trustedHeight`: must use `revisionNumber == 0` and identify a stored consensus state hash.
 - `consensusStatePreimage`: the consensus state trusted at `trustedHeight`. Its hash must match the stored hash.
+
+### Commit-seal signing form
+
+A Besu block header stores its BFT data in `extraData` as the RLP list `[vanity, validators, vote, round, commitSeals]`, for both IBFT 2.0 and QBFT. The relayer removes the commit seals and re-encodes the header in the form its protocol's validators sign:
+
+| Protocol | `extraData` in `headerRlp` |
+| --- | --- |
+| IBFT 2.0 | `[vanity, validators, vote, round]`: 4 items, the seal list dropped. |
+| QBFT | `[vanity, validators, vote, round, []]`: 5 items, the seal list empty (`0xc0`). |
+
+`Header.decodeRlp` accepts exactly these two shapes. Any other `extraData` item count reverts with `InvalidExtraDataFormat(count)`, and a fifth item that is not the empty list `0xc0`, such as a header submitted with its seals still in `extraData`, reverts with `NonEmptyCommitSealList`.
+
+Accepting both shapes in one client does not let seals cross between them. Validators sign only their own protocol's form, so a header converted to the other form has a different digest, and its seals recover to unrelated addresses that fail the signer order or validator set checks. IBFT 2.0's block-hash form, which also drops the round, has 3 `extraData` items and is rejected.
+
+The proof-api derives the signing form from its `consensus_type` setting, because live headers have 5 `extraData` items under both protocols.
 
 On update, the contract:
 
 1. parses and validates the Besu header,
 2. checks the trusted consensus state preimage against the stored hash and the trusting period,
-3. reconstructs the protocol-specific commit-seal digest following the YUI + prover sealing-header model, and recovers the signers, rejecting seals that are not strictly ascending by signer,
+3. recovers the commit-seal signers from `keccak256(headerRlp)` with OpenZeppelin's `ECDSA.recover`, rejecting an empty `commitSeals`, seals that are not 65 bytes, and seals that are not strictly ascending by signer,
 4. checks trusted-validator overlap against the preimage validators and quorum against the new header validators,
 5. stores `keccak256(abi.encode(ConsensusState))` for the new height, built from the header timestamp, the header `stateRoot`, and the header validator set.
 
 Submitting a header whose derived consensus state hash already matches the stored hash at that height returns `UpdateResult.NoOp`. A validly signed header that derives a different consensus state at an already stored height is a double sign: the client sets `ClientState.isFrozen`, emits `DoubleSign`, and returns `UpdateResult.Misbehaviour` without storing the conflicting consensus state.
 
-The header height must be strictly greater than `trustedHeight`, or the update reverts with `InvalidTrustedHeight`. A validly signed header whose timestamp is not greater than the trusted consensus state's timestamp is time non-monotonicity: the client freezes, emits `TimeNonMonotonicity`, and returns `UpdateResult.Misbehaviour`. Because each update is only compared with its own trusted height, two stored consensus states can still end up with timestamps that do not increase with height.
+The header height must be strictly greater than `trustedHeight`, or the update reverts with `InvalidTrustedHeight`. A validly signed header whose timestamp is not greater than the trusted consensus state's timestamp is time non-monotonicity: the client freezes, emits `TimeNonMonotonicity`, and returns `UpdateResult.Misbehaviour`. A validly signed header whose timestamp is greater, but by less than `height - trustedHeight` seconds, is a sub-second block time: the client freezes, emits `SubSecondBlockTime`, and returns `UpdateResult.Misbehaviour`. Likewise, a validly signed header whose validator set differs from the trusted consensus state's by more than `height - trustedHeight` validators is an invalid validator set change: the client freezes, emits `InvalidValidatorSetChange`, and returns `UpdateResult.Misbehaviour`. Because each update is only compared with its own trusted height, two stored consensus states can still end up with timestamps that do not increase with height or increase by less than one second per block, or validator sets that differ by more than their height difference.
 
 ## Misbehaviour
 
-`misbehaviour(bytes)` is permissionless: anyone can submit evidence, regardless of `PROOF_SUBMITTER_ROLE`. It takes `abi.encode(IBesuLightClientMsgs.MsgSubmitMisbehaviour)`, which wraps one ABI-encoded evidence message tagged with its `MisbehaviourType`:
+`misbehaviour(bytes)` is only callable by `ICS26_ROUTER`, but evidence is permissionless: anyone can submit it through the router's `submitMisbehaviour`, and it is accepted while the client is paused. It takes `abi.encode(IBesuLightClientMsgs.MsgSubmitMisbehaviour)`, which wraps one ABI-encoded evidence message tagged with its `MisbehaviourType`:
 
 ```solidity
-enum MisbehaviourType { TimeNonMonotonicity, Headers }
+enum MisbehaviourType { ConflictingConsensusStates, ConflictingHeaders }
 
 struct MsgSubmitMisbehaviour {
     MisbehaviourType misbehaviourType;
@@ -121,8 +144,8 @@ struct MsgSubmitMisbehaviour {
 }
 ```
 
-- `TimeNonMonotonicity`: `abi.encode(MsgTimeNonMonotonicityMisbehaviour)` with two stored heights and their preimages, in either order. The client freezes when the lower height's timestamp is not less than the higher height's timestamp. The preimages must match the stored hashes, but the trusting period does not apply: stored states remain valid evidence after they expire.
-- `Headers`: `abi.encode(MsgHeadersMisbehaviour)` with two `MsgUpdateClient` messages. Each header is verified against its own trusted consensus state exactly as in `updateClient`, including the trusting period, trusted-validator overlap and quorum, except that the clock-drift check is skipped. The headers need not be stored and may be in either order. The client checks, in order: the first header against its own trusted consensus state, the second header against its own trusted consensus state, and the two headers against each other. A header whose timestamp is not greater than its own trusted consensus state's timestamp freezes the client with `TimeNonMonotonicity`, exactly as `updateClient` would; if the first header does, the second is not verified, and it may also be the same header. Otherwise, headers at the same height that derive different consensus states freeze the client with `DoubleSign`; headers at different heights where the lower header's timestamp is not less than the higher header's timestamp freeze it with `TimeNonMonotonicity`.
+- `ConflictingConsensusStates`: `abi.encode(MsgConflictingConsensusStatesMisbehaviour)` with two stored heights and their preimages, in either order. The client freezes with `TimeNonMonotonicity` when the lower height's timestamp is not less than the higher height's timestamp, with `SubSecondBlockTime` when the timestamps increase by less than the height difference, and otherwise with `InvalidValidatorSetChange` when the two validator sets differ by more validators than the height difference. The preimages must match the stored hashes, but the trusting period does not apply: stored states remain valid evidence after they expire.
+- `ConflictingHeaders`: `abi.encode(MsgConflictingHeadersMisbehaviour)` with two `MsgUpdateClient` messages. Each header is verified against its own trusted consensus state exactly as in `updateClient`, including the trusting period, trusted-validator overlap and quorum, except that the clock-drift check is skipped. The headers need not be stored and may be in either order. The client checks, in order: the first header against its own trusted consensus state, the second header against its own trusted consensus state, and the two headers against each other. A header that conflicts with its own trusted consensus state freezes the client with `TimeNonMonotonicity`, `SubSecondBlockTime` or `InvalidValidatorSetChange`, exactly as `updateClient` would; if the first header does, the second is not verified, and it may also be the same header. Otherwise, headers at the same height that derive different consensus states freeze the client with `DoubleSign`; headers at different heights where the lower header's timestamp is not less than the higher header's timestamp freeze it with `TimeNonMonotonicity`, headers at different heights whose timestamps increase by less than the height difference freeze it with `SubSecondBlockTime`, and headers at different heights whose validator sets differ by more validators than the height difference freeze it with `InvalidValidatorSetChange`.
 
 Evidence that does not prove misbehaviour reverts with `NoMisbehaviourDetected`. Opening submission is safe because the evidence is either consensus states the client already accepted or headers that meet the same signature thresholds as an update, so freezing the client requires genuine validator misbehaviour.
 
@@ -151,10 +174,16 @@ Both calls first verify `accountProofNodes` against the preimage `stateRoot` to 
 For Besu / EVM counterparties, the expected merkle prefix is:
 
 ```solidity
-[bytes("")]
+[abi.encodePacked(counterpartyRouter), abi.encodePacked(IBCSTORE_STORAGE_SLOT), bytes("")]
 ```
 
-That means `msg_.path[0]` is the raw Eureka commitment path bytes.
+That means `msg_.path` must contain exactly three elements:
+
+- `msg_.path[0]` is the raw 20-byte counterparty `ICS26Router` address. Any other length reverts with `InvalidPathElementLength(20, actualLength)`, and an address other than the client state's `ibcRouter` reverts with `CounterpartyRouterMismatch(ibcRouter, actual)`.
+- `msg_.path[1]` is the 32-byte `IBCSTORE_STORAGE_SLOT` (see below). Any other length reverts with `InvalidPathElementLength(32, actualLength)`, and any other slot reverts with `StorageSlotMismatch(IBCSTORE_STORAGE_SLOT, actual)`. The slot is fixed: it names the mapping the commitment path is derived under, so a prefix cannot redirect proofs to other storage.
+- `msg_.path[2]` is the raw Eureka commitment path bytes.
+
+Any other path length reverts with `InvalidPathLength(3, actualLength)`.
 
 ### Storage slot derivation
 
@@ -168,7 +197,8 @@ The proof key is derived as:
 
 ```solidity
 bytes32 hashedPath = keccak256(rawPath);
-bytes32 storageSlot = keccak256(abi.encode(hashedPath, IBCSTORE_STORAGE_SLOT));
+bytes32 storageSlot = SlotDerivation.deriveMapping(IBCSTORE_STORAGE_SLOT, hashedPath);
+// == keccak256(abi.encode(hashedPath, IBCSTORE_STORAGE_SLOT))
 bytes memory storageKey = abi.encodePacked(keccak256(abi.encodePacked(storageSlot)));
 ```
 
@@ -182,7 +212,7 @@ where `IBCSTORE_STORAGE_SLOT` is the ERC-7201 namespace constant used by `IBCSto
 
 ### Non-membership
 
-- `msg_.path` must contain exactly one element: the raw Eureka commitment path.
+- `msg_.path` must be `[counterpartyRouter, IBCSTORE_STORAGE_SLOT, rawPath]`, as described above.
 - `proofNodes` must establish that `storageKey` is absent from the router storage root recovered from `accountProofNodes`. Accepted exclusion witnesses include an empty trie (encoded as an empty `bytes[]`), an empty branch child or value, and a leaf or extension path that diverges from the derived key.
 - The proof must end at the node that establishes exclusion; extra trailing proof nodes are rejected.
 - A valid exclusion proof returns the trusted consensus timestamp in seconds for `msg_.proofHeight`, taken from the verified preimage. If the decoded trie proof does not establish exclusion for the trusted root and derived key, including when it proves an existing value, the call reverts with `InvalidExclusionProof`. Malformed ABI or RLP data may revert while being decoded.
@@ -225,7 +255,7 @@ The Foundry fixtures under `test/besu-bft/fixtures/` can be regenerated from the
 just solidity::generate-fixtures-besu
 ```
 
-This writes `test/besu-bft/fixtures/qbft.json` and `test/besu-bft/fixtures/ibft2.json` using live Besu QBFT and IBFT2 headers, account proofs, and storage proofs captured during the e2e transfer flow. The fixture `proof` and `accountProof` fields hold the raw storage and account proof nodes as `abi.encode(bytes[])`; the Foundry tests wrap them into `MembershipProof` together with the consensus state preimage derived from the fixture's expected update state. The negative cases in those fixtures are still derived by deterministic off-chain header mutation so the contract tests can keep explicit overlap / quorum / conflict coverage.
+This writes `test/besu-bft/fixtures/qbft.json` and `test/besu-bft/fixtures/ibft2.json` using live Besu QBFT and IBFT2 headers, account proofs, and storage proofs captured during the e2e transfer flow. Each update case stores `headerRlp` in its commit-seal signing form and its sorted `commitSeals` separately, exactly as `MsgUpdateClient` carries them. The fixture `proof` and `accountProof` fields hold the raw storage and account proof nodes as `abi.encode(bytes[])`; the Foundry tests wrap them into `MembershipProof` together with the consensus state preimage derived from the fixture's expected update state. The negative cases in those fixtures are still derived by deterministic off-chain header mutation so the contract tests can keep explicit overlap / quorum / conflict coverage.
 
 The synthetic low-overlap case of both fixtures can be regenerated offline with the
 existing Go header and signing helpers:

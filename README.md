@@ -9,8 +9,8 @@
 [foundry-badge]: https://img.shields.io/badge/Built%20with-Foundry-FFDB1C.svg
 [license]: https://www.apache.org/licenses/LICENSE-2.0
 [license-badge]: https://img.shields.io/badge/License-Apache_2.0-blue.svg
-[codecov]: https://codecov.io/github/cosmos/solidity-ibc-eureka
-[codecov-badge]: https://codecov.io/github/cosmos/solidity-ibc-eureka/graph/badge.svg?token=lhplGORQxX
+[codecov]: https://codecov.io/gh/cosmos/ibc-contracts
+[codecov-badge]: https://codecov.io/gh/cosmos/ibc-contracts/graph/badge.svg
 [scorecard]: https://scorecard.dev/viewer/?uri=github.com/cosmos/ibc-contracts
 [scorecard-badge]: https://api.scorecard.dev/projects/github.com/cosmos/ibc-contracts/badge
 
@@ -81,8 +81,7 @@ This project is structured with the following directories:
 | `ICS26Router.sol` | IBC router handles sequencing, replay protection, and timeout checks. Passes proofs to light clients for verification, and resolves `portId` for app callbacks. Provable IBC storage is stored in this contract.  | ✅ |
 | `ICS20Transfer.sol` | IBC transfer application to send and receive tokens to/from another IBC transfer implementation. | ✅ |
 | `SP1ICS07Tendermint.sol` | Tendermint light client powered by SP1. The entry point for SP1 proofs. | ✅ |
-| `BesuIBFT2LightClient.sol` | Besu IBFT 2.0 light client for header-validator mode with weak-subjectivity updates and EVM proof verification, following the YUI + prover sealing-header verification model. | ⏳ |
-| `BesuQBFTLightClient.sol` | Besu QBFT light client for header-validator mode with weak-subjectivity updates and EVM proof verification, following the YUI + prover sealing-header verification model. | ⏳ |
+| `BesuLightClient.sol` | Besu IBFT 2.0 and QBFT light client for header-validator mode with weak-subjectivity updates and EVM proof verification. | ⏳ |
 | `ICS27GMP.sol` | IBC General Message Passing via Interchain Accounts. | ✅ |
 | `AttestationLightClient.sol` | The multisig contract implementing IBC Light Client specs. | ✅ |
 | `utils/IFTBaseUpgradeable.sol` | Interchain Fungible Token standard. Mint and burn alternative to ICS-20. | ⏳ |
@@ -299,7 +298,7 @@ The generated [Solidity benchmark tables](./ibc-solidity/benchmarks/README.md) i
 IBC is a peer-to-peer, light-client-based interoperability protocol. This repository contains the following light clients:
 
 - **SP1 Tendermint Light Client** – Verifies the consensus state of a Cosmos SDK chain powered by SP1 and `tendermint-rs`. (Solidity)
-- **Besu IBFT 2.0 / QBFT Light Clients** – Verify Besu BFT headers in header-validator mode, track the counterparty chain state root, and verify EVM account/storage proofs for Eureka commitments. (Solidity)
+- **Besu IBFT 2.0 / QBFT Light Client** – Verifies Besu BFT headers in header-validator mode, tracks the counterparty chain state root, and verifies EVM account/storage proofs for Eureka commitments. (Solidity)
 - [**Ethereum Light Client**](./ibc-solidity/programs/cw-ics08-wasm-eth/README.md) – Verifies the consensus state of the Ethereum chain. (CosmWasm)
 - **Attestation Light Client** – A multisig that can be used if the counterparty chain does not have a light client protocol. (Solidity and Solana)
 - **Solana Tendermint Light Client** - Verifies the consensus state of a Cosmos SDK chain powered by `tendermint-rs`. (Solana)
@@ -356,8 +355,8 @@ The IBC solidity contracts use [`AccessManager`](https://github.com/OpenZeppelin
 |:---:|:---:|:---:|
 | `ADMIN_ROLE` | 0 | Can grant and set target functions for all roles. |
 | `RELAYER_ROLE` | 1 | Whitelisted relayer addresses. |
-| `PAUSER_ROLE` | 2 | Can pause the IBC application contracts. |
-| `UNPAUSER_ROLE` | 3 | Can unpause the IBC application contract. |
+| `PAUSER_ROLE` | 2 | Can pause the IBC application contracts and app and client registration in the router. |
+| `UNPAUSER_ROLE` | 3 | Can unpause the IBC application contracts and app and client registration in the router. |
 | `DELEGATE_SENDER_ROLE` | 4 | Has permission to call `sendTransferWithSender`. |
 | `RATE_LIMITER_ROLE` | 5 | Can set withdrawal rate limits per `ERC20` token. |
 | `ID_CUSTOMIZER_ROLE` | 6 | Can set custom client and port ids for applications. |
