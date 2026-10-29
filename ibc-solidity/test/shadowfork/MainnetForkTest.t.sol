@@ -23,6 +23,7 @@ import { IICS26RouterAccessControlled } from "../../contracts/interfaces/IICS26R
 
 import { DeployAccessManagerWithRoles } from "../../scripts/deployments/DeployAccessManagerWithRoles.sol";
 import { MulticallTargetMock } from "../solidity-ibc/mocks/MulticallTargetMock.sol";
+import { MainnetDeployment } from "./utils/MainnetIbcImpl.sol";
 
 contract MainnetForkTest is Test, DeployAccessManagerWithRoles {
     // solhint-disable-next-line var-name-mixedcase
@@ -33,12 +34,12 @@ contract MainnetForkTest is Test, DeployAccessManagerWithRoles {
     // WARNING: As the mainnet contracts may not be up to date, some interface functions may not work as expected
     // In this case, you should add the necessary interfaces to the `./utils/vX.Y.Z/` directory
 
-    ICS26Router public ics26Proxy = ICS26Router(0x3aF134307D5Ee90faa2ba9Cdba14ba66414CF1A7);
-    ICS20Transfer public ics20Proxy = ICS20Transfer(0xa348CfE719B63151F228e3C30EB424BA5a983012);
-    ICS27GMP public ics27Proxy = ICS27GMP(0xbebd14A66052d7dc6BDc05e7328E4fEC0a9e3B0e);
-    AccessManager public accessManager = AccessManager(0x3fa3f45acE1645614c80679AeEcE0A82A93c77Ec);
-    address public timelockedAdmin = 0xb3999B2D30dD8c9faEcE5A8a503fAe42b8b1b614;
-    address public relayer = 0xC4C09A23dDBd1fF0f313885265113F83622284C2;
+    ICS26Router public ics26Proxy = ICS26Router(MainnetDeployment.ICS26_ROUTER);
+    ICS20Transfer public ics20Proxy = ICS20Transfer(MainnetDeployment.ICS20_TRANSFER);
+    ICS27GMP public ics27Proxy = ICS27GMP(MainnetDeployment.ICS27_GMP);
+    AccessManager public accessManager = AccessManager(MainnetDeployment.ACCESS_MANAGER);
+    address public timelockedAdmin = MainnetDeployment.TIMELOCKED_ADMIN;
+    address public relayer = MainnetDeployment.RELAYER;
 
     function setUp() public {
         uint256 forkId = vm.createFork(ETH_RPC_URL);
