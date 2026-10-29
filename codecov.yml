@@ -6,7 +6,11 @@ flag_management:
   default_rules:
     carryforward: true
 
-# The proof API is mostly RPC and prover plumbing exercised by e2e tests, not unit tests.
+# Exclude prover, RPC and binding plumbing that is exercised by e2e tests, not unit tests.
 ignore:
   - "packages/proof-api/**"
   - "programs/proof-api/**"
+  - "packages/utils/**"
+  - "packages/sp1-ics07-tendermint-prover/**"
+  - "packages/solidity/**"
+  - "ibc-solidity/programs/operator/**"
