@@ -43,6 +43,9 @@ struct EthToEthProofApiModuleService {
     dst_listener: eth_eureka::ChainListener<RootProvider>,
     /// The transaction builder.
     tx_builder: EthToEthTxBuilder,
+    /// The destination `IBCMulticall` address that relay and update client transactions are
+    /// submitted to.
+    dst_ibc_multicall_address: Address,
 }
 
 enum EthToEthTxBuilder {
@@ -67,6 +70,9 @@ pub struct EthToEthConfig {
     pub dst_rpc_url: String,
     /// The destination ICS26 address.
     pub dst_ics26_address: Address,
+    /// The destination `IBCMulticall` address that relay and update client transactions are
+    /// submitted to.
+    pub dst_ibc_multicall_address: Address,
     /// Transaction builder mode.
     pub mode: TxBuilderMode,
 }
@@ -113,6 +119,7 @@ impl EthToEthProofApiModuleService {
             src_listener,
             dst_listener,
             tx_builder,
+            dst_ibc_multicall_address: config.dst_ibc_multicall_address,
         })
     }
 }
@@ -227,7 +234,7 @@ impl ProofApiService for EthToEthProofApiModuleService {
 
         Ok(Response::new(api::RelayByTxResponse {
             tx,
-            address: self.tx_builder.ics26_router_address().to_string(),
+            address: self.dst_ibc_multicall_address.to_string(),
         }))
     }
 
@@ -268,7 +275,7 @@ impl ProofApiService for EthToEthProofApiModuleService {
 
         Ok(Response::new(api::UpdateClientResponse {
             tx,
-            address: self.tx_builder.ics26_router_address().to_string(),
+            address: self.dst_ibc_multicall_address.to_string(),
         }))
     }
 }
@@ -292,22 +299,31 @@ impl ProofApiModule for EthToEthProofApiModule {
 impl EthToEthTxBuilder {
     async fn relay_events(&self, params: RelayEventsParams) -> anyhow::Result<Vec<u8>> {
         match self {
-            Self::Attested(tb) => build_eth_attestor_relay_events_tx(&tb.aggregator, params).await,
+            Self::Attested(tb) => {
+                build_eth_attestor_relay_events_tx(&tb.aggregator, tb.ics26_address, params).await
+            }
         }
     }
 
     fn create_client(&self, parameters: &HashMap<String, String>) -> anyhow::Result<Vec<u8>> {
         match self {
-            Self::Attested(tb) => {
-                build_eth_attestor_create_client_calldata(parameters, tb.provider.clone())
-            }
+            Self::Attested(tb) => build_eth_attestor_create_client_calldata(
+                parameters,
+                tb.ics26_address,
+                tb.provider.clone(),
+            ),
         }
     }
 
     async fn update_client(&self, dst_client_id: String) -> anyhow::Result<Vec<u8>> {
         match self {
             Self::Attested(tb) => {
-                build_eth_attestor_update_client_calldata(&tb.aggregator, dst_client_id).await
+                build_eth_attestor_update_client_calldata(
+                    &tb.aggregator,
+                    tb.ics26_address,
+                    dst_client_id,
+                )
+                .await
             }
         }
     }
@@ -332,6 +348,7 @@ mod tests {
             "src_ics26_address": "0x0000000000000000000000000000000000000001",
             "dst_rpc_url": "http://localhost:9545",
             "dst_ics26_address": "0x0000000000000000000000000000000000000002",
+            "dst_ibc_multicall_address": "0x0000000000000000000000000000000000000003",
             "mode": { "attested": {
                 "attestor": {
                     "attestor_query_timeout_ms": 5000,

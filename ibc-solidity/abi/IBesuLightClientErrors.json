@@ -49,6 +49,27 @@
   },
   {
     "type": "error",
+    "name": "CounterpartyRouterMismatch",
+    "inputs": [
+      {
+        "name": "expected",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "actual",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "EmptyCommitSeals",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "EmptyValidatorSet",
     "inputs": []
   },
@@ -197,6 +218,17 @@
   },
   {
     "type": "error",
+    "name": "InvalidMaxClockDrift",
+    "inputs": [
+      {
+        "name": "maxClockDrift",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "InvalidMixHash",
     "inputs": [
       {
@@ -230,6 +262,22 @@
   },
   {
     "type": "error",
+    "name": "InvalidPathElementLength",
+    "inputs": [
+      {
+        "name": "expectedLength",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "actualLength",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "InvalidPathLength",
     "inputs": [
       {
@@ -252,6 +300,17 @@
         "name": "providedRevisionNumber",
         "type": "uint64",
         "internalType": "uint64"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InvalidStateRoot",
+    "inputs": [
+      {
+        "name": "stateRoot",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ]
   },
@@ -290,7 +349,13 @@
   {
     "type": "error",
     "name": "InvalidTrustingPeriod",
-    "inputs": []
+    "inputs": [
+      {
+        "name": "trustingPeriod",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ]
   },
   {
     "type": "error",
@@ -326,12 +391,33 @@
   },
   {
     "type": "error",
+    "name": "NonEmptyCommitSealList",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "StorageRootNotInCache",
     "inputs": [
       {
         "name": "revisionHeight",
         "type": "uint64",
         "internalType": "uint64"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "StorageSlotMismatch",
+    "inputs": [
+      {
+        "name": "expected",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "actual",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ]
   },

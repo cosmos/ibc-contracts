@@ -20,6 +20,11 @@ contract SolidityLightClientDriver is ILightClientDriver {
     }
 
     /// @inheritdoc ILightClientDriver
+    function merklePrefix() external pure returns (bytes[] memory) {
+        return new bytes[](1);
+    }
+
+    /// @inheritdoc ILightClientDriver
     function prove(bytes calldata)
         external
         pure
@@ -28,7 +33,7 @@ contract SolidityLightClientDriver is ILightClientDriver {
 }
 
 abstract contract WithSolidityLightClient is LightClientDriverTest {
-    function _newDriver(ICS26Router counterparty) internal override returns (ILightClientDriver) {
+    function _newDriver(ICS26Router, ICS26Router counterparty) internal override returns (ILightClientDriver) {
         return new SolidityLightClientDriver(counterparty);
     }
 }

@@ -5,14 +5,15 @@ import { Memory } from "@openzeppelin-contracts/utils/Memory.sol";
 import { RLP } from "@openzeppelin-contracts/utils/RLP.sol";
 
 /// @title Sim Header
-/// @notice Test-only Besu BFT header model with RLP encoding, commit seal digests and block hashes.
+/// @notice Test-only Besu BFT header model with commit seal signing RLP, commit seal digests and block hashes.
 /// @dev Field layout matches Cancun-era Besu headers (20 items) and the BFT `extraData` list
-/// `[vanity, validators, vote, round, commitSeals]`. The vote item is always encoded as an empty list.
+/// `[vanity, validators, vote, round, commitSeals]`. The vote item is always encoded as an empty list. Commit seals
+/// are kept apart from the encoding, since the light client takes them separately from the signing RLP.
 library SimHeader {
     using RLP for *;
     using Memory for *;
 
-    /// @notice Consensus flavour, which only changes how commit seals are hashed.
+    /// @notice Consensus flavour, which only changes the commit seal signing form.
     enum Mode {
         QBFT,
         IBFT2
@@ -50,22 +51,23 @@ library SimHeader {
     bytes32 internal constant EMPTY_OMMERS_HASH = 0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347;
     bytes32 internal constant EMPTY_ROOT_HASH = 0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421;
 
-    /// @notice Full header RLP, commit seals included.
-    function encode(Data memory h) internal pure returns (bytes memory) {
-        return _encode(h, Mode.QBFT, true, false);
+    /// @notice Header RLP in its commit seal signing form, as submitted to the light client: QBFT keeps the round
+    /// and an empty seal list, IBFT2 drops the seal item.
+    function signingRlp(Data memory h, Mode mode) internal pure returns (bytes memory) {
+        return _encode(h, mode, false);
     }
 
-    /// @notice Digest signed by commit seals: QBFT keeps the round and an empty seal list, IBFT2 drops the seal item.
+    /// @notice Digest signed by commit seals.
     function commitSealDigest(Data memory h, Mode mode) internal pure returns (bytes32) {
-        return keccak256(_encode(h, mode, false, false));
+        return keccak256(signingRlp(h, mode));
     }
 
     /// @notice Canonical Besu block hash, which excludes commit seals and zeroes the round number.
     function blockHash(Data memory h, Mode mode) internal pure returns (bytes32) {
-        return keccak256(_encode(h, mode, false, true));
+        return keccak256(_encode(h, mode, true));
     }
 
-    /// @notice Decodes a header RLP whose vote item is empty.
+    /// @notice Decodes a header RLP whose vote item is empty. Commit seals in `extraData`, if any, are ignored.
     function decode(bytes memory headerRlp) internal pure returns (Data memory h) {
         Memory.Slice[] memory it = headerRlp.decodeList();
         h.parentHash = it[0].readBytes32();
@@ -96,27 +98,16 @@ library SimHeader {
             h.validators[i] = validators[i].readAddress();
         }
         h.round = extra[3].readUint256();
-        Memory.Slice[] memory seals = extra[4].readList();
-        h.commitSeals = new bytes[](seals.length);
-        for (uint256 i = 0; i < seals.length; ++i) {
-            h.commitSeals[i] = seals[i].readBytes();
-        }
     }
 
-    function _encode(Data memory h, Mode mode, bool withSeals, bool zeroRound) private pure returns (bytes memory) {
+    function _encode(Data memory h, Mode mode, bool zeroRound) private pure returns (bytes memory) {
         RLP.Encoder memory validators = RLP.encoder();
         for (uint256 i = 0; i < h.validators.length; ++i) {
             validators.push(h.validators[i]);
         }
         RLP.Encoder memory extra =
             RLP.encoder().push(h.vanity).push(validators).push(RLP.encoder()).push(zeroRound ? 0 : h.round);
-        if (withSeals) {
-            RLP.Encoder memory seals = RLP.encoder();
-            for (uint256 i = 0; i < h.commitSeals.length; ++i) {
-                seals.push(h.commitSeals[i]);
-            }
-            extra.push(seals);
-        } else if (mode == Mode.QBFT) {
+        if (mode == Mode.QBFT) {
             extra.push(RLP.encoder());
         }
 

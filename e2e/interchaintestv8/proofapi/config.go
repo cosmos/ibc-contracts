@@ -215,19 +215,21 @@ func (m SP1Mode) MarshalJSON() ([]byte, error) {
 
 // CosmosToEthModuleConfig represents the configuration for cosmos_to_eth module.
 type CosmosToEthModuleConfig struct {
-	TmRpcUrl     string        `json:"tm_rpc_url"`
-	Ics26Address string        `json:"ics26_address"`
-	EthRpcUrl    string        `json:"eth_rpc_url"`
-	Mode         TxBuilderMode `json:"mode"`
+	TmRpcUrl            string        `json:"tm_rpc_url"`
+	Ics26Address        string        `json:"ics26_address"`
+	IbcMulticallAddress string        `json:"ibc_multicall_address"`
+	EthRpcUrl           string        `json:"eth_rpc_url"`
+	Mode                TxBuilderMode `json:"mode"`
 }
 
 // EthToEthModuleConfig represents the configuration for eth_to_eth module
 type EthToEthModuleConfig struct {
-	SrcRpcUrl       string        `json:"src_rpc_url"`
-	SrcIcs26Address string        `json:"src_ics26_address"`
-	DstRpcUrl       string        `json:"dst_rpc_url"`
-	DstIcs26Address string        `json:"dst_ics26_address"`
-	Mode            TxBuilderMode `json:"mode"`
+	SrcRpcUrl              string        `json:"src_rpc_url"`
+	SrcIcs26Address        string        `json:"src_ics26_address"`
+	DstRpcUrl              string        `json:"dst_rpc_url"`
+	DstIcs26Address        string        `json:"dst_ics26_address"`
+	DstIbcMulticallAddress string        `json:"dst_ibc_multicall_address"`
+	Mode                   TxBuilderMode `json:"mode"`
 }
 
 // BesuToEthModuleConfig represents the configuration for besu_to_eth module.
@@ -236,7 +238,9 @@ type BesuToEthModuleConfig struct {
 	SrcICS26Address string `json:"src_ics26_address"`
 	DstRPCURL       string `json:"dst_rpc_url"`
 	DstICS26Address string `json:"dst_ics26_address"`
-	ConsensusType   string `json:"consensus_type"`
+	// DstIBCMulticallAddress is the destination multicall that relay transactions are submitted to.
+	DstIBCMulticallAddress string `json:"dst_ibc_multicall_address"`
+	ConsensusType          string `json:"consensus_type"`
 }
 
 // AttestorConfig represents the attestor configuration section
@@ -321,5 +325,6 @@ type SolanaToEthModuleConfig struct {
 	SolanaIcs26ProgramId string        `json:"solana_ics26_program_id"`
 	EthRpcUrl            string        `json:"eth_rpc_url"`
 	Ics26Address         string        `json:"ics26_address"`
+	IbcMulticallAddress  string        `json:"ibc_multicall_address"`
 	Mode                 TxBuilderMode `json:"mode"`
 }

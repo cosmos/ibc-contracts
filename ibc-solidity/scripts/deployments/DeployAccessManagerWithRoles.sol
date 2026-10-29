@@ -21,6 +21,8 @@ abstract contract DeployAccessManagerWithRoles {
         );
         accessManager.setTargetFunctionRole(ics26, IBCRolesLib.ics26RelayerSelectors(), IBCRolesLib.RELAYER_ROLE);
         accessManager.setTargetFunctionRole(ics26, IBCRolesLib.ics26PublicSelectors(), IBCRolesLib.PUBLIC_ROLE);
+        accessManager.setTargetFunctionRole(ics26, IBCRolesLib.pauserSelectors(), IBCRolesLib.PAUSER_ROLE);
+        accessManager.setTargetFunctionRole(ics26, IBCRolesLib.unpauserSelectors(), IBCRolesLib.UNPAUSER_ROLE);
         accessManager.setTargetFunctionRole(ics20, IBCRolesLib.pauserSelectors(), IBCRolesLib.PAUSER_ROLE);
         accessManager.setTargetFunctionRole(ics20, IBCRolesLib.unpauserSelectors(), IBCRolesLib.UNPAUSER_ROLE);
         accessManager.setTargetFunctionRole(
@@ -44,6 +46,15 @@ abstract contract DeployAccessManagerWithRoles {
         if (pubRelay) {
             accessManager.setTargetFunctionRole(ics26, IBCRolesLib.ics26RelayerSelectors(), IBCRolesLib.PUBLIC_ROLE);
         }
+    }
+
+    /// @notice Lets relayers batch through `multicall` and lets `multicall` relay to the router
+    /// @dev With `pubRelay`, anyone can batch through `multicall`, matching `accessManagerSetTargetRoles`
+    function accessManagerSetMulticallRoles(IAccessManager accessManager, address multicall, bool pubRelay) public {
+        uint64 relayerRole = pubRelay ? IBCRolesLib.PUBLIC_ROLE : IBCRolesLib.RELAYER_ROLE;
+        accessManager.setTargetFunctionRole(multicall, IBCRolesLib.multicallRelayerSelectors(), relayerRole);
+        accessManager.setTargetFunctionRole(multicall, IBCRolesLib.uupsUpgradeSelectors(), IBCRolesLib.ADMIN_ROLE);
+        accessManager.grantRole(IBCRolesLib.RELAYER_ROLE, multicall, 0);
     }
 
     function accessManagerSetRoles(
