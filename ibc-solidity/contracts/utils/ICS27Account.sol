@@ -143,13 +143,17 @@ contract ICS27Account is IICS27Errors, IICS27Account, ContextUpgradeable {
     /// @param target The target address to call
     /// @param data The data to send to the target address
     /// @param value The value to send to the target address
-    /// @param gas The gas to call the target address with
+    /// @param gas_ The gas to call the target address with
     /// @return The result of the call
-    function _call(address target, bytes memory data, uint256 value, uint256 gas) private returns (bytes memory) {
+    function _call(address target, bytes memory data, uint256 value, uint256 gas_) private returns (bytes memory) {
         _checkBalance(value);
-        // slither-disable-next-line arbitrary-send-eth
-        (bool success,) = target.call{ value: value, gas: gas }(data); // solhint-disable-line avoid-low-level-calls
-        return _result(target, success, gas);
+        bool success;
+        // Like `LowLevelCall.callNoReturn`, which cannot set the gas, so the return data is only copied by `_result`
+        // solhint-disable-next-line no-inline-assembly
+        assembly ("memory-safe") {
+            success := call(gas_, target, value, add(data, 0x20), mload(data), 0x00, 0x00)
+        }
+        return _result(target, success, gas_);
     }
 
     /// @notice Returns the result of the last call, reverting like `_revert` if it failed
