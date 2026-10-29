@@ -29,8 +29,11 @@ import { ERC1967Proxy } from "@openzeppelin-contracts/proxy/ERC1967/ERC1967Proxy
 abstract contract IFTIntegrationSuite is LightClientDriverTest {
     IbcImpl public ibcImplA;
     IbcImpl public ibcImplB;
+    // ibcImplA (clientIdAB) <--> (clientIdBA) ibcImplB
+    string public clientIdAB;
+    string public clientIdBA;
 
-    TestHelper public th = new TestHelper();
+    TestHelper public th;
     IntegrationEnv public integrationEnv;
 
     IFTAccessManaged public iftOnA;
@@ -45,17 +48,16 @@ abstract contract IFTIntegrationSuite is LightClientDriverTest {
     uint48 public constant RATE_LIMIT_WINDOW = 1 days;
 
     function setUp() public {
+        _beforeSetUp();
+        th = new TestHelper();
         integrationEnv = new IntegrationEnv();
 
-        ibcImplA = new IbcImpl(integrationEnv.permit2());
-        ibcImplB = new IbcImpl(integrationEnv.permit2());
+        ibcImplA = _newIbcImpl(0, integrationEnv.permit2());
+        ibcImplB = _newIbcImpl(1, integrationEnv.permit2());
 
-        string memory clientId;
-        clientId = ibcImplA.addClient(th.FIRST_CLIENT_ID(), _newDriver(ibcImplA.ics26Router(), ibcImplB.ics26Router()));
-        assertEq(clientId, th.FIRST_CLIENT_ID());
-
-        clientId = ibcImplB.addClient(th.FIRST_CLIENT_ID(), _newDriver(ibcImplB.ics26Router(), ibcImplA.ics26Router()));
-        assertEq(clientId, th.FIRST_CLIENT_ID());
+        clientIdAB =
+            ibcImplA.addClient(ibcImplB.nextClientId(), _newDriver(ibcImplA.ics26Router(), ibcImplB.ics26Router()));
+        clientIdBA = ibcImplB.addClient(clientIdAB, _newDriver(ibcImplB.ics26Router(), ibcImplA.ics26Router()));
 
         sendCallConstructor = new EVMIFTSendCallConstructor();
 
@@ -96,13 +98,9 @@ abstract contract IFTIntegrationSuite is LightClientDriverTest {
     }
 
     function _registerBridges() internal {
-        iftOnA.registerIFTBridge(
-            th.FIRST_CLIENT_ID(), Strings.toChecksumHexString(address(iftOnB)), address(sendCallConstructor)
-        );
+        iftOnA.registerIFTBridge(clientIdAB, Strings.toChecksumHexString(address(iftOnB)), address(sendCallConstructor));
 
-        iftOnB.registerIFTBridge(
-            th.FIRST_CLIENT_ID(), Strings.toChecksumHexString(address(iftOnA)), address(sendCallConstructor)
-        );
+        iftOnB.registerIFTBridge(clientIdBA, Strings.toChecksumHexString(address(iftOnA)), address(sendCallConstructor));
     }
 
     function _setRateLimits(uint208 capacity, uint48 window) internal {
@@ -111,13 +109,13 @@ abstract contract IFTIntegrationSuite is LightClientDriverTest {
     }
 
     function test_deployment() public view {
-        IIFTMsgs.IFTBridge memory bridgeA = iftOnA.getIFTBridge(th.FIRST_CLIENT_ID());
-        assertEq(bridgeA.clientId, th.FIRST_CLIENT_ID());
+        IIFTMsgs.IFTBridge memory bridgeA = iftOnA.getIFTBridge(clientIdAB);
+        assertEq(bridgeA.clientId, clientIdAB);
         assertEq(bridgeA.counterpartyIFTAddress, Strings.toChecksumHexString(address(iftOnB)));
         assertEq(address(bridgeA.iftSendCallConstructor), address(sendCallConstructor));
 
-        IIFTMsgs.IFTBridge memory bridgeB = iftOnB.getIFTBridge(th.FIRST_CLIENT_ID());
-        assertEq(bridgeB.clientId, th.FIRST_CLIENT_ID());
+        IIFTMsgs.IFTBridge memory bridgeB = iftOnB.getIFTBridge(clientIdBA);
+        assertEq(bridgeB.clientId, clientIdBA);
         assertEq(bridgeB.counterpartyIFTAddress, Strings.toChecksumHexString(address(iftOnA)));
         assertEq(address(bridgeB.iftSendCallConstructor), address(sendCallConstructor));
     }
@@ -127,7 +125,7 @@ abstract contract IFTIntegrationSuite is LightClientDriverTest {
 
         address sender = integrationEnv.createUser();
         address receiver = integrationEnv.createUser();
-        string memory clientId = th.FIRST_CLIENT_ID();
+        string memory clientId = clientIdAB;
 
         deal(address(iftOnA), sender, amount, true);
         assertEq(iftOnA.balanceOf(sender), amount);
@@ -168,7 +166,7 @@ abstract contract IFTIntegrationSuite is LightClientDriverTest {
 
         vm.startPrank(userA);
         vm.recordLogs();
-        iftOnA.iftTransfer(th.FIRST_CLIENT_ID(), Strings.toHexString(userB), amount);
+        iftOnA.iftTransfer(clientIdAB, Strings.toHexString(userB), amount);
         vm.stopPrank();
 
         IICS26RouterMsgs.Packet memory packetAtoB = _extractPacketFromLogs();
@@ -180,7 +178,7 @@ abstract contract IFTIntegrationSuite is LightClientDriverTest {
 
         vm.startPrank(userB);
         vm.recordLogs();
-        iftOnB.iftTransfer(th.FIRST_CLIENT_ID(), Strings.toHexString(userA), amount);
+        iftOnB.iftTransfer(clientIdBA, Strings.toHexString(userA), amount);
         vm.stopPrank();
 
         IICS26RouterMsgs.Packet memory packetBtoA = _extractPacketFromLogs();
@@ -196,7 +194,7 @@ abstract contract IFTIntegrationSuite is LightClientDriverTest {
 
         address sender = integrationEnv.createUser();
         address receiver = integrationEnv.createUser();
-        string memory clientId = th.FIRST_CLIENT_ID();
+        string memory clientId = clientIdAB;
 
         deal(address(iftOnA), sender, amount, true);
 
@@ -231,7 +229,7 @@ abstract contract IFTIntegrationSuite is LightClientDriverTest {
 
         address sender = integrationEnv.createUser();
         address receiver = integrationEnv.createUser();
-        string memory clientId = th.FIRST_CLIENT_ID();
+        string memory clientId = clientIdAB;
 
         deal(address(iftOnA), sender, amount, true);
 
@@ -271,7 +269,7 @@ abstract contract IFTIntegrationSuite is LightClientDriverTest {
 
         address sender = integrationEnv.createUser();
         address receiver = integrationEnv.createUser();
-        string memory clientId = th.FIRST_CLIENT_ID();
+        string memory clientId = clientIdAB;
 
         deal(address(iftOnA), sender, amount, true);
 
@@ -316,11 +314,11 @@ abstract contract IFTIntegrationSuite is LightClientDriverTest {
 
         vm.startPrank(sender);
         vm.recordLogs();
-        iftOnA.iftTransfer(th.FIRST_CLIENT_ID(), Strings.toHexString(receiver1), amount1);
+        iftOnA.iftTransfer(clientIdAB, Strings.toHexString(receiver1), amount1);
         IICS26RouterMsgs.Packet memory packet1 = _extractPacketFromLogs();
 
         vm.recordLogs();
-        iftOnA.iftTransfer(th.FIRST_CLIENT_ID(), Strings.toHexString(receiver2), amount2);
+        iftOnA.iftTransfer(clientIdAB, Strings.toHexString(receiver2), amount2);
         IICS26RouterMsgs.Packet memory packet2 = _extractPacketFromLogs();
         vm.stopPrank();
 
@@ -340,7 +338,7 @@ abstract contract IFTIntegrationSuite is LightClientDriverTest {
     function test_success_partialTimeoutBatch() public {
         uint256 amount = 1000;
         address sender = integrationEnv.createUser();
-        string memory clientId = th.FIRST_CLIENT_ID();
+        string memory clientId = clientIdAB;
         string memory receiverStr = Strings.toHexString(integrationEnv.createUser());
         uint64 timeout = uint64(block.timestamp) + 1;
 
@@ -385,8 +383,8 @@ abstract contract IFTIntegrationSuite is LightClientDriverTest {
 
         iftOnA.upgradeToAndCall(address(newImpl), "");
 
-        IIFTMsgs.IFTBridge memory bridge = iftOnA.getIFTBridge(th.FIRST_CLIENT_ID());
-        assertEq(bridge.clientId, th.FIRST_CLIENT_ID(), "bridge should be preserved after upgrade");
+        IIFTMsgs.IFTBridge memory bridge = iftOnA.getIFTBridge(clientIdAB);
+        assertEq(bridge.clientId, clientIdAB, "bridge should be preserved after upgrade");
     }
 
     function test_upgrade_unauthorizedCaller_reverts() public {

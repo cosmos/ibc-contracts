@@ -7,11 +7,12 @@ import { Integration2Suite } from "./integration/suites/Integration2Suite.sol";
 import { Integration3Suite } from "./integration/suites/Integration3Suite.sol";
 import { IFTIntegrationSuite } from "./integration/suites/IFTIntegrationSuite.sol";
 import { WithSolidityLightClient } from "./integration/drivers/SolidityLightClientDriver.sol";
+import { WithFreshChains } from "./integration/drivers/LightClientDriverTest.sol";
 
 // The integration suites on `SolidityLightClient`, which reads the counterparty router directly.
 
-contract Integration2Test is Integration2Suite, WithSolidityLightClient { }
+contract Integration2Test is Integration2Suite, WithSolidityLightClient, WithFreshChains { }
 
-contract Integration3Test is Integration3Suite, WithSolidityLightClient { }
+contract Integration3Test is Integration3Suite, WithSolidityLightClient, WithFreshChains { }
 
-contract IFTIntegrationTest is IFTIntegrationSuite, WithSolidityLightClient { }
+contract IFTIntegrationTest is IFTIntegrationSuite, WithSolidityLightClient, WithFreshChains { }
