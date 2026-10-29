@@ -98,16 +98,16 @@ contract ICS27AccountTest is Test {
     function test_success_executeWithGas() public {
         address target = address(new TestCallContract());
         bytes memory data = abi.encodeCall(TestCallContract.payableCall, ());
-        uint256 gas_ = 100_000;
+        uint256 gas = 100_000;
         vm.deal(address(ics27Account), 2);
 
-        vm.expectCall(target, 1, uint64(gas_), data);
+        vm.expectCall(target, 1, uint64(gas), data);
         vm.prank(address(ics27Account));
-        ics27Account.execute(target, data, 1, gas_);
+        ics27Account.execute(target, data, 1, gas);
 
         IICS27AccountMsgs.CallWithGas[] memory calls = new IICS27AccountMsgs.CallWithGas[](1);
-        calls[0] = IICS27AccountMsgs.CallWithGas({ target: target, data: data, value: 1, gas: gas_ });
-        vm.expectCall(target, 1, uint64(gas_), data);
+        calls[0] = IICS27AccountMsgs.CallWithGas({ target: target, data: data, value: 1, gas: gas });
+        vm.expectCall(target, 1, uint64(gas), data);
         vm.prank(address(ics27Account));
         ics27Account.executeBatch(calls);
 
@@ -138,24 +138,24 @@ contract ICS27AccountTest is Test {
     function test_failure_executeWithGas() public {
         address target = address(new TestCallContract());
         bytes memory burnGasData = abi.encodeCall(TestCallContract.burnGas, ());
-        uint256 gas_ = 100_000;
+        uint256 gas = 100_000;
 
         // Not enough gas for the call runs out of gas, through the account calling itself
         vm.expectRevert(bytes(""));
         vm.prank(ics27);
         ics27Account.functionCall{ gas: 150_000 }(
-            address(ics27Account), abi.encodeWithSignature(EXECUTE_WITH_GAS, target, burnGasData, 0, gas_)
+            address(ics27Account), abi.encodeWithSignature(EXECUTE_WITH_GAS, target, burnGasData, 0, gas)
         );
 
         // Running out of the gas given to the call is an error, whatever gas the relayer provides
         vm.expectRevert(Errors.FailedCall.selector);
         vm.prank(ics27);
         ics27Account.functionCall{ gas: 1_000_000 }(
-            address(ics27Account), abi.encodeWithSignature(EXECUTE_WITH_GAS, target, burnGasData, 0, gas_)
+            address(ics27Account), abi.encodeWithSignature(EXECUTE_WITH_GAS, target, burnGasData, 0, gas)
         );
 
         IICS27AccountMsgs.CallWithGas[] memory calls = new IICS27AccountMsgs.CallWithGas[](1);
-        calls[0] = IICS27AccountMsgs.CallWithGas({ target: target, data: burnGasData, value: 0, gas: gas_ });
+        calls[0] = IICS27AccountMsgs.CallWithGas({ target: target, data: burnGasData, value: 0, gas: gas });
         vm.expectRevert(Errors.FailedCall.selector);
         vm.prank(ics27);
         ics27Account.functionCall{ gas: 1_000_000 }(

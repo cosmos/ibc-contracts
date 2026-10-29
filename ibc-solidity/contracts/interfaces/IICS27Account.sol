@@ -41,19 +41,19 @@ interface IICS27Account {
     /// @return results The array of results from the calls
     function executeBatch(IICS27AccountMsgs.Call[] calldata calls) external returns (bytes[] memory results);
 
-    /// @notice Performs a Solidity function call using a low level `call` with exactly `gas_` gas.
-    /// @dev Like `execute`, but runs out of gas if the relayer did not provide enough gas for `gas_`.
+    /// @notice Performs a Solidity function call using a low level `call` with exactly `gas` gas.
+    /// @dev Like `execute`, but runs out of gas if the relayer did not provide enough gas for `gas`.
     /// @dev This function can only be called by self.
     /// @param target The target address to call
     /// @param data The data to send to the target address
     /// @param value The value to send to the target address
-    /// @param gas_ The gas to call the target address with
+    /// @param gas The gas to call the target address with
     /// @return result The result of the call
     function execute(
         address target,
         bytes calldata data,
         uint256 value,
-        uint256 gas_
+        uint256 gas
     )
         external
         returns (bytes memory result);

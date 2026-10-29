@@ -84,13 +84,13 @@ contract ICS27Account is IICS27Errors, IICS27Account, ContextUpgradeable {
         address target,
         bytes calldata data,
         uint256 value,
-        uint256 gas_
+        uint256 gas
     )
         external
         onlySelf
         returns (bytes memory)
     {
-        return _callWithGas(target, data, value, gas_);
+        return _callWithGas(target, data, value, gas);
     }
 
     /// @inheritdoc IICS27Account
@@ -113,58 +113,49 @@ contract ICS27Account is IICS27Errors, IICS27Account, ContextUpgradeable {
         return results;
     }
 
-    /// @notice Calls `target` like `_call`, but runs out of gas if there is not enough gas left to forward `gas_`
+    /// @notice Calls `target` like `_call`, but runs out of gas if there is not enough gas left to forward `gas`
     /// @dev Runs out of gas instead of reverting, so that the account calling itself sees it as running out of gas too
     /// @param target The target address to call
     /// @param data The data to send to the target address
     /// @param value The value to send to the target address
-    /// @param gas_ The gas to call the target address with
+    /// @param gas The gas to call the target address with
     /// @return The result of the call
-    function _callWithGas(
-        address target,
-        bytes memory data,
-        uint256 value,
-        uint256 gas_
-    )
+    function _callWithGas(address target, bytes memory data, uint256 value, uint256 gas)
         private
         returns (bytes memory)
     {
         // A call gets at most 63/64 of the gas left after its own cost
-        if (gasleft() < gas_ + gas_ / 63 + CALL_GAS_OVERHEAD) {
+        if (gasleft() < gas + gas / 63 + CALL_GAS_OVERHEAD) {
             // solhint-disable-next-line no-inline-assembly
             assembly {
                 invalid()
             }
         }
-        return _call(target, data, value, gas_);
+        return _call(target, data, value, gas);
     }
 
     /// @notice Calls `target` like openzeppelin's `Address.functionCallWithValue`, but reverts like `_revert`
     /// @param target The target address to call
     /// @param data The data to send to the target address
     /// @param value The value to send to the target address
-    /// @param gas_ The gas to call the target address with
+    /// @param gas The gas to call the target address with
     /// @return The result of the call
-    function _call(address target, bytes memory data, uint256 value, uint256 gas_) private returns (bytes memory) {
+    function _call(address target, bytes memory data, uint256 value, uint256 gas) private returns (bytes memory) {
         _checkBalance(value);
-        bool success;
-        // Like `LowLevelCall.callNoReturn`, which cannot set the gas
-        // solhint-disable-next-line no-inline-assembly
-        assembly ("memory-safe") {
-            success := call(gas_, target, value, add(data, 0x20), mload(data), 0x00, 0x00)
-        }
-        return _result(target, success, gas_);
+        // solhint-disable-next-line avoid-low-level-calls
+        (bool success,) = target.call{ value: value, gas: gas }(data);
+        return _result(target, success, gas);
     }
 
     /// @notice Returns the result of the last call, reverting like `_revert` if it failed
     /// @dev Like openzeppelin's `Address`, a successful call to an address without code is an error
     /// @param target The address that was called
     /// @param success Whether the call succeeded
-    /// @param gas_ The gas the call was made with
+    /// @param gas The gas the call was made with
     /// @return The result of the call
-    function _result(address target, bool success, uint256 gas_) private view returns (bytes memory) {
+    function _result(address target, bool success, uint256 gas) private view returns (bytes memory) {
         if (!success) {
-            _revert(gas_);
+            _revert(gas);
         }
         require(LowLevelCall.returnDataSize() != 0 || target.code.length != 0, Address.AddressEmptyCode(target));
         return LowLevelCall.returnData();
@@ -172,12 +163,12 @@ contract ICS27Account is IICS27Errors, IICS27Account, ContextUpgradeable {
 
     /// @notice Bubbles up the revert data of the last call, or reverts with `FailedCall` if it has none
     /// @dev Reverts without data instead if the call most likely ran out of gas, see `OUT_OF_GAS_DIVISOR`
-    /// @param gas_ The gas the call was made with
-    function _revert(uint256 gas_) private view {
+    /// @param gas The gas the call was made with
+    function _revert(uint256 gas) private view {
         if (LowLevelCall.returnDataSize() != 0) {
             LowLevelCall.bubbleRevert();
         }
-        if (gasleft() < gas_ / OUT_OF_GAS_DIVISOR) {
+        if (gasleft() < gas / OUT_OF_GAS_DIVISOR) {
             // Reverts without data, like running out of gas, so the router fails the relay
             // solhint-disable-next-line gas-custom-errors, reason-string
             revert();

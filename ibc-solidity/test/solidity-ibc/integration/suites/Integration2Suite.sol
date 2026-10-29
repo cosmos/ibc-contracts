@@ -693,15 +693,15 @@ abstract contract Integration2Suite is LightClientDriverTest {
     function test_failure_outOfGasGmpWithGas() public {
         address user = integrationEnv.createUser();
         address receiver = address(new MulticallTargetMock(address(0)));
-        uint256 gas_ = 10_000_000;
+        uint256 gas = 10_000_000;
 
-        // The account calls the receiver with `gas_` gas
+        // The account calls the receiver with `gas` gas
         IICS27GMPMsgs.AccountIdentifier memory accountId = IICS27GMPMsgs.AccountIdentifier({
             clientId: th.FIRST_CLIENT_ID(), sender: Strings.toChecksumHexString(user), salt: ""
         });
         address account = ibcImplB.ics27Gmp().getOrComputeAccountAddress(accountId);
         bytes memory payload = abi.encodeWithSignature(
-            "execute(address,bytes,uint256,uint256)", receiver, abi.encodeCall(MulticallTargetMock.burnGas, ()), 0, gas_
+            "execute(address,bytes,uint256,uint256)", receiver, abi.encodeCall(MulticallTargetMock.burnGas, ()), 0, gas
         );
 
         // send packet
@@ -710,11 +710,11 @@ abstract contract Integration2Suite is LightClientDriverTest {
 
         // Receiving the packet on B without enough gas for the call fails the relay
         vm.expectRevert(IICS26RouterErrors.IBCFailedCallback.selector);
-        ibcImplB.recvPacket{ gas: gas_ / 2 }(sentPacket);
+        ibcImplB.recvPacket{ gas: gas / 2 }(sentPacket);
         assertFalse(ibcImplB.relayerHelper().isPacketReceived(sentPacket));
 
         // Running out of the gas given to the call does not depend on the relayer, so it writes an error ack
-        bytes[] memory acks = ibcImplB.recvPacket{ gas: 3 * gas_ }(sentPacket);
+        bytes[] memory acks = ibcImplB.recvPacket{ gas: 3 * gas }(sentPacket);
         assertEq(acks, th.SINGLE_ERROR_ACK(), "ack mismatch");
         assertFalse(ibcImplB.relayerHelper().isPacketReceiveSuccessful(sentPacket));
     }

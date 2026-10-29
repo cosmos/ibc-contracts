@@ -53,7 +53,7 @@
         "internalType": "uint256"
       },
       {
-        "name": "gas_",
+        "name": "gas",
         "type": "uint256",
         "internalType": "uint256"
       }
