@@ -139,6 +139,7 @@ pub async fn run(args: MisbehaviourCmd) -> anyhow::Result<()> {
             public_values,
         ),
     };
+    drop(verify_misbehaviour_prover);
     let fixture = SP1ICS07SubmitMisbehaviourFixture {
         genesis: genesis_2,
         submit_msg: submit_msg.abi_encode(),

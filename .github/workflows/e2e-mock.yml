@@ -32,7 +32,7 @@ env:
   FOUNDRY_PROFILE: ci
   SP1_PROVER: mock
   E2E_PROOF_TYPE: groth16
-  SP1_VERSION: "6.1.0"
+  SP1_VERSION: "6.9.0"
   SOLANA_VERSION: "2.3.13"
   ANCHOR_VERSION: "0.32.1"
   E2E_IBC_GO_DOCKER_TAG: ${{ inputs.ibc-go-docker-tag || 'v11.0.0' }}

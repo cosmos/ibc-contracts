@@ -138,6 +138,7 @@ pub async fn run(args: UpdateClientAndMembershipCmd) -> anyhow::Result<()> {
             proof_data.public_values.to_vec(),
         ),
     };
+    drop(uc_mem_prover);
 
     let fixture = SP1ICS07MembershipFixture {
         genesis,

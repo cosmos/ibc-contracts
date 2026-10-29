@@ -9,19 +9,37 @@ interface IBesuLightClientErrors {
     error InvalidRevisionNumber(uint64 providedRevisionNumber);
     /// @notice The counterparty ICS26 router address is zero.
     error InvalidIbcRouter();
+    /// @notice The counterparty router in the proof path does not match the tracked router.
+    /// @param expected The client state's `ibcRouter`.
+    /// @param actual The router address in the proof path.
+    error CounterpartyRouterMismatch(address expected, address actual);
+    /// @notice The storage slot in the proof path is not the `IBCStoreUpgradeable` namespace slot.
+    /// @param expected The `IBCStoreUpgradeable` namespace slot.
+    /// @param actual The storage slot in the proof path.
+    error StorageSlotMismatch(bytes32 expected, bytes32 actual);
     /// @notice The submitted header has an invalid RLP item count.
     /// @param itemsLength The decoded header item count.
     error InvalidHeaderFormat(uint256 itemsLength);
     /// @notice The submitted `extraData` field has an invalid RLP item count.
     /// @param itemsLength The decoded `extraData` item count.
     error InvalidExtraDataFormat(uint256 itemsLength);
+    /// @notice The fifth `extraData` item of the submitted header is not an empty commit seal list.
+    error NonEmptyCommitSealList();
     /// @notice The submitted header height is zero.
     error InvalidHeaderHeight();
     /// @notice The submitted header timestamp is zero.
     error InvalidHeaderTimestamp();
-    /// @notice Trusting period must be greater than zero.
-    error InvalidTrustingPeriod();
-    /// @notice Trust level must be within `[1/3, 1]` with a non-zero denominator.
+    /// @notice The state root is zero or the empty trie root.
+    /// @dev An empty trie root would let any non-membership proof pass without proof nodes.
+    /// @param stateRoot The invalid state root.
+    error InvalidStateRoot(bytes32 stateRoot);
+    /// @notice Trusting period must be within `(0, 30 days]`.
+    /// @param trustingPeriod The provided trusting period.
+    error InvalidTrustingPeriod(uint64 trustingPeriod);
+    /// @notice Max clock drift must be at most 12 seconds.
+    /// @param maxClockDrift The provided max clock drift.
+    error InvalidMaxClockDrift(uint64 maxClockDrift);
+    /// @notice Trust level must be within `[1/3, 2/3]` with a non-zero denominator.
     /// @param numerator The provided numerator.
     /// @param denominator The provided denominator.
     error InvalidTrustLevel(uint8 numerator, uint8 denominator);
@@ -69,6 +87,8 @@ interface IBesuLightClientErrors {
     /// @notice The commit seals are not sorted in strictly ascending order of their recovered signers.
     /// @param index The index of the first unsorted commit seal signer.
     error UnsortedCommitSealSigners(uint256 index);
+    /// @notice The update has no commit seals.
+    error EmptyCommitSeals();
     /// @notice An ECDSA signature has an invalid length.
     /// @param length The invalid signature length.
     error InvalidECDSASignatureLength(uint256 length);
@@ -86,6 +106,10 @@ interface IBesuLightClientErrors {
     /// @param expectedLength The expected path length.
     /// @param actualLength The actual path length.
     error InvalidPathLength(uint256 expectedLength, uint256 actualLength);
+    /// @notice A proof path element has an invalid length.
+    /// @param expectedLength The expected path element length.
+    /// @param actualLength The actual path element length.
+    error InvalidPathElementLength(uint256 expectedLength, uint256 actualLength);
     /// @notice A membership value has an invalid length.
     /// @param expectedLength The expected value length.
     /// @param actualLength The actual value length.
@@ -104,6 +128,7 @@ interface IBesuLightClientErrors {
     /// @notice The commit seal signer is not in the validator set.
     /// @param signer The commit seal signer address.
     error UnknownCommitSealSigner(address signer);
-    /// @notice The submitted misbehaviour evidence does not prove a double sign or time non-monotonicity.
+    /// @notice The submitted misbehaviour evidence does not prove a double sign, time non-monotonicity, a sub-second
+    /// block time, or an invalid validator set change.
     error NoMisbehaviourDetected();
 }

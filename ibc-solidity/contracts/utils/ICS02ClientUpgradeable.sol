@@ -10,6 +10,7 @@ import { ILightClient } from "../interfaces/ILightClient.sol";
 
 import { Strings } from "@openzeppelin-contracts/utils/Strings.sol";
 import { AccessManagedUpgradeable } from "@openzeppelin-upgradeable/access/manager/AccessManagedUpgradeable.sol";
+import { PausableUpgradeable } from "@openzeppelin-upgradeable/utils/PausableUpgradeable.sol";
 import { IBCIdentifiers } from "../utils/IBCIdentifiers.sol";
 
 /// @title ICS02 Client Router
@@ -18,7 +19,13 @@ import { IBCIdentifiers } from "../utils/IBCIdentifiers.sol";
 /// @dev Each client is identified by a unique identifier, hash of which also serves as the role identifier
 /// @dev The light client migrator role is granted to whoever called `addClient` for the client, and can be revoked (not
 /// transferred)
-abstract contract ICS02ClientUpgradeable is IICS02Client, IICS02ClientErrors, AccessManagedUpgradeable {
+/// @dev Client registration is blocked while the contract is paused. Other client operations are not.
+abstract contract ICS02ClientUpgradeable is
+    IICS02Client,
+    IICS02ClientErrors,
+    AccessManagedUpgradeable,
+    PausableUpgradeable
+{
     /// @notice Storage of the ICS02Client contract
     /// @dev It's implemented on a custom ERC-7201 namespace to reduce the
     /// @dev risk of storage collisions when using with upgradeable contracts.
@@ -42,6 +49,7 @@ abstract contract ICS02ClientUpgradeable is IICS02Client, IICS02ClientErrors, Ac
     /// @param authority The address of the AccessManager contract
     function __ICS02Client_init(address authority) internal onlyInitializing {
         __AccessManaged_init(authority);
+        __Pausable_init();
     }
 
     /// @inheritdoc IICS02Client
@@ -80,6 +88,8 @@ abstract contract ICS02ClientUpgradeable is IICS02Client, IICS02ClientErrors, Ac
         address client
     )
         external
+        restricted
+        whenNotPaused
         returns (string memory)
     {
         string memory clientId = nextClientId();
@@ -95,6 +105,7 @@ abstract contract ICS02ClientUpgradeable is IICS02Client, IICS02ClientErrors, Ac
     )
         external
         restricted
+        whenNotPaused
         returns (string memory)
     {
         require(bytes(clientId).length != 0, IBCInvalidClientId(clientId));
@@ -136,6 +147,30 @@ abstract contract ICS02ClientUpgradeable is IICS02Client, IICS02ClientErrors, Ac
         ILightClientMsgs.UpdateResult result = getClient(clientId).updateClient(updateMsg);
         emit ICS02ClientUpdated(clientId, result);
         return result;
+    }
+
+    /// @inheritdoc IICS02ClientAccessControlled
+    function verifyMembership(
+        string calldata clientId,
+        ILightClientMsgs.MsgVerifyMembership calldata msg_
+    )
+        external
+        restricted
+        returns (uint256)
+    {
+        return getClient(clientId).verifyMembership(msg_);
+    }
+
+    /// @inheritdoc IICS02ClientAccessControlled
+    function verifyNonMembership(
+        string calldata clientId,
+        ILightClientMsgs.MsgVerifyNonMembership calldata msg_
+    )
+        external
+        restricted
+        returns (uint256)
+    {
+        return getClient(clientId).verifyNonMembership(msg_);
     }
 
     /// @inheritdoc IICS02ClientAccessControlled

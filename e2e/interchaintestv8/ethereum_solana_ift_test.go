@@ -471,15 +471,16 @@ func (s *EthereumSolanaIFTTestSuite) SetupSuite(ctx context.Context) {
 				QuorumThreshold:   numEthAttestors,
 			}).
 			SolanaToEthAttested(proofapi.SolanaToEthAttestedParams{
-				SolanaChainID:     testvalues.SolanaChainID,
-				EthChainID:        eth.ChainID.String(),
-				SolanaRPC:         testvalues.SolanaLocalnetRPC,
-				ICS26ProgramID:    ics26_router.ProgramID.String(),
-				EthRPC:            eth.RPC,
-				ICS26Address:      s.contractAddresses.Ics26Router,
-				AttestorEndpoints: s.solanaAttestorResult.Endpoints,
-				AttestorTimeout:   30000,
-				QuorumThreshold:   numSolAttestors,
+				SolanaChainID:       testvalues.SolanaChainID,
+				EthChainID:          eth.ChainID.String(),
+				SolanaRPC:           testvalues.SolanaLocalnetRPC,
+				ICS26ProgramID:      ics26_router.ProgramID.String(),
+				EthRPC:              eth.RPC,
+				ICS26Address:        s.contractAddresses.Ics26Router,
+				IBCMulticallAddress: s.contractAddresses.IbcMulticall,
+				AttestorEndpoints:   s.solanaAttestorResult.Endpoints,
+				AttestorTimeout:     30000,
+				QuorumThreshold:     numSolAttestors,
 			}).
 			Build()
 
@@ -913,7 +914,7 @@ func (s *EthereumSolanaIFTTestSuite) Test_EthSolana_IFT_Roundtrip() {
 		}))
 
 		s.Require().True(s.Run("Relay ack to Ethereum", func() {
-			ics26Address := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
+			multicallAddress := ethcommon.HexToAddress(s.contractAddresses.IbcMulticall)
 
 			ackResp, err := s.ProofApiClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
 				SrcChain:    testvalues.SolanaChainID,
@@ -924,7 +925,7 @@ func (s *EthereumSolanaIFTTestSuite) Test_EthSolana_IFT_Roundtrip() {
 			})
 			s.Require().NoError(err)
 
-			receipt, err := eth.BroadcastTx(ctx, s.ethUser, 15_000_000, &ics26Address, ackResp.Tx)
+			receipt, err := eth.BroadcastTx(ctx, s.ethUser, 15_000_000, &multicallAddress, ackResp.Tx)
 			s.Require().NoError(err)
 			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
 		}))
@@ -993,7 +994,7 @@ func (s *EthereumSolanaIFTTestSuite) Test_EthSolana_IFT_Roundtrip() {
 
 		var ethRecvTxHash []byte
 		s.Require().True(s.Run("Relay packet to Ethereum", func() {
-			ics26Address := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
+			multicallAddress := ethcommon.HexToAddress(s.contractAddresses.IbcMulticall)
 
 			resp, err := s.ProofApiClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
 				SrcChain:    testvalues.SolanaChainID,
@@ -1005,7 +1006,7 @@ func (s *EthereumSolanaIFTTestSuite) Test_EthSolana_IFT_Roundtrip() {
 			s.Require().NoError(err)
 			s.Require().NotEmpty(resp.Tx)
 
-			receipt, err := eth.BroadcastTx(ctx, s.ethUser, 15_000_000, &ics26Address, resp.Tx)
+			receipt, err := eth.BroadcastTx(ctx, s.ethUser, 15_000_000, &multicallAddress, resp.Tx)
 			s.Require().NoError(err)
 			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
 			ethRecvTxHash = receipt.TxHash.Bytes()
@@ -1349,7 +1350,7 @@ func (s *EthereumSolanaIFTTestSuite) Test_EthSolana_IFT_TimeoutFromEth() {
 
 	eth := s.Eth.Chains[0]
 	ethIFTAddress := ethcommon.HexToAddress(s.contractAddresses.Ift)
-	ics26Address := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
+	multicallAddress := ethcommon.HexToAddress(s.contractAddresses.IbcMulticall)
 
 	ethUserAddr := crypto.PubkeyToAddress(s.ethUser.PublicKey)
 	transferAmount := big.NewInt(int64(EthSolanaIFTTransferAmount))
@@ -1417,7 +1418,7 @@ func (s *EthereumSolanaIFTTestSuite) Test_EthSolana_IFT_TimeoutFromEth() {
 		s.Require().NoError(err)
 		s.Require().NotEmpty(resp.Tx)
 
-		receipt, err := eth.BroadcastTx(ctx, s.ethUser, 15_000_000, &ics26Address, resp.Tx)
+		receipt, err := eth.BroadcastTx(ctx, s.ethUser, 15_000_000, &multicallAddress, resp.Tx)
 		s.Require().NoError(err)
 		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
 	}))
@@ -1577,7 +1578,7 @@ func (s *EthereumSolanaIFTTestSuite) Test_EthSolana_IFT_FailedReceiveOnEth() {
 
 	eth := s.Eth.Chains[0]
 	ethIFTAddress := ethcommon.HexToAddress(s.contractAddresses.Ift)
-	ics26Address := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
+	multicallAddress := ethcommon.HexToAddress(s.contractAddresses.IbcMulticall)
 
 	s.Require().True(s.Run("Admin mint tokens to sender on Solana", func() {
 		s.adminMintIFTTokens(ctx, s.SolanaUser.PublicKey(), EthSolanaIFTMintAmount)
@@ -1650,7 +1651,7 @@ func (s *EthereumSolanaIFTTestSuite) Test_EthSolana_IFT_FailedReceiveOnEth() {
 		s.Require().NoError(err)
 		s.Require().NotEmpty(resp.Tx)
 
-		receipt, err := eth.BroadcastTx(ctx, s.ethUser, 15_000_000, &ics26Address, resp.Tx)
+		receipt, err := eth.BroadcastTx(ctx, s.ethUser, 15_000_000, &multicallAddress, resp.Tx)
 		s.Require().NoError(err)
 		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
 		ethRecvTxHash = receipt.TxHash.Bytes()

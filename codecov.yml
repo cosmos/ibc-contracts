@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+
+# Each flag is uploaded by a separate workflow, and rust.yml only runs on PRs that touch Rust.
+# Carry forward the last uploaded report so PRs that skip a workflow don't lose its coverage.
+flag_management:
+  default_rules:
+    carryforward: true

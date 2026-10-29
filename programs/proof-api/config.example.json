@@ -18,6 +18,7 @@
       "config": {
         "tm_rpc_url": "http://public-celestia-mocha4-consensus.numia.xyz/",
         "ics26_address": "0x4242424242424242424242424242424242424242",
+        "ibc_multicall_address": "0x2626262626262626262626262626262626262626",
         "eth_rpc_url": "https://ethereum-holesky-rpc.publicnode.com",
         "mode": {
           "type": "sp1",
@@ -43,6 +44,7 @@
       "config": {
         "tm_rpc_url": "http://public-celestia-mocha4-consensus.numia.xyz/",
         "ics26_address": "0x4242424242424242424242424242424242424242",
+        "ibc_multicall_address": "0x2626262626262626262626262626262626262626",
         "eth_rpc_url": "https://ethereum-holesky-rpc.publicnode.com",
         "mode": {
           "type": "sp1",
@@ -117,6 +119,7 @@
         "src_ics26_address": "0x4242424242424242424242424242424242424242",
         "dst_rpc_url": "https://ethereum-holesky-rpc.publicnode.com",
         "dst_ics26_address": "0x4242424242424242424242424242424242424242",
+        "dst_ibc_multicall_address": "0x2626262626262626262626262626262626262626",
         "mode": {
           "type": "attested",
           "attestor": {
@@ -156,6 +159,7 @@
         "src_ics26_address": "0x4242424242424242424242424242424242424242",
         "dst_rpc_url": "http://127.0.0.1:9545",
         "dst_ics26_address": "0x4242424242424242424242424242424242424242",
+        "dst_ibc_multicall_address": "0x2626262626262626262626262626262626262626",
         "consensus_type": "qbft"
       }
     },

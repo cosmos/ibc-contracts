@@ -197,6 +197,7 @@ pub async fn inject_sp1_proof(
             uc_and_mem_proof.public_values.to_vec(),
         ),
     });
+    drop(uc_and_mem_prover);
 
     // inject proof
     match msgs.first_mut() {

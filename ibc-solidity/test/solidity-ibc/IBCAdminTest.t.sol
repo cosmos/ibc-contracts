@@ -100,6 +100,30 @@ contract IBCAdminTest is Test, DeployAccessManagerWithRoles {
         ics26Router.addIBCApp(ICS20Lib.DEFAULT_PORT_ID, address(ics20Transfer));
     }
 
+    function test_success_publicSelectors() public {
+        address user = makeAddr("user");
+
+        vm.prank(user);
+        ics26Router.addIBCApp(makeAddr("mockApp"));
+        vm.prank(user);
+        ics26Router.addClient(IICS02ClientMsgs.CounterpartyInfo(counterpartyId, merklePrefix), makeAddr("mockClient"));
+    }
+
+    function test_failure_restrictPublicSelectors() public {
+        accessManager.setTargetFunctionRole(
+            address(ics26Router), IBCRolesLib.ics26PublicSelectors(), IBCRolesLib.ADMIN_ROLE
+        );
+
+        address user = makeAddr("user");
+
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSelector(IAccessManaged.AccessManagedUnauthorized.selector, user));
+        ics26Router.addIBCApp(makeAddr("mockApp"));
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSelector(IAccessManaged.AccessManagedUnauthorized.selector, user));
+        ics26Router.addClient(IICS02ClientMsgs.CounterpartyInfo(counterpartyId, merklePrefix), makeAddr("mockClient"));
+    }
+
     function test_success_ics20_upgrade() public {
         // ============== Step 4: Migrate the contracts ==============
         DummyInitializable newLogic = new DummyInitializable();
@@ -167,6 +191,74 @@ contract IBCAdminTest is Test, DeployAccessManagerWithRoles {
         vm.prank(unauthorized);
         vm.expectRevert(abi.encodeWithSelector(IAccessManaged.AccessManagedUnauthorized.selector, unauthorized));
         ics26Router.upgradeToAndCall(address(newLogic), abi.encodeCall(DummyInitializable.initializeV2, ()));
+    }
+
+    function test_success_ics26_pauseAndUnpause() public {
+        address user = makeAddr("user");
+        IICS02ClientMsgs.CounterpartyInfo memory counterpartyInfo =
+            IICS02ClientMsgs.CounterpartyInfo(counterpartyId, merklePrefix);
+
+        vm.prank(pauser);
+        ics26Router.pause();
+        assert(ics26Router.paused());
+
+        // Every registration is paused
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSelector(PausableUpgradeable.EnforcedPause.selector));
+        ics26Router.addIBCApp(makeAddr("mockApp"));
+
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSelector(PausableUpgradeable.EnforcedPause.selector));
+        ics26Router.addClient(counterpartyInfo, makeAddr("mockClient"));
+
+        vm.prank(customizer);
+        vm.expectRevert(abi.encodeWithSelector(PausableUpgradeable.EnforcedPause.selector));
+        ics26Router.addIBCApp("mockport", makeAddr("mockApp"));
+
+        vm.prank(customizer);
+        vm.expectRevert(abi.encodeWithSelector(PausableUpgradeable.EnforcedPause.selector));
+        ics26Router.addClient("mock-client", counterpartyInfo, makeAddr("mockClient"));
+
+        // Existing clients can still be updated and migrated
+        vm.prank(relayer);
+        ics26Router.updateClient(clientId, bytes("update"));
+        ics26Router.migrateClient(clientId, counterpartyInfo, makeAddr("newClient"));
+
+        vm.prank(unpauser);
+        ics26Router.unpause();
+        assert(!ics26Router.paused());
+
+        vm.prank(user);
+        ics26Router.addIBCApp(makeAddr("mockApp"));
+        vm.prank(user);
+        ics26Router.addClient(counterpartyInfo, makeAddr("mockClient"));
+        vm.prank(customizer);
+        ics26Router.addIBCApp("mockport", makeAddr("mockApp"));
+        vm.prank(customizer);
+        ics26Router.addClient("mock-client", counterpartyInfo, makeAddr("mockClient"));
+    }
+
+    function test_failure_ics26_pauseAndUnpause() public {
+        address unauthorized = makeAddr("unauthorized");
+
+        vm.prank(unauthorized);
+        vm.expectRevert(abi.encodeWithSelector(IAccessManaged.AccessManagedUnauthorized.selector, unauthorized));
+        ics26Router.pause();
+        assert(!ics26Router.paused());
+
+        vm.prank(pauser);
+        ics26Router.pause();
+        assert(ics26Router.paused());
+
+        vm.prank(unauthorized);
+        vm.expectRevert(abi.encodeWithSelector(IAccessManaged.AccessManagedUnauthorized.selector, unauthorized));
+        ics26Router.unpause();
+        assert(ics26Router.paused());
+
+        vm.prank(pauser);
+        vm.expectRevert(abi.encodeWithSelector(IAccessManaged.AccessManagedUnauthorized.selector, pauser));
+        ics26Router.unpause();
+        assert(ics26Router.paused());
     }
 
     function test_success_ics20_pauseAndUnpause() public {

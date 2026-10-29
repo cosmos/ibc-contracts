@@ -5,20 +5,25 @@ pragma solidity ^0.8.28;
 // custom-errors,max-line-length,max-states-count,var-name-mixedcase,gas-small-strings
 
 import { IICS26RouterMsgs } from "../../../../contracts/msgs/IICS26RouterMsgs.sol";
-import { IICS26Router } from "../../../../contracts/interfaces/IICS26Router.sol";
+import { IICS26Router, IICS26RouterAccessControlled } from "../../../../contracts/interfaces/IICS26Router.sol";
 import { IIFTMsgs } from "../../../../contracts/msgs/IIFTMsgs.sol";
+import { IIBCMulticallMsgs } from "../../../../contracts/msgs/IIBCMulticallMsgs.sol";
 
 import { IIFT } from "../../../../contracts/interfaces/IIFT.sol";
 import { IIFTRateLimit } from "../../../../contracts/interfaces/IIFTRateLimit.sol";
 import { IIFTErrors } from "../../../../contracts/errors/IIFTErrors.sol";
+import { IIBCMulticall } from "../../../../contracts/interfaces/IIBCMulticall.sol";
 
 import { IbcImpl } from "../../utils/IbcImpl.sol";
 import { LightClientDriverTest } from "../drivers/LightClientDriverTest.sol";
 import { TestHelper } from "../../utils/TestHelper.sol";
 import { IntegrationEnv } from "../../utils/IntegrationEnv.sol";
 import { IFTAccessManaged } from "../../../../contracts/utils/IFTAccessManaged.sol";
+import { IBCMulticall } from "../../../../contracts/utils/IBCMulticall.sol";
 import { EVMIFTSendCallConstructor } from "../../../../contracts/utils/EVMIFTSendCallConstructor.sol";
+import { ICS24Host } from "../../../../contracts/utils/ICS24Host.sol";
 import { Strings } from "@openzeppelin-contracts/utils/Strings.sol";
+import { RateLimiter } from "@openzeppelin-contracts/utils/RateLimiter.sol";
 import { ERC1967Proxy } from "@openzeppelin-contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 abstract contract IFTIntegrationSuite is LightClientDriverTest {
@@ -46,10 +51,10 @@ abstract contract IFTIntegrationSuite is LightClientDriverTest {
         ibcImplB = new IbcImpl(integrationEnv.permit2());
 
         string memory clientId;
-        clientId = ibcImplA.addClient(th.FIRST_CLIENT_ID(), _newDriver(ibcImplB.ics26Router()));
+        clientId = ibcImplA.addClient(th.FIRST_CLIENT_ID(), _newDriver(ibcImplA.ics26Router(), ibcImplB.ics26Router()));
         assertEq(clientId, th.FIRST_CLIENT_ID());
 
-        clientId = ibcImplB.addClient(th.FIRST_CLIENT_ID(), _newDriver(ibcImplA.ics26Router()));
+        clientId = ibcImplB.addClient(th.FIRST_CLIENT_ID(), _newDriver(ibcImplB.ics26Router(), ibcImplA.ics26Router()));
         assertEq(clientId, th.FIRST_CLIENT_ID());
 
         sendCallConstructor = new EVMIFTSendCallConstructor();
@@ -219,6 +224,85 @@ abstract contract IFTIntegrationSuite is LightClientDriverTest {
         iftOnA.getPendingTransfer(clientId, sentPacket.sequence);
     }
 
+    /// @dev A mint rejected on the destination, here by its inbound rate limit, is acknowledged with an error. A refund
+    /// rejected on the source keeps the packet relayable until it succeeds.
+    function testFuzz_rejectedMint_errorAckRefundsAfterRetry(uint256 amount) public {
+        amount = bound(amount, 2, MAX_RATE_LIMIT_CAPACITY);
+
+        address sender = integrationEnv.createUser();
+        address receiver = integrationEnv.createUser();
+        string memory clientId = th.FIRST_CLIENT_ID();
+
+        deal(address(iftOnA), sender, amount, true);
+
+        vm.startPrank(sender);
+        vm.recordLogs();
+        iftOnA.iftTransfer(clientId, Strings.toHexString(receiver), amount);
+        vm.stopPrank();
+
+        IICS26RouterMsgs.Packet memory sentPacket = _extractPacketFromLogs();
+
+        // The destination rejects the mint and writes an error acknowledgement without minting
+        iftOnB.setIFTRateLimit(uint208(amount - 1), RATE_LIMIT_WINDOW);
+        bytes[] memory acks = ibcImplB.recvPacket(sentPacket);
+        assertEq(acks[0], ICS24Host.UNIVERSAL_ERROR_ACK, "mint rejection should be an error ack");
+        assertEq(iftOnB.totalSupply(), 0, "nothing should be minted on the destination");
+
+        // The source rejects the refund, so the whole ack relay reverts and the packet stays relayable
+        iftOnA.setIFTRateLimit(uint208(amount - 1), RATE_LIMIT_WINDOW);
+        vm.expectRevert(RateLimiter.RateLimitExceeded.selector);
+        ibcImplA.ackPacket(sentPacket, acks);
+        _assertStillPending(sentPacket, sender, amount);
+
+        // Once the refund fits, relaying the same ack again refunds the sender
+        iftOnA.setIFTRateLimit(MAX_RATE_LIMIT_CAPACITY, RATE_LIMIT_WINDOW);
+        ibcImplA.ackPacket(sentPacket, acks);
+        assertEq(iftOnA.balanceOf(sender), amount, "tokens should be refunded");
+        vm.expectRevert(
+            abi.encodeWithSelector(IIFTErrors.IFTPendingTransferNotFound.selector, clientId, sentPacket.sequence)
+        );
+        iftOnA.getPendingTransfer(clientId, sentPacket.sequence);
+    }
+
+    /// @dev A refund rejected on timeout, here by the source's inbound rate limit, keeps the packet relayable until it
+    /// succeeds
+    function testFuzz_rejectedTimeoutRefund_refundsAfterRetry(uint256 amount) public {
+        amount = bound(amount, 2, MAX_RATE_LIMIT_CAPACITY);
+
+        address sender = integrationEnv.createUser();
+        address receiver = integrationEnv.createUser();
+        string memory clientId = th.FIRST_CLIENT_ID();
+
+        deal(address(iftOnA), sender, amount, true);
+
+        uint64 shortTimeout = uint64(block.timestamp) + 1;
+
+        vm.startPrank(sender);
+        vm.recordLogs();
+        iftOnA.iftTransfer(clientId, Strings.toHexString(receiver), amount, shortTimeout);
+        vm.stopPrank();
+
+        IICS26RouterMsgs.Packet memory sentPacket = _extractPacketFromLogs();
+
+        vm.warp(block.timestamp + 100);
+        ibcImplA.cheatPacketCommitment(sentPacket);
+
+        // The source rejects the refund, so the whole timeout relay reverts and the packet stays relayable
+        iftOnA.setIFTRateLimit(uint208(amount - 1), RATE_LIMIT_WINDOW);
+        vm.expectRevert(RateLimiter.RateLimitExceeded.selector);
+        ibcImplA.timeoutPacket(sentPacket);
+        _assertStillPending(sentPacket, sender, amount);
+
+        // Once the refund fits, relaying the timeout again refunds the sender
+        iftOnA.setIFTRateLimit(MAX_RATE_LIMIT_CAPACITY, RATE_LIMIT_WINDOW);
+        ibcImplA.timeoutPacket(sentPacket);
+        assertEq(iftOnA.balanceOf(sender), amount, "tokens should be refunded");
+        vm.expectRevert(
+            abi.encodeWithSelector(IIFTErrors.IFTPendingTransferNotFound.selector, clientId, sentPacket.sequence)
+        );
+        iftOnA.getPendingTransfer(clientId, sentPacket.sequence);
+    }
+
     function testFuzz_multipleTransfersInFlight(uint256 amount1, uint256 amount2) public {
         // Both transfers share the outbound bucket, so together they must fit in the capacity
         amount1 = bound(amount1, 1, MAX_RATE_LIMIT_CAPACITY / 2);
@@ -251,6 +335,51 @@ abstract contract IFTIntegrationSuite is LightClientDriverTest {
         assertEq(iftOnB.balanceOf(receiver1), amount1);
     }
 
+    /// @dev Two refunds that only fit the rate limit one at a time are relayed in one batch where each may fail. The
+    /// first refund lands and the second packet stays relayable until its refund fits.
+    function test_success_partialTimeoutBatch() public {
+        uint256 amount = 1000;
+        address sender = integrationEnv.createUser();
+        string memory clientId = th.FIRST_CLIENT_ID();
+        string memory receiverStr = Strings.toHexString(integrationEnv.createUser());
+        uint64 timeout = uint64(block.timestamp) + 1;
+
+        deal(address(iftOnA), sender, 2 * amount, true);
+        IICS26RouterMsgs.Packet[2] memory packets;
+        for (uint256 i = 0; i < 2; ++i) {
+            vm.recordLogs();
+            vm.prank(sender);
+            iftOnA.iftTransfer(clientId, receiverStr, amount, timeout);
+            packets[i] = _extractPacketFromLogs();
+        }
+        vm.warp(block.timestamp + 100);
+
+        IIBCMulticallMsgs.Call[] memory calls = new IIBCMulticallMsgs.Call[](2);
+        for (uint256 i = 0; i < 2; ++i) {
+            calls[i] = IIBCMulticallMsgs.Call({
+                target: address(ibcImplA.ics26Router()),
+                allowFailure: true,
+                callData: abi.encodeCall(
+                    IICS26RouterAccessControlled.timeoutPacket, (ibcImplA.timeoutPacketMsg(packets[i]))
+                )
+            });
+        }
+
+        iftOnA.setIFTRateLimit(uint208(amount), RATE_LIMIT_WINDOW);
+        IBCMulticall multicall = ibcImplA.ibcMulticall();
+        vm.expectEmit(address(multicall));
+        emit IIBCMulticall.CallFailed(1, abi.encodeWithSelector(RateLimiter.RateLimitExceeded.selector));
+        multicall.multicall(calls);
+
+        assertEq(iftOnA.balanceOf(sender), amount, "only the first transfer should be refunded");
+        assertEq(iftOnA.getPendingTransfer(clientId, packets[1].sequence).amount, amount, "should stay pending");
+
+        // Once the refund fits, relaying the failed timeout again refunds the sender
+        iftOnA.setIFTRateLimit(MAX_RATE_LIMIT_CAPACITY, RATE_LIMIT_WINDOW);
+        ibcImplA.timeoutPacket(packets[1]);
+        assertEq(iftOnA.balanceOf(sender), 2 * amount, "both transfers should be refunded");
+    }
+
     function test_upgrade_success() public {
         IFTAccessManaged newImpl = new IFTAccessManaged();
 
@@ -268,6 +397,17 @@ abstract contract IFTIntegrationSuite is LightClientDriverTest {
         vm.prank(unauthorizedUser);
         vm.expectRevert();
         iftOnA.upgradeToAndCall(address(newImpl), "");
+    }
+
+    function _assertStillPending(IICS26RouterMsgs.Packet memory packet, address sender, uint256 amount) internal view {
+        bytes32 path = ICS24Host.packetCommitmentKeyCalldata(packet.sourceClient, packet.sequence);
+        assertEq(
+            ibcImplA.ics26Router().getCommitment(path),
+            ICS24Host.packetCommitmentBytes32(packet),
+            "packet commitment should be kept"
+        );
+        assertEq(iftOnA.getPendingTransfer(packet.sourceClient, packet.sequence).amount, amount, "should stay pending");
+        assertEq(iftOnA.balanceOf(sender), 0, "nothing should be refunded");
     }
 
     function _extractPacketFromLogs() internal view returns (IICS26RouterMsgs.Packet memory) {

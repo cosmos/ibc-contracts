@@ -16,7 +16,7 @@ repository = "https://github.com/cosmos/ibc-contracts"
 keywords   = ["cosmos", "ibc", "sp1", "tendermint", "ethereum", "bridge", "solidity", "eureka"]
 
 [workspace.dependencies]
-sp1-zkvm   = { version = "6.1", default-features = false }
+sp1-zkvm   = { version = "6.9", default-features = false }
 
 sp1-ics07-tendermint-update-client = { path = "update-client", default-features = false }
 sp1-ics07-tendermint-membership    = { path = "membership", default-features = false }

@@ -96,7 +96,7 @@
               ++ [
                 node-modules
               ]
-              ++ (with pkgs.sp1."v6.1.0"; [
+              ++ (with pkgs.sp1."v6.9.0"; [
                 cargo-prove
                 sp1-rust-toolchain
               ]);

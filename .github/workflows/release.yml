@@ -9,7 +9,7 @@ on:
 permissions: {}
 
 env:
-  SP1_VERSION: "6.1.0"
+  SP1_VERSION: "6.9.0"
 
 
 jobs:
