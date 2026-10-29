@@ -12,7 +12,9 @@ ignore:
   - "programs/proof-api/**"
   - "packages/utils/**"
   - "packages/sp1-ics07-tendermint-prover/**"
+  # Mostly generated Solidity ABI bindings.
   - "packages/solidity/**"
+  # Used by the Solana programs; coverage will be set up alongside them.
   - "packages/constrained_types/**"
   - "ibc-solidity/programs/operator/**"
 
