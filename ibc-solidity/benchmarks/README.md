@@ -45,10 +45,10 @@ These isolated transactions use the live Besu QBFT header and proof fixture in `
 
 | Operation | Gas | ABI calldata bytes |
 | --- | ---: | ---: |
-| Adjacent client update | 152,255 | 1,764 |
-| Non-adjacent client update | 152,293 | 1,764 |
-| Membership verification | 156,766 | 2,500 |
-| Non-membership verification | 169,081 | 2,404 |
+| Adjacent client update | 152,267 | 1,764 |
+| Non-adjacent client update | 152,305 | 1,764 |
+| Membership verification | 156,869 | 2,500 |
+| Non-membership verification | 169,184 | 2,404 |
 
 ## Besu QBFT light-client scaling benchmarks
 
@@ -56,12 +56,12 @@ These isolated transactions use headers and proofs produced in-process by the `Q
 
 | Validators | Client update gas | ABI calldata bytes |
 | ---: | ---: | ---: |
-| 4 | 157,689 | 1,924 |
-| 7 | 189,102 | 2,564 |
-| 16 | 283,290 | 4,484 |
-| 32 | 451,079 | 7,908 |
-| 64 | 786,940 | 14,724 |
-| 100 | 1,165,637 | 22,372 |
+| 4 | 157,701 | 1,924 |
+| 7 | 189,114 | 2,564 |
+| 16 | 283,302 | 4,484 |
+| 32 | 451,091 | 7,908 |
+| 64 | 786,952 | 14,724 |
+| 100 | 1,165,649 | 22,372 |
 
 Membership verification against a world state trie with the given number of accounts (router included) and a router storage trie with the given number of commitments.
 
@@ -69,10 +69,10 @@ Gas:
 
 | Accounts | 1 commitments | 16 commitments | 128 commitments | 1024 commitments |
 | ---: | ---: | ---: | ---: | ---: |
-| 1 | 73,516 | 102,095 | 132,905 | 163,703 |
-| 16 | 102,560 | 131,140 | 161,951 | 192,774 |
-| 128 | 133,393 | 161,987 | 192,810 | 223,635 |
-| 1024 | 164,764 | 193,371 | 224,160 | 254,986 |
+| 1 | 73,619 | 102,198 | 133,008 | 163,806 |
+| 16 | 102,663 | 131,243 | 162,054 | 192,877 |
+| 128 | 133,496 | 162,090 | 192,913 | 223,738 |
+| 1024 | 164,867 | 193,474 | 224,263 | 255,089 |
 
 ABI calldata bytes:
 
