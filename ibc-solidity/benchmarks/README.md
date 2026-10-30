@@ -45,10 +45,10 @@ These isolated transactions use the live Besu QBFT header and proof fixture in `
 
 | Operation | Gas | ABI calldata bytes |
 | --- | ---: | ---: |
-| Adjacent client update | 152,267 | 1,764 |
-| Non-adjacent client update | 152,305 | 1,764 |
-| Membership verification | 156,869 | 2,500 |
-| Non-membership verification | 169,184 | 2,404 |
+| Adjacent client update | 152,255 | 1,764 |
+| Non-adjacent client update | 152,293 | 1,764 |
+| Membership verification | 156,835 | 2,500 |
+| Non-membership verification | 169,150 | 2,404 |
 
 ## Besu QBFT light-client scaling benchmarks
 
@@ -56,29 +56,29 @@ These isolated transactions use headers and proofs produced in-process by the `Q
 
 | Validators | Client update gas | ABI calldata bytes |
 | ---: | ---: | ---: |
-| 4 | 157,701 | 1,924 |
-| 7 | 189,114 | 2,564 |
+| 4 | 157,689 | 1,924 |
+| 7 | 189,138 | 2,564 |
 | 16 | 283,302 | 4,484 |
-| 32 | 451,091 | 7,908 |
-| 64 | 786,952 | 14,724 |
-| 100 | 1,165,649 | 22,372 |
+| 32 | 450,995 | 7,908 |
+| 64 | 786,772 | 14,724 |
+| 100 | 1,165,709 | 22,372 |
 
-Membership verification against a world state trie with the given number of accounts (router included) and a router storage trie with the given number of commitments.
+Membership verification against a world state trie with the given number of accounts (router included) and a router storage trie with the given number of commitments plus the ERC-1967 implementation slot.
 
 Gas:
 
 | Accounts | 1 commitments | 16 commitments | 128 commitments | 1024 commitments |
 | ---: | ---: | ---: | ---: | ---: |
-| 1 | 73,619 | 102,198 | 133,008 | 163,806 |
-| 16 | 102,663 | 131,243 | 162,054 | 192,877 |
-| 128 | 133,496 | 162,090 | 192,913 | 223,738 |
-| 1024 | 164,867 | 193,474 | 224,263 | 255,089 |
+| 1 | 97,933 | 102,676 | 132,986 | 163,772 |
+| 16 | 126,978 | 131,734 | 162,032 | 192,831 |
+| 128 | 157,836 | 162,592 | 192,891 | 223,704 |
+| 1024 | 189,195 | 193,928 | 224,229 | 255,079 |
 
 ABI calldata bytes:
 
 | Accounts | 1 commitments | 16 commitments | 128 commitments | 1024 commitments |
 | ---: | ---: | ---: | ---: | ---: |
-| 1 | 1,412 | 1,828 | 2,372 | 2,916 |
-| 16 | 1,860 | 2,276 | 2,820 | 3,364 |
-| 128 | 2,404 | 2,820 | 3,364 | 3,908 |
-| 1024 | 2,980 | 3,396 | 3,940 | 4,484 |
+| 1 | 1,572 | 1,860 | 2,372 | 2,916 |
+| 16 | 2,020 | 2,308 | 2,820 | 3,364 |
+| 128 | 2,564 | 2,852 | 3,364 | 3,908 |
+| 1024 | 3,140 | 3,428 | 3,940 | 4,484 |

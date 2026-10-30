@@ -35,7 +35,7 @@ interface IBesuLightClientErrors {
     error InvalidStateRoot(bytes32 stateRoot);
     /// @notice The storage root is zero or the empty trie root.
     /// @dev An empty trie root would let any non-membership proof pass without proof nodes.
-    /// @param storageRoot The invalid state root.
+    /// @param storageRoot The invalid storage root.
     error InvalidStorageRoot(bytes32 storageRoot);
     /// @notice Trusting period must be within `(0, 30 days]`.
     /// @param trustingPeriod The provided trusting period.

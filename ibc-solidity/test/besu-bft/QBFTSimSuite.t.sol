@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import { Test } from "forge-std/Test.sol";
 import { AccessManager } from "@openzeppelin-contracts/access/manager/AccessManager.sol";
 import { IAccessManaged } from "@openzeppelin-contracts/access/manager/IAccessManaged.sol";
+import { ERC1967Utils } from "@openzeppelin-contracts/proxy/ERC1967/ERC1967Utils.sol";
 import { Pausable } from "@openzeppelin-contracts/utils/Pausable.sol";
 import { Math } from "@openzeppelin-contracts/utils/math/Math.sol";
 import { Memory } from "@openzeppelin-contracts/utils/Memory.sol";
@@ -746,6 +747,23 @@ abstract contract QBFTSimSuiteTest is Test {
         client.updateClient(sim.updateMsg(3, 4));
         client.verifyNonMembership(sim.nonMembershipMsg(4, commitmentPath));
         client.verifyMembership(sim.membershipMsg(3, commitmentPath));
+        vm.stopPrank();
+    }
+
+    /// @dev An empty router storage trie would let any non-membership proof pass without proof nodes.
+    function test_verifyNonMembership_revertEmptyStorageRoot() public {
+        bytes memory receiptPath = ICS24Host.packetReceiptCommitmentPathCalldata("client-1", 1);
+        sim.setStorage(sim.IBC_ROUTER(), ERC1967Utils.IMPLEMENTATION_SLOT, bytes32(0));
+        sim.produceBlock();
+        bytes memory update = sim.updateMsg(2, 3);
+        ILightClientMsgs.MsgVerifyNonMembership memory nonMembership = sim.nonMembershipMsg(3, receiptPath);
+
+        vm.startPrank(ics26Router);
+        client.updateClient(update);
+        vm.expectRevert(
+            abi.encodeWithSelector(IBesuLightClientErrors.InvalidStorageRoot.selector, SimHeader.EMPTY_ROOT_HASH)
+        );
+        client.verifyNonMembership(nonMembership);
         vm.stopPrank();
     }
 
