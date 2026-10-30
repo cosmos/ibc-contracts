@@ -31,7 +31,6 @@
     "benchmarks:update": "bun benchmarks/generate.ts update",
     "lint:benchmarks": "prettier --check 'benchmarks/*.ts'",
     "lint:sol": "forge fmt --check && bun solhint -w 0 '{scripts,contracts,test}/**/*.sol'",
-    "lint:natspec": "bun natspec-smells --include 'contracts/**/*.sol'",
     "test:benchmarks": "bun test benchmarks",
     "test:coverage": "forge coverage",
     "test:coverage:report": "forge coverage --report lcov && genhtml lcov.info --branch-coverage --output-dir coverage"
