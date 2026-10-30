@@ -316,6 +316,17 @@
   },
   {
     "type": "error",
+    "name": "InvalidStorageRoot",
+    "inputs": [
+      {
+        "name": "storageRoot",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "InvalidTrustLevel",
     "inputs": [
       {
