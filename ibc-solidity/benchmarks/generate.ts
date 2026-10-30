@@ -336,7 +336,7 @@ export function renderReadme(
         `| ${count} | ${value(besuSim, `update.validators_${count}.gas`)} | ${value(besuSim, `update.validators_${count}.calldata`)} |`,
     ),
     "",
-    "Membership verification against a world state trie with the given number of accounts (router included) and a router storage trie with the given number of commitments.",
+    "Membership verification against a world state trie with the given number of accounts (router included) and a router storage trie with the given number of commitments plus the ERC-1967 implementation slot.",
     "",
     "Gas:",
     "",
