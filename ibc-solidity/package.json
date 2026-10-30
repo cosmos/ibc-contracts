@@ -10,9 +10,9 @@
   },
   "devDependencies": {
     "sp1-contracts": "github:succinctlabs/sp1-contracts#d3629729c3216eb51bd4859d027a8eb729399fa4",
-    "forge-std": "github:foundry-rs/forge-std#v1.16.2",
-    "prettier": "^3.9.8",
-    "solhint": "^6.2.4",
+    "forge-std": "github:foundry-rs/forge-std#v1.17.0",
+    "prettier": "^3.9.10",
+    "solhint": "^6.2.5",
     "quicktype": "^26.0.0"
   },
   "keywords": [
