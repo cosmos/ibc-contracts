@@ -523,6 +523,7 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
         }
 
         bytes32 storageRoot = _verifyAccountProof(counterpartyRouter, stateRoot, accountProofNodes);
+        require(storageRoot != bytes32(0) && storageRoot != TrieProof.EMPTY_ROOT_HASH, InvalidStateRoot(storageRoot));
         _cacheStorageRoot(counterpartyRouter, revisionHeight, storageRoot);
         return storageRoot;
     }
