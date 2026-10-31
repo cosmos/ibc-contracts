@@ -23,7 +23,7 @@ require (
 	github.com/cosmos/ics23/go v0.11.0
 	github.com/cosmos/interchaintest/v11 v11.0.0-20260805134452-6ecd341bf76a
 	github.com/docker/docker v28.5.2+incompatible
-	github.com/docker/go-connections v0.8.1
+	github.com/docker/go-connections v0.8.2
 	github.com/ethereum/go-ethereum v1.17.5
 	github.com/gagliardetto/binary v0.8.0
 	github.com/gagliardetto/solana-go v1.25.0
