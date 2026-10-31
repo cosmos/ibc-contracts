@@ -1,6 +1,6 @@
 module github.com/cosmos/ibc-contracts/scripts/go-test-matrix
 
-go 1.26.5
+go 1.26.10
 
 require github.com/stretchr/testify v1.12.1
 

@@ -2079,13 +2079,29 @@ version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f6fd5ddaf0351dff5b8da21b2fb4ff8e08ddd02857f0bf69c47639106c0fff0"
 dependencies = [
- "asn1-rs-derive",
- "asn1-rs-impl",
+ "asn1-rs-derive 0.4.0",
+ "asn1-rs-impl 0.1.0",
  "displaydoc",
  "nom",
  "num-traits",
  "rusticata-macros",
  "thiserror 1.0.69",
+ "time",
+]
+
+[[package]]
+name = "asn1-rs"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b7f43a50ac4fdca5df8e885c21b835997f0a1cdee65494a6847694a98652d9d8"
+dependencies = [
+ "asn1-rs-derive 0.6.0",
+ "asn1-rs-impl 0.2.0",
+ "displaydoc",
+ "nom",
+ "num-traits",
+ "rusticata-macros",
+ "thiserror 2.0.18",
  "time",
 ]
 
@@ -2102,6 +2118,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "asn1-rs-derive"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3109e49b1e4909e9db6515a30c633684d68cdeaa252f215214cb4fa1a5bfee2c"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
+ "synstructure 0.13.2",
+]
+
+[[package]]
 name = "asn1-rs-impl"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2110,6 +2138,17 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "asn1-rs-impl"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7b18050c2cd6fe86c3a76584ef5e0baf286d038cda203eb6223df2cc413565f7"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -2288,9 +2327,9 @@ dependencies = [
 
 [[package]]
 name = "aws-lc-rs"
-version = "1.16.3"
+version = "1.18.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ec6fb3fe69024a75fa7e1bfb48aa6cf59706a101658ea01bfd33b2b248a038f"
+checksum = "faac5829c2b74c28f830747e7818ccfb684261b5f48a1118b1e2a13d36dfab13"
 dependencies = [
  "aws-lc-sys",
  "zeroize",
@@ -2298,14 +2337,15 @@ dependencies = [
 
 [[package]]
 name = "aws-lc-sys"
-version = "0.40.0"
+version = "0.46.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f50037ee5e1e41e7b8f9d161680a725bd1626cb6f8c7e901f91f942850852fe7"
+checksum = "f1622d8446a2d4b2ce0c7eefc73dd43a99779028d5ee5c2dd8073a658ba8a2bc"
 dependencies = [
  "cc",
  "cmake",
  "dunce",
  "fs_extra",
+ "pkg-config",
 ]
 
 [[package]]
@@ -2860,7 +2900,7 @@ version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "08807e080ed7f9d5433fa9b275196cfc35414f66a0c79d864dc51a0d825231a3"
 dependencies = [
- "bit-vec",
+ "bit-vec 0.8.0",
 ]
 
 [[package]]
@@ -2868,6 +2908,15 @@ name = "bit-vec"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e764a1d40d510daf35e07be9eb06e75770908c27d411ee6c92109c9840eaaf7"
+
+[[package]]
+name = "bit-vec"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b71798fca2c1fe1086445a7258a4bc81e6e49dcd24c8d0dd9a1e57395b603f51"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "bitcoin-io"
@@ -4091,7 +4140,21 @@ version = "8.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dbd676fbbab537128ef0278adb5576cf363cff6aa22a7b24effe97347cfab61e"
 dependencies = [
- "asn1-rs",
+ "asn1-rs 0.5.2",
+ "displaydoc",
+ "nom",
+ "num-bigint 0.4.6",
+ "num-traits",
+ "rusticata-macros",
+]
+
+[[package]]
+name = "der-parser"
+version = "10.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "07da5016415d5a3c4dd39b11ed26f915f52fc4e0dc197d87908bc916e51bc1a6"
+dependencies = [
+ "asn1-rs 0.7.2",
  "displaydoc",
  "nom",
  "num-bigint 0.4.6",
@@ -5696,7 +5759,7 @@ dependencies = [
  "tokio",
  "tokio-rustls 0.26.4",
  "tower-service",
- "webpki-roots 1.0.7",
+ "webpki-roots 1.0.10",
 ]
 
 [[package]]
@@ -6004,7 +6067,7 @@ dependencies = [
  "ibc-eureka-relayer-core",
  "ibc-eureka-relayer-lib",
  "ibc-eureka-solidity-types 0.1.0 (git+https://github.com/cosmos/ibc-contracts?rev=035aa5eb171b6608614a9bc4e76e79d61c190e39)",
- "ibc-eureka-utils 0.1.0 (git+https://github.com/cosmos/ibc-contracts?rev=035aa5eb171b6608614a9bc4e76e79d61c190e39)",
+ "ibc-eureka-utils",
  "ibc-proto 0.51.1 (git+https://github.com/srdtrk/ibc-proto-rs?rev=7074fb20c3a654e945e5ca46627c5a971d785e04)",
  "prost",
  "serde",
@@ -6030,7 +6093,7 @@ dependencies = [
  "futures-timer",
  "ibc-core-commitment-types",
  "ibc-eureka-solidity-types 0.1.0 (git+https://github.com/cosmos/ibc-contracts?rev=035aa5eb171b6608614a9bc4e76e79d61c190e39)",
- "ibc-eureka-utils 0.1.0 (git+https://github.com/cosmos/ibc-contracts?rev=035aa5eb171b6608614a9bc4e76e79d61c190e39)",
+ "ibc-eureka-utils",
  "ibc-proto 0.51.1 (git+https://github.com/srdtrk/ibc-proto-rs?rev=7074fb20c3a654e945e5ca46627c5a971d785e04)",
  "prost",
  "serde",
@@ -6099,33 +6162,17 @@ dependencies = [
  "ibc-proto 0.51.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "ibc-proto 0.52.0",
  "prost",
+ "rcgen",
  "reqwest 0.11.27",
+ "rustls 0.21.12",
+ "rustls 0.23.40",
+ "rustls-native-certs 0.8.3",
+ "rustls-webpki 0.103.16",
  "tendermint",
  "tendermint-light-client-verifier",
  "tendermint-rpc",
-]
-
-[[package]]
-name = "ibc-eureka-utils"
-version = "0.1.0"
-source = "git+https://github.com/cosmos/ibc-contracts?rev=035aa5eb171b6608614a9bc4e76e79d61c190e39#035aa5eb171b6608614a9bc4e76e79d61c190e39"
-dependencies = [
- "alloy-network 1.8.3",
- "alloy-signer-local 1.8.3",
- "anyhow",
- "async-trait",
- "cosmos-sdk-proto 0.26.1",
- "ibc-client-tendermint-types",
- "ibc-core-client-types",
- "ibc-core-commitment-types",
- "ibc-core-host-types",
- "ibc-eureka-solidity-types 0.1.0 (git+https://github.com/cosmos/ibc-contracts?rev=035aa5eb171b6608614a9bc4e76e79d61c190e39)",
- "ibc-proto 0.51.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "prost",
- "reqwest 0.11.27",
- "tendermint",
- "tendermint-light-client-verifier",
- "tendermint-rpc",
+ "tracing",
+ "webpki-roots 1.0.10",
 ]
 
 [[package]]
@@ -7365,7 +7412,16 @@ version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9bedf36ffb6ba96c2eb7144ef6270557b52e54b20c0a8e1eb2ff99a6c6959bff"
 dependencies = [
- "asn1-rs",
+ "asn1-rs 0.5.2",
+]
+
+[[package]]
+name = "oid-registry"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "12f40cff3dde1b6087cc5d5f5d4d65712f34016a03ed60e9c08dcc392736b5b7"
+dependencies = [
+ "asn1-rs 0.7.2",
 ]
 
 [[package]]
@@ -8575,7 +8631,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "ibc-core-host-types",
- "ibc-eureka-utils 0.1.0",
+ "ibc-eureka-utils",
  "ibc-proto 0.52.0",
  "ics23",
  "proof-api-core",
@@ -8598,7 +8654,7 @@ dependencies = [
  "async-trait",
  "ibc-core-host-types",
  "ibc-eureka-solidity-types 0.1.0",
- "ibc-eureka-utils 0.1.0",
+ "ibc-eureka-utils",
  "proof-api-core",
  "proof-api-lib",
  "serde",
@@ -8628,7 +8684,7 @@ dependencies = [
  "ibc-client-tendermint",
  "ibc-core-client-types",
  "ibc-eureka-solidity-types 0.1.0",
- "ibc-eureka-utils 0.1.0",
+ "ibc-eureka-utils",
  "ibc-proto 0.51.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "ibc-proto 0.52.0",
  "proof-api-core",
@@ -8665,7 +8721,7 @@ dependencies = [
  "ethereum-light-client 0.1.0",
  "ethereum-types 0.1.0",
  "ibc-eureka-solidity-types 0.1.0",
- "ibc-eureka-utils 0.1.0",
+ "ibc-eureka-utils",
  "ibc-proto 0.52.0",
  "proof-api-core",
  "proof-api-lib",
@@ -8687,7 +8743,7 @@ dependencies = [
  "hex",
  "ibc-eureka-relayer-core",
  "ibc-eureka-relayer-eth-to-cosmos",
- "ibc-eureka-utils 0.1.0",
+ "ibc-eureka-utils",
  "ibc-proto 0.52.0",
  "proof-api-core",
  "proof-api-eth-to-cosmos",
@@ -8726,7 +8782,7 @@ dependencies = [
  "bincode",
  "borsh 1.6.1",
  "ibc-eureka-solidity-types 0.1.0",
- "ibc-eureka-utils 0.1.0",
+ "ibc-eureka-utils",
  "ibc-proto 0.52.0",
  "proof-api-core",
  "proof-api-lib",
@@ -8767,7 +8823,7 @@ dependencies = [
  "ibc-client-tendermint-types",
  "ibc-core-commitment-types",
  "ibc-eureka-solidity-types 0.1.0",
- "ibc-eureka-utils 0.1.0",
+ "ibc-eureka-utils",
  "ibc-proto 0.51.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "ibc-proto 0.52.0",
  "ics23",
@@ -8808,7 +8864,7 @@ dependencies = [
  "base64 0.22.1",
  "borsh 1.6.1",
  "hex",
- "ibc-eureka-utils 0.1.0",
+ "ibc-eureka-utils",
  "ibc-proto 0.52.0",
  "proof-api-core",
  "proof-api-lib",
@@ -8848,7 +8904,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4b45fcc2344c680f5025fe57779faef368840d0bd1f42f216291f0dc4ace4744"
 dependencies = [
  "bit-set",
- "bit-vec",
+ "bit-vec 0.8.0",
  "bitflags 2.11.1",
  "num-traits",
  "rand 0.9.4",
@@ -9230,6 +9286,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "rcgen"
+version = "0.14.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8774e05a7d0de114588e6a28fe7e71694b82614ed569d86d8b389dfbc98b8ad8"
+dependencies = [
+ "ring",
+ "rustls-pki-types",
+ "time",
+ "x509-parser 0.18.1",
+ "yasna",
+]
+
+[[package]]
 name = "recvmsg"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9396,7 +9465,7 @@ dependencies = [
  "wasm-bindgen-futures",
  "wasm-streams",
  "web-sys",
- "webpki-roots 1.0.7",
+ "webpki-roots 1.0.10",
 ]
 
 [[package]]
@@ -9700,7 +9769,7 @@ dependencies = [
  "once_cell",
  "ring",
  "rustls-pki-types",
- "rustls-webpki 0.103.13",
+ "rustls-webpki 0.103.16",
  "subtle",
  "zeroize",
 ]
@@ -9771,7 +9840,7 @@ dependencies = [
  "rustls 0.23.40",
  "rustls-native-certs 0.8.3",
  "rustls-platform-verifier-android",
- "rustls-webpki 0.103.13",
+ "rustls-webpki 0.103.16",
  "security-framework 3.7.0",
  "security-framework-sys",
  "webpki-root-certs",
@@ -9796,9 +9865,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-webpki"
-version = "0.103.13"
+version = "0.103.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61c429a8649f110dddef65e2a5ad240f747e85f7758a6bccc7e5777bd33f756e"
+checksum = "4443b1b6d39d7c663139942cc4558262562d2c84123bb6282ef177009ca8b281"
 dependencies = [
  "aws-lc-rs",
  "ring",
@@ -12680,7 +12749,7 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "tokio-util",
- "x509-parser",
+ "x509-parser 0.14.0",
 ]
 
 [[package]]
@@ -12812,7 +12881,7 @@ dependencies = [
  "solana-keypair",
  "solana-pubkey",
  "solana-signer",
- "x509-parser",
+ "x509-parser 0.14.0",
 ]
 
 [[package]]
@@ -13493,7 +13562,7 @@ dependencies = [
  "ibc-client-tendermint-types",
  "ibc-core-commitment-types",
  "ibc-eureka-solidity-types 0.1.0",
- "ibc-eureka-utils 0.1.0",
+ "ibc-eureka-utils",
  "ibc-proto 0.51.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "prost",
  "serde",
@@ -16285,9 +16354,9 @@ dependencies = [
 
 [[package]]
 name = "webpki-root-certs"
-version = "1.0.7"
+version = "1.0.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f31141ce3fc3e300ae89b78c0dd67f9708061d1d2eda54b8209346fd6be9a92c"
+checksum = "58ec80e73fd8baf57bf0d9615554c75348bda990d6d5bbeab964dd068319fecb"
 dependencies = [
  "rustls-pki-types",
 ]
@@ -16313,14 +16382,14 @@ version = "0.26.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "521bc38abb08001b01866da9f51eb7c5d647a19260e00054a8c7fd5f9e57f7a9"
 dependencies = [
- "webpki-roots 1.0.7",
+ "webpki-roots 1.0.10",
 ]
 
 [[package]]
 name = "webpki-roots"
-version = "1.0.7"
+version = "1.0.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "52f5ee44c96cf55f1b349600768e3ece3a8f26010c05265ab73f945bb1a2eb9d"
+checksum = "1c1c8e20c8a38fc7d65abfe74eb7280e4aa667e8eec8bc84996d2874810748d9"
 dependencies = [
  "rustls-pki-types",
 ]
@@ -16908,15 +16977,33 @@ version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e0ecbeb7b67ce215e40e3cc7f2ff902f94a223acf44995934763467e7b1febc8"
 dependencies = [
- "asn1-rs",
+ "asn1-rs 0.5.2",
  "base64 0.13.1",
  "data-encoding",
- "der-parser",
+ "der-parser 8.2.0",
  "lazy_static",
  "nom",
- "oid-registry",
+ "oid-registry 0.6.1",
  "rusticata-macros",
  "thiserror 1.0.69",
+ "time",
+]
+
+[[package]]
+name = "x509-parser"
+version = "0.18.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d43b0f71ce057da06bc0851b23ee24f3f86190b07203dd8f567d0b706a185202"
+dependencies = [
+ "asn1-rs 0.7.2",
+ "data-encoding",
+ "der-parser 10.0.0",
+ "lazy_static",
+ "nom",
+ "oid-registry 0.8.1",
+ "ring",
+ "rusticata-macros",
+ "thiserror 2.0.18",
  "time",
 ]
 
@@ -16925,6 +17012,16 @@ name = "xmlparser"
 version = "0.13.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "66fee0b777b0f5ac1c69bb06d361268faafa61cd4682ae064a171c16c433e9e4"
+
+[[package]]
+name = "yasna"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b5f6765e852b9b4dc8e2a76843e4d64d1cea8e79bcde0b6901aea8e7c7f08282"
+dependencies = [
+ "bit-vec 0.9.1",
+ "time",
+]
 
 [[package]]
 name = "yoke"

@@ -108,6 +108,9 @@ impl TendermintRpcExt for HttpClient {
                 .connect_timeout(Duration::from_secs(10))
                 .timeout(Duration::from_secs(30))
                 .pool_idle_timeout(Duration::from_secs(10))
+                .use_preconfigured_tls(
+                    crate::tls::client_config().expect("Failed to build TLS client config"),
+                )
                 .build()
                 .expect("Failed to create reqwest client"),
         )

@@ -1,6 +1,6 @@
 module github.com/cosmos/ibc-contracts/packages/go-abigen
 
-go 1.26.5
+go 1.26.10
 
 require github.com/ethereum/go-ethereum v1.17.5
 

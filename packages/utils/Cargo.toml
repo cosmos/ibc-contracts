@@ -21,5 +21,16 @@ tendermint-light-client-verifier = { workspace = true }
 tendermint-rpc                   = { workspace = true, features = ["http-client"] }
 tendermint                       = { workspace = true }
 # We need to use 0.11 until tendermint-rpc is updated to use 0.12
-reqwest_0_11                     = { workspace = true }
+reqwest_0_11                     = { workspace = true, features = ["rustls-tls-manual-roots"] }
+# rustls 0.23 only verifies certificates here; the handshake runs on rustls 0.21
+rustls                           = { workspace = true, features = ["ring", "std"] }
+rustls_0_21                      = { workspace = true, features = ["dangerous_configuration", "tls12"] }
+rustls-native-certs              = { workspace = true }
+rustls-webpki                    = { workspace = true, features = ["std"] }
+webpki-roots                     = { workspace = true }
+tracing                          = { workspace = true }
 
+[dev-dependencies]
+rcgen                            = { workspace = true, features = ["ring"] }
+# The TLS 1.2 handshake tests run a rustls 0.23 server
+rustls                           = { workspace = true, features = ["tls12"] }

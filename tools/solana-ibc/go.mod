@@ -1,6 +1,6 @@
 module github.com/cosmos/ibc-contracts/tools/solana-ibc
 
-go 1.26.5
+go 1.26.10
 
 replace github.com/cosmos/ibc-contracts/packages/go-anchor => ../../packages/go-anchor
 

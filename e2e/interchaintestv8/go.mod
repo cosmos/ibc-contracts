@@ -1,6 +1,6 @@
 module github.com/cosmos/ibc-contracts/e2e/v8
 
-go 1.26.5
+go 1.26.10
 
 replace github.com/ethereum/go-ethereum => github.com/ethereum-optimism/op-geth v1.101511.0
 

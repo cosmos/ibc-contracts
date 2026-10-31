@@ -1,6 +1,6 @@
 module github.com/cosmos/ibc-contracts/packages/go-anchor
 
-go 1.26.5
+go 1.26.10
 
 require (
 	github.com/gagliardetto/anchor-go v1.0.0

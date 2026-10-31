@@ -47,7 +47,7 @@ resolver = "2"
 [workspace.lints]
 
 [workspace.package]
-version    = "0.1.0"
+version    = "0.1.0" # bumping this can silently disable the ibc-contracts git patch at the end of this file
 edition    = "2021"
 license    = "Apache-2.0"
 repository = "https://github.com/cosmos/ibc-contracts"
@@ -129,7 +129,15 @@ thiserror          = { version = "2.0", default-features = false }
 url                = { version = "2.5.7", default-features = false }
 reqwest            = { version = "0.12", default-features = false }
 reqwest_0_11       = { package = "reqwest", version = "0.11", default-features = false }
+# reqwest 0.11 is stuck on rustls 0.21 / rustls-webpki 0.101; see packages/utils/src/tls.rs
+rustls              = { version = "0.23", default-features = false }
+rustls_0_21         = { package = "rustls", version = "0.21", default-features = false }
+rustls-native-certs = { version = "0.8", default-features = false }
+# 0.103.16 is the first release that distrusts the compromised eMudhra emSign G3 intermediates
+rustls-webpki       = { version = "0.103.16", default-features = false }
+webpki-roots        = { version = "1.0", default-features = false }
 indexmap           = { version = "2.10.0", default-features = false }
+rcgen              = { version = "0.14", default-features = false } # test-only
 
 # Ensure `alloc` is enabled for ed25519-zebra so cosmwasm-crypto can import its batch module
 ed25519-zebra      = { version = "4.1.0", default-features = false, features = ["alloc"] }
@@ -233,3 +241,11 @@ tendermint-light-client-verifier.git = "https://github.com/cometbft/tendermint-r
 tendermint-config.git = "https://github.com/cometbft/tendermint-rs"
 tendermint-rpc.git = "https://github.com/cometbft/tendermint-rs"
 tendermint-testgen.git = "https://github.com/cometbft/tendermint-rs"
+
+# The v1.3 compat relayer builds its own Tendermint RPC clients; route them through the local
+# utils so they share its TLS verification (see packages/utils/src/tls.rs). Besides TLS, this
+# gives the compat relayer the local User-Agent header and errors on non-zero ABCI query codes.
+# Cargo only warns "patch was not used" if the local version stops matching the git one
+# (0.1.0), so re-check this patch whenever workspace.package.version changes.
+[patch."https://github.com/cosmos/ibc-contracts"]
+ibc-eureka-utils = { path = "packages/utils" }
