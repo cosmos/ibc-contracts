@@ -22,22 +22,22 @@ The send value is the average of 50 separate transactions, including the more ex
 
 | Operation | Groth16 gas | Plonk gas | Groth16 calldata | Plonk calldata |
 | --- | ---: | ---: | ---: | ---: |
-| Send ERC20 (50-transaction average) | 164,830 | 164,830 | 516 | 516 |
-| Acknowledge ERC20 end-to-end | 444,205 | 511,363 | 3,748 | 4,356 |
-| Receive returning ERC20 end-to-end | 551,126 | 618,316 | 3,652 | 4,260 |
-| Receive new Cosmos token end-to-end | 1,123,970 | 1,190,944 | 3,652 | 4,260 |
-| Timeout ERC20 end-to-end | 501,550 | 568,901 | 3,652 | 4,260 |
+| Send ERC20 (50-transaction average) | 164,852 | 164,852 | 516 | 516 |
+| Acknowledge ERC20 end-to-end | 444,271 | 511,429 | 3,748 | 4,356 |
+| Receive returning ERC20 end-to-end | 551,236 | 618,426 | 3,652 | 4,260 |
+| Receive new Cosmos token end-to-end | 1,124,080 | 1,191,054 | 3,652 | 4,260 |
+| Timeout ERC20 end-to-end | 501,682 | 569,033 | 3,652 | 4,260 |
 
 ### Batched router multicalls
 
 | Proof | Packets | Operation | Total gas | Average gas / packet | Calldata bytes |
 | --- | ---: | --- | ---: | ---: | ---: |
-| Groth16 | 25 | Acknowledge ERC20 end-to-end | 2,781,294 | 111,251 | 53,668 |
-| Groth16 | 25 | Receive returning ERC20 end-to-end | 4,558,669 | 182,346 | 51,268 |
-| Groth16 | 50 | Acknowledge ERC20 end-to-end | 5,233,948 | 104,678 | 105,668 |
-| Groth16 | 50 | Receive returning ERC20 end-to-end | 8,739,084 | 174,781 | 100,868 |
-| Plonk | 50 | Acknowledge ERC20 end-to-end | 5,276,168 | 105,523 | 106,276 |
-| Plonk | 50 | Receive returning ERC20 end-to-end | 8,794,250 | 175,885 | 101,476 |
+| Groth16 | 25 | Acknowledge ERC20 end-to-end | 2,781,360 | 111,254 | 53,668 |
+| Groth16 | 25 | Receive returning ERC20 end-to-end | 4,559,835 | 182,393 | 51,268 |
+| Groth16 | 50 | Acknowledge ERC20 end-to-end | 5,234,014 | 104,680 | 105,668 |
+| Groth16 | 50 | Receive returning ERC20 end-to-end | 8,741,350 | 174,827 | 100,868 |
+| Plonk | 50 | Acknowledge ERC20 end-to-end | 5,276,234 | 105,524 | 106,276 |
+| Plonk | 50 | Receive returning ERC20 end-to-end | 8,796,516 | 175,930 | 101,476 |
 
 ## Besu QBFT light-client benchmarks
 
@@ -45,10 +45,10 @@ These isolated transactions use the live Besu QBFT header and proof fixture in `
 
 | Operation | Gas | ABI calldata bytes |
 | --- | ---: | ---: |
-| Adjacent client update | 184,461 | 1,444 |
-| Non-adjacent client update | 184,785 | 1,444 |
-| Membership verification | 153,129 | 2,212 |
-| Non-membership verification | 165,419 | 2,116 |
+| Adjacent client update | 152,255 | 1,764 |
+| Non-adjacent client update | 152,293 | 1,764 |
+| Membership verification | 156,835 | 2,500 |
+| Non-membership verification | 169,150 | 2,404 |
 
 ## Besu QBFT light-client scaling benchmarks
 
@@ -56,29 +56,29 @@ These isolated transactions use headers and proofs produced in-process by the `Q
 
 | Validators | Client update gas | ABI calldata bytes |
 | ---: | ---: | ---: |
-| 4 | 192,994 | 1,508 |
-| 7 | 231,957 | 1,860 |
-| 16 | 349,166 | 2,948 |
-| 32 | 558,000 | 4,868 |
-| 64 | 976,918 | 8,708 |
-| 100 | 1,450,577 | 13,028 |
+| 4 | 157,689 | 1,924 |
+| 7 | 189,138 | 2,564 |
+| 16 | 283,302 | 4,484 |
+| 32 | 450,995 | 7,908 |
+| 64 | 786,772 | 14,724 |
+| 100 | 1,165,709 | 22,372 |
 
-Membership verification against a world state trie with the given number of accounts (router included) and a router storage trie with the given number of commitments.
+Membership verification against a world state trie with the given number of accounts (router included) and a router storage trie with the given number of commitments plus the ERC-1967 implementation slot.
 
 Gas:
 
 | Accounts | 1 commitments | 16 commitments | 128 commitments | 1024 commitments |
 | ---: | ---: | ---: | ---: | ---: |
-| 1 | 71,476 | 100,043 | 130,865 | 161,676 |
-| 16 | 100,520 | 129,101 | 159,911 | 190,723 |
-| 128 | 131,365 | 159,947 | 190,759 | 221,596 |
-| 1024 | 162,724 | 191,332 | 222,133 | 252,947 |
+| 1 | 97,933 | 102,676 | 132,986 | 163,772 |
+| 16 | 126,978 | 131,734 | 162,032 | 192,831 |
+| 128 | 157,836 | 162,592 | 192,891 | 223,704 |
+| 1024 | 189,195 | 193,928 | 224,229 | 255,079 |
 
 ABI calldata bytes:
 
 | Accounts | 1 commitments | 16 commitments | 128 commitments | 1024 commitments |
 | ---: | ---: | ---: | ---: | ---: |
-| 1 | 1,220 | 1,636 | 2,180 | 2,724 |
-| 16 | 1,668 | 2,084 | 2,628 | 3,172 |
-| 128 | 2,212 | 2,628 | 3,172 | 3,716 |
-| 1024 | 2,788 | 3,204 | 3,748 | 4,292 |
+| 1 | 1,572 | 1,860 | 2,372 | 2,916 |
+| 16 | 2,020 | 2,308 | 2,820 | 3,364 |
+| 128 | 2,564 | 2,852 | 3,364 | 3,908 |
+| 1024 | 3,140 | 3,428 | 3,940 | 4,484 |

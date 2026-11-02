@@ -33,6 +33,11 @@ contract BesuSimDriver is ILightClientDriver {
     }
 
     /// @inheritdoc ILightClientDriver
+    function merklePrefix() external view returns (bytes[] memory) {
+        return sim.merklePrefix();
+    }
+
+    /// @inheritdoc ILightClientDriver
     function prove(bytes calldata path)
         external
         returns (bytes memory updateMsg, bytes memory proof, IICS02ClientMsgs.Height memory proofHeight)

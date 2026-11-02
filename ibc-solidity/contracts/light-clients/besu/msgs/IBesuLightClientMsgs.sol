@@ -17,8 +17,8 @@ interface IBesuLightClientMsgs {
     /// @notice Client state for a Besu BFT light client.
     /// @param ibcRouter Counterparty ICS26 router address whose storage is proven.
     /// @param latestHeight Latest trusted Besu height.
-    /// @param trustingPeriod Maximum age in seconds for a trusted consensus state.
-    /// @param maxClockDrift Maximum allowed future drift in seconds for submitted headers.
+    /// @param trustingPeriod Maximum age in seconds for a trusted consensus state. Must be within `(0, 30 days]`.
+    /// @param maxClockDrift Maximum allowed future drift in seconds for submitted headers. Must be at most 12 seconds.
     /// @param isFrozen Whether the client has been permanently frozen due to misbehaviour.
     /// @param trustLevel Minimum fraction of the trusted validator set that must sign a new header.
     struct ClientState {
@@ -40,12 +40,17 @@ interface IBesuLightClientMsgs {
         address[] validators;
     }
 
-    /// @notice Update message containing a Besu header and the trusted consensus state preimage.
-    /// @param headerRlp RLP-encoded Besu block header.
+    /// @notice Update message containing a Besu header, its commit seals, and the trusted consensus state preimage.
+    /// @param headerRlp RLP-encoded Besu block header in its commit seal signing form: the commit seals are removed
+    /// from `extraData`, leaving 4 `extraData` items for IBFT 2.0 or 5 items ending in an empty seal list for QBFT.
+    /// The commit seal digest is `keccak256(headerRlp)`.
+    /// @param commitSeals 65-byte ECDSA commit seals (r||s||v, with 27/28 recovery ids) over `keccak256(headerRlp)`,
+    /// ordered by recovered signer address in strictly ascending order.
     /// @param trustedHeight Previously trusted height used for weak-subjectivity checks.
     /// @param consensusStatePreimage Preimage of the trusted consensus state at `trustedHeight`.
     struct MsgUpdateClient {
         bytes headerRlp;
+        bytes[] commitSeals;
         IICS02ClientMsgs.Height trustedHeight;
         ConsensusState consensusStatePreimage;
     }

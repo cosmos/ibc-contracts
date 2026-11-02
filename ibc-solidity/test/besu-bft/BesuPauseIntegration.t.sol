@@ -14,10 +14,11 @@ import { IbcImpl } from "../solidity-ibc/utils/IbcImpl.sol";
 import { IntegrationEnv } from "../solidity-ibc/utils/IntegrationEnv.sol";
 import { TestHelper } from "../solidity-ibc/utils/TestHelper.sol";
 import { WithBesuQBFTSim } from "./utils/BesuSimDriver.sol";
+import { WithFreshChains } from "../solidity-ibc/integration/drivers/LightClientDriverTest.sol";
 
 /// @dev Pending packets relayed through real routers: a paused light client rejects their proofs without changing
 /// packet state, and the same messages complete once it is unpaused.
-contract BesuPauseIntegrationTest is WithBesuQBFTSim {
+contract BesuPauseIntegrationTest is WithBesuQBFTSim, WithFreshChains {
     uint256 internal constant AMOUNT = 1000;
 
     IbcImpl internal ibcImplA;

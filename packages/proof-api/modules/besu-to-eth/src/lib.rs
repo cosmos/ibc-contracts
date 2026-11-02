@@ -53,6 +53,8 @@ pub struct BesuToEthConfig {
     /// The destination `IBCMulticall` address that relay and update client transactions are
     /// submitted to.
     pub dst_ibc_multicall_address: Address,
+    /// The source consensus type, which selects the commit-seal signing form of the headers
+    /// submitted in client updates.
     pub consensus_type: BesuConsensusType,
 }
 

@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import { Test } from "forge-std/Test.sol";
 import { AccessManager } from "@openzeppelin-contracts/access/manager/AccessManager.sol";
 import { IAccessManaged } from "@openzeppelin-contracts/access/manager/IAccessManaged.sol";
+import { ERC1967Utils } from "@openzeppelin-contracts/proxy/ERC1967/ERC1967Utils.sol";
 import { Pausable } from "@openzeppelin-contracts/utils/Pausable.sol";
 import { Math } from "@openzeppelin-contracts/utils/math/Math.sol";
 import { Memory } from "@openzeppelin-contracts/utils/Memory.sol";
@@ -76,7 +77,7 @@ abstract contract QBFTSimSuiteTest is Test {
 
     function test_updateClient_revertMalformedHeader() public {
         SimHeader.Data memory h = sim.nextBlock();
-        bytes memory headerRlp = SimHeader.encode(h);
+        bytes memory headerRlp = SimHeader.signingRlp(h, _mode());
 
         _expectUpdateRevert(
             _rewriteHeader(headerRlp, 14, type(uint256).max, ""),
@@ -85,6 +86,14 @@ abstract contract QBFTSimSuiteTest is Test {
         _expectUpdateRevert(
             _rewriteHeader(headerRlp, 20, 12, RLP.encode(bytes(hex"c0"))),
             abi.encodeWithSelector(IBesuLightClientErrors.InvalidExtraDataFormat.selector, 0)
+        );
+        _expectUpdateRevert(
+            _rewriteHeader(headerRlp, 20, 12, RLP.encode(bytes(hex"c6c0c0c0c0c0c0"))),
+            abi.encodeWithSelector(IBesuLightClientErrors.InvalidExtraDataFormat.selector, 6)
+        );
+        _expectUpdateRevert(
+            _rewriteHeader(headerRlp, 20, 12, RLP.encode(bytes(hex"c6c0c0c0c0c1c0"))),
+            abi.encodeWithSelector(IBesuLightClientErrors.NonEmptyCommitSealList.selector)
         );
     }
 
@@ -140,7 +149,9 @@ abstract contract QBFTSimSuiteTest is Test {
 
     function _expectUpdateRevert(bytes memory headerRlp, bytes memory revertData) internal {
         bytes memory update = abi.encode(
-            IBesuLightClientMsgs.MsgUpdateClient(headerRlp, IICS02ClientMsgs.Height(0, 2), sim.consensusState(2))
+            IBesuLightClientMsgs.MsgUpdateClient(
+                headerRlp, new bytes[](0), IICS02ClientMsgs.Height(0, 2), sim.consensusState(2)
+            )
         );
         vm.expectRevert(revertData);
         vm.prank(ics26Router);
@@ -396,9 +407,7 @@ abstract contract QBFTSimSuiteTest is Test {
         vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.NoMisbehaviourDetected.selector));
         client.misbehaviour(_conflictingHeadersMisbehaviour(update4, update3));
 
-        vm.expectRevert(
-            abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 2, 3)
-        );
+        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.InsufficientValidatorQuorum.selector, 2, 3));
         client.misbehaviour(_conflictingHeadersMisbehaviour(update3, underSigned));
 
         uint64 trustedTimestamp = sim.blockAt(2).timestamp;
@@ -456,9 +465,7 @@ abstract contract QBFTSimSuiteTest is Test {
         address[] memory two = new address[](2);
         (two[0], two[1]) = (sim.validators()[0], sim.validators()[1]);
         bytes memory update = sim.updateMsg(2, sim.seal(sim.nextBlock(), two));
-        vm.expectRevert(
-            abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 2, 3)
-        );
+        vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.InsufficientValidatorQuorum.selector, 2, 3));
         vm.startPrank(ics26Router);
         client.updateClient(update);
 
@@ -509,7 +516,7 @@ abstract contract QBFTSimSuiteTest is Test {
         sim.produceBlock();
         update = sim.updateMsg(4, 5);
         vm.expectRevert(
-            abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 0, 3)
+            abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 0, 2)
         );
         client.updateClient(update);
         vm.stopPrank();
@@ -584,32 +591,134 @@ abstract contract QBFTSimSuiteTest is Test {
         vm.stopPrank();
     }
 
+    /// @dev With 5 trusted validators a 2/3 trust level requires 3 trusted signers (capped from 4) and 1/3 requires 2.
     function test_trustLevel() public {
+        sim = _setUp(5);
         IBesuLightClient lenient = sim.deployLightClient(
             TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(1, 3), ics26Router
         );
-        IBesuLightClient strict = sim.deployLightClient(
-            TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(1, 1), ics26Router
-        );
 
-        address[] memory three = new address[](3);
-        (three[0], three[1], three[2]) = (sim.validators()[0], sim.validators()[1], sim.validators()[2]);
-        bytes memory update = sim.updateMsg(2, sim.seal(sim.nextBlock(), three));
-        vm.expectRevert(
-            abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 3, 4)
-        );
+        // Rotating 3 of the 5 validators leaves 2 trusted signers.
+        _rotateValidators(3, 3);
+        bytes memory update = sim.updateMsg(2, 8);
         vm.startPrank(ics26Router);
-        strict.updateClient(update);
-
-        // Rotating half of the validators leaves 2 of 4 trusted signers: below 2/3, above 1/3.
-        _rotateValidators(2, 2);
-        update = sim.updateMsg(2, 6);
         vm.expectRevert(
             abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 2, 3)
         );
         client.updateClient(update);
         assertEq(uint8(lenient.updateClient(update)), uint8(ILightClientMsgs.UpdateResult.Update));
         vm.stopPrank();
+    }
+
+    /// @dev A header sealed by exactly a quorum of the new set must be accepted at a 2/3 trust level after a single
+    /// validator is voted out of 4 (2 trusted seals) or into 5 (3 of the 4 seals are trusted).
+    function test_trustLevelSurvivesValidatorSetChange() public {
+        for (uint256 c = 0; c < 2; ++c) {
+            QBFTSimSuite s = _setUp(4 + c);
+            address added;
+            if (c == 0) {
+                s.removeValidator(s.validators()[0]);
+            } else {
+                added = s.addValidator();
+            }
+            s.produceBlock();
+
+            address[] memory current = s.validators();
+            address[] memory signers = new address[](Math.ceilDiv(2 * current.length, 3));
+            uint256 k = 0;
+            if (added != address(0)) {
+                signers[k] = added;
+                ++k;
+            }
+            for (uint256 i = 0; k < signers.length; ++i) {
+                if (current[i] != added) {
+                    signers[k] = current[i];
+                    ++k;
+                }
+            }
+
+            bytes memory update = s.updateMsg(2, s.seal(s.nextBlock(), signers));
+            vm.prank(ics26Router);
+            assertEq(uint8(client.updateClient(update)), uint8(ILightClientMsgs.UpdateResult.Update));
+        }
+    }
+
+    /// @dev Two validator changes between updates can stall a 2/3 trust level: a swap in a set of 6 can leave only 3
+    /// trusted seals in a quorum of 4, below the 4 required. Updating through the header after the removal first
+    /// crosses one change at a time.
+    function test_trustLevelValidatorSwapNeedsIntermediateUpdate() public {
+        sim = _setUp(6);
+        _rotateValidators(1, 1);
+
+        address[] memory trusted = sim.consensusState(2).validators;
+        address[] memory current = sim.validators();
+        address[] memory signers = new address[](4);
+        uint256 trustedSigners = 0;
+        uint256 k = 0;
+        for (uint256 i = 0; k < signers.length; ++i) {
+            bool isTrusted = _contains(trusted, current[i]);
+            if (!isTrusted || trustedSigners < 3) {
+                signers[k] = current[i];
+                ++k;
+                if (isTrusted) {
+                    ++trustedSigners;
+                }
+            }
+        }
+        SimHeader.Data memory h = sim.seal(sim.nextBlock(), signers);
+
+        vm.startPrank(ics26Router);
+        bytes memory update = sim.updateMsg(2, h);
+        vm.expectRevert(
+            abi.encodeWithSelector(IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, 3, 4)
+        );
+        client.updateClient(update);
+
+        assertEq(uint8(client.updateClient(sim.updateMsg(2, 3))), uint8(ILightClientMsgs.UpdateResult.Update));
+        assertEq(uint8(client.updateClient(sim.updateMsg(3, h))), uint8(ILightClientMsgs.UpdateResult.Update));
+        vm.stopPrank();
+    }
+
+    /// @dev Exactly one third of the trusted set is not enough at a 1/3 trust level: more than a third must sign.
+    function test_trustLevelOneThirdNeedsMoreThanAThird() public {
+        uint256[2] memory counts = [uint256(3), 6];
+        for (uint256 c = 0; c < counts.length; ++c) {
+            QBFTSimSuite s = _setUp(counts[c]);
+            IBesuLightClient lenient = s.deployLightClient(
+                TRUSTING_PERIOD, MAX_CLOCK_DRIFT, IBesuLightClientMsgs.TrustThreshold(1, 3), ics26Router
+            );
+
+            uint256 third = counts[c] / 3;
+            address[] memory signers = new address[](third);
+            for (uint256 i = 0; i < third; ++i) {
+                signers[i] = s.validators()[i];
+            }
+            bytes memory update = s.updateMsg(2, s.seal(s.nextBlock(), signers));
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, third, third + 1
+                )
+            );
+            vm.prank(ics26Router);
+            lenient.updateClient(update);
+        }
+    }
+
+    /// @dev Besu seals each block with exactly ceil(2n / 3) commit seals, which a 2/3 trust level must accept for an
+    /// unchanged validator set, including set sizes divisible by 3.
+    function test_trustLevelTwoThirdsAcceptsExactQuorum() public {
+        uint256[3] memory counts = [uint256(3), 4, 6];
+        for (uint256 c = 0; c < counts.length; ++c) {
+            QBFTSimSuite s = _setUp(counts[c]);
+            uint256 quorum = Math.ceilDiv(2 * counts[c], 3);
+            address[] memory signers = new address[](quorum);
+            for (uint256 i = 0; i < quorum; ++i) {
+                signers[i] = s.validators()[i];
+            }
+            bytes memory update = s.updateMsg(2, s.seal(s.nextBlock(), signers));
+            vm.prank(ics26Router);
+            assertEq(uint8(client.updateClient(update)), uint8(ILightClientMsgs.UpdateResult.Update));
+        }
     }
 
     function test_packetProofs() public {
@@ -638,6 +747,23 @@ abstract contract QBFTSimSuiteTest is Test {
         client.updateClient(sim.updateMsg(3, 4));
         client.verifyNonMembership(sim.nonMembershipMsg(4, commitmentPath));
         client.verifyMembership(sim.membershipMsg(3, commitmentPath));
+        vm.stopPrank();
+    }
+
+    /// @dev An empty router storage trie would let any non-membership proof pass without proof nodes.
+    function test_verifyNonMembership_revertEmptyStorageRoot() public {
+        bytes memory receiptPath = ICS24Host.packetReceiptCommitmentPathCalldata("client-1", 1);
+        sim.setStorage(sim.IBC_ROUTER(), ERC1967Utils.IMPLEMENTATION_SLOT, bytes32(0));
+        sim.produceBlock();
+        bytes memory update = sim.updateMsg(2, 3);
+        ILightClientMsgs.MsgVerifyNonMembership memory nonMembership = sim.nonMembershipMsg(3, receiptPath);
+
+        vm.startPrank(ics26Router);
+        client.updateClient(update);
+        vm.expectRevert(
+            abi.encodeWithSelector(IBesuLightClientErrors.InvalidStorageRoot.selector, SimHeader.EMPTY_ROOT_HASH)
+        );
+        client.verifyNonMembership(nonMembership);
         vm.stopPrank();
     }
 
@@ -729,10 +855,13 @@ abstract contract QBFTSimSuiteTest is Test {
         }
         bytes memory update = sim.updateMsg(2, sim.seal(sim.nextBlock(), signers));
 
-        uint256 requiredOverlap = Math.ceilDiv(2 * trusted.length, 3);
+        uint256 requiredOverlap =
+            Math.max(Math.min(Math.ceilDiv(2 * trusted.length, 3), 2 * trusted.length / 3), trusted.length / 3 + 1);
         uint256 requiredQuorum = Math.ceilDiv(2 * current.length, 3);
         vm.startPrank(ics26Router);
-        if (overlap < requiredOverlap) {
+        if (signerCount == 0) {
+            vm.expectRevert(abi.encodeWithSelector(IBesuLightClientErrors.EmptyCommitSeals.selector));
+        } else if (overlap < requiredOverlap) {
             vm.expectRevert(
                 abi.encodeWithSelector(
                     IBesuLightClientErrors.InsufficientTrustedValidatorOverlap.selector, overlap, requiredOverlap

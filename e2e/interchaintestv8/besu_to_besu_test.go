@@ -31,8 +31,8 @@ import (
 
 	"github.com/cosmos/interchaintest/v11/testutil"
 
+	"github.com/cosmos/ibc-contracts/packages/go-abigen/besulightclient"
 	"github.com/cosmos/ibc-contracts/packages/go-abigen/besumsgs"
-	"github.com/cosmos/ibc-contracts/packages/go-abigen/besuqbft"
 	"github.com/cosmos/ibc-contracts/packages/go-abigen/ibcerc20"
 	"github.com/cosmos/ibc-contracts/packages/go-abigen/ics20transfer"
 	"github.com/cosmos/ibc-contracts/packages/go-abigen/ics26router"
@@ -403,7 +403,7 @@ func (s *BesuToBesuTestSuite) ICS20TransferERC20FromChainAToChainBTest(consensus
 				NonAdjacentUpdateHeight: sendHeight,
 				SyntheticSourceHeight:   ackReceipt.BlockNumber.Uint64(),
 				TrustingPeriod:          uint64(testvalues.DefaultTrustPeriod),
-				MaxClockDrift:           uint64(testvalues.DefaultMaxClockDrift),
+				MaxClockDrift:           uint64(testvalues.DefaultBesuMaxClockDrift),
 			}))
 		}))
 	}
@@ -786,7 +786,7 @@ func (s *BesuToBesuTestSuite) DoubleSignFreezesClientTest(consensus string) {
 
 	const doubleSignClientID = "besu-double-sign"
 	var (
-		client        *besuqbft.Contract
+		client        *besulightclient.Contract
 		trustedHeight uint64
 		height        uint64
 		trustedHash   [32]byte
@@ -853,7 +853,7 @@ func (s *BesuToBesuTestSuite) ConflictingConsensusStatesTimeNonMonotonicityFreez
 
 	const timeMisbehaviourClientID = "besu-time-non-monotonicity"
 	var (
-		client          *besuqbft.Contract
+		client          *besulightclient.Contract
 		trustedHeight   uint64
 		height1         uint64
 		height2         uint64
@@ -949,7 +949,7 @@ func (s *BesuToBesuTestSuite) ConflictingHeadersDoubleSignMisbehaviourIsPermissi
 
 	const clientID = "besu-headers-double-sign"
 	var (
-		client          *besuqbft.Contract
+		client          *besulightclient.Contract
 		height          uint64
 		honestUpdate    []byte
 		misbehaviourMsg []byte
@@ -1016,7 +1016,7 @@ func (s *BesuToBesuTestSuite) ConflictingHeadersTimeNonMonotonicityMisbehaviourI
 
 	const clientID = "besu-headers-time-non-monotonicity"
 	var (
-		client           *besuqbft.Contract
+		client           *besulightclient.Contract
 		height1, height2 uint64
 		timestamp        uint64
 		misbehaviourMsg  []byte
@@ -1062,41 +1062,34 @@ func (s *BesuToBesuTestSuite) Test_ValidatorSetChanges_IBFT2() {
 	s.ValidatorSetChangesTest(testvalues.BesuConsensusIBFT2)
 }
 
-// ValidatorSetChangesTest removes a Chain A validator and then votes in a new one through live validator votes, while
-// dedicated clients on Chain B follow the chain. Besu seals each block with exactly ceil(2n / 3) commit seals. With 3
-// validators that is 2 seals, so a client trusting the original 4 validators at the default 2/3 trust level cannot
-// update past the removal, while a client at 1/3 can. Once the new validator joins, the default client can only catch
-// up through a header that the new validator did not sign.
+// ValidatorSetChangesTest removes a Chain A validator and then votes in a new one through live validator votes, while a
+// dedicated client on Chain B at the default 2/3 trust level follows the chain. Besu seals each block with exactly
+// ceil(2n / 3) commit seals: 2 of the 3 validators left after the removal, and 3 of the 4 after the addition, one of
+// which can be the new validator. The light client caps the trusted overlap requirement at floor(2n / 3), raised to
+// more than a third, so 2 of the 4 or 3 trusted validators are enough and neither change stalls the client.
 func (s *BesuToBesuTestSuite) ValidatorSetChangesTest(consensus string) {
 	ctx := context.Background()
 	s.SetupSuite(ctx, consensus)
 
 	const (
-		removedValidator     = "validator4"
-		addedValidator       = "validator5"
-		lowTrustClientID     = "besu-validator-change-low-trust"
-		defaultTrustClientID = "besu-validator-change-default-trust"
+		removedValidator = "validator4"
+		addedValidator   = "validator5"
+		clientID         = "besu-validator-change"
 	)
 	var (
-		lowTrustClient      *besuqbft.Contract
-		defaultTrustClient  *besuqbft.Contract
-		defaultTrustHeight  uint64
+		client              *besulightclient.Contract
 		initialValidators   []ethcommon.Address
 		remainingValidators []ethcommon.Address
 		newValidator        ethcommon.Address
 		removalHeight       uint64
 		additionHeight      uint64
-		newSignerHeight     uint64
 	)
-	// 2 of the 3 original validators sign, but ceil(4 * 2/3) = 3 trusted validators are required.
-	overlapErr := s.besuClientErr("InsufficientTrustedValidatorOverlap", big.NewInt(2), big.NewInt(3))
 
-	s.Require().True(s.Run("Create dedicated clients on Chain B", func() {
-		lowTrustClient = s.createDedicatedBesuClient(lowTrustClientID, "1/3")
-		defaultTrustClient = s.createDedicatedBesuClient(defaultTrustClientID, besuToBesuDefaultTrustLevel)
-		defaultTrustHeight = s.besuClientState(defaultTrustClient).LatestHeight.RevisionHeight
+	s.Require().True(s.Run("Create dedicated client on Chain B", func() {
+		client = s.createDedicatedBesuClient(clientID, besuToBesuDefaultTrustLevel)
+		trustedHeight := s.besuClientState(client).LatestHeight.RevisionHeight
 
-		initialState, err := e2etypes.FetchBesuConsensusState(ctx, &s.chainA.eth, s.consensus, defaultTrustHeight)
+		initialState, err := e2etypes.FetchBesuConsensusState(ctx, &s.chainA.eth, s.consensus, trustedHeight)
 		s.Require().NoError(err)
 		initialValidators = initialState.Validators
 		s.Require().Len(initialValidators, 4)
@@ -1114,18 +1107,12 @@ func (s *BesuToBesuTestSuite) ValidatorSetChangesTest(consensus string) {
 		s.Require().Subset(initialValidators, remainingValidators)
 	}))
 
-	s.Require().True(s.Run("Low trust client follows the removal", func() {
-		trustedHeight := s.besuClientState(lowTrustClient).LatestHeight.RevisionHeight
+	s.Require().True(s.Run("Client follows the removal", func() {
+		trustedHeight := s.besuClientState(client).LatestHeight.RevisionHeight
 		updateMsg, err := e2etypes.BuildBesuUpdate(ctx, &s.chainA.eth, s.consensus, trustedHeight, removalHeight)
 		s.Require().NoError(err)
-		s.requireUpdateResult(s.updateClient(ctx, lowTrustClientID, updateMsg), 0) // Update
-		s.Require().Equal(removalHeight, s.besuClientState(lowTrustClient).LatestHeight.RevisionHeight)
-	}))
-
-	s.Require().True(s.Run("Default trust client cannot update past the removal", func() {
-		updateMsg, err := e2etypes.BuildBesuUpdate(ctx, &s.chainA.eth, s.consensus, defaultTrustHeight, removalHeight)
-		s.Require().NoError(err)
-		s.requireICS26Revert(ctx, overlapErr, "updateClient", defaultTrustClientID, updateMsg)
+		s.requireUpdateResult(s.updateClient(ctx, clientID, updateMsg), 0) // Update
+		s.Require().Equal(removalHeight, s.besuClientState(client).LatestHeight.RevisionHeight)
 	}))
 
 	s.Require().True(s.Run("Add a new validator to Chain A", func() {
@@ -1145,30 +1132,14 @@ func (s *BesuToBesuTestSuite) ValidatorSetChangesTest(consensus string) {
 		s.Require().NotContains(initialValidators, newValidator)
 	}))
 
-	s.Require().True(s.Run("Low trust client follows a header signed by the new validator", func() {
-		newSignerHeight = s.waitForChainAHeader(ctx, additionHeight, func(signers []ethcommon.Address) bool {
+	s.Require().True(s.Run("Client follows a header signed by the new validator", func() {
+		height := s.waitForChainAHeader(ctx, additionHeight, func(signers []ethcommon.Address) bool {
 			return slices.Contains(signers, newValidator)
 		})
-		updateMsg, err := e2etypes.BuildBesuUpdate(ctx, &s.chainA.eth, s.consensus, removalHeight, newSignerHeight)
+		updateMsg, err := e2etypes.BuildBesuUpdate(ctx, &s.chainA.eth, s.consensus, removalHeight, height)
 		s.Require().NoError(err)
-		s.requireUpdateResult(s.updateClient(ctx, lowTrustClientID, updateMsg), 0) // Update
-		s.Require().Equal(newSignerHeight, s.besuClientState(lowTrustClient).LatestHeight.RevisionHeight)
-	}))
-
-	s.Require().True(s.Run("Default trust client rejects a header signed by the new validator", func() {
-		updateMsg, err := e2etypes.BuildBesuUpdate(ctx, &s.chainA.eth, s.consensus, defaultTrustHeight, newSignerHeight)
-		s.Require().NoError(err)
-		s.requireICS26Revert(ctx, overlapErr, "updateClient", defaultTrustClientID, updateMsg)
-	}))
-
-	s.Require().True(s.Run("Default trust client catches up through a header not signed by the new validator", func() {
-		height := s.waitForChainAHeader(ctx, additionHeight, func(signers []ethcommon.Address) bool {
-			return !slices.Contains(signers, newValidator)
-		})
-		updateMsg, err := e2etypes.BuildBesuUpdate(ctx, &s.chainA.eth, s.consensus, defaultTrustHeight, height)
-		s.Require().NoError(err)
-		s.requireUpdateResult(s.updateClient(ctx, defaultTrustClientID, updateMsg), 0) // Update
-		s.Require().Equal(height, s.besuClientState(defaultTrustClient).LatestHeight.RevisionHeight)
+		s.requireUpdateResult(s.updateClient(ctx, clientID, updateMsg), 0) // Update
+		s.Require().Equal(height, s.besuClientState(client).LatestHeight.RevisionHeight)
 	}))
 }
 
@@ -1194,11 +1165,10 @@ func (s *BesuToBesuTestSuite) waitForChainAHeader(ctx context.Context, start uin
 	return height
 }
 
-// createDedicatedBesuClient registers a Chain A client on Chain B that the relayer does not use. The QBFT and IBFT2
-// light clients share an ABI, so the besuqbft bindings serve both.
-func (s *BesuToBesuTestSuite) createDedicatedBesuClient(clientID, trustLevel string) *besuqbft.Contract {
+// createDedicatedBesuClient registers a Chain A client on Chain B that the relayer does not use.
+func (s *BesuToBesuTestSuite) createDedicatedBesuClient(clientID, trustLevel string) *besulightclient.Contract {
 	clientAddress := s.createAndRegisterBesuClient(&s.chainA, &s.chainB, clientID, besuToBesuClientOnA, trustLevel)
-	client, err := besuqbft.NewContract(clientAddress, s.chainB.eth.RPCClient)
+	client, err := besulightclient.NewContract(clientAddress, s.chainB.eth.RPCClient)
 	s.Require().NoError(err)
 	s.Require().False(s.besuClientState(client).IsFrozen)
 	return client
@@ -1299,7 +1269,7 @@ func (s *BesuToBesuTestSuite) requireCallRevert(ctx context.Context, from *ecdsa
 
 // besuClientErr returns the revert data of the Besu light client custom error name with args.
 func (s *BesuToBesuTestSuite) besuClientErr(name string, args ...any) []byte {
-	clientABI, err := besuqbft.ContractMetaData.GetAbi()
+	clientABI, err := besulightclient.ContractMetaData.GetAbi()
 	s.Require().NoError(err)
 	customErr, ok := clientABI.Errors[name]
 	s.Require().True(ok, "unknown error %s", name)
@@ -1310,7 +1280,7 @@ func (s *BesuToBesuTestSuite) besuClientErr(name string, args ...any) []byte {
 
 // besuClientCalldata packs a call to a Besu light client method.
 func (s *BesuToBesuTestSuite) besuClientCalldata(method string, args ...any) []byte {
-	clientABI, err := besuqbft.ContractMetaData.GetAbi()
+	clientABI, err := besulightclient.ContractMetaData.GetAbi()
 	s.Require().NoError(err)
 	calldata, err := clientABI.Pack(method, args...)
 	s.Require().NoError(err)
@@ -1345,7 +1315,7 @@ func (s *BesuToBesuTestSuite) submitBesuMisbehaviour(ctx context.Context, client
 	return receipt
 }
 
-func (s *BesuToBesuTestSuite) besuClientState(client *besuqbft.Contract) besumsgs.IBesuLightClientMsgsClientState {
+func (s *BesuToBesuTestSuite) besuClientState(client *besulightclient.Contract) besumsgs.IBesuLightClientMsgsClientState {
 	clientStateBz, err := client.GetClientState(nil)
 	s.Require().NoError(err)
 	clientState, err := besumsgs.NewBindings().UnpackClientState(clientStateBz)
@@ -1472,7 +1442,7 @@ func (s *BesuToBesuTestSuite) createAndRegisterBesuClient(
 		DstChain: dstChain.eth.ChainID.String(),
 		Parameters: map[string]string{
 			testvalues.ParameterKey_TrustingPeriod: strconv.Itoa(testvalues.DefaultTrustPeriod),
-			testvalues.ParameterKey_MaxClockDrift:  strconv.Itoa(testvalues.DefaultMaxClockDrift),
+			testvalues.ParameterKey_MaxClockDrift:  strconv.Itoa(testvalues.DefaultBesuMaxClockDrift),
 			testvalues.ParameterKey_TrustLevel:     trustLevel,
 		},
 	})
@@ -1484,9 +1454,12 @@ func (s *BesuToBesuTestSuite) createAndRegisterBesuClient(
 	s.Require().Equal(ethtypes.ReceiptStatusSuccessful, createClientReceipt.Status)
 	s.Require().NotEqual(ethcommon.Address{}, createClientReceipt.ContractAddress)
 
+	// The Besu light client proves paths of the form [counterpartyRouter, ibcStoreSlot, commitmentPath].
+	srcRouter := ethcommon.HexToAddress(srcChain.contractAddresses.Ics26Router)
+	ibcStoreSlot := ethcommon.HexToHash(testvalues.IbcCommitmentSlotHex)
 	counterpartyInfo := ics26router.IICS02ClientMsgsCounterpartyInfo{
 		ClientId:     counterpartyClientID,
-		MerklePrefix: [][]byte{[]byte("")},
+		MerklePrefix: [][]byte{srcRouter.Bytes(), ibcStoreSlot.Bytes(), []byte("")},
 	}
 	addClientTx, err := dstChain.ics26.AddClient(
 		s.mustTransactOpts(dstChain, dstChain.deployer),
