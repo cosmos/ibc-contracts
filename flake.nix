@@ -1,15 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 {
-  description = "Development environment for Solidity IBC Eureka";
+  description = "Development environment for IBC Contracts";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     solc = {
-      # TODO: switch back to github:hellwolf/solc.nix once
-      # https://github.com/hellwolf/solc.nix/pull/32 (solc 0.8.37) is merged.
-      url = "github:srdtrk/solc.nix/v_0_8_37";
+      url = "github:hellwolf/solc.nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     foundry.url = "github:shazow/foundry.nix/stable";
@@ -96,7 +94,7 @@
               ++ [
                 node-modules
               ]
-              ++ (with pkgs.sp1."v6.1.0"; [
+              ++ (with pkgs.sp1."v6.9.0"; [
                 cargo-prove
                 sp1-rust-toolchain
               ]);

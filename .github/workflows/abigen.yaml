@@ -5,6 +5,8 @@ name: abigen
 permissions: {}
 
 on:
+  merge_group:
+    types: [checks_requested]
   workflow_dispatch:
   pull_request:
     paths:

@@ -11,8 +11,8 @@ import (
 
 	"github.com/cosmos/interchaintest/v11/chain/cosmos"
 
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/testvalues"
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/types/tendermint_light_client_fixtures"
+	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
+	"github.com/cosmos/ibc-contracts/e2e/v8/types/tendermint_light_client_fixtures"
 )
 
 type KeyPath = tendermint_light_client_fixtures.KeyPath

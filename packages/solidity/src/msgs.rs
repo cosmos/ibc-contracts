@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module contains all the message types used in Solidity IBC Eureka.
+//! This module contains all the message types used in IBC Contracts.
 //! In case some message types are not found in the `ics26` module nor the `sp1_ics07` module,
 //! they are defined here.
 

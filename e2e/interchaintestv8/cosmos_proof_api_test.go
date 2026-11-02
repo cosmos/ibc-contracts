@@ -29,14 +29,14 @@ import (
 	"github.com/cosmos/interchaintest/v11/chain/cosmos"
 	"github.com/cosmos/interchaintest/v11/ibc"
 
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/chainconfig"
-	cosmosutils "github.com/srdtrk/solidity-ibc-eureka/e2e/v8/cosmos"
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/e2esuite"
-	ibctesting "github.com/srdtrk/solidity-ibc-eureka/e2e/v8/ibctesting"
-	proofapi "github.com/srdtrk/solidity-ibc-eureka/e2e/v8/proofapi"
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/testvalues"
-	e2etypes "github.com/srdtrk/solidity-ibc-eureka/e2e/v8/types"
-	proofapitypes "github.com/srdtrk/solidity-ibc-eureka/e2e/v8/types/proofapi"
+	"github.com/cosmos/ibc-contracts/e2e/v8/chainconfig"
+	cosmosutils "github.com/cosmos/ibc-contracts/e2e/v8/cosmos"
+	"github.com/cosmos/ibc-contracts/e2e/v8/e2esuite"
+	ibctesting "github.com/cosmos/ibc-contracts/e2e/v8/ibctesting"
+	proofapi "github.com/cosmos/ibc-contracts/e2e/v8/proofapi"
+	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
+	e2etypes "github.com/cosmos/ibc-contracts/e2e/v8/types"
+	proofapitypes "github.com/cosmos/ibc-contracts/e2e/v8/types/proofapi"
 )
 
 // CosmosProofAPITestSuite is a struct that holds the test suite for two Cosmos chains.

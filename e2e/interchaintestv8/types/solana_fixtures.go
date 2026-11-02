@@ -22,9 +22,9 @@ import (
 
 	"github.com/cosmos/interchaintest/v11/chain/cosmos"
 
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/e2esuite"
-	ibctesting "github.com/srdtrk/solidity-ibc-eureka/e2e/v8/ibctesting"
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/testvalues"
+	"github.com/cosmos/ibc-contracts/e2e/v8/e2esuite"
+	ibctesting "github.com/cosmos/ibc-contracts/e2e/v8/ibctesting"
+	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
 )
 
 type SolanaFixtureGenerator struct {

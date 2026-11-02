@@ -31,7 +31,7 @@ impl Chain for CosmosSdk {
     type Height = u64;
 }
 
-/// The `EthEureka` is an implementation of the `Chain` trait for `solidity-ibc-eureka` contracts.
+/// The `EthEureka` is an implementation of the `Chain` trait for `ibc-contracts` contracts.
 pub struct EthEureka;
 
 impl Chain for EthEureka {

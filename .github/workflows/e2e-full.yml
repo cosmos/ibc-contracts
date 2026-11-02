@@ -42,7 +42,7 @@ env:
   E2E_WASM_LIGHT_CLIENT_TAG: ${{ inputs.wasm-eth-light-client-tag }}
   ETH_LC_ON_COSMOS: full
   COSMOS_LC_ON_ETH: sp1
-  SP1_VERSION: "6.1.0"
+  SP1_VERSION: "6.9.0"
   SOLANA_VERSION: "2.3.13"
   ANCHOR_VERSION: "0.32.1"
   E2E_IBC_GO_DOCKER_TAG: ${{ inputs.ibc-go-docker-tag || 'v11.0.0' }}

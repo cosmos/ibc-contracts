@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/cosmos/gogoproto/proto"
-	test_cpi_proxy "github.com/cosmos/solidity-ibc-eureka/e2e/interchaintestv8/solana/go-anchor/testcpiproxy"
-	test_gmp_app "github.com/cosmos/solidity-ibc-eureka/e2e/interchaintestv8/solana/go-anchor/testgmpapp"
+	test_cpi_proxy "github.com/cosmos/ibc-contracts/e2e/interchaintestv8/solana/go-anchor/testcpiproxy"
+	test_gmp_app "github.com/cosmos/ibc-contracts/e2e/interchaintestv8/solana/go-anchor/testgmpapp"
 	bin "github.com/gagliardetto/binary"
 	"github.com/stretchr/testify/suite"
 	googleproto "google.golang.org/protobuf/proto"
@@ -35,19 +35,19 @@ import (
 	"github.com/cosmos/interchaintest/v11/ibc"
 	"github.com/cosmos/interchaintest/v11/testutil"
 
-	access_manager "github.com/cosmos/solidity-ibc-eureka/packages/go-anchor/accessmanager"
-	ics07_tendermint "github.com/cosmos/solidity-ibc-eureka/packages/go-anchor/ics07tendermint"
-	ics26_router "github.com/cosmos/solidity-ibc-eureka/packages/go-anchor/ics26router"
-	ics27_gmp "github.com/cosmos/solidity-ibc-eureka/packages/go-anchor/ics27gmp"
+	access_manager "github.com/cosmos/ibc-contracts/packages/go-anchor/accessmanager"
+	ics07_tendermint "github.com/cosmos/ibc-contracts/packages/go-anchor/ics07tendermint"
+	ics26_router "github.com/cosmos/ibc-contracts/packages/go-anchor/ics26router"
+	ics27_gmp "github.com/cosmos/ibc-contracts/packages/go-anchor/ics27gmp"
 
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/cosmos"
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/e2esuite"
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/solana"
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/testvalues"
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/types"
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/types/gmphelpers"
-	proofapitypes "github.com/srdtrk/solidity-ibc-eureka/e2e/v8/types/proofapi"
-	solanatypes "github.com/srdtrk/solidity-ibc-eureka/e2e/v8/types/solana"
+	"github.com/cosmos/ibc-contracts/e2e/v8/cosmos"
+	"github.com/cosmos/ibc-contracts/e2e/v8/e2esuite"
+	"github.com/cosmos/ibc-contracts/e2e/v8/solana"
+	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
+	"github.com/cosmos/ibc-contracts/e2e/v8/types"
+	"github.com/cosmos/ibc-contracts/e2e/v8/types/gmphelpers"
+	proofapitypes "github.com/cosmos/ibc-contracts/e2e/v8/types/proofapi"
+	solanatypes "github.com/cosmos/ibc-contracts/e2e/v8/types/solana"
 )
 
 // IbcEurekaSolanaGMPTestSuite is a test suite for Solana GMP tests

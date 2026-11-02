@@ -7,12 +7,6 @@ import { ILightClient } from "../../../interfaces/ILightClient.sol";
 /// @notice Interface for an attestation-based IBC light client as specified in `IBC_ATTESTATION_DESIGN.md`.
 /// @dev Implementations MUST also implement `ILightClient` behaviors.
 interface IAttestationLightClient is ILightClient {
-    /// @notice The role identifier for the proof submitter role
-    /// @dev If `address(0)` has this role, then anyone can submit proofs. If this client is
-    /// used with `ICS26Router`, the router must be granted this role.
-    /// @return The role identifier
-    function PROOF_SUBMITTER_ROLE() external view returns (bytes32);
-
     /// @notice Returns the attestation set configuration.
     /// @dev The attestation set is fixed for the initial scope; rotation is out of scope.
     /// @return attestorAddresses The configured attestor EOA addresses

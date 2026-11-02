@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	test_ibc_app "github.com/cosmos/solidity-ibc-eureka/e2e/interchaintestv8/solana/go-anchor/testibcapp"
+	test_ibc_app "github.com/cosmos/ibc-contracts/e2e/interchaintestv8/solana/go-anchor/testibcapp"
 	bin "github.com/gagliardetto/binary"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/protobuf/proto"
@@ -32,22 +32,22 @@ import (
 
 	"github.com/cosmos/interchaintest/v11/testutil"
 
-	ics26router "github.com/cosmos/solidity-ibc-eureka/packages/go-abigen/ics26router"
+	ics26router "github.com/cosmos/ibc-contracts/packages/go-abigen/ics26router"
 
-	access_manager "github.com/cosmos/solidity-ibc-eureka/packages/go-anchor/accessmanager"
-	attestation "github.com/cosmos/solidity-ibc-eureka/packages/go-anchor/attestation"
-	ics07_tendermint "github.com/cosmos/solidity-ibc-eureka/packages/go-anchor/ics07tendermint"
-	ics26_router "github.com/cosmos/solidity-ibc-eureka/packages/go-anchor/ics26router"
+	access_manager "github.com/cosmos/ibc-contracts/packages/go-anchor/accessmanager"
+	attestation "github.com/cosmos/ibc-contracts/packages/go-anchor/attestation"
+	ics07_tendermint "github.com/cosmos/ibc-contracts/packages/go-anchor/ics07tendermint"
+	ics26_router "github.com/cosmos/ibc-contracts/packages/go-anchor/ics26router"
 
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/attestor"
-	cosmosutils "github.com/srdtrk/solidity-ibc-eureka/e2e/v8/cosmos"
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/e2esuite"
-	proofapi "github.com/srdtrk/solidity-ibc-eureka/e2e/v8/proofapi"
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/solana"
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/testvalues"
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/types"
-	attestortypes "github.com/srdtrk/solidity-ibc-eureka/e2e/v8/types/attestor"
-	proofapitypes "github.com/srdtrk/solidity-ibc-eureka/e2e/v8/types/proofapi"
+	"github.com/cosmos/ibc-contracts/e2e/v8/attestor"
+	cosmosutils "github.com/cosmos/ibc-contracts/e2e/v8/cosmos"
+	"github.com/cosmos/ibc-contracts/e2e/v8/e2esuite"
+	proofapi "github.com/cosmos/ibc-contracts/e2e/v8/proofapi"
+	"github.com/cosmos/ibc-contracts/e2e/v8/solana"
+	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
+	"github.com/cosmos/ibc-contracts/e2e/v8/types"
+	attestortypes "github.com/cosmos/ibc-contracts/e2e/v8/types/attestor"
+	proofapitypes "github.com/cosmos/ibc-contracts/e2e/v8/types/proofapi"
 )
 
 const (

@@ -7,7 +7,7 @@ import (
 	"math/rand"
 	"os"
 
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/testvalues"
+	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
 )
 
 // SupportedEncodingType is an enum for supported GMP encoding types.

@@ -32,7 +32,7 @@ pragma solidity ^0.8.28;
 import { Test } from "forge-std/Test.sol";
 import { RLP } from "@openzeppelin-contracts/utils/RLP.sol";
 
-import { TrieProof } from "../../contracts/utils/TrieProof.sol";
+import { TrieProof } from "../../contracts/light-clients/utils/TrieProof.sol";
 
 struct TrieMembershipTestCase {
     string name;

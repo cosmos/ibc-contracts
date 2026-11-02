@@ -38,7 +38,7 @@ import (
 
 	"github.com/cosmos/interchaintest/v11/chain/cosmos"
 
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/e2esuite"
+	"github.com/cosmos/ibc-contracts/e2e/v8/e2esuite"
 )
 
 type KeyPath struct {

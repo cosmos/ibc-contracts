@@ -50,7 +50,7 @@ resolver = "2"
 version    = "0.1.0"
 edition    = "2021"
 license    = "Apache-2.0"
-repository = "https://github.com/cosmos/solidity-ibc-eureka"
+repository = "https://github.com/cosmos/ibc-contracts"
 keywords   = ["cosmos", "ibc", "sp1", "tendermint", "ethereum", "bridge", "solidity", "eureka"]
 
 [workspace.dependencies]
@@ -169,8 +169,8 @@ alloy-provider         = { version = "2.0", default-features = false }
 alloy-transport        = { version = "2.0", default-features = false }
 alloy-rpc-types-eth    = { version = "2.0", default-features = false }
 
-sp1-sdk  = { version = "6.1", default-features = false }
-sp1-cuda = { version = "6.1", default-features = false }
+sp1-sdk  = { version = "6.9", default-features = false }
+sp1-cuda = { version = "6.9", default-features = false }
 
 # NOTE: When updating, use `cargo update -p ed25519-zebra --precise 4.0.3` to avoid pulling in a version that conflicts with cosmwasm-crypto
 cosmwasm-schema = { version = "2.2", default-features = false }
@@ -207,8 +207,8 @@ smallvec                     = { version = "1.6.1", default-features = false }
 tempfile                     = { version = "3.8.1", default-features = false }
 
 # TODO: Remove these dependencies once ethereum wasm client v1.3.0 backwards compatibility is not needed.
-ibc-eureka-relayer-eth-to-cosmos-v1_3 = { package = "ibc-eureka-relayer-eth-to-cosmos", git = "https://github.com/cosmos/solidity-ibc-eureka", rev = "035aa5eb171b6608614a9bc4e76e79d61c190e39", default-features = false }
-ibc-eureka-relayer-core-v1_3          = { package = "ibc-eureka-relayer-core", git = "https://github.com/cosmos/solidity-ibc-eureka", rev = "035aa5eb171b6608614a9bc4e76e79d61c190e39", default-features = false }
+ibc-eureka-relayer-eth-to-cosmos-v1_3 = { package = "ibc-eureka-relayer-eth-to-cosmos", git = "https://github.com/cosmos/ibc-contracts", rev = "035aa5eb171b6608614a9bc4e76e79d61c190e39", default-features = false }
+ibc-eureka-relayer-core-v1_3          = { package = "ibc-eureka-relayer-core", git = "https://github.com/cosmos/ibc-contracts", rev = "035aa5eb171b6608614a9bc4e76e79d61c190e39", default-features = false }
 
 # Solana dependencies
 solana-client             = { version = "2.0" }

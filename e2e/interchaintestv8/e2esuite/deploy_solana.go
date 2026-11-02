@@ -16,8 +16,8 @@ import (
 
 	solanago "github.com/gagliardetto/solana-go"
 
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/ethereum"
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/solana"
+	"github.com/cosmos/ibc-contracts/e2e/v8/ethereum"
+	"github.com/cosmos/ibc-contracts/e2e/v8/solana"
 )
 
 // DeploySolanaProgramTask creates a ParallelTaskWithResult that deploys a

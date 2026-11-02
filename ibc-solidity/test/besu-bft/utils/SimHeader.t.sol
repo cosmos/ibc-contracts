@@ -24,14 +24,13 @@ contract SimHeaderTest is Test {
         for (uint256 i = 0; i < updates.length; ++i) {
             bytes memory rlp = json.readBytes(string.concat(".", updates[i], ".headerRlp"));
             SimHeader.Data memory h = SimHeader.decode(rlp);
-            assertEq(h.encode(), rlp, updates[i]);
+            assertEq(h.signingRlp(SimHeader.Mode.QBFT), rlp, updates[i]);
 
             bytes32 digest = h.commitSealDigest(SimHeader.Mode.QBFT);
-            assertTrue(h.commitSeals.length != 0);
-            for (uint256 j = 0; j < h.commitSeals.length; ++j) {
-                bytes memory seal = h.commitSeals[j];
-                seal[64] = bytes1(uint8(seal[64]) + 27);
-                assertTrue(_contains(h.validators, ECDSA.recover(digest, seal)), "seal signer");
+            bytes[] memory seals = json.readBytesArray(string.concat(".", updates[i], ".commitSeals"));
+            assertTrue(seals.length != 0);
+            for (uint256 j = 0; j < seals.length; ++j) {
+                assertTrue(_contains(h.validators, ECDSA.recover(digest, seals[j])), "seal signer");
             }
         }
     }

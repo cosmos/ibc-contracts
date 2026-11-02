@@ -126,8 +126,10 @@ type CosmosToEthSP1Params struct {
 	EthChainID    string
 	TmRPC         string
 	ICS26Address  string
-	EthRPC        string
-	Prover        SP1ProverConfig
+	// IBCMulticallAddress is the multicall that relay transactions are submitted to.
+	IBCMulticallAddress string
+	EthRPC              string
+	Prover              SP1ProverConfig
 }
 
 // CosmosToEthSP1 adds a Cosmos→Eth module using SP1 proofs.
@@ -138,10 +140,11 @@ func (b *ConfigBuilder) CosmosToEthSP1(p CosmosToEthSP1Params) *ConfigBuilder {
 		SrcChain: p.CosmosChainID,
 		DstChain: p.EthChainID,
 		Config: CosmosToEthModuleConfig{
-			TmRpcUrl:     p.TmRPC,
-			Ics26Address: p.ICS26Address,
-			EthRpcUrl:    p.EthRPC,
-			Mode:         SP1Mode{Prover: p.Prover, Programs: sp1Programs},
+			TmRpcUrl:            p.TmRPC,
+			Ics26Address:        p.ICS26Address,
+			IbcMulticallAddress: p.IBCMulticallAddress,
+			EthRpcUrl:           p.EthRPC,
+			Mode:                SP1Mode{Prover: p.Prover, Programs: sp1Programs},
 		},
 	}
 	b.modules = append(b.modules, module)
@@ -154,14 +157,16 @@ func (b *ConfigBuilder) CosmosToEthSP1(p CosmosToEthSP1Params) *ConfigBuilder {
 
 // CosmosToEthAttestedParams contains parameters for Cosmos→Eth module using attestor.
 type CosmosToEthAttestedParams struct {
-	CosmosChainID     string
-	EthChainID        string
-	TmRPC             string
-	ICS26Address      string
-	EthRPC            string
-	AttestorEndpoints []string
-	AttestorTimeout   int // Optional, defaults to 5000
-	QuorumThreshold   int // Optional, defaults to 1
+	CosmosChainID string
+	EthChainID    string
+	TmRPC         string
+	ICS26Address  string
+	// IBCMulticallAddress is the multicall that relay transactions are submitted to.
+	IBCMulticallAddress string
+	EthRPC              string
+	AttestorEndpoints   []string
+	AttestorTimeout     int // Optional, defaults to 5000
+	QuorumThreshold     int // Optional, defaults to 1
 }
 
 // CosmosToEthAttested adds a Cosmos→Eth module using attestor.
@@ -182,10 +187,11 @@ func (b *ConfigBuilder) CosmosToEthAttested(p CosmosToEthAttestedParams) *Config
 		SrcChain: p.CosmosChainID,
 		DstChain: p.EthChainID,
 		Config: CosmosToEthModuleConfig{
-			TmRpcUrl:     p.TmRPC,
-			Ics26Address: p.ICS26Address,
-			EthRpcUrl:    p.EthRPC,
-			Mode:         AttestedMode{Config: aggConfig},
+			TmRpcUrl:            p.TmRPC,
+			Ics26Address:        p.ICS26Address,
+			IbcMulticallAddress: p.IBCMulticallAddress,
+			EthRpcUrl:           p.EthRPC,
+			Mode:                AttestedMode{Config: aggConfig},
 		},
 	}
 	b.modules = append(b.modules, module)
@@ -198,12 +204,14 @@ func (b *ConfigBuilder) CosmosToEthAttested(p CosmosToEthAttestedParams) *Config
 
 // EthToEthAttestedParams contains parameters for Eth→Eth module using attestor.
 type EthToEthAttestedParams struct {
-	SrcChainID        string
-	DstChainID        string
-	SrcRPC            string
-	DstRPC            string
-	SrcICS26          string
-	DstICS26          string
+	SrcChainID string
+	DstChainID string
+	SrcRPC     string
+	DstRPC     string
+	SrcICS26   string
+	DstICS26   string
+	// DstIBCMulticall is the destination multicall that relay transactions are submitted to.
+	DstIBCMulticall   string
 	AttestorEndpoints []string
 	AttestorTimeout   int // Optional, defaults to 5000
 	QuorumThreshold   int // Optional, defaults to 1
@@ -227,11 +235,12 @@ func (b *ConfigBuilder) EthToEthAttested(p EthToEthAttestedParams) *ConfigBuilde
 		SrcChain: p.SrcChainID,
 		DstChain: p.DstChainID,
 		Config: EthToEthModuleConfig{
-			SrcRpcUrl:       p.SrcRPC,
-			SrcIcs26Address: p.SrcICS26,
-			DstRpcUrl:       p.DstRPC,
-			DstIcs26Address: p.DstICS26,
-			Mode:            AttestedMode{Config: aggConfig},
+			SrcRpcUrl:              p.SrcRPC,
+			SrcIcs26Address:        p.SrcICS26,
+			DstRpcUrl:              p.DstRPC,
+			DstIcs26Address:        p.DstICS26,
+			DstIbcMulticallAddress: p.DstIBCMulticall,
+			Mode:                   AttestedMode{Config: aggConfig},
 		},
 	}
 	b.modules = append(b.modules, module)
@@ -244,13 +253,15 @@ func (b *ConfigBuilder) EthToEthAttested(p EthToEthAttestedParams) *ConfigBuilde
 
 // BesuToEthParams contains parameters for besu_to_eth module.
 type BesuToEthParams struct {
-	SrcChainID    string
-	DstChainID    string
-	SrcRPC        string
-	DstRPC        string
-	SrcICS26      string
-	DstICS26      string
-	ConsensusType string
+	SrcChainID string
+	DstChainID string
+	SrcRPC     string
+	DstRPC     string
+	SrcICS26   string
+	DstICS26   string
+	// DstIBCMulticall is the destination multicall that relay transactions are submitted to.
+	DstIBCMulticall string
+	ConsensusType   string
 }
 
 // BesuToEth adds a Besu→EVM module.
@@ -260,11 +271,12 @@ func (b *ConfigBuilder) BesuToEth(p BesuToEthParams) *ConfigBuilder {
 		SrcChain: p.SrcChainID,
 		DstChain: p.DstChainID,
 		Config: BesuToEthModuleConfig{
-			SrcRPCURL:       p.SrcRPC,
-			SrcICS26Address: p.SrcICS26,
-			DstRPCURL:       p.DstRPC,
-			DstICS26Address: p.DstICS26,
-			ConsensusType:   p.ConsensusType,
+			SrcRPCURL:              p.SrcRPC,
+			SrcICS26Address:        p.SrcICS26,
+			DstRPCURL:              p.DstRPC,
+			DstICS26Address:        p.DstICS26,
+			DstIBCMulticallAddress: p.DstIBCMulticall,
+			ConsensusType:          p.ConsensusType,
 		},
 	}
 	b.modules = append(b.modules, module)
@@ -530,15 +542,17 @@ func (b *ConfigBuilder) EthToSolanaAttested(p EthToSolanaAttestedParams) *Config
 }
 
 type SolanaToEthAttestedParams struct {
-	SolanaChainID     string
-	EthChainID        string
-	SolanaRPC         string
-	ICS26ProgramID    string
-	EthRPC            string
-	ICS26Address      string
-	AttestorEndpoints []string
-	AttestorTimeout   int // Optional, defaults to 5000
-	QuorumThreshold   int // Optional, defaults to 1
+	SolanaChainID  string
+	EthChainID     string
+	SolanaRPC      string
+	ICS26ProgramID string
+	EthRPC         string
+	ICS26Address   string
+	// IBCMulticallAddress is the multicall that relay transactions are submitted to.
+	IBCMulticallAddress string
+	AttestorEndpoints   []string
+	AttestorTimeout     int // Optional, defaults to 5000
+	QuorumThreshold     int // Optional, defaults to 1
 }
 
 func (b *ConfigBuilder) SolanaToEthAttested(p SolanaToEthAttestedParams) *ConfigBuilder {
@@ -562,6 +576,7 @@ func (b *ConfigBuilder) SolanaToEthAttested(p SolanaToEthAttestedParams) *Config
 			SolanaIcs26ProgramId: p.ICS26ProgramID,
 			EthRpcUrl:            p.EthRPC,
 			Ics26Address:         p.ICS26Address,
+			IbcMulticallAddress:  p.IBCMulticallAddress,
 			Mode:                 AttestedMode{Config: aggConfig},
 		},
 	}

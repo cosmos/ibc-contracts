@@ -28,19 +28,19 @@ import (
 	"github.com/cosmos/interchaintest/v11/chain/cosmos"
 	"github.com/cosmos/interchaintest/v11/ibc"
 
-	ics07_tendermint "github.com/cosmos/solidity-ibc-eureka/packages/go-anchor/ics07tendermint"
-	ics26_router "github.com/cosmos/solidity-ibc-eureka/packages/go-anchor/ics26router"
-	ics27_gmp "github.com/cosmos/solidity-ibc-eureka/packages/go-anchor/ics27gmp"
-	ift "github.com/cosmos/solidity-ibc-eureka/packages/go-anchor/ift"
+	ics07_tendermint "github.com/cosmos/ibc-contracts/packages/go-anchor/ics07tendermint"
+	ics26_router "github.com/cosmos/ibc-contracts/packages/go-anchor/ics26router"
+	ics27_gmp "github.com/cosmos/ibc-contracts/packages/go-anchor/ics27gmp"
+	ift "github.com/cosmos/ibc-contracts/packages/go-anchor/ift"
 
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/chainconfig"
-	cosmosutils "github.com/srdtrk/solidity-ibc-eureka/e2e/v8/cosmos"
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/e2esuite"
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/solana"
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/testvalues"
-	proofapitypes "github.com/srdtrk/solidity-ibc-eureka/e2e/v8/types/proofapi"
-	ifttypes "github.com/srdtrk/solidity-ibc-eureka/e2e/v8/types/wfchain/ift"
-	tokenfactorytypes "github.com/srdtrk/solidity-ibc-eureka/e2e/v8/types/wfchain/tokenfactory"
+	"github.com/cosmos/ibc-contracts/e2e/v8/chainconfig"
+	cosmosutils "github.com/cosmos/ibc-contracts/e2e/v8/cosmos"
+	"github.com/cosmos/ibc-contracts/e2e/v8/e2esuite"
+	"github.com/cosmos/ibc-contracts/e2e/v8/solana"
+	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
+	proofapitypes "github.com/cosmos/ibc-contracts/e2e/v8/types/proofapi"
+	ifttypes "github.com/cosmos/ibc-contracts/e2e/v8/types/wfchain/ift"
+	tokenfactorytypes "github.com/cosmos/ibc-contracts/e2e/v8/types/wfchain/tokenfactory"
 )
 
 // IbcEurekaSolanaIFTTestSuite tests IFT functionality

@@ -73,6 +73,8 @@ Module configuration varies by module type:
   - `tm_rpc_url`: Tendermint RPC endpoint for the source chain.
   - `eth_rpc_url`: EVM RPC endpoint for the destination chain.
   - `ics26_address`: IBC router contract address on the destination chain.
+  - `ibc_multicall_address`: `IBCMulticall` contract address on the destination chain. Relay and update client
+    transactions are built for and submitted to it.
   - `mode`: Proof mode object.
   - `mode.type`: `sp1` or `attested`.
   - `mode.sp1_prover`: SP1 prover config when `type: sp1`.
@@ -116,6 +118,8 @@ Module configuration varies by module type:
   - `src_ics26_address`: Source IBC router contract address.
   - `dst_rpc_url`: Destination EVM RPC endpoint.
   - `dst_ics26_address`: Destination IBC router contract address.
+  - `dst_ibc_multicall_address`: Destination `IBCMulticall` contract address that relay and update client
+    transactions are submitted to.
   - `mode`: Proof mode object.
   - `mode.type`: `attested`.
   - `mode.attestor`: Attestor config.
@@ -130,7 +134,9 @@ Module configuration varies by module type:
   - `src_ics26_address`: Source IBC router contract address.
   - `dst_rpc_url`: Destination EVM RPC endpoint.
   - `dst_ics26_address`: Destination IBC router contract address.
-  - `consensus_type`: Source Besu consensus type, `qbft` or `ibft2`.
+  - `dst_ibc_multicall_address`: Destination `IBCMulticall` contract address that relay and update client
+    transactions are submitted to.
+  - `consensus_type`: Source Besu consensus type, `qbft` or `ibft2`. Selects the commit-seal signing form of the headers submitted in client updates.
 - `cosmos_to_cosmos`:
   - `src_rpc_url`: RPC endpoint for the source chain.
   - `target_rpc_url`: RPC endpoint for the destination chain.
@@ -151,21 +157,20 @@ Module configuration varies by module type:
 
 ## `besu_to_eth` create-client parameters
 
-`besu_to_eth` `CreateClient` returns only deployment calldata for `BesuQBFTLightClient` or `BesuIBFT2LightClient`. It does not call `ICS26Router.addClient(...)`.
+`besu_to_eth` `CreateClient` returns only deployment calldata for `BesuLightClient`, which serves both QBFT and IBFT2 sources, bound to `dst_ics26_address` as the only router that can drive the client. It does not call `ICS26Router.addClient(...)`. Register the deployed client with the counterparty merkle prefix `[src_ics26_address, IBCSTORE_STORAGE_SLOT, ""]`, with the source router address as its raw 20 bytes and the `IBCStoreUpgradeable` ERC-7201 slot (`0x1260944489272988d9df285149b5aa1b0f48f2136d6f416159f840a3e0747600`) as its 32 bytes, because the client rejects proofs whose path does not start with the router it tracks and that slot.
 
 Required parameters:
 - `trusting_period`: Decimal seconds for the weak-subjectivity window.
 - `max_clock_drift`: Decimal seconds for allowed future header drift.
 
 Optional parameters:
-- `trust_level`: Minimum fraction of the trusted validator set that must sign an update, as `<numerator>/<denominator>` within `[1/3, 1]`. Defaults to `2/3`.
+- `trust_level`: Minimum fraction of the trusted validator set that must sign an update, as `<numerator>/<denominator>` within `[1/3, 2/3]`. Defaults to `2/3`.
 - `trusted_height`: Decimal source block height. Defaults to the latest source block. The header at this height must still be within `trusting_period` when the calldata is deployed, or the constructor reverts.
-- `role_manager`: Hex address. Defaults to the zero address.
 
 Operational notes:
-- `consensus_type` is fixed by module config and only affects `CreateClient` wrapper selection.
+- `consensus_type` is fixed by module config and selects how client updates encode the header. Besu returns headers with the commit seals inside `extraData`; the update instead carries the header in its commit-seal signing form (QBFT: 5 `extraData` items ending in an empty seal list, IBFT2: 4 items) and the commit seals separately, ordered by recovered signer. A wrong `consensus_type` produces updates that the light client rejects.
 - `UpdateClient` is a single direct Besu update. No catch-up or intermediate-header search is performed.
-- `RelayByTx` uses real Besu proofs: the full header RLP in the client update, and a `MembershipProof` per packet call carrying the consensus state preimage and the storage proof for recv/ack/timeout verification. The client update carries no account proof.
+- `RelayByTx` uses real Besu proofs: the signing-form header RLP and commit seals in the client update, and a `MembershipProof` per packet call carrying the consensus state preimage and the storage proof for recv/ack/timeout verification. The client update carries no account proof.
 - `RelayByTx` fetches `eth_getProof` at the latest source block rather than at the event heights, so it keeps working after a Bonsai-backed Besu node has pruned the state at those heights. Packets that were already completed on the source chain by then (a recv whose commitment is gone, a timeout whose receipt exists) are skipped with a warning instead of being included as calls that would revert; if nothing is left, the request fails.
 - Within a batch only the first packet call carries the router account proof. The destination light client caches the proven storage root in transient storage for the remaining calls, so the destination chain must have Cancun (EIP-1153) enabled. See `ibc-solidity/contracts/light-clients/besu/README.md`.
 

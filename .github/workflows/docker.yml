@@ -1,14 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 name: docker
+# Builds the unsigned proof-api image for pull requests and manual runs. Release tags get the signed
+# image from release.yml instead, so this workflow has no tag trigger and pushes no version tag.
 
 permissions: {}
 
 on:
   workflow_dispatch:
-  push:
-    tags:
-      - proof-api-v[0-9]+.[0-9]+.[0-9]+
   pull_request:
     paths:
       - '**.rs'
@@ -20,6 +19,7 @@ on:
       - 'ibc-solidity/abi/**'
       - 'ibc-solidity/contracts/**'
       - 'programs/proof-api/Dockerfile'
+      - 'LICENSE.md'
       - 'scripts/proof_api_docker_entrypoint.sh'
 
 # Cancel the workflow if a new commit is pushed to the branch/PR
@@ -30,9 +30,6 @@ concurrency:
 env:
   image_name: proof-api
   image_tags: |
-    # Tag triggered events
-    type=match,event=tag,pattern=^proof-api-(v[0-9]+\.[0-9]+\.[0-9]+)$,group=1,priority=1000
-
     # Latest, but only on main
     type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' && github.event_name != 'workflow_dispatch' }},priority=900
 
@@ -81,6 +78,11 @@ jobs:
           DOCKER_METADATA_PR_HEAD_SHA: true
         with:
           images: ${{ env.REGISTRY_URL }}
+          # source, revision, created, version are derived from the repository and ref;
+          # override the repo-level defaults for title and description.
+          labels: |
+            org.opencontainers.image.title=proof-api
+            org.opencontainers.image.description=IBC Contracts Proof API
           tags: ${{ env.image_tags }}
 
       - name: Set up Docker Buildx
@@ -94,13 +96,10 @@ jobs:
           file: ./programs/proof-api/Dockerfile
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            VCS_URL=${{ github.server_url }}/${{ github.repository }}
           outputs: type=image,name=${{ env.REGISTRY_URL }},push-by-digest=true,name-canonical=true,push=true
           cache-from: type=registry,ref=${{ env.REGISTRY_URL }}:buildcache-${{ env.PLATFORM_SLUG }}
-          # Only release tags and main write the cache that release builds read, so PR
-          # builds can't seed layers into a released image. PRs still read from it.
-          cache-to: ${{ (startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main') && format('type=registry,ref={0}:buildcache-{1},mode=max', env.REGISTRY_URL, env.PLATFORM_SLUG) || '' }}
+          # Only main writes the cache, so PR builds can't seed layers into it. PRs still read from it.
+          cache-to: ${{ github.ref == 'refs/heads/main' && format('type=registry,ref={0}:buildcache-{1},mode=max', env.REGISTRY_URL, env.PLATFORM_SLUG) || '' }}
 
       - name: Export digest
         run: |

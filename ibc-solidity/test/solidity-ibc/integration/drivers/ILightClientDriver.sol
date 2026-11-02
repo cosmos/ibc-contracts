@@ -14,6 +14,9 @@ interface ILightClientDriver {
     /// @notice The light client to register for the counterparty.
     function lightClient() external view returns (ILightClient);
 
+    /// @notice The counterparty merkle prefix to register with the light client.
+    function merklePrefix() external view returns (bytes[] memory);
+
     /// @notice Makes the counterparty's current value at the raw ICS24 `path` provable; zero proves non-membership.
     /// @return updateMsg The `updateClient` message to submit before the proof, or empty if none is needed
     /// @return proof The membership or non-membership proof

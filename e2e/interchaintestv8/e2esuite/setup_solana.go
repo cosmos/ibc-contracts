@@ -6,9 +6,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/chainconfig"
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/solana"
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/testvalues"
+	"github.com/cosmos/ibc-contracts/e2e/v8/chainconfig"
+	"github.com/cosmos/ibc-contracts/e2e/v8/solana"
+	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
 )
 
 func (s *TestSuite) setupSolanaAsync(ctx context.Context, cfg setupConfig, resultCh chan<- solanaSetupResult) {

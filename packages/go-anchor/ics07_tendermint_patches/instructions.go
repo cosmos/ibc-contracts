@@ -25,7 +25,7 @@ import (
 	binary "github.com/gagliardetto/binary"
 	solanago "github.com/gagliardetto/solana-go"
 
-	ics07_tendermint "github.com/cosmos/solidity-ibc-eureka/packages/go-anchor/ics07tendermint"
+	ics07_tendermint "github.com/cosmos/ibc-contracts/packages/go-anchor/ics07tendermint"
 )
 
 // NewCleanupIncompleteUploadInstruction builds a "cleanup_incomplete_upload" instruction

@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
-//! Solidity types for `solidity-ibc-eureka`
+//! Solidity types for `ibc-contracts`
 
 #![deny(clippy::nursery, clippy::pedantic, warnings, unused_crate_dependencies)]
 
 pub mod attestation;
 pub mod besu;
+pub mod ibc_multicall;
 pub mod ics26;
 pub mod msgs;
 pub mod sp1_ics07;

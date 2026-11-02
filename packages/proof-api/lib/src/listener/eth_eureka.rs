@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module defines the chain listener for 'solidity-ibc-eureka' contracts.
+//! This module defines the chain listener for 'ibc-contracts' contracts.
 
 use alloy::{
     network::Ethereum,

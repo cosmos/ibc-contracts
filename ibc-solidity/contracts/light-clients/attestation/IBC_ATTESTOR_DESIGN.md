@@ -82,9 +82,8 @@ State transition:
   - Return `UpdateResult.Update`.
 
 Access control:
-- Gated by `PROOF_SUBMITTER_ROLE` (same semantics as `SP1ICS07Tendermint`):
-  - If `address(0)` has the role, anyone can submit.
-  - Otherwise, caller must have the role (e.g., `ICS26Router`).
+- Only callable by `ICS26_ROUTER`, the router the client was deployed for (same semantics as `SP1ICS07Tendermint`). Relayers submit updates through the router's `updateClient`.
+- Reverts while the client is paused.
 
 Notes:
 - No time-window or clock-drift validation is performed.
@@ -115,7 +114,8 @@ Return:
 - The trusted timestamp (in seconds) stored for `proofHeight.revisionHeight`.
 
 Access control:
-- Gated by `PROOF_SUBMITTER_ROLE`.
+- Only callable by `ICS26_ROUTER`. Relayers can verify proofs ahead of packet handling through the router's restricted routing function of the same name.
+- Reverts while the client is paused.
 
 ### verifyNonMembership(MsgVerifyNonMembership)
 
@@ -142,7 +142,8 @@ Return:
 - The trusted timestamp (in seconds) stored for `proofHeight.revisionHeight`.
 
 Access control:
-- Gated by `PROOF_SUBMITTER_ROLE`.
+- Only callable by `ICS26_ROUTER`. Relayers can verify proofs ahead of packet handling through the router's restricted routing function of the same name.
+- Reverts while the client is paused.
 
 ### misbehaviour(...)
 
@@ -150,8 +151,10 @@ Out of scope for this version. The function exists but MUST revert with a clear 
 
 ## Roles and Permissions
 
-- `DEFAULT_ADMIN_ROLE`: manages roles.
-- `PROOF_SUBMITTER_ROLE`: required to call `updateClient` and (non-)membership queries. Grant this to `ICS26Router` when used in IBC. If granted to `address(0)`, anyone may submit proofs.
+The client has no roles of its own. It is bound at construction to an immutable, non-zero `ICS26_ROUTER`:
+
+- `updateClient`, `verifyMembership`, `verifyNonMembership` and `misbehaviour` can only be called by `ICS26_ROUTER`.
+- `pause()` and `unpause()` can be called by accounts with `IBCRolesLib.PAUSER_ROLE` and `IBCRolesLib.UNPAUSER_ROLE`, without an execution delay, in the router's current `AccessManager` (`ICS26_ROUTER.authority()`). While paused, `updateClient`, `verifyMembership` and `verifyNonMembership` revert.
 
 ## Time and Ordering
 

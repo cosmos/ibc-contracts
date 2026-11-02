@@ -188,6 +188,7 @@ pub async fn run_sp1_membership(
         ),
         trustedConsensusState: trusted_consensus_state,
     };
+    drop(verify_mem_prover);
 
     Ok(MembershipProof::from(sp1_membership_proof))
 }

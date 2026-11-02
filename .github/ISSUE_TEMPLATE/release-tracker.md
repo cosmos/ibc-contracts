@@ -30,7 +30,7 @@ v                     without deliberation
 
 <!-- Remove any items that are not applicable. -->
 
-- [ ] Tag a release version.
+- [ ] Cut the release by following [`RELEASES.md`](https://github.com/cosmos/ibc-contracts/blob/main/RELEASES.md#cut-a-release).
 - [ ] Branch off main to create release branch in the form of `release/vx.y.z` and add branch protection rules.
 - [ ] Add branch protection rules to new release branch.
 

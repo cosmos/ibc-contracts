@@ -7,24 +7,25 @@ import { Integration2Suite } from "../solidity-ibc/integration/suites/Integratio
 import { Integration3Suite } from "../solidity-ibc/integration/suites/Integration3Suite.sol";
 import { IFTIntegrationSuite } from "../solidity-ibc/integration/suites/IFTIntegrationSuite.sol";
 import { WithBesuQBFTSim, WithBesuIBFT2Sim } from "./utils/BesuSimDriver.sol";
+import { WithFreshChains } from "../solidity-ibc/integration/drivers/LightClientDriverTest.sol";
 
 // The integration suites on Besu light clients tracking QBFT and IBFT2 sim chains. Every relayed packet is proven
 // with account and storage proofs against a sealed header, so fuzz runs are capped to keep the suites fast.
 
 /// forge-config: default.fuzz.runs = 256
-contract Integration2BesuQBFTTest is Integration2Suite, WithBesuQBFTSim { }
+contract Integration2BesuQBFTTest is Integration2Suite, WithBesuQBFTSim, WithFreshChains { }
 
 /// forge-config: default.fuzz.runs = 256
-contract Integration2BesuIBFT2Test is Integration2Suite, WithBesuIBFT2Sim { }
+contract Integration2BesuIBFT2Test is Integration2Suite, WithBesuIBFT2Sim, WithFreshChains { }
 
 /// forge-config: default.fuzz.runs = 256
-contract Integration3BesuQBFTTest is Integration3Suite, WithBesuQBFTSim { }
+contract Integration3BesuQBFTTest is Integration3Suite, WithBesuQBFTSim, WithFreshChains { }
 
 /// forge-config: default.fuzz.runs = 256
-contract Integration3BesuIBFT2Test is Integration3Suite, WithBesuIBFT2Sim { }
+contract Integration3BesuIBFT2Test is Integration3Suite, WithBesuIBFT2Sim, WithFreshChains { }
 
 /// forge-config: default.fuzz.runs = 256
-contract IFTIntegrationBesuQBFTTest is IFTIntegrationSuite, WithBesuQBFTSim { }
+contract IFTIntegrationBesuQBFTTest is IFTIntegrationSuite, WithBesuQBFTSim, WithFreshChains { }
 
 /// forge-config: default.fuzz.runs = 256
-contract IFTIntegrationBesuIBFT2Test is IFTIntegrationSuite, WithBesuIBFT2Sim { }
+contract IFTIntegrationBesuIBFT2Test is IFTIntegrationSuite, WithBesuIBFT2Sim, WithFreshChains { }

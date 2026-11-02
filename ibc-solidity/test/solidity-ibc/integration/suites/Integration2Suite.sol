@@ -23,36 +23,40 @@ import { ICS20Lib } from "../../../../contracts/utils/ICS20Lib.sol";
 import { ICS27Lib } from "../../../../contracts/utils/ICS27Lib.sol";
 import { ERC1967Proxy } from "@openzeppelin-contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import { RefImplIBCERC20 } from "../../utils/RefImplIBCERC20.sol";
+import { MulticallTargetMock } from "../../mocks/MulticallTargetMock.sol";
 
 abstract contract Integration2Suite is LightClientDriverTest {
     IbcImpl public ibcImplA;
     IbcImpl public ibcImplB;
+    // ibcImplA (clientIdAB) <--> (clientIdBA) ibcImplB
+    string public clientIdAB;
+    string public clientIdBA;
 
-    TestHelper public th = new TestHelper();
-    IntegrationEnv public integrationEnv = new IntegrationEnv();
+    TestHelper public th;
+    IntegrationEnv public integrationEnv;
 
     function setUp() public {
+        _beforeSetUp();
+        th = new TestHelper();
+        integrationEnv = new IntegrationEnv();
+
         // Deploy the IBC implementation
-        ibcImplA = new IbcImpl(integrationEnv.permit2());
-        ibcImplB = new IbcImpl(integrationEnv.permit2());
+        ibcImplA = _newIbcImpl(0, integrationEnv.permit2());
+        ibcImplB = _newIbcImpl(1, integrationEnv.permit2());
 
         // Add the counterparty implementations
-        string memory clientId;
-        clientId = ibcImplA.addClient(th.FIRST_CLIENT_ID(), _newDriver(ibcImplB.ics26Router()));
-        assertEq(clientId, th.FIRST_CLIENT_ID());
-
-        clientId = ibcImplB.addClient(th.FIRST_CLIENT_ID(), _newDriver(ibcImplA.ics26Router()));
-        assertEq(clientId, th.FIRST_CLIENT_ID());
+        clientIdAB =
+            ibcImplA.addClient(ibcImplB.nextClientId(), _newDriver(ibcImplA.ics26Router(), ibcImplB.ics26Router()));
+        clientIdBA = ibcImplB.addClient(clientIdAB, _newDriver(ibcImplB.ics26Router(), ibcImplA.ics26Router()));
     }
 
     function test_deployment() public view {
-        // ibcImplA (client-0) <--> (client-0) ibcImplB
-        assertEq(ibcImplA.ics26Router().getCounterparty(th.FIRST_CLIENT_ID()).clientId, th.FIRST_CLIENT_ID());
-        assertEq(ibcImplB.ics26Router().getCounterparty(th.FIRST_CLIENT_ID()).clientId, th.FIRST_CLIENT_ID());
+        assertEq(ibcImplA.ics26Router().getCounterparty(clientIdAB).clientId, clientIdBA);
+        assertEq(ibcImplB.ics26Router().getCounterparty(clientIdBA).clientId, clientIdAB);
     }
 
     function setup_createForeignDenomOnImplA(address receiver, uint256 amount) public returns (IERC20) {
-        return setup_createForeignDenomOnImplA(receiver, amount, th.FIRST_CLIENT_ID());
+        return setup_createForeignDenomOnImplA(receiver, amount, clientIdBA);
     }
     /// @notice Create a foreign ibc denom on ibcImplA and client on a specified user
     /// @dev We do this by transferring the native erc20 from the counterparty chain
@@ -79,7 +83,7 @@ abstract contract Integration2Suite is LightClientDriverTest {
         string memory expDenomPath = string.concat(
             ICS20Lib.DEFAULT_PORT_ID,
             "/",
-            th.FIRST_CLIENT_ID(),
+            ibcImplB.ics26Router().getCounterparty(clientId).clientId,
             "/",
             Strings.toHexString(address(integrationEnv.erc20()))
         );
@@ -222,11 +226,7 @@ abstract contract Integration2Suite is LightClientDriverTest {
 
         // Check that a new IBCERC20 token was created
         string memory expDenomPath = string.concat(
-            ICS20Lib.DEFAULT_PORT_ID,
-            "/",
-            th.FIRST_CLIENT_ID(),
-            "/",
-            Strings.toHexString(address(integrationEnv.erc20()))
+            ICS20Lib.DEFAULT_PORT_ID, "/", clientIdBA, "/", Strings.toHexString(address(integrationEnv.erc20()))
         );
         IERC20 token = IERC20(ibcImplB.ics20Transfer().ibcERC20Contract(expDenomPath));
         assertTrue(address(token) != address(0), "IBCERC20 token not found");
@@ -244,11 +244,7 @@ abstract contract Integration2Suite is LightClientDriverTest {
         vm.assume(amount > 0);
 
         string memory expDenomPath = string.concat(
-            ICS20Lib.DEFAULT_PORT_ID,
-            "/",
-            th.FIRST_CLIENT_ID(),
-            "/",
-            Strings.toHexString(address(integrationEnv.erc20()))
+            ICS20Lib.DEFAULT_PORT_ID, "/", clientIdBA, "/", Strings.toHexString(address(integrationEnv.erc20()))
         );
 
         address customERC20 = address(
@@ -500,7 +496,7 @@ abstract contract Integration2Suite is LightClientDriverTest {
         // transfer should be reverted
         uint256 senderBalanceAfterTimeout = integrationEnv.erc20().balanceOf(user);
         uint256 contractBalanceAfterTimeout =
-            integrationEnv.erc20().balanceOf(ibcImplA.ics20Transfer().getEscrow(th.FIRST_CLIENT_ID()));
+            integrationEnv.erc20().balanceOf(ibcImplA.ics20Transfer().getEscrow(clientIdAB));
         assertEq(senderBalanceAfterTimeout, amount);
         assertEq(contractBalanceAfterTimeout, 0);
 
@@ -543,8 +539,7 @@ abstract contract Integration2Suite is LightClientDriverTest {
 
         // transfer should be reverted
         uint256 senderBalanceAfterTimeout = ibcERC20.balanceOf(user);
-        uint256 contractBalanceAfterTimeout =
-            ibcERC20.balanceOf(ibcImplA.ics20Transfer().getEscrow(th.FIRST_CLIENT_ID()));
+        uint256 contractBalanceAfterTimeout = ibcERC20.balanceOf(ibcImplA.ics20Transfer().getEscrow(clientIdAB));
         assertEq(senderBalanceAfterTimeout, amount);
         assertEq(contractBalanceAfterTimeout, 0);
 
@@ -562,8 +557,8 @@ abstract contract Integration2Suite is LightClientDriverTest {
         IICS26RouterMsgs.Packet memory sentPacket = ibcImplA.sendGmpAsUser(user, receiver, mockPayload);
 
         // check the fields of the packet
-        assertEq(sentPacket.sourceClient, th.FIRST_CLIENT_ID(), "source client mismatch");
-        assertEq(sentPacket.destClient, th.FIRST_CLIENT_ID(), "dest client mismatch");
+        assertEq(sentPacket.sourceClient, clientIdAB, "source client mismatch");
+        assertEq(sentPacket.destClient, clientIdBA, "dest client mismatch");
         assertEq(sentPacket.timeoutTimestamp, th.DEFAULT_TIMEOUT_TIMESTAMP(), "timeout timestamp mismatch");
         assertEq(sentPacket.payloads.length, 1, "payload length mismatch");
         assertEq(sentPacket.payloads[0].sourcePort, ICS27Lib.DEFAULT_PORT_ID, "source port mismatch");
@@ -586,7 +581,7 @@ abstract contract Integration2Suite is LightClientDriverTest {
         assertEq(storedCommitment, expCommitment, "packet commitment mismatch");
     }
 
-    function testFuzz_success_fullGmp(uint16 saltLen) public {
+    function testFuzz_success_fullGmp(uint8 saltLen) public {
         address user = integrationEnv.createUser();
         address receiver = makeAddr("receiver");
 
@@ -597,7 +592,7 @@ abstract contract Integration2Suite is LightClientDriverTest {
 
         // precompute account address
         IICS27GMPMsgs.AccountIdentifier memory accountId = IICS27GMPMsgs.AccountIdentifier({
-            clientId: th.FIRST_CLIENT_ID(), sender: Strings.toChecksumHexString(user), salt: vm.randomBytes(saltLen)
+            clientId: clientIdBA, sender: Strings.toChecksumHexString(user), salt: vm.randomBytes(saltLen)
         });
         address computedAccount = ibcImplB.ics27Gmp().getOrComputeAccountAddress(accountId);
 
@@ -629,7 +624,7 @@ abstract contract Integration2Suite is LightClientDriverTest {
         assertEq(storedCommitment, 0);
     }
 
-    function testFuzz_success_errorGmp(uint16 saltLen) public {
+    function testFuzz_success_errorGmp(uint8 saltLen) public {
         address user = integrationEnv.createUser();
         address receiver = makeAddr("receiver");
 
@@ -640,7 +635,7 @@ abstract contract Integration2Suite is LightClientDriverTest {
 
         // precompute account address
         IICS27GMPMsgs.AccountIdentifier memory accountId = IICS27GMPMsgs.AccountIdentifier({
-            clientId: th.FIRST_CLIENT_ID(), sender: Strings.toChecksumHexString(user), salt: vm.randomBytes(saltLen)
+            clientId: clientIdBA, sender: Strings.toChecksumHexString(user), salt: vm.randomBytes(saltLen)
         });
 
         // send packet
@@ -666,7 +661,30 @@ abstract contract Integration2Suite is LightClientDriverTest {
         assertEq(storedCommitment, 0);
     }
 
-    function testFuzz_success_timeoutGmp(uint16 saltLen) public {
+    function test_failure_outOfGasGmp() public {
+        address user = integrationEnv.createUser();
+        address receiver = address(new MulticallTargetMock(address(0)));
+        bytes memory payload = abi.encodeCall(MulticallTargetMock.burnGas, ());
+
+        // send packet
+        IICS26RouterMsgs.Packet memory sentPacket =
+            ibcImplA.sendGmpAsUser(user, Strings.toHexString(receiver), payload, "");
+
+        // Receiving the packet on B runs out of gas, which fails the relay instead of writing an error acknowledgement
+        vm.expectRevert(IICS26RouterErrors.IBCFailedCallback.selector);
+        ibcImplB.recvPacket{ gas: 30_000_000 }(sentPacket);
+        assertFalse(ibcImplB.relayerHelper().isPacketReceived(sentPacket));
+
+        // so the packet can be received once the call succeeds
+        bytes memory callResp = bytes("any response");
+        vm.mockCall(receiver, payload, callResp);
+        bytes[] memory acks = ibcImplB.recvPacket(sentPacket);
+        assertEq(acks.length, 1, "ack length mismatch");
+        assertEq(acks[0], ICS27Lib.acknowledgement(callResp), "ack mismatch");
+        assert(ibcImplB.relayerHelper().isPacketReceiveSuccessful(sentPacket));
+    }
+
+    function testFuzz_success_timeoutGmp(uint8 saltLen) public {
         address user = integrationEnv.createUser();
         address receiver = makeAddr("receiver");
 
@@ -677,7 +695,7 @@ abstract contract Integration2Suite is LightClientDriverTest {
 
         // precompute account address
         IICS27GMPMsgs.AccountIdentifier memory accountId = IICS27GMPMsgs.AccountIdentifier({
-            clientId: th.FIRST_CLIENT_ID(), sender: Strings.toChecksumHexString(user), salt: vm.randomBytes(saltLen)
+            clientId: clientIdBA, sender: Strings.toChecksumHexString(user), salt: vm.randomBytes(saltLen)
         });
 
         // send packet

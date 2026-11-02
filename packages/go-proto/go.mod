@@ -1,4 +1,4 @@
-module github.com/cosmos/solidity-ibc-eureka/packages/go-proto
+module github.com/cosmos/ibc-contracts/packages/go-proto
 
 go 1.26.5
 

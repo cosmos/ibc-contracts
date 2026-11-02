@@ -9,11 +9,11 @@ import (
 
 	"github.com/gagliardetto/solana-go"
 
-	access_manager "github.com/cosmos/solidity-ibc-eureka/packages/go-anchor/accessmanager"
-	attestation_light_client "github.com/cosmos/solidity-ibc-eureka/packages/go-anchor/attestation"
-	ics07_tendermint "github.com/cosmos/solidity-ibc-eureka/packages/go-anchor/ics07tendermint"
-	ics26_router "github.com/cosmos/solidity-ibc-eureka/packages/go-anchor/ics26router"
-	ics27_gmp "github.com/cosmos/solidity-ibc-eureka/packages/go-anchor/ics27gmp"
+	access_manager "github.com/cosmos/ibc-contracts/packages/go-anchor/accessmanager"
+	attestation_light_client "github.com/cosmos/ibc-contracts/packages/go-anchor/attestation"
+	ics07_tendermint "github.com/cosmos/ibc-contracts/packages/go-anchor/ics07tendermint"
+	ics26_router "github.com/cosmos/ibc-contracts/packages/go-anchor/ics26router"
+	ics27_gmp "github.com/cosmos/ibc-contracts/packages/go-anchor/ics27gmp"
 )
 
 // GMPCallResultPDA derives the PDA for a GMP call result account.

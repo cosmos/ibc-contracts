@@ -10,7 +10,7 @@ import (
 
 	solanago "github.com/gagliardetto/solana-go"
 
-	access_manager "github.com/cosmos/solidity-ibc-eureka/packages/go-anchor/accessmanager"
+	access_manager "github.com/cosmos/ibc-contracts/packages/go-anchor/accessmanager"
 )
 
 var upgradeCmd = &cobra.Command{
