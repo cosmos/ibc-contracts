@@ -51,8 +51,13 @@ env:
 permissions: {}
 
 jobs:
-  # Built once, consumed by every test job below via the e2e-build-artifacts artifact.
+  # Built once, consumed by every test job below via the e2e-build-artifacts-* artifacts.
   build-e2e-programs:
+    # Rust and Solana builds run in parallel; each takes tens of minutes cold.
+    strategy:
+      matrix:
+        component: [rust, solana]
+    name: build-e2e-programs (${{ matrix.component }})
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -62,6 +67,7 @@ jobs:
         uses: ./.github/actions/e2e-build
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          component: ${{ matrix.component }}
 
   golangci:
     name: lint

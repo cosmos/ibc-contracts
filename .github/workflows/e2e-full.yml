@@ -64,6 +64,11 @@ jobs:
           skip-tests: TestWithProofAPITestSuite/Test_2_ConcurrentRecvPacketToEth,TestWithProofAPITestSuite/Test_MultiPeriodClientUpdateToCosmos,TestWithMultiAttestorTestSuite,TestWithEthToEthAttestedTestSuite,TestWithEthereumSolanaIFTTestSuite
 
   build-e2e-programs:
+    # Rust and Solana builds run in parallel; each takes tens of minutes cold.
+    strategy:
+      matrix:
+        component: [rust, solana]
+    name: build-e2e-programs (${{ matrix.component }})
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -73,6 +78,7 @@ jobs:
         uses: ./.github/actions/e2e-build
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          component: ${{ matrix.component }}
 
   e2e:
     needs: [generate-matrix, build-e2e-programs]

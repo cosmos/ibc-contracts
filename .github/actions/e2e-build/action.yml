@@ -7,6 +7,11 @@ inputs:
   github_token:
     description: A Github PAT
     required: true
+  component:
+    description: >-
+      Which artifacts to build: `rust` (SP1 programs, proof-api, operator) or `solana`
+      (Solana programs). Run both as parallel matrix legs; e2e-setup merges their artifacts.
+    required: true
 
 runs:
   using: composite
@@ -18,6 +23,7 @@ runs:
       uses: ./.github/actions/foundry-setup
 
     - name: Cache SP1 Toolchain
+      if: inputs.component == 'rust'
       id: cache-sp1-toolchain
       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
@@ -27,7 +33,7 @@ runs:
         key: ${{ runner.os }}-sp1-toolchain-${{ env.SP1_VERSION }}
 
     - name: Install SP1 toolchain
-      if: steps.cache-sp1-toolchain.outputs.cache-hit != 'true'
+      if: inputs.component == 'rust' && steps.cache-sp1-toolchain.outputs.cache-hit != 'true'
       uses: nick-invision/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
       with:
         timeout_minutes: 10
@@ -38,6 +44,7 @@ runs:
           ~/.sp1/bin/sp1up --version ${{ env.SP1_VERSION }} --token ${{ inputs.github_token }}
 
     - name: Cache SP1 Programs
+      if: inputs.component == 'rust'
       id: cache-sp1-programs
       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
@@ -45,15 +52,16 @@ runs:
         key: ${{ runner.os }}-sp1-programs-${{ hashFiles('ibc-solidity/programs/sp1-programs/**', 'Cargo.lock') }}
 
     - name: Install just
-      if: steps.cache-sp1-programs.outputs.cache-hit != 'true'
+      if: inputs.component == 'rust' && steps.cache-sp1-programs.outputs.cache-hit != 'true'
       uses: extractions/setup-just@dd310ad5a97d8e7b41793f8ef055398d51ad4de6 # v2.0.0
 
     - name: Build SP1 Programs
-      if: steps.cache-sp1-programs.outputs.cache-hit != 'true'
+      if: inputs.component == 'rust' && steps.cache-sp1-programs.outputs.cache-hit != 'true'
       shell: bash
       run: just solidity::build-sp1-programs
 
     - name: Cache Proof API
+      if: inputs.component == 'rust'
       id: cache-proof-api
       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
@@ -61,6 +69,7 @@ runs:
         key: ${{ runner.os }}-proof-api-${{ hashFiles('programs/proof-api/**', 'packages/**', 'ibc-solana/packages/solana-ibc-constants/**', 'ibc-solana/packages/solana-ibc-types/**', 'ibc-solidity/abi/bytecode/**', 'Cargo.lock') }}
 
     - name: Cache Operator
+      if: inputs.component == 'rust'
       id: cache-operator
       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
@@ -68,7 +77,7 @@ runs:
         key: ${{ runner.os }}-operator-${{ hashFiles('ibc-solidity/programs/operator/**', 'packages/**', 'Cargo.lock') }}
 
     - name: Cache Rust build state
-      if: steps.cache-proof-api.outputs.cache-hit != 'true' || steps.cache-operator.outputs.cache-hit != 'true'
+      if: inputs.component == 'rust' && (steps.cache-proof-api.outputs.cache-hit != 'true' || steps.cache-operator.outputs.cache-hit != 'true')
       uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       with:
         shared-key: e2e-build
@@ -78,24 +87,27 @@ runs:
         # branches don't churn the repo's cache quota and evict each other.
         save-if: ${{ github.ref == 'refs/heads/main' }}
 
-    - name: Install proof API
-      if: steps.cache-proof-api.outputs.cache-hit != 'true'
+    # One cargo invocation for both binaries, so their shared dependencies compile once
+    # and in parallel instead of in two back-to-back `cargo install`s.
+    - name: Build proof API and operator
+      if: inputs.component == 'rust' && (steps.cache-proof-api.outputs.cache-hit != 'true' || steps.cache-operator.outputs.cache-hit != 'true')
       shell: bash
+      env:
+        PROOF_API_HIT: ${{ steps.cache-proof-api.outputs.cache-hit }}
+        OPERATOR_HIT: ${{ steps.cache-operator.outputs.cache-hit }}
       run: |
-        cargo install --bin proof-api --path programs/proof-api --locked \
-          --target-dir "${{ github.workspace }}/target"
-
-    - name: Install operator
-      if: steps.cache-operator.outputs.cache-hit != 'true'
-      shell: bash
-      run: |
-        cargo install --bin operator --path ibc-solidity/programs/operator --locked \
-          --target-dir "${{ github.workspace }}/target"
+        args=() bins=()
+        if [[ "$PROOF_API_HIT" != 'true' ]]; then args+=(-p proof-api --bin proof-api); bins+=(proof-api); fi
+        if [[ "$OPERATOR_HIT" != 'true' ]]; then args+=(-p sp1-ics07-tendermint-operator --bin operator); bins+=(operator); fi
+        cargo build --release --locked "${args[@]}"
+        mkdir -p ~/.cargo/bin
+        for bin in "${bins[@]}"; do cp "target/release/$bin" ~/.cargo/bin/; done
 
     # Restore-only here; saved below on main alone, for the same quota reason as the Rust
     # build state above. Keep `path` in sync with the save step. Build outputs only: the
     # Solana and Anchor toolchains are cached by setup-all, and only needed on a miss.
     - name: Restore Solana Programs
+      if: inputs.component == 'solana'
       id: cache-solana
       uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
@@ -107,14 +119,14 @@ runs:
           ${{ runner.os }}-solana-${{ env.SOLANA_VERSION }}-${{ env.ANCHOR_VERSION }}-
 
     - name: Setup Solana and Anchor
-      if: steps.cache-solana.outputs.cache-hit != 'true'
+      if: inputs.component == 'solana' && steps.cache-solana.outputs.cache-hit != 'true'
       uses: solana-developers/github-actions/setup-all@860d4e7d3afc9f180f3c5016593a1e86e77eede4 # v0.2.5
       with:
         anchor_version: ${{ env.ANCHOR_VERSION }}
         solana_version: ${{ env.SOLANA_VERSION }}
 
     - name: Install just for Solana build
-      if: steps.cache-solana.outputs.cache-hit != 'true'
+      if: inputs.component == 'solana' && steps.cache-solana.outputs.cache-hit != 'true'
       uses: extractions/setup-just@dd310ad5a97d8e7b41793f8ef055398d51ad4de6 # v2.0.0
 
     # A restore-keys fallback brings back an older target/deploy; clear it so programs
@@ -122,14 +134,14 @@ runs:
     # matches a cold build: program IDs come from declare_id!, and E2E deploys with the
     # tracked solana-keypairs/localnet/, so the keypairs Anchor regenerates here are unused.
     - name: Build Solana Programs
-      if: steps.cache-solana.outputs.cache-hit != 'true'
+      if: inputs.component == 'solana' && steps.cache-solana.outputs.cache-hit != 'true'
       shell: bash
       run: |
         rm -rf ibc-solana/target/deploy
         just solana::build-solana-programs
 
     - name: Save Solana Programs
-      if: github.ref == 'refs/heads/main' && steps.cache-solana.outputs.cache-hit != 'true'
+      if: inputs.component == 'solana' && github.ref == 'refs/heads/main' && steps.cache-solana.outputs.cache-hit != 'true'
       uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
         path: |
@@ -139,18 +151,22 @@ runs:
 
     - name: Package artifacts
       shell: bash
+      env:
+        COMPONENT: ${{ inputs.component }}
       run: |
-        mkdir -p e2e-artifacts/bin
-        mkdir -p e2e-artifacts/sp1-programs
-        mkdir -p e2e-artifacts/solana-programs
-        cp ~/.cargo/bin/proof-api e2e-artifacts/bin/
-        cp ~/.cargo/bin/operator e2e-artifacts/bin/
-        cp -r ibc-solidity/programs/sp1-programs/target/elf-compilation/riscv64im-succinct-zkvm-elf/release/* e2e-artifacts/sp1-programs/
-        cp -r ibc-solana/target/deploy/* e2e-artifacts/solana-programs/
+        if [[ "$COMPONENT" == 'rust' ]]; then
+          mkdir -p e2e-artifacts/bin e2e-artifacts/sp1-programs
+          cp ~/.cargo/bin/proof-api e2e-artifacts/bin/
+          cp ~/.cargo/bin/operator e2e-artifacts/bin/
+          cp -r ibc-solidity/programs/sp1-programs/target/elf-compilation/riscv64im-succinct-zkvm-elf/release/* e2e-artifacts/sp1-programs/
+        else
+          mkdir -p e2e-artifacts/solana-programs
+          cp -r ibc-solana/target/deploy/* e2e-artifacts/solana-programs/
+        fi
 
     - name: Upload artifacts
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
-        name: e2e-build-artifacts
+        name: e2e-build-artifacts-${{ inputs.component }}
         path: e2e-artifacts/
         retention-days: 1

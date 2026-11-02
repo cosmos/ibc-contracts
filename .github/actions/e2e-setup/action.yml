@@ -45,7 +45,8 @@ runs:
     - name: Download build artifacts
       uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
       with:
-        name: e2e-build-artifacts
+        pattern: e2e-build-artifacts-*
+        merge-multiple: true
         path: e2e-artifacts/
 
     - name: Install just
@@ -91,7 +92,7 @@ runs:
         echo "$(dirname $(which kurtosis))" >> $GITHUB_PATH
 
     # setup-all caches the Solana toolchain itself (keyed on the version), so no separate
-    # cache step is needed; the built programs come from e2e-build-artifacts.
+    # cache step is needed; the built programs come from the e2e-build-artifacts-* artifacts.
     - name: Setup Solana
       uses: solana-developers/github-actions/setup-all@860d4e7d3afc9f180f3c5016593a1e86e77eede4 # v0.2.5
       with:
