@@ -1,0 +1,254 @@
+# Vulnerabilities that cannot be fixed by a dependency bump and have been
+# reviewed for this repository. Read by osv-scanner and OpenSSF Scorecard,
+# which only apply this file to manifests in the same directory.
+#
+# Edit only the root osv-scanner.toml, then copy it over the identical copies
+# next to every other manifest (ibc-solana/, ibc-solidity/,
+# ibc-solidity/programs/sp1-programs/, ibc-solidity/programs/cw-ics08-wasm-eth/,
+# e2e/interchaintestv8/, e2e/interchaintestv8/solana/go-anchor/,
+# packages/go-abigen/, packages/go-anchor/, packages/go-proto/,
+# scripts/go-test-matrix/, tools/compute-ift-addresses/, tools/solana-ibc/).
+# They are copies rather than symlinks because Scorecard skips symlinks.
+#
+# Re-review each entry when the upstream dependency is upgraded.
+
+# --- Go ---------------------------------------------------------------------
+
+[[IgnoredVulns]]
+id = "GO-2025-3442"
+reason = "Ignored because it is a false positive: cometbft v0.40.0 already contains the BlockPool.SetPeerRange fix from v0.38.17. It is flagged only through the advisory's v1 range (fixed in 1.0.1), which covers the v1-only internal/blocksync package; moving to cometbft v1 would leave the v0.40 line cosmos-sdk v0.55 uses. Only used by the e2e tests."
+
+[[IgnoredVulns]]
+id = "GO-2023-1821"
+reason = "Ignored because no fixed cosmos-sdk release exists. Not exploitable here: the bug is in x/crisis, which neither e2e nor tools/compute-ift-addresses imports."
+
+[[IgnoredVulns]]
+id = "GO-2023-1881"
+reason = "Ignored because no fixed cosmos-sdk release exists. Not exploitable here: the bug is in x/crisis, which neither e2e nor tools/compute-ift-addresses imports."
+
+[[IgnoredVulns]]
+id = "GO-2026-5932"
+reason = "Ignored because no fixed golang.org/x/crypto release exists (the openpgp package is deprecated but stays in the module). No code in this repository imports golang.org/x/crypto/openpgp; e2e reaches its armor subpackage only through cosmos-sdk crypto/armor (keyring key import/export), and it has to be removed upstream in cosmos-sdk."
+
+[[IgnoredVulns]]
+id = "GO-2026-4883"
+reason = "Ignored because no fixed release exists for github.com/docker/docker or github.com/moby/moby (only for the moby/moby/v2 daemon module), and interchaintest still requires both at v28.5.2. Not exploitable here: the bug is in the Docker daemon (plugin privilege validation), and e2e only uses the Docker client and API types."
+
+[[IgnoredVulns]]
+id = "GO-2026-4887"
+reason = "Ignored because no fixed release exists for github.com/docker/docker or github.com/moby/moby (only for the moby/moby/v2 daemon module), and interchaintest still requires both at v28.5.2. Not exploitable here: the bug is in the Docker daemon (AuthZ plugin bypass), and e2e only uses the Docker client and API types."
+
+[[IgnoredVulns]]
+id = "GO-2026-5617"
+reason = "Ignored because no fixed release exists for github.com/docker/docker or github.com/moby/moby (only for the moby/moby/v2 daemon module), and interchaintest still requires both at v28.5.2. Not exploitable here: the bug is in the Docker daemon ('docker cp' race), and e2e only uses the Docker client and API types."
+
+[[IgnoredVulns]]
+id = "GO-2026-5668"
+reason = "Ignored because no fixed release exists for github.com/docker/docker or github.com/moby/moby (only for the moby/moby/v2 daemon module), and interchaintest still requires both at v28.5.2. Not exploitable here: the bug is in the Docker daemon ('docker cp' race), and e2e only uses the Docker client and API types."
+
+[[IgnoredVulns]]
+id = "GO-2026-5746"
+reason = "Ignored because no fixed release exists for github.com/docker/docker or github.com/moby/moby (only for the moby/moby/v2 daemon module), and interchaintest still requires both at v28.5.2. Not exploitable here: the bug is in the Docker daemon (container archive endpoint), and e2e only uses the Docker client and API types."
+
+[[IgnoredVulns]]
+id = "GO-2020-0036"
+reason = "Ignored because no fixed release exists under the github.com/go-yaml/yaml import path (the fix shipped as gopkg.in/yaml.v2, which cannot replace it), and the kurtosis enclaves client still imports it. Only used by the e2e tests, which parse YAML they generate themselves."
+
+[[IgnoredVulns]]
+id = "GO-2021-0061"
+reason = "Ignored because no fixed release exists under the github.com/go-yaml/yaml import path (the fix shipped as gopkg.in/yaml.v2, which cannot replace it), and the kurtosis enclaves client still imports it. Only used by the e2e tests, which parse YAML they generate themselves."
+
+[[IgnoredVulns]]
+id = "GO-2026-4479"
+reason = "Ignored because no fixed pion/dtls/v2 release exists (the fix is only in v3), and go-ethereum p2p/nat still requires it through pion/stun/v2. Not exploitable here: e2e only uses the go-ethereum RPC clients, which never open a DTLS connection."
+
+[[IgnoredVulns]]
+id = "GHSA-34rh-wp3j-6cxc"
+reason = "Ignored because no fixed pion/stun/v2 release exists (the fix is only in v3.1.5), and go-ethereum p2p/nat still requires it. Not exploitable here: e2e only uses the go-ethereum RPC clients, which never parse STUN messages."
+
+# --- Rust: pinned by ibc-primitives -----------------------------------------
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0009"
+reason = "Ignored because ibc-primitives v0.57.0 (the latest release) requires time <0.3.38, and the fix is in 0.3.47. Has to be lifted upstream in ibc-rs."
+
+[[IgnoredVulns]]
+id = "GHSA-7gcf-g7xr-8hxj"
+reason = "Ignored because the fixed serde_with (3.21.0) requires time 0.3.47, which ibc-primitives v0.57.0 (the latest release) rules out. Has to be lifted upstream in ibc-rs."
+
+# --- Rust: pinned by the Solana 2.x SDK and Anchor 0.32 ---------------------
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2022-0093"
+reason = "Ignored because the fix is in ed25519-dalek 2.x and solana-keypair/solana-signature 2.x (via solana-sdk 2.x and anchor-client 0.32) still require 1.0.1. Not exploitable here: the oracle needs an API that signs with a caller-supplied public key, and Solana keypairs always derive the public key from the secret key."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0344"
+reason = "Ignored because the fix is in curve25519-dalek 4.x and it is pulled in at 3.2.0 by ed25519-dalek 1.0.1, which the Solana 2.x SDK still requires."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0097"
+reason = "Ignored because the fix is in rand 0.8.6 and it is pulled in at 0.7.3 by ed25519-dalek 1.0.1, which the Solana 2.x SDK still requires. Not exploitable here: the unsoundness needs a custom logger that itself draws from the rand thread RNG, and the loggers installed here (tracing-subscriber, env_logger) do not."
+
+[[IgnoredVulns]]
+id = "GHSA-fjx5-qpf4-xjf2"
+reason = "Ignored because borsh 0.10.4 is the compatibility copy that anchor-lang 0.32 and the Solana 2.x SDK still require (the fix is only in borsh 1.x, which they also use)."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2025-0161"
+reason = "Ignored because it is an unmaintained-crate notice with no fixed release. Pulled in by solana-secp256k1-program/solana-precompiles 2.x."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0186"
+reason = "Ignored because the fix is in memmap2 0.9.11 and solana-genesis-config/solana-accounts-db 2.x still require 0.5.10."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2025-0119"
+reason = "Ignored because it is an unmaintained-crate notice with no fixed release. Pulled in by indicatif 0.17, which solana-client 2.x requires."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0375"
+reason = "Ignored because it is an unmaintained-crate notice with no fixed release. Pulled in by env_logger 0.9, which solana-logger 2.x requires."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2021-0145"
+reason = "Ignored because no fixed atty release exists, and env_logger 0.9 (required by solana-logger 2.x) pulls it in. Not exploitable here: the unaligned read only happens on Windows, which this repository does not build or ship for."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0388"
+reason = "Ignored because it is an unmaintained-crate notice with no fixed release. Pulled in by ark-ec 0.4 (solana-bn254, light-poseidon, cosmwasm-crypto)."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2025-0141"
+reason = "Ignored because it is an unmaintained-crate notice with no fixed release. bincode 1.x is the serialization format of the Solana 2.x SDK, anchor-lang 0.32 and the SP1 zkVM."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0253"
+reason = "Ignored because the fix is in lru 0.18.2, and solana-tpu-client-next 2.x (0.7), sp1-prover (0.12) and alloy-provider, including its latest 2.x release (0.16), still require older versions."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0002"
+reason = "Ignored because the fix is in lru 0.16.3 and sp1-prover still requires 0.12."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0247"
+reason = "Ignored because it is an unmaintained-crate notice with no fixed release. Pulled in through im by solana-runtime 2.x, which only ibc-solana's solana-program-test integration tests use."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0248"
+reason = "Ignored because it is an unmaintained-crate notice with no fixed release. Pulled in by solana-runtime 2.x, which only ibc-solana's solana-program-test integration tests use."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2023-0126"
+reason = "Ignored because no fixed im release exists, and solana-runtime 2.x requires it. Only ibc-solana's solana-program-test integration tests use it."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0251"
+reason = "Ignored because it is an unmaintained-crate notice with no fixed release. Pulled in through im by solana-runtime 2.x, which only ibc-solana's solana-program-test integration tests use."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0255"
+reason = "Ignored because no fixed sized-chunks release exists, and im (required by solana-runtime 2.x) pulls it in. Only ibc-solana's solana-program-test integration tests use it."
+
+# --- Rust: legacy rustls 0.21 stack -----------------------------------------
+# Pulled in by tokio-tungstenite 0.20 (solana-pubsub-client 2.x) and by the
+# legacy hyper 0.14 client in aws-smithy-http-client (aws-config via
+# alloy-signer-aws and sp1-sdk). Fixes exist only in rustls 0.23 / webpki 0.103.
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0346"
+reason = "Ignored because the fix is only in rustls 0.23, and solana-pubsub-client 2.x (tokio-tungstenite 0.20) and aws-smithy-http-client's legacy client still require 0.21."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0349"
+reason = "Ignored because the fix is only in rustls 0.23, and solana-pubsub-client 2.x (tokio-tungstenite 0.20) and aws-smithy-http-client's legacy client still require 0.21."
+
+[[IgnoredVulns]]
+id = "GHSA-h2v8-394m-p7vv"
+reason = "Ignored because the fix is only in rustls 0.23, and solana-pubsub-client 2.x (tokio-tungstenite 0.20) and aws-smithy-http-client's legacy client still require 0.21."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0098"
+reason = "Ignored because the fix is only in rustls-webpki 0.103, and rustls 0.21 (see above) still requires 0.101."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0099"
+reason = "Ignored because the fix is only in rustls-webpki 0.103, and rustls 0.21 (see above) still requires 0.101."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0104"
+reason = "Ignored because the fix is only in rustls-webpki 0.103, and rustls 0.21 (see above) still requires 0.101."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0382"
+reason = "Ignored because the fix is only in rustls-webpki 0.103, and rustls 0.21 (see above) still requires 0.101."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0381"
+reason = "Ignored because the fix is in webpki-roots 0.26.11/1.0.10, and tungstenite 0.20 (solana-pubsub-client 2.x) still requires 0.24 and 0.25."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0258"
+reason = "Ignored because the fix is only in h2 0.4, and aws-smithy-http-client's legacy hyper 0.14 client (aws-config via alloy-signer-aws and sp1-sdk) still requires 0.3. It only makes outbound connections to AWS endpoints."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2025-0134"
+reason = "Ignored because it is an unmaintained-crate notice with no fixed release. Pulled in by reqwest 0.11 (required by tendermint-rpc) and tonic 0.12 (required by sp1-prover)."
+
+# --- Rust: pinned by SP1 ----------------------------------------------------
+# SP1 v5 reaches the root workspace through the pinned ibc-contracts git
+# revision behind proof-api-eth-to-cosmos-compat; SP1 v6 is the current line.
+
+[[IgnoredVulns]]
+id = "GHSA-vj64-rjf3-w3v7"
+reason = "Ignored because the fix is only in upstream Plonky3 (0.4.3/0.5.3), not in the Succinct fork (p3-challenger *-succinct) that SP1 v5 and v6 depend on. Has to be fixed upstream in SP1."
+
+[[IgnoredVulns]]
+id = "GHSA-3g92-f9ch-qjcm"
+reason = "Ignored because no fixed release exists for the Succinct fork (p3-symmetric *-succinct) that SP1 v5 and v6 depend on. Has to be fixed upstream in SP1."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2025-0012"
+reason = "Ignored because it is an unmaintained-crate notice with no fixed release. Pulled in by sp1-sdk v5 and v6."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0384"
+reason = "Ignored because it is an unmaintained-crate notice with no fixed release. Pulled in through backoff by sp1-sdk."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2021-0139"
+reason = "Ignored because it is an unmaintained-crate notice with no fixed release. Pulled in through tracing-forest by sp1-core-machine and slop-utils."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0205"
+reason = "Ignored because the fix is in scc 3.x and serial_test 3.x, which sp1-prover requires, still depends on scc 2."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0344"
+reason = "Ignored because the fix is in ruzstd 0.9 and object 0.37 (via backtrace in SP1) still requires 0.8. Only reached when backtrace or the SP1 build reads compressed ELF sections of local binaries."
+
+# --- Rust: other upstream pins ----------------------------------------------
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0387"
+reason = "Ignored because the fix is in crypto-bigint 0.7, and elliptic-curve 0.13 (k256/ecdsa through alloy-signer and cosmwasm-crypto) still requires 0.5."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0220"
+reason = "Ignored because the fix (ruint 1.20.0) requires Rust 1.90, and ibc-solana is pinned to Rust 1.89 (rust-toolchain.toml) and cw-ics08-wasm-eth to Rust 1.86 (the CosmWasm toolchain). The root workspace and sp1-programs are already on the fixed release."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2025-0137"
+reason = "Ignored for ibc-solana only (every other lockfile is on a fixed ruint). The fix (ruint 1.17.1) requires a serde release whose private API change breaks alloy-consensus 1.0.9, which ibc-solana's alloy-primitives ~1.1 pin keeps. Lifting it needs the alloy pin in ibc-solana raised."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0436"
+reason = "Ignored because it is an unmaintained-crate notice with no fixed release. A build-time proc-macro dependency of alloy-primitives."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0173"
+reason = "Ignored because it is an unmaintained-crate notice with no fixed release. A build-time proc-macro dependency of alloy-sol-macro."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0214"
+reason = "Ignored because it is an unmaintained-crate notice with no fixed release. Pulled in by tendermint-testgen, which is only a dev-dependency."

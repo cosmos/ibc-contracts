@@ -29,8 +29,7 @@ impl Drop for ObservabilityGuard {
             let _ = provider.shutdown();
         }
         if let Some(provider) = self.otel_logger_provider.take() {
-            // There is no shutdown on SdkLoggerProvider in 0.30; drop flushes processors.
-            drop(provider);
+            let _ = provider.shutdown();
         }
     }
 }
