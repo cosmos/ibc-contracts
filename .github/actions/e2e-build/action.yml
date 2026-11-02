@@ -16,14 +16,115 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Free disk space
-      uses: ./.github/actions/free-disk-space
+    - name: Check component
+      shell: bash
+      env:
+        COMPONENT: ${{ inputs.component }}
+      run: |
+        if [[ "$COMPONENT" != 'rust' && "$COMPONENT" != 'solana' ]]; then
+          echo "::error::e2e-build: component must be 'rust' or 'solana', got '$COMPONENT'"
+          exit 1
+        fi
 
+    # Look up every cached artifact first; tooling is only set up for what missed, so a full
+    # cache hit skips the disk cleanup, toolchain installs and the 1-2 GB SP1 toolchain restore.
+    # `!packages/go-*/**` keeps Go-only changes (generated bindings) from invalidating Rust builds.
+    - name: Cache SP1 Programs
+      if: inputs.component == 'rust'
+      id: cache-sp1-programs
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: ibc-solidity/programs/sp1-programs/target/elf-compilation/riscv64im-succinct-zkvm-elf/release/*
+        # Path deps reach into packages/ (which inherit from the root Cargo.toml) and sol! reads
+        # the ABIs and msgs contracts, so all of them invalidate the ELFs.
+        key: ${{ runner.os }}-sp1-programs-${{ hashFiles('ibc-solidity/programs/sp1-programs/**', 'packages/**', '!packages/go-*/**', 'ibc-solidity/abi/**', 'ibc-solidity/contracts/**/msgs/**', 'Cargo.toml', 'Cargo.lock') }}
+
+    - name: Cache Proof API
+      if: inputs.component == 'rust'
+      id: cache-proof-api
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: ~/.cargo/bin/proof-api
+        # Also covers what packages/ pulls in: sol! ABIs and msgs contracts, protos, and the
+        # ibc-solana path deps with the workspace manifest they inherit from.
+        key: ${{ runner.os }}-proof-api-${{ hashFiles('programs/proof-api/**', 'packages/**', '!packages/go-*/**', 'ibc-solana/packages/**', 'ibc-solana/Cargo.toml', 'ibc-solidity/abi/**', 'ibc-solidity/contracts/**/msgs/**', 'proto/**', 'Cargo.toml', 'Cargo.lock') }}
+
+    - name: Cache Operator
+      if: inputs.component == 'rust'
+      id: cache-operator
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: ~/.cargo/bin/operator
+        key: ${{ runner.os }}-operator-${{ hashFiles('ibc-solidity/programs/operator/**', 'packages/**', '!packages/go-*/**', 'ibc-solana/packages/**', 'ibc-solana/Cargo.toml', 'ibc-solidity/abi/**', 'ibc-solidity/contracts/**/msgs/**', 'proto/**', 'Cargo.toml', 'Cargo.lock') }}
+
+    # Restore-only here; saved below on main alone, for the same quota reason as the Rust
+    # build state. Keep `path` in sync with the save step. Build outputs only: the Solana and
+    # Anchor toolchains are cached by setup-all, and only needed on a miss. The key takes all of
+    # ibc-solana/ (so new build inputs count by default) minus the host-only integration tests
+    # and docs.
+    - name: Restore Solana Programs
+      if: inputs.component == 'solana'
+      id: cache-solana
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: |
+          ./ibc-solana/target/deploy/
+          ./ibc-solana/target/sbpf-solana-solana/
+        key: ${{ runner.os }}-solana-${{ env.SOLANA_VERSION }}-${{ env.ANCHOR_VERSION }}-${{ hashFiles('ibc-solana/**', '!ibc-solana/integration-tests/**', '!ibc-solana/**/*.md', '!ibc-solana/target/**', 'packages/tendermint-light-client/**', 'packages/constrained_types/**', 'Cargo.toml', 'proto/**', 'ibc-solidity/abi/IFTOwnable.json', 'ibc-solidity/contracts/light-clients/attestation/msgs/**', 'ibc-solidity/contracts/msgs/**', 'scripts/build-solana-test-instance.sh', 'solana-keypairs/localnet/**', 'justfile') }}
+        restore-keys: |
+          ${{ runner.os }}-solana-${{ env.SOLANA_VERSION }}-${{ env.ANCHOR_VERSION }}-
+
+    - name: Check what needs building
+      id: plan
+      shell: bash
+      env:
+        COMPONENT: ${{ inputs.component }}
+        SP1_HIT: ${{ steps.cache-sp1-programs.outputs.cache-hit }}
+        PROOF_API_HIT: ${{ steps.cache-proof-api.outputs.cache-hit }}
+        OPERATOR_HIT: ${{ steps.cache-operator.outputs.cache-hit }}
+        SOLANA_HIT: ${{ steps.cache-solana.outputs.cache-hit }}
+      run: |
+        bins=false
+        if [[ "$COMPONENT" == 'rust' && ( "$PROOF_API_HIT" != 'true' || "$OPERATOR_HIT" != 'true' ) ]]; then bins=true; fi
+        build=true
+        if [[ "$COMPONENT" == 'rust' && "$SP1_HIT" == 'true' && "$bins" == 'false' ]]; then build=false; fi
+        if [[ "$COMPONENT" == 'solana' && "$SOLANA_HIT" == 'true' ]]; then build=false; fi
+        echo "build=$build" >> "$GITHUB_OUTPUT"
+        echo "bins=$bins" >> "$GITHUB_OUTPUT"
+
+    - name: Free disk space
+      if: steps.plan.outputs.build == 'true'
+      uses: ./.github/actions/free-disk-space
+      with:
+        # Neither leg uses Docker; only the cargo/anchor target dirs need the room.
+        prune-docker-images: false
+
+    # Rust, protoc and the rest; both the SP1/Rust builds and the Solana build need them.
     - name: Set up foundry tooling
+      if: steps.plan.outputs.build == 'true'
       uses: ./.github/actions/foundry-setup
 
+    - name: Wait for disk space
+      if: steps.plan.outputs.build == 'true'
+      uses: ./.github/actions/free-disk-space-wait
+
+    - name: Cache Rust build state
+      if: steps.plan.outputs.bins == 'true'
+      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      with:
+        # Also restored by rust.yml's build-proof-api/build-operator jobs; written only here,
+        # where both binaries are built, so the entry covers both. Placed before the SP1
+        # toolchain install: rust-cache keys on every installed rustup toolchain, and rust.yml
+        # has only stable, so `succinct` must not be installed yet when the key is computed.
+        shared-key: release-bins
+        cache-on-failure: true
+        cache-bin: false
+        # ~2 GB per entry: only main writes it (PRs can read main's caches), so PR
+        # branches don't churn the repo's cache quota and evict each other.
+        save-if: ${{ github.ref == 'refs/heads/main' }}
+
     - name: Cache SP1 Toolchain
-      if: inputs.component == 'rust'
+      if: inputs.component == 'rust' && steps.cache-sp1-programs.outputs.cache-hit != 'true'
       id: cache-sp1-toolchain
       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
@@ -33,7 +134,7 @@ runs:
         key: ${{ runner.os }}-sp1-toolchain-${{ env.SP1_VERSION }}
 
     - name: Install SP1 toolchain
-      if: inputs.component == 'rust' && steps.cache-sp1-toolchain.outputs.cache-hit != 'true'
+      if: inputs.component == 'rust' && steps.cache-sp1-programs.outputs.cache-hit != 'true' && steps.cache-sp1-toolchain.outputs.cache-hit != 'true'
       uses: nick-invision/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
       with:
         timeout_minutes: 10
@@ -43,16 +144,8 @@ runs:
           curl -L https://sp1.succinct.xyz | bash
           ~/.sp1/bin/sp1up --version ${{ env.SP1_VERSION }} --token ${{ inputs.github_token }}
 
-    - name: Cache SP1 Programs
-      if: inputs.component == 'rust'
-      id: cache-sp1-programs
-      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-      with:
-        path: ibc-solidity/programs/sp1-programs/target/elf-compilation/riscv64im-succinct-zkvm-elf/release/*
-        key: ${{ runner.os }}-sp1-programs-${{ hashFiles('ibc-solidity/programs/sp1-programs/**', 'Cargo.lock') }}
-
     - name: Install just
-      if: inputs.component == 'rust' && steps.cache-sp1-programs.outputs.cache-hit != 'true'
+      if: steps.plan.outputs.build == 'true'
       uses: extractions/setup-just@dd310ad5a97d8e7b41793f8ef055398d51ad4de6 # v2.0.0
 
     - name: Build SP1 Programs
@@ -60,64 +153,22 @@ runs:
       shell: bash
       run: just solidity::build-sp1-programs
 
-    - name: Cache Proof API
-      if: inputs.component == 'rust'
-      id: cache-proof-api
-      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-      with:
-        path: ~/.cargo/bin/proof-api
-        key: ${{ runner.os }}-proof-api-${{ hashFiles('programs/proof-api/**', 'packages/**', 'ibc-solana/packages/solana-ibc-constants/**', 'ibc-solana/packages/solana-ibc-types/**', 'ibc-solidity/abi/bytecode/**', 'Cargo.lock') }}
-
-    - name: Cache Operator
-      if: inputs.component == 'rust'
-      id: cache-operator
-      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-      with:
-        path: ~/.cargo/bin/operator
-        key: ${{ runner.os }}-operator-${{ hashFiles('ibc-solidity/programs/operator/**', 'packages/**', 'Cargo.lock') }}
-
-    - name: Cache Rust build state
-      if: inputs.component == 'rust' && (steps.cache-proof-api.outputs.cache-hit != 'true' || steps.cache-operator.outputs.cache-hit != 'true')
-      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-      with:
-        # Shared with rust.yml's build job, which builds the same two binaries.
-        shared-key: release-bins
-        cache-on-failure: true
-        cache-bin: false
-        # ~2 GB per entry: only main writes it (PRs can read main's caches), so PR
-        # branches don't churn the repo's cache quota and evict each other.
-        save-if: ${{ github.ref == 'refs/heads/main' }}
-
-    # One cargo invocation for both binaries, so their shared dependencies compile once
-    # and in parallel instead of in two back-to-back `cargo install`s.
+    # One cargo invocation for both binaries, so their shared dependencies compile once and
+    # in parallel. Workspace-level `--bin` (no `-p`), like rust.yml and the Dockerfile, so
+    # features resolve across the whole workspace and the binaries match the shipped ones.
     - name: Build proof API and operator
-      if: inputs.component == 'rust' && (steps.cache-proof-api.outputs.cache-hit != 'true' || steps.cache-operator.outputs.cache-hit != 'true')
+      if: steps.plan.outputs.bins == 'true'
       shell: bash
       env:
         PROOF_API_HIT: ${{ steps.cache-proof-api.outputs.cache-hit }}
         OPERATOR_HIT: ${{ steps.cache-operator.outputs.cache-hit }}
       run: |
         args=() bins=()
-        if [[ "$PROOF_API_HIT" != 'true' ]]; then args+=(-p proof-api --bin proof-api); bins+=(proof-api); fi
-        if [[ "$OPERATOR_HIT" != 'true' ]]; then args+=(-p sp1-ics07-tendermint-operator --bin operator); bins+=(operator); fi
+        if [[ "$PROOF_API_HIT" != 'true' ]]; then args+=(--bin proof-api); bins+=(proof-api); fi
+        if [[ "$OPERATOR_HIT" != 'true' ]]; then args+=(--bin operator); bins+=(operator); fi
         cargo build --release --locked "${args[@]}"
         mkdir -p ~/.cargo/bin
         for bin in "${bins[@]}"; do cp "target/release/$bin" ~/.cargo/bin/; done
-
-    # Restore-only here; saved below on main alone, for the same quota reason as the Rust
-    # build state above. Keep `path` in sync with the save step. Build outputs only: the
-    # Solana and Anchor toolchains are cached by setup-all, and only needed on a miss.
-    - name: Restore Solana Programs
-      if: inputs.component == 'solana'
-      id: cache-solana
-      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-      with:
-        path: |
-          ./ibc-solana/target/deploy/
-          ./ibc-solana/target/sbpf-solana-solana/
-        key: ${{ runner.os }}-solana-${{ env.SOLANA_VERSION }}-${{ env.ANCHOR_VERSION }}-${{ hashFiles('ibc-solana/programs/**', 'ibc-solana/packages/**', 'ibc-solana/Cargo.lock', 'ibc-solana/Cargo.toml', 'ibc-solana/Anchor.toml', 'ibc-solana/rust-toolchain.toml', 'ibc-solana/solana.just', 'packages/tendermint-light-client/**', 'packages/constrained_types/**', 'proto/**', 'ibc-solidity/abi/IFTOwnable.json', 'ibc-solidity/contracts/light-clients/attestation/msgs/**', 'ibc-solidity/contracts/msgs/**', 'scripts/build-solana-test-instance.sh', 'solana-keypairs/localnet/**', 'justfile') }}
-        restore-keys: |
-          ${{ runner.os }}-solana-${{ env.SOLANA_VERSION }}-${{ env.ANCHOR_VERSION }}-
 
     - name: Setup Solana and Anchor
       if: inputs.component == 'solana' && steps.cache-solana.outputs.cache-hit != 'true'
@@ -125,10 +176,6 @@ runs:
       with:
         anchor_version: ${{ env.ANCHOR_VERSION }}
         solana_version: ${{ env.SOLANA_VERSION }}
-
-    - name: Install just for Solana build
-      if: inputs.component == 'solana' && steps.cache-solana.outputs.cache-hit != 'true'
-      uses: extractions/setup-just@dd310ad5a97d8e7b41793f8ef055398d51ad4de6 # v2.0.0
 
     # A restore-keys fallback brings back an older target/deploy; clear it so programs
     # that were since removed or renamed don't end up in the packaged artifacts. This

@@ -4,22 +4,37 @@ name: free-disk-space
 description: Removes preinstalled toolchains the CI jobs don't use, to free disk on GitHub-hosted runners
 
 # GitHub-hosted ubuntu-latest guarantees ~14 GB of free disk, far less than the Depot runners
-# these jobs used to run on. Solana/Rust target dirs and the Kurtosis PoS images need more.
+# these jobs used to run on. Solana/Rust target dirs and the E2E chain images need more.
 # Only toolchains no job here uses are removed; /opt/hostedtoolcache (Go, Node, Python) is kept.
+
+inputs:
+  prune-docker-images:
+    description: Also remove the runner's preinstalled Docker images. Skip for jobs that don't use Docker.
+    required: false
+    default: 'true'
 
 runs:
   using: composite
   steps:
     - name: Free disk space
       shell: bash
+      env:
+        PRUNE_DOCKER_IMAGES: ${{ inputs.prune-docker-images }}
       run: |
         df -h /
-        sudo rm -rf \
+        # In the background, overlapping the job's setup steps: deleting these takes 1-3 min.
+        # Call ./.github/actions/free-disk-space-wait before the first disk-heavy step (cache
+        # restores, builds, image pulls). The runner keeps the process alive until the job ends.
+        sudo nohup rm -rf \
           /usr/local/lib/android \
           /usr/share/dotnet \
           /opt/ghc \
           /usr/local/.ghcup \
           /usr/share/swift \
-          /opt/hostedtoolcache/CodeQL
-        sudo docker image prune --all --force > /dev/null
-        df -h /
+          /opt/hostedtoolcache/CodeQL \
+          > /dev/null 2>&1 &
+        echo $! > "$RUNNER_TEMP/free-disk-space.pid"
+        # Synchronous: running it alongside the job's own pulls could remove those images.
+        if [[ "$PRUNE_DOCKER_IMAGES" == 'true' ]]; then
+          sudo docker image prune --all --force > /dev/null
+        fi

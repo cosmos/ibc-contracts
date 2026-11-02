@@ -21,10 +21,15 @@ on:
       - 'scripts/build-solana-test-instance.sh'
       - 'solana-keypairs/localnet/**'
       - '.github/workflows/solana.yml'
+      - '.github/actions/solana-setup/**'
+      - '.github/actions/free-disk-space/**'
+      - '.github/actions/free-disk-space-wait/**'
       - 'justfile'
 
+# Cancel superseded runs on pull requests. Other events get a group of their own (run_id):
+# main runs write the caches PRs read, so they must not cancel each other.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 env:
@@ -32,8 +37,10 @@ env:
   ANCHOR_VERSION: "0.32.1"
 
 jobs:
-  build-and-test:
-    name: build-and-test-solana
+  # Builds the programs once; lint and the two test suites then run in parallel on its output
+  # (target/deploy for the .so files, target/idl for solana-ibc-sdk's generated bindings).
+  build:
+    name: build-solana
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -42,57 +49,32 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Free disk space
-        uses: ./.github/actions/free-disk-space
+      - name: Set up Solana tooling
+        uses: ./.github/actions/solana-setup
 
-      # nightly is the default toolchain used to build and run the tests. The trybuild UI
-      # snapshots in solana-ibc-macros track nightly's diagnostic rendering, so build/test
-      # must stay on nightly.
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # 1.89.0
-        with:
-          components: rustfmt, clippy
-
-      # Linting is pinned separately to the Rust version our Anchor requires (Anchor 0.32 ->
-      # rustc >= 1.89.0): `just lint-solana` runs fmt/clippy via `cargo +1.89.0`. A floating
-      # nightly regularly broke linting whenever a new clippy lint landed upstream; pinning
-      # keeps lints deterministic and matched to the toolchain Anchor targets.
-      - name: Install Rust 1.89.0 for Solana linting
-        run: |
-          rustup toolchain install 1.89.0 --profile minimal
-          rustup component add --toolchain 1.89.0 clippy rustfmt
+      - name: Wait for disk space
+        uses: ./.github/actions/free-disk-space-wait
 
       # Restore-only here; saved at the end of the job on main alone, so PR branches don't
       # churn the repo's cache quota (PRs can read main's caches). Keep `path` in sync with
-      # the save step.
-      - name: Restore Rust dependencies
-        id: cache-rust
+      # the save step. All of target/: `anchor build` compiles the IDLs into target/debug.
+      # ~/.cargo/bin is not cached: setup-all (which caches its own toolchains) installs into it.
+      - name: Restore program build state
+        id: cache-build
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
-            ~/.cargo/bin/
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             ibc-solana/target/
-          key: ${{ runner.os }}-cargo-solana-rust-1.89.0-${{ hashFiles('ibc-solana/Cargo.lock') }}-anchor-${{ env.ANCHOR_VERSION }}
+          key: ${{ runner.os }}-cargo-solana-build-rust-1.89.0-${{ hashFiles('ibc-solana/Cargo.lock') }}-anchor-${{ env.ANCHOR_VERSION }}
           restore-keys: |
-            ${{ runner.os }}-cargo-solana-
+            ${{ runner.os }}-cargo-solana-build-
 
-      - uses: solana-developers/github-actions/setup-all@e6ed2eb93c55eca911dbc711fb08683b42926a28 # v0.2.15
-        with:
-          anchor_version: ${{ env.ANCHOR_VERSION }}
-          solana_version: ${{ env.SOLANA_VERSION }}
-
-      - name: Install just
-        uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
-
-      - name: Install protobuf compiler
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y protobuf-compiler
-          protoc --version
-
+      # After the cache restore/artifact download, as on main: the sync copies the localnet
+      # keypairs into target/deploy and can rewrite declare_id!, which the programs and the
+      # host-side builds must agree on.
       - name: Sync Solana localnet keys
         run: just solana::sync-solana-keys localnet
 
@@ -102,27 +84,103 @@ jobs:
       - name: Build Solana test programs
         run: just solana::build-solana-test-programs
 
-      - name: Run Solana linting
-        run: just solana::lint-solana
+      - name: Upload Solana programs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: solana-programs
+          path: |
+            ibc-solana/target/deploy/
+            ibc-solana/target/idl/
+          if-no-files-found: error
+          retention-days: 1
 
-      - name: Run Solana integration tests
-        run: just solana::test-solana-integration
-        env:
-          RUST_BACKTRACE: 1
-
-      - name: Run Solana unit tests
-        run: just solana::test-solana
-        env:
-          RUST_BACKTRACE: 1
-
-      - name: Save Rust dependencies
-        if: github.ref == 'refs/heads/main' && steps.cache-rust.outputs.cache-hit != 'true'
+      - name: Save program build state
+        if: github.ref == 'refs/heads/main' && steps.cache-build.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
-            ~/.cargo/bin/
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             ibc-solana/target/
-          key: ${{ steps.cache-rust.outputs.cache-primary-key }}
+          key: ${{ steps.cache-build.outputs.cache-primary-key }}
+
+  check:
+    name: ${{ matrix.name }}
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # `cache`: lint's check-mode artifacts don't overlap the test builds, so it keeps its
+          # own entry; integration reads the unit tests' entry, the larger of the two debug builds.
+          - name: lint-solana
+            cache: lint
+            save-cache: true
+            run: just solana::lint-solana
+          - name: test-solana-integration
+            cache: test
+            save-cache: false
+            run: just solana::test-solana-integration
+          # `test-solana` minus its leading `anchor build`: the programs and IDLs it would
+          # rebuild come from the build job's artifact.
+          - name: test-solana-unit
+            cache: test
+            save-cache: true
+            run: just solana::test-solana-unit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+
+      - name: Set up Solana tooling
+        uses: ./.github/actions/solana-setup
+
+      - name: Wait for disk space
+        uses: ./.github/actions/free-disk-space-wait
+
+      # Restore-only here; saved at the end of the job on main alone. Keep `path` in sync with
+      # the save step.
+      - name: Restore build state
+        id: cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            ibc-solana/target/debug/
+          key: ${{ runner.os }}-cargo-solana-${{ matrix.cache }}-rust-1.89.0-${{ hashFiles('ibc-solana/Cargo.lock') }}-anchor-${{ env.ANCHOR_VERSION }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-solana-${{ matrix.cache }}-
+
+      - name: Download Solana programs
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: solana-programs
+          path: ibc-solana/target/
+
+      # After the cache restore/artifact download, as on main: the sync copies the localnet
+      # keypairs into target/deploy and can rewrite declare_id!, which the programs and the
+      # host-side builds must agree on.
+      - name: Sync Solana localnet keys
+        run: just solana::sync-solana-keys localnet
+
+      - name: Run ${{ matrix.name }}
+        run: ${{ matrix.run }}
+        env:
+          RUST_BACKTRACE: 1
+
+      - name: Save build state
+        if: matrix.save-cache && github.ref == 'refs/heads/main' && steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            ibc-solana/target/debug/
+          key: ${{ steps.cache.outputs.cache-primary-key }}

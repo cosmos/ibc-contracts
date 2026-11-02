@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: Apache-2.0
+
+name: free-disk-space-wait
+description: Waits for the background deletion started by free-disk-space; a no-op if none was started
+
+runs:
+  using: composite
+  steps:
+    - name: Wait for disk space
+      shell: bash
+      run: |
+        pidfile="$RUNNER_TEMP/free-disk-space.pid"
+        if [[ -f "$pidfile" ]]; then
+          # `sudo kill -0`: the deletion runs as root, so a plain kill -0 can't signal it.
+          # Bounded, so a stuck deletion degrades to "less free disk" instead of a hung job.
+          deadline=$((SECONDS + 600))
+          while sudo kill -0 "$(cat "$pidfile")" 2>/dev/null; do
+            if (( SECONDS >= deadline )); then
+              echo "::warning::free-disk-space: cleanup still running after 10 min; continuing"
+              break
+            fi
+            sleep 2
+          done
+          rm -f "$pidfile"
+        fi
+        df -h /

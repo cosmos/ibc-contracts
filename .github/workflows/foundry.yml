@@ -23,6 +23,12 @@ on:
     branches:
       - main
 
+# Cancel superseded runs on pull requests. Other events get a group of their own (run_id):
+# a shared group would still cancel pending runs on main, losing coverage uploads and cache saves.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -65,9 +71,10 @@ jobs:
           echo "## Build result" >> $GITHUB_STEP_SUMMARY
           echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
 
-  # No `needs` between these jobs: each compiles the contracts itself (~4 min with via-IR),
-  # so chaining them only serialized the compiles.
+  # These only wait for lint (~1 min), not for build/test: each compiles the contracts itself
+  # (~4 min with via-IR), so chaining them on build/test only serialized the compiles.
   test:
+    needs: [lint]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -97,6 +104,7 @@ jobs:
           echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
 
   benchmarks:
+    needs: [lint]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -109,6 +117,7 @@ jobs:
         run: bun run benchmarks:ci
 
   security:
+    needs: [lint]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -132,6 +141,7 @@ jobs:
           echo "✅ Slither analysis passed" >> $GITHUB_STEP_SUMMARY
 
   coverage:
+    needs: [lint]
     runs-on: ubuntu-latest
     permissions:
       contents: read

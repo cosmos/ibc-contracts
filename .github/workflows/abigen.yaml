@@ -33,6 +33,12 @@ on:
       - '**.sol'
       - 'ibc-solidity/bun.lock'
 
+# Cancel superseded runs on pull requests. Other events get a group of their own (run_id):
+# a shared group would still cancel pending runs on main, losing coverage uploads and cache saves.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   check:
     runs-on: ubuntu-latest

@@ -11,6 +11,11 @@ inputs:
 runs:
   using: composite
   steps:
+    # The chain images (and Kurtosis PoS devnet) need more than the runner's default free disk.
+    # The deletion overlaps the tooling setup below; the image pulls come after the wait.
+    - name: Free disk space
+      uses: ./.github/actions/free-disk-space
+
     - name: Login to GHCR
       uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
       env:
@@ -20,15 +25,6 @@ runs:
         max_attempts: 5
         retry_wait_seconds: 5
         command: docker login ghcr.io -u ${{ github.actor }} --password-stdin <<< "$GH_TOKEN"
-
-    - name: Pre-pull private images
-      uses: nick-invision/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
-      with:
-        timeout_minutes: 10
-        max_attempts: 3
-        retry_wait_seconds: 5
-        command: docker pull ghcr.io/cosmos/wfchain:latest
-      continue-on-error: true
 
     - name: Set up foundry tooling
       uses: ./.github/actions/foundry-setup
@@ -83,6 +79,26 @@ runs:
           curl -fsSL -o /tmp/kurtosis-cli.deb https://github.com/kurtosis-tech/kurtosis-cli-release-artifacts/releases/download/1.20.0/kurtosis-cli_1.20.0_linux_amd64.deb
           sudo apt install -y /tmp/kurtosis-cli.deb
 
+    # setup-all caches the Solana toolchain itself (keyed on the version), so no separate
+    # cache step is needed; the built programs come from the e2e-build-artifacts-* artifacts.
+    - name: Setup Solana
+      uses: solana-developers/github-actions/setup-all@860d4e7d3afc9f180f3c5016593a1e86e77eede4 # v0.2.5
+      with:
+        solana_version: ${{ env.SOLANA_VERSION }}
+
+    # Everything below pulls images; make sure the cleanup has finished first.
+    - name: Wait for disk space
+      uses: ./.github/actions/free-disk-space-wait
+
+    - name: Pre-pull private images
+      uses: nick-invision/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
+      with:
+        timeout_minutes: 10
+        max_attempts: 3
+        retry_wait_seconds: 5
+        command: docker pull ghcr.io/cosmos/wfchain:latest
+      continue-on-error: true
+
     - name: Start Kurtosis
       if: contains(fromJSON('["pos", "optimism", "arbitrum", "cosmos"]'), env.ETH_TESTNET_TYPE)
       shell: bash
@@ -90,13 +106,6 @@ runs:
         kurtosis engine start
         kurtosis analytics disable
         echo "$(dirname $(which kurtosis))" >> $GITHUB_PATH
-
-    # setup-all caches the Solana toolchain itself (keyed on the version), so no separate
-    # cache step is needed; the built programs come from the e2e-build-artifacts-* artifacts.
-    - name: Setup Solana
-      uses: solana-developers/github-actions/setup-all@860d4e7d3afc9f180f3c5016593a1e86e77eede4 # v0.2.5
-      with:
-        solana_version: ${{ env.SOLANA_VERSION }}
 
     - name: Pull attestor Docker image
       uses: nick-invision/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2

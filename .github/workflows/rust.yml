@@ -17,6 +17,12 @@ on:
       - 'ibc-solidity/abi/**'
       - '.github/workflows/rust.yml'
 
+# Cancel superseded runs on pull requests. Other events get a group of their own (run_id):
+# a shared group would still cancel pending runs on main, losing coverage uploads and cache saves.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   lints:
     name: fmt-and-clippy
@@ -73,10 +79,8 @@ jobs:
           flags: rust
           use_oidc: true
 
-  # One job and one cargo invocation for both binaries, so their shared dependencies compile
-  # once. Same command and cache key as the e2e-build action, so the two share one cache entry.
-  build-binaries:
-    name: build-proof-api-and-operator
+  build-proof-api:
+    name: build-proof-api
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -85,16 +89,34 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up environment
         uses: ./.github/actions/foundry-setup
-      - name: Cache Rust build state
+      # Restore-only: e2e-build (via e2e-minimal on main) writes this entry with both
+      # binaries, from the same workspace-level `cargo build --bin` as here and the Dockerfile.
+      - name: Restore Rust build state
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           shared-key: release-bins
-          cache-on-failure: true
           cache-bin: false
-          # ~2 GB per entry: only main writes it (PRs can read main's caches).
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: false
       - name: Build
-        run: |
-          cargo build --release --locked \
-            -p proof-api --bin proof-api \
-            -p sp1-ics07-tendermint-operator --bin operator
+        run: cargo build --bin proof-api --release --locked
+
+  build-operator:
+    name: build-operator
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up environment
+        uses: ./.github/actions/foundry-setup
+      # Restore-only: e2e-build (via e2e-minimal on main) writes this entry with both
+      # binaries, from the same workspace-level `cargo build --bin` as here and the Dockerfile.
+      - name: Restore Rust build state
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: release-bins
+          cache-bin: false
+          save-if: false
+      - name: Build
+        run: cargo build --bin operator --release --locked

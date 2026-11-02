@@ -765,8 +765,13 @@ test-solana *ARGS:
 	else \
 		(anchor build) && \
 		echo "✅ Build successful, running unit tests" && \
-		(cargo test --workspace --exclude integration-tests {{ARGS}}); \
+		just solana::test-solana-unit {{ARGS}}; \
 	fi
+
+# Run Solana unit tests against already-built programs in target/ (CI: from the build job's artifact)
+[group('test')]
+test-solana-unit *ARGS:
+	(cargo test --workspace --exclude integration-tests {{ARGS}})
 
 # Run Solana integration tests
 [group('test')]
