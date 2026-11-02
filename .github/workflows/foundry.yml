@@ -65,8 +65,9 @@ jobs:
           echo "## Build result" >> $GITHUB_STEP_SUMMARY
           echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
 
+  # No `needs` between these jobs: each compiles the contracts itself (~4 min with via-IR),
+  # so chaining them only serialized the compiles.
   test:
-    needs: [lint, build]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -96,7 +97,6 @@ jobs:
           echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
 
   benchmarks:
-    needs: [build]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -109,7 +109,6 @@ jobs:
         run: bun run benchmarks:ci
 
   security:
-    needs: [build]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -133,7 +132,6 @@ jobs:
           echo "✅ Slither analysis passed" >> $GITHUB_STEP_SUMMARY
 
   coverage:
-    needs: [test]
     runs-on: ubuntu-latest
     permissions:
       contents: read

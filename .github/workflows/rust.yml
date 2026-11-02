@@ -73,8 +73,10 @@ jobs:
           flags: rust
           use_oidc: true
 
-  build-proof-api:
-    name: build-proof-api
+  # One job and one cargo invocation for both binaries, so their shared dependencies compile
+  # once. Same command and cache key as the e2e-build action, so the two share one cache entry.
+  build-binaries:
+    name: build-proof-api-and-operator
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -83,24 +85,16 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up environment
         uses: ./.github/actions/foundry-setup
-      - name: Build
-        uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # v1.0.3
+      - name: Cache Rust build state
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
-          command: build
-          args: --bin proof-api --release --locked
-
-  build-operator:
-    name: build-operator
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Set up environment
-        uses: ./.github/actions/foundry-setup
+          shared-key: release-bins
+          cache-on-failure: true
+          cache-bin: false
+          # ~2 GB per entry: only main writes it (PRs can read main's caches).
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Build
-        uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # v1.0.3
-        with:
-          command: build
-          args: --bin operator --release --locked
+        run: |
+          cargo build --release --locked \
+            -p proof-api --bin proof-api \
+            -p sp1-ics07-tendermint-operator --bin operator

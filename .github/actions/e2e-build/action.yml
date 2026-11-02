@@ -80,7 +80,8 @@ runs:
       if: inputs.component == 'rust' && (steps.cache-proof-api.outputs.cache-hit != 'true' || steps.cache-operator.outputs.cache-hit != 'true')
       uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       with:
-        shared-key: e2e-build
+        # Shared with rust.yml's build job, which builds the same two binaries.
+        shared-key: release-bins
         cache-on-failure: true
         cache-bin: false
         # ~2 GB per entry: only main writes it (PRs can read main's caches), so PR
