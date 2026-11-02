@@ -42,6 +42,9 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Free disk space
+        uses: ./.github/actions/free-disk-space
+
       # nightly is the default toolchain used to build and run the tests. The trybuild UI
       # snapshots in solana-ibc-macros track nightly's diagnostic rendering, so build/test
       # must stay on nightly.

@@ -11,6 +11,9 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Free disk space
+      uses: ./.github/actions/free-disk-space
+
     - name: Set up foundry tooling
       uses: ./.github/actions/foundry-setup
 

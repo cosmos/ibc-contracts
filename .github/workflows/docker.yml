@@ -97,9 +97,9 @@ jobs:
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
           outputs: type=image,name=${{ env.REGISTRY_URL }},push-by-digest=true,name-canonical=true,push=true
-          cache-from: type=registry,ref=${{ env.REGISTRY_URL }}:buildcache-${{ env.PLATFORM_SLUG }}
-          # Only main writes the cache, so PR builds can't seed layers into it. PRs still read from it.
-          cache-to: ${{ github.ref == 'refs/heads/main' && format('type=registry,ref={0}:buildcache-{1},mode=max', env.REGISTRY_URL, env.PLATFORM_SLUG) || '' }}
+          # No layer cache: this workflow only runs on PRs and manual dispatch, so a main-only
+          # cache would never be refreshed, and the builder stage copies the sources before
+          # `cargo build`, so every source change rebuilds the expensive layer anyway.
 
       - name: Export digest
         run: |

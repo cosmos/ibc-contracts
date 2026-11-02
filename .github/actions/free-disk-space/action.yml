@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: Apache-2.0
+
+name: free-disk-space
+description: Removes preinstalled toolchains the CI jobs don't use, to free disk on GitHub-hosted runners
+
+# GitHub-hosted ubuntu-latest guarantees ~14 GB of free disk, far less than the Depot runners
+# these jobs used to run on. Solana/Rust target dirs and the Kurtosis PoS images need more.
+# Only toolchains no job here uses are removed; /opt/hostedtoolcache (Go, Node, Python) is kept.
+
+runs:
+  using: composite
+  steps:
+    - name: Free disk space
+      shell: bash
+      run: |
+        df -h /
+        sudo rm -rf \
+          /usr/local/lib/android \
+          /usr/share/dotnet \
+          /opt/ghc \
+          /usr/local/.ghcup \
+          /usr/share/swift \
+          /opt/hostedtoolcache/CodeQL
+        sudo docker image prune --all --force > /dev/null
+        df -h /
