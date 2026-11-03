@@ -65,8 +65,10 @@ jobs:
           echo "## Build result" >> $GITHUB_STEP_SUMMARY
           echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
 
+  # test, benchmarks, security and coverage each compile the contracts themselves, so they only
+  # wait for lint; waiting for build (or test) just ran those compiles one after another.
   test:
-    needs: [lint, build]
+    needs: [lint]
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -96,7 +98,7 @@ jobs:
           echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
 
   benchmarks:
-    needs: [build]
+    needs: [lint]
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -109,7 +111,7 @@ jobs:
         run: bun run benchmarks:ci
 
   security:
-    needs: [build]
+    needs: [lint]
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -133,7 +135,7 @@ jobs:
           echo "✅ Slither analysis passed" >> $GITHUB_STEP_SUMMARY
 
   coverage:
-    needs: [test]
+    needs: [lint]
     runs-on: ubuntu-24.04
     permissions:
       contents: read
