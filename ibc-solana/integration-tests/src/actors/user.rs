@@ -12,7 +12,9 @@ use crate::gmp::{self, GmpSendCallParams};
 use crate::ift::{self, IftTransferParams, TokenKind};
 use crate::router::{self, SendPacketParams, SendResult};
 use solana_program_test::BanksClientError;
-use solana_sdk::{pubkey::Pubkey, signature::Keypair};
+use solana_sdk::{compute_budget::ComputeBudgetInstruction, pubkey::Pubkey, signature::Keypair};
+
+const IFT_TRANSFER_COMPUTE_UNITS: u32 = 250_000;
 
 /// End-user actor that initiates packets, GMP calls and IFT transfers.
 pub struct User {
@@ -117,8 +119,9 @@ impl User {
             &chain.lc_accounts(),
             params,
         );
-        self.send_tx(chain, std::slice::from_ref(&result.ix))
-            .await?;
+        let budget_ix =
+            ComputeBudgetInstruction::set_compute_unit_limit(IFT_TRANSFER_COMPUTE_UNITS);
+        self.send_tx(chain, &[budget_ix, result.ix.clone()]).await?;
         Ok(result)
     }
 }
