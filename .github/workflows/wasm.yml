@@ -25,7 +25,7 @@ concurrency:
 jobs:
   build-08-wasm-eth:
     name: build-08-wasm-eth
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     continue-on-error: true

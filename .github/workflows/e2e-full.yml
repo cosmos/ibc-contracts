@@ -50,7 +50,7 @@ permissions: {}
 
 jobs:
   generate-matrix:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     outputs:
@@ -69,7 +69,7 @@ jobs:
       matrix:
         component: [rust, solana]
     name: build-e2e-programs (${{ matrix.component }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -86,7 +86,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
     name: ${{ matrix.entrypoint }}/${{ matrix.test }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: read

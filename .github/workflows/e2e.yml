@@ -58,7 +58,7 @@ jobs:
       matrix:
         component: [rust, solana]
     name: build-e2e-programs (${{ matrix.component }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -71,7 +71,7 @@ jobs:
 
   golangci:
     name: lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -88,7 +88,7 @@ jobs:
           working-directory: e2e/interchaintestv8
 
   generate-matrix-mock:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     outputs:
@@ -102,7 +102,7 @@ jobs:
           skip-tests: TestWithProofAPITestSuite/Test_2_ConcurrentRecvPacketToEth,TestWithProofAPITestSuite/Test_MultiPeriodClientUpdateToCosmos,TestWithProofAPITestSuite/Test_5_FinalizedTimeoutPacketFromEth,TestWithProofAPITestSuite/Test_UpdateClientToCosmos,TestWithEthToEthAttestedTestSuite,TestWithMultiAttestorTestSuite
 
   generate-matrix-attestor:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     outputs:
@@ -116,7 +116,7 @@ jobs:
         uses: ./.github/actions/e2e-matrix
 
   generate-matrix-eth-to-eth:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     outputs:
@@ -130,7 +130,7 @@ jobs:
         uses: ./.github/actions/e2e-matrix
 
   generate-matrix-besu-to-besu:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     outputs:
@@ -156,7 +156,7 @@ jobs:
       SP1_PROVER: mock
       E2E_PROOF_TYPE: groth16
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: read
@@ -184,7 +184,7 @@ jobs:
     env:
       ETH_LC_ON_COSMOS: attestor-native
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: read
@@ -209,7 +209,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.generate-matrix-eth-to-eth.outputs.matrix) }}
     name: attestor-native/${{ matrix.entrypoint }}/${{ matrix.test }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: read
@@ -234,7 +234,7 @@ jobs:
       COSMOS_LC_ON_ETH: sp1
       SP1_PROVER: mock
       E2E_PROOF_TYPE: groth16
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: read
@@ -255,7 +255,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.generate-matrix-besu-to-besu.outputs.matrix) }}
     name: besu-to-besu/${{ matrix.test }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: read
@@ -293,7 +293,7 @@ jobs:
       MULTI_ATTESTOR_QUORUM: ${{ matrix.required_signatures }}
       MULTI_ATTESTOR_ACTIVE: ${{ matrix.active_attestors }}
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: read
@@ -318,7 +318,7 @@ jobs:
       MULTI_ATTESTOR_QUORUM: 1
       MULTI_ATTESTOR_ACTIVE: 1
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: read
@@ -358,7 +358,7 @@ jobs:
       ETH_LC_ON_COSMOS: ${{ matrix.eth_lc_on_cosmos }}
       COSMOS_LC_ON_ETH: ${{ matrix.cosmos_lc_on_eth }}
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: read

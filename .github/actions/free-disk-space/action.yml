@@ -3,7 +3,7 @@
 name: free-disk-space
 description: Removes preinstalled toolchains the CI jobs don't use, to free disk on GitHub-hosted runners
 
-# GitHub-hosted ubuntu-latest guarantees ~14 GB of free disk, far less than the Depot runners
+# GitHub-hosted ubuntu-24.04 guarantees ~14 GB of free disk, far less than the Depot runners
 # these jobs used to run on. Solana/Rust target dirs and the E2E chain images need more.
 # Only toolchains no job here uses are removed; /opt/hostedtoolcache (Go, Node, Python) is kept.
 

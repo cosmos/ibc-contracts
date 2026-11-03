@@ -41,7 +41,7 @@ jobs:
   # (target/deploy for the .so files, target/idl for solana-ibc-sdk's generated bindings).
   build:
     name: build-solana
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -128,7 +128,7 @@ jobs:
             cache: test
             save-cache: true
             run: just solana::test-solana-unit
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:

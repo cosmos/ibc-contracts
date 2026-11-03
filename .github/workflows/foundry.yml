@@ -31,7 +31,7 @@ concurrency:
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -55,7 +55,7 @@ jobs:
           echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
 
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -71,11 +71,11 @@ jobs:
           echo "## Build result" >> $GITHUB_STEP_SUMMARY
           echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
 
-  # These only wait for lint (~1 min), not for build/test: each compiles the contracts itself
-  # (~4 min with via-IR), so chaining them on build/test only serialized the compiles.
+  # test, benchmarks, security and coverage each compile the contracts themselves, so they only
+  # wait for lint; waiting for build (or test) just ran those compiles one after another.
   test:
     needs: [lint]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -105,7 +105,7 @@ jobs:
 
   benchmarks:
     needs: [lint]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -118,7 +118,7 @@ jobs:
 
   security:
     needs: [lint]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -142,7 +142,7 @@ jobs:
 
   coverage:
     needs: [lint]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       id-token: write # Codecov OIDC upload

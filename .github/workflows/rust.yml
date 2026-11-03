@@ -26,7 +26,7 @@ concurrency:
 jobs:
   lints:
     name: fmt-and-clippy
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -54,7 +54,7 @@ jobs:
 
   tests:
     name: unit-tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       id-token: write # Codecov OIDC upload
@@ -81,7 +81,7 @@ jobs:
 
   build-proof-api:
     name: build-proof-api
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     continue-on-error: true
@@ -102,7 +102,7 @@ jobs:
 
   build-operator:
     name: build-operator
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     continue-on-error: true

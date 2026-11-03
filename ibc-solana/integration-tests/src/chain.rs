@@ -297,7 +297,8 @@ impl Chain {
 
     /// Refresh the cached blockhash. `ProgramTest` registers a new blockhash every ~6.4 ms
     /// without advancing the block height, so one cached for over ~1 s (150 hashes) underflows
-    /// the banks server's `get_blockhash_last_valid_block_height` and kills it. Call this
+    /// in the banks server's `get_blockhash_last_valid_block_height`. The panic kills that
+    /// request's handler, and the client fails with `DeadlineExceeded` after ~10 s. Call this
     /// after the chain sat idle while other chains were driven.
     pub async fn refresh_blockhash(&mut self) {
         let banks = self.banks.as_mut().expect("chain not started yet");
