@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # `CosmWasm` ICS-08 Ethereum Light Client
 
 This repository contains a `CosmWasm` implementation of an Ethereum light client, designed for integration with [`ibc-go`](https://github.com/cosmos/ibc-go)'s [`08-wasm`](https://github.com/cosmos/ibc-go/tree/main/modules/light-clients/08-wasm) client wrapper. It manages IBC client and consensus states, delegating all light client-specific logic to the core module in [`packages/ethereum/light-client`](../../../packages/ethereum/light-client).
@@ -6,7 +8,7 @@ This repository contains a `CosmWasm` implementation of an Ethereum light client
 
 ### Update Client Logic
 
-The `update_client` functionality is based on the [Ethereum Light Client Sync Protocol](https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/light-client/sync-protocol.md), with key modifications to support **historical updates** — a feature necessary for multiple IBC relayers to independently run.
+The `update_client` functionality is based on the [Ethereum Light Client Sync Protocol](https://github.com/ethereum/consensus-specs/blob/master/specs/altair/light-client/sync-protocol.md), with key modifications to support **historical updates** — a feature necessary for multiple IBC relayers to independently run.
 
 Each update also includes an account proof for the Ethereum `IBCStore.sol` contract, allowing the `CosmWasm` contract to verify the commitment root on Ethereum. This enables IBC clients on Cosmos chains to validate Ethereum-side IBC state using the storage root of `IBCStore`.
 
