@@ -74,6 +74,10 @@ jobs:
         uses: ./.github/actions/e2e-matrix
 
   build-e2e-programs:
+    # The Rust (SP1, proof-api, operator) and Solana builds take ~20-30 min each; run them in parallel.
+    strategy:
+      matrix:
+        component: [rust, solana]
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -83,6 +87,7 @@ jobs:
         uses: ./.github/actions/e2e-build
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          component: ${{ matrix.component }}
 
   e2e-attestor-native:
     needs: [generate-matrix, build-e2e-programs]
