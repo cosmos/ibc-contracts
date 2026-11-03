@@ -151,21 +151,24 @@ id = "RUSTSEC-2026-0255"
 reason = "Ignored because no fixed sized-chunks release exists, and im (required by solana-runtime 2.x) pulls it in. Only ibc-solana's solana-program-test integration tests use it."
 
 # --- Rust: legacy rustls 0.21 stack -----------------------------------------
-# Pulled in by tokio-tungstenite 0.20 (solana-pubsub-client 2.x) and by the
-# legacy hyper 0.14 client in aws-smithy-http-client (aws-config via
-# alloy-signer-aws and sp1-sdk). Fixes exist only in rustls 0.23 / webpki 0.103.
+# Pulled in by tokio-tungstenite 0.20 (solana-pubsub-client 2.x), by reqwest
+# 0.11 (required by tendermint-rpc, which tendermint-rs pins to a git revision,
+# and used by ibc-eureka-utils for the Tendermint RPC client the proof-api
+# points at a configurable, possibly third-party, endpoint) and by the legacy
+# hyper 0.14 client in aws-smithy-http-client (aws-config via alloy-signer-aws
+# and sp1-sdk). Fixes exist only in rustls 0.23 / webpki 0.103.
 
 [[IgnoredVulns]]
 id = "RUSTSEC-2026-0346"
-reason = "Ignored because the fix is only in rustls 0.23, and solana-pubsub-client 2.x (tokio-tungstenite 0.20) and aws-smithy-http-client's legacy client still require 0.21."
+reason = "Ignored because the fix is only in rustls 0.23, and solana-pubsub-client 2.x (tokio-tungstenite 0.20), reqwest 0.11 (tendermint-rpc, ibc-eureka-utils) and aws-smithy-http-client's legacy client still require 0.21. This includes the proof-api's TLS connections to the configured Tendermint RPC endpoint."
 
 [[IgnoredVulns]]
 id = "RUSTSEC-2026-0349"
-reason = "Ignored because the fix is only in rustls 0.23, and solana-pubsub-client 2.x (tokio-tungstenite 0.20) and aws-smithy-http-client's legacy client still require 0.21."
+reason = "Ignored because the fix is only in rustls 0.23, and solana-pubsub-client 2.x (tokio-tungstenite 0.20), reqwest 0.11 (tendermint-rpc, ibc-eureka-utils) and aws-smithy-http-client's legacy client still require 0.21. This includes the proof-api's TLS connections to the configured Tendermint RPC endpoint."
 
 [[IgnoredVulns]]
 id = "GHSA-h2v8-394m-p7vv"
-reason = "Ignored because the fix is only in rustls 0.23, and solana-pubsub-client 2.x (tokio-tungstenite 0.20) and aws-smithy-http-client's legacy client still require 0.21."
+reason = "Ignored because the fix is only in rustls 0.23, and solana-pubsub-client 2.x (tokio-tungstenite 0.20), reqwest 0.11 (tendermint-rpc, ibc-eureka-utils) and aws-smithy-http-client's legacy client still require 0.21. This includes the proof-api's TLS connections to the configured Tendermint RPC endpoint."
 
 [[IgnoredVulns]]
 id = "RUSTSEC-2026-0098"
@@ -189,7 +192,7 @@ reason = "Ignored because the fix is in webpki-roots 0.26.11/1.0.10, and tungste
 
 [[IgnoredVulns]]
 id = "RUSTSEC-2026-0258"
-reason = "Ignored because the fix is only in h2 0.4, and aws-smithy-http-client's legacy hyper 0.14 client (aws-config via alloy-signer-aws and sp1-sdk) still requires 0.3. It only makes outbound connections to AWS endpoints."
+reason = "Ignored because the fix is only in h2 0.4, and aws-smithy-http-client's legacy hyper 0.14 client (aws-config via alloy-signer-aws and sp1-sdk) still requires 0.3. reqwest 0.11 (tendermint-rpc, ibc-eureka-utils) also links hyper 0.14 but is built without its http2 feature, so the Tendermint RPC client speaks HTTP/1.1 only and h2 is reached solely through outbound connections to AWS endpoints."
 
 [[IgnoredVulns]]
 id = "RUSTSEC-2025-0134"
