@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # IBC Contracts
 
 [![Full Actions](https://github.com/cosmos/ibc-contracts/actions/workflows/e2e-full.yml/badge.svg)](https://github.com/cosmos/ibc-contracts/actions)
@@ -33,7 +35,7 @@ Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for contributi
 | [`programs/proof-api/`](programs/proof-api/) | Serves the proofs a relayer submits. |
 | [`packages/`](packages/) | Shared Rust crates, including `go-abigen/` for the Go bindings. |
 | [`e2e/`](e2e/) | End-to-end tests, powered by [interchaintest](https://github.com/strangelove-ventures/interchaintest). |
-| [`docs/`](docs/) | Architecture decision records and [audit reports](docs/audits). |
+| [`docs/`](docs/) | [Audit reports](docs/audits). Architecture decision records are in [`cosmos/ibc/spec/adr`](https://github.com/cosmos/ibc/tree/main/spec/adr). |
 | [`scripts/`](scripts/), [`tools/`](tools/) | Repository-wide scripts and test tooling. |
 
 ## Documentation

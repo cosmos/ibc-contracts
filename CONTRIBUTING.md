@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Contributing to `ibc-contracts`
 
 Thank you for considering making contributions to `ibc-contracts`! 🎉👍
@@ -29,7 +31,7 @@ Unless the change is a minor bug fix with minor code changes, and you want to su
 
 ### Architecture Decision Records (ADR)
 
-When proposing an architecture decision for `ibc-contracts`, please create an ADR so further discussions can be made. We are following this process so all involved parties are in agreement before any party begins coding the proposed implementation. ADRs are solidified designs that will be implemented in `ibc-contracts` (and do not have a spec). They should document the architecture that will be built. Most design feedback should be gathered before the initial draft of the ADR. ADR's can/should be written for any design decisions we make which may be changed at some point in the future.
+Before coding a change to the architecture, a public interface or the behaviour `ibc-contracts` exposes to its users and counterparties, propose it in an [ADR](https://github.com/cosmos/ibc/blob/main/spec/adr/README.md) so all involved parties agree on the design before anyone begins implementing it. ADRs for cosmos/ibc, cosmos/ibc-go and cosmos/ibc-contracts live in one numbered series in [`cosmos/ibc/spec/adr`](https://github.com/cosmos/ibc/tree/main/spec/adr): copy the [ADR template](https://github.com/cosmos/ibc/blob/main/spec/adr/adr-template.md), set its scope to `ibc-contracts/solidity`, `ibc-contracts/solana` or `ibc-contracts/proof-api`, and open the pull request in `cosmos/ibc`, where it needs the approvals cosmos/ibc requires and approval from an `ibc-contracts` maintainer. An ADR documents the architecture that will be built, so gather most design feedback before the first draft. See [when to write one](https://github.com/cosmos/ibc/blob/main/spec/adr/README.md#when-to-write-one) for what does not need an ADR.
 
 ### Submitting pull requests
 

@@ -21,7 +21,7 @@ use solana_ibc_types::ics24;
 ///
 /// Solana has no try/catch for CPI. If the app reverts, the whole transaction
 /// rolls back and the packet stays unacknowledged (timeout is the only recovery).
-/// See `docs/adr/solana-ift-architecture.md` limitations section.
+/// See the limitations section of ADR 031 in `cosmos/ibc` (`spec/adr/adr-031-solana-ift-architecture.md`).
 #[derive(Accounts)]
 #[instruction(msg: MsgRecvPacket)]
 pub struct RecvPacket<'info> {
