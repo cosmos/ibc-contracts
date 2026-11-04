@@ -34,5 +34,9 @@
     "test:benchmarks": "bun test benchmarks",
     "test:coverage": "forge coverage",
     "test:coverage:report": "forge coverage --report lcov && genhtml lcov.info --branch-coverage --output-dir coverage"
+  },
+  "overrides": {
+    "glob": "^14.0.3",
+    "stream-json": "^3.7.0"
   }
 }

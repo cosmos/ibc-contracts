@@ -35,7 +35,7 @@ on:
 
 jobs:
   check:
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -67,7 +67,7 @@ jobs:
           fi
 
   golangci:
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -84,7 +84,7 @@ jobs:
           working-directory: packages/go-abigen
 
   test:
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
