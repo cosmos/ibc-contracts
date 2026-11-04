@@ -20,7 +20,7 @@ on:
 jobs:
   lints:
     name: fmt-and-clippy
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -48,7 +48,7 @@ jobs:
 
   tests:
     name: unit-tests
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       id-token: write # Codecov OIDC upload
@@ -75,7 +75,7 @@ jobs:
 
   build-proof-api:
     name: build-proof-api
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     continue-on-error: true
@@ -91,7 +91,7 @@ jobs:
 
   build-operator:
     name: build-operator
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     continue-on-error: true
