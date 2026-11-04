@@ -6,6 +6,7 @@
 
 pub mod attestation;
 pub mod besu;
+pub mod ibc_multicall;
 pub mod ics26;
 pub mod msgs;
 pub mod sp1_ics07;

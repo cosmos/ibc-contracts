@@ -261,14 +261,15 @@ func (s *MultiAttestorTestSuite) SetupSuite(ctx context.Context) {
 			}).
 			// Cosmos → Eth direction (uses Cosmos attestors)
 			CosmosToEthAttested(proofapi.CosmosToEthAttestedParams{
-				CosmosChainID:     simd.Config().ChainID,
-				EthChainID:        eth.ChainID.String(),
-				TmRPC:             simd.GetHostRPCAddress(),
-				ICS26Address:      s.contractAddresses.Ics26Router,
-				EthRPC:            eth.RPC,
-				AttestorEndpoints: s.cosmosAttestorResult.Endpoints,
-				AttestorTimeout:   30000,
-				QuorumThreshold:   s.quorumThreshold,
+				CosmosChainID:       simd.Config().ChainID,
+				EthChainID:          eth.ChainID.String(),
+				TmRPC:               simd.GetHostRPCAddress(),
+				ICS26Address:        s.contractAddresses.Ics26Router,
+				IBCMulticallAddress: s.contractAddresses.IbcMulticall,
+				EthRPC:              eth.RPC,
+				AttestorEndpoints:   s.cosmosAttestorResult.Endpoints,
+				AttestorTimeout:     30000,
+				QuorumThreshold:     s.quorumThreshold,
 			}).
 			Build()
 
@@ -334,7 +335,6 @@ func (s *MultiAttestorTestSuite) SetupSuite(ctx context.Context) {
 					testvalues.ParameterKey_MinRequiredSigs:   strconv.Itoa(s.quorumThreshold),
 					testvalues.ParameterKey_height:            strconv.FormatInt(latestCosmosHeader.Header.Height, 10),
 					testvalues.ParameterKey_timestamp:         strconv.FormatInt(latestCosmosHeader.Header.Time.Unix(), 10),
-					testvalues.ParameterKey_RoleManager:       ethcommon.HexToAddress(s.contractAddresses.Ics26Router).Hex(),
 				},
 			})
 			s.Require().NoError(err)
@@ -462,7 +462,7 @@ func (s *MultiAttestorTestSuite) Test_MultiAttestorTransferWithAggregation() {
 	transferAmount := big.NewInt(testvalues.TransferAmount)
 	userAddressEth := crypto.PubkeyToAddress(s.userKeyEth.PublicKey)
 	ics20AddressEth := ethcommon.HexToAddress(s.contractAddresses.Ics20Transfer)
-	ics26AddressEth := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
+	multicallAddressEth := ethcommon.HexToAddress(s.contractAddresses.IbcMulticall)
 	erc20AddressEth := ethcommon.HexToAddress(s.contractAddresses.Erc20)
 
 	initialBalanceEth := new(big.Int).Set(testvalues.StartingERC20Balance)
@@ -598,7 +598,7 @@ func (s *MultiAttestorTestSuite) Test_MultiAttestorTransferWithAggregation() {
 		}))
 
 		s.Require().True(s.Run("Broadcast ack relay tx on Ethereum", func() {
-			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 15_000_000, &ics26AddressEth, ackRelayTx)
+			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 15_000_000, &multicallAddressEth, ackRelayTx)
 			s.Require().NoError(err)
 			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
 
@@ -682,13 +682,13 @@ func (s *MultiAttestorTestSuite) Test_MultiAttestorTransferWithAggregation() {
 			})
 			s.Require().NoError(err)
 			s.Require().NotEmpty(resp.Tx)
-			s.Require().Equal(ics26AddressEth.String(), resp.Address)
+			s.Require().Equal(multicallAddressEth.String(), resp.Address)
 
 			relayTx = resp.Tx
 		}))
 
 		s.Require().True(s.Run("Broadcast relay tx on Ethereum", func() {
-			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 15_000_000, &ics26AddressEth, relayTx)
+			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 15_000_000, &multicallAddressEth, relayTx)
 			s.Require().NoError(err)
 			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
 
@@ -777,8 +777,8 @@ func (s *MultiAttestorTestSuite) Test_UpdateClientCosmosToEth() {
 		s.Require().NoError(err)
 		s.Require().NotEmpty(resp.Tx)
 
-		ics26Address := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
-		receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 15_000_000, &ics26Address, resp.Tx)
+		multicallAddress := ethcommon.HexToAddress(s.contractAddresses.IbcMulticall)
+		receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 15_000_000, &multicallAddress, resp.Tx)
 		s.Require().NoError(err)
 		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
 	}))

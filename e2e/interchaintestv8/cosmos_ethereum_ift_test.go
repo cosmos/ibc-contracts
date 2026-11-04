@@ -216,12 +216,13 @@ func (s *CosmosEthereumIFTTestSuite) SetupSuite(ctx context.Context, proofType t
 				QuorumThreshold:   testvalues.DefaultMinRequiredSigs,
 			}).
 			CosmosToEthSP1(proofapi.CosmosToEthSP1Params{
-				CosmosChainID: s.Wfchain.Config().ChainID,
-				EthChainID:    eth.ChainID.String(),
-				TmRPC:         s.Wfchain.GetHostRPCAddress(),
-				ICS26Address:  s.contractAddresses.Ics26Router,
-				EthRPC:        eth.RPC,
-				Prover:        sp1Config,
+				CosmosChainID:       s.Wfchain.Config().ChainID,
+				EthChainID:          eth.ChainID.String(),
+				TmRPC:               s.Wfchain.GetHostRPCAddress(),
+				ICS26Address:        s.contractAddresses.Ics26Router,
+				IBCMulticallAddress: s.contractAddresses.IbcMulticall,
+				EthRPC:              eth.RPC,
+				Prover:              sp1Config,
 			}).
 			Build()
 
@@ -313,6 +314,7 @@ type iftTestContext struct {
 	tmClientID          string
 	ethClientIDOnCosmos string
 	ics26Address        ethcommon.Address
+	multicallAddress    ethcommon.Address
 	sp1Ics07Address     ethcommon.Address
 	cosmosDenom         string
 }
@@ -323,6 +325,7 @@ func (s *CosmosEthereumIFTTestSuite) setupIFTInfrastructure(ctx context.Context,
 		tmClientID:          testvalues.CustomClientID,
 		ethClientIDOnCosmos: testvalues.FirstAttestationsClientID,
 		ics26Address:        ethcommon.HexToAddress(s.contractAddresses.Ics26Router),
+		multicallAddress:    ethcommon.HexToAddress(s.contractAddresses.IbcMulticall),
 	}
 
 	s.Require().True(s.Run("Setup light clients", func() {
@@ -540,7 +543,7 @@ func (s *CosmosEthereumIFTTestSuite) Test_IFTTransfer_Roundtrip() {
 			s.Require().NoError(err)
 			s.Require().NotEmpty(resp.Tx)
 
-			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 15_000_000, &tc.ics26Address, resp.Tx)
+			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 15_000_000, &tc.multicallAddress, resp.Tx)
 			s.Require().NoError(err)
 			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
 			cosmosRecvTxHash = receipt.TxHash.Bytes()
@@ -639,7 +642,7 @@ func (s *CosmosEthereumIFTTestSuite) Test_IFTTransfer_Roundtrip() {
 			s.Require().NoError(err)
 			s.Require().NotEmpty(resp.Tx)
 
-			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 15_000_000, &tc.ics26Address, resp.Tx)
+			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 15_000_000, &tc.multicallAddress, resp.Tx)
 			s.Require().NoError(err)
 			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
 		}))
@@ -843,7 +846,7 @@ func (s *CosmosEthereumIFTTestSuite) Test_IFTTransfer_TimeoutEthereumToCosmos() 
 		s.Require().NoError(err)
 		s.Require().NotEmpty(resp.Tx)
 
-		receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 15_000_000, &tc.ics26Address, resp.Tx)
+		receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 15_000_000, &tc.multicallAddress, resp.Tx)
 		s.Require().NoError(err)
 		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
 	}))
@@ -974,7 +977,7 @@ func (s *CosmosEthereumIFTTestSuite) Test_IFTTransfer_FailedReceiveOnCosmos() {
 		s.Require().NoError(err)
 		s.Require().NotEmpty(resp.Tx)
 
-		receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 15_000_000, &tc.ics26Address, resp.Tx)
+		receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 15_000_000, &tc.multicallAddress, resp.Tx)
 		s.Require().NoError(err)
 		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
 	}))
@@ -1012,6 +1015,7 @@ func (s *CosmosEthereumIFTTestSuite) Test_IFTTransfer_FailedReceiveOnEthereum() 
 	tmClientID := testvalues.CustomClientID
 	ethClientIDOnCosmos := testvalues.FirstAttestationsClientID
 	ics26Address := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
+	multicallAddress := ethcommon.HexToAddress(s.contractAddresses.IbcMulticall)
 	ethIFTAddress := ethcommon.HexToAddress(s.contractAddresses.Ift)
 
 	var sp1Ics07Address ethcommon.Address
@@ -1173,7 +1177,7 @@ func (s *CosmosEthereumIFTTestSuite) Test_IFTTransfer_FailedReceiveOnEthereum() 
 		s.Require().NoError(err)
 		s.Require().NotEmpty(resp.Tx)
 
-		receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 15_000_000, &ics26Address, resp.Tx)
+		receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 15_000_000, &multicallAddress, resp.Tx)
 		s.Require().NoError(err)
 		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
 		recvTxHash = receipt.TxHash.Bytes()

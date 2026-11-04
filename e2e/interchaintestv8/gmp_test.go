@@ -168,11 +168,12 @@ func (s *IbcEurekaGmpTestSuite) SetupSuite(ctx context.Context, proofType types.
 				MockClient:    os.Getenv(testvalues.EnvKeyEthTestnetType) == testvalues.EthTestnetTypeAnvil,
 			}).
 			CosmosToEthSP1(proofapi.CosmosToEthSP1Params{
-				EthChainID:    eth.ChainID.String(),
-				CosmosChainID: simd.Config().ChainID,
-				TmRPC:         simd.GetHostRPCAddress(),
-				ICS26Address:  s.contractAddresses.Ics26Router,
-				EthRPC:        eth.RPC,
+				EthChainID:          eth.ChainID.String(),
+				CosmosChainID:       simd.Config().ChainID,
+				TmRPC:               simd.GetHostRPCAddress(),
+				ICS26Address:        s.contractAddresses.Ics26Router,
+				IBCMulticallAddress: s.contractAddresses.IbcMulticall,
+				EthRPC:              eth.RPC,
 				Prover: proofapi.SP1ProverConfig{
 					Type:           prover,
 					PrivateCluster: os.Getenv(testvalues.EnvKeyNetworkPrivateCluster) == testvalues.EnvValueSp1Prover_PrivateCluster,
@@ -399,7 +400,7 @@ func (s *IbcEurekaGmpTestSuite) SendCallFromCosmosTest(ctx context.Context, proo
 	eth, simd := s.Eth.Chains[0], s.Cosmos.Chains[0]
 	simdUser := s.Cosmos.Users[0]
 
-	ics26Address := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
+	ibcMulticallAddress := ethcommon.HexToAddress(s.contractAddresses.IbcMulticall)
 	testAmount := big.NewInt(1)
 
 	testUserKey, err := eth.CreateUser()
@@ -472,13 +473,13 @@ func (s *IbcEurekaGmpTestSuite) SendCallFromCosmosTest(ctx context.Context, proo
 			})
 			s.Require().NoError(err)
 			s.Require().NotEmpty(resp.Tx)
-			s.Require().Equal(resp.Address, ics26Address.String())
+			s.Require().Equal(resp.Address, ibcMulticallAddress.String())
 
 			recvRelayTx = resp.Tx
 		}))
 
 		s.Require().True(s.Run("Submit relay tx", func() {
-			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 2_000_000, &ics26Address, recvRelayTx)
+			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 2_000_000, &ibcMulticallAddress, recvRelayTx)
 			s.Require().NoError(err)
 			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status, fmt.Sprintf("Tx failed: %+v", receipt))
 
@@ -538,7 +539,7 @@ func (s *IbcEurekaGmpTestSuite) SendCallFromEthTest(ctx context.Context, proofTy
 	eth, simd := s.Eth.Chains[0], s.Cosmos.Chains[0]
 	ethUserAddress := crypto.PubkeyToAddress(s.key.PublicKey)
 
-	ics26Address := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
+	ibcMulticallAddress := ethcommon.HexToAddress(s.contractAddresses.IbcMulticall)
 	testAmount := sdk.NewCoins(sdk.NewCoin(simd.Config().Denom, sdkmath.NewInt(1)))
 	testSimdUser := s.CreateAndFundCosmosUserWithBalance(ctx, simd, testAmount[0].Amount.Int64())
 
@@ -669,13 +670,13 @@ func (s *IbcEurekaGmpTestSuite) SendCallFromEthTest(ctx context.Context, proofTy
 			})
 			s.Require().NoError(err)
 			s.Require().NotEmpty(resp.Tx)
-			s.Require().Equal(resp.Address, ics26Address.String())
+			s.Require().Equal(resp.Address, ibcMulticallAddress.String())
 
 			relayTxBodyBz = resp.Tx
 		}))
 
 		s.Require().True(s.Run("Broadcast relay tx", func() {
-			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 2_000_000, &ics26Address, relayTxBodyBz)
+			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 2_000_000, &ibcMulticallAddress, relayTxBodyBz)
 			s.Require().NoError(err)
 			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status, fmt.Sprintf("Tx failed: %+v", receipt))
 		}))

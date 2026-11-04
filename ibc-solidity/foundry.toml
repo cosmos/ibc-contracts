@@ -26,7 +26,7 @@
 
 [fmt]
   bracket_spacing = true
-  ignore = ["contracts/utils/TrieProof.sol"]
+  ignore = ["contracts/light-clients/utils/TrieProof.sol"]
   int_types = "long"
   line_length = 120
   multiline_func_header = "all"

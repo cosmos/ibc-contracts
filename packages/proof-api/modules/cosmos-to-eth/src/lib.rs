@@ -58,6 +58,8 @@ struct CosmosToEthProofApiModuleService {
     eth_listener: eth_eureka::ChainListener<RootProvider>,
     /// The transaction builder for `EthEureka`.
     tx_builder: CosmosToEthTxBuilder,
+    /// The `IBCMulticall` address that relay and update client transactions are submitted to.
+    ibc_multicall_address: Address,
 }
 
 enum CosmosToEthTxBuilder {
@@ -72,6 +74,8 @@ pub struct CosmosToEthConfig {
     pub tm_rpc_url: String,
     /// The ICS26 address.
     pub ics26_address: Address,
+    /// The `IBCMulticall` address that relay and update client transactions are submitted to.
+    pub ibc_multicall_address: Address,
     /// The EVM RPC URL.
     pub eth_rpc_url: String,
     /// Transaction builder mode.
@@ -241,6 +245,7 @@ impl CosmosToEthProofApiModuleService {
             tm_listener,
             eth_listener,
             tx_builder,
+            ibc_multicall_address: config.ibc_multicall_address,
         })
     }
 }
@@ -344,7 +349,7 @@ impl ProofApiService for CosmosToEthProofApiModuleService {
 
         Ok(Response::new(api::RelayByTxResponse {
             tx: multicall_tx,
-            address: self.tx_builder.ics26_router_address().to_string(),
+            address: self.ibc_multicall_address.to_string(),
         }))
     }
 
@@ -388,7 +393,7 @@ impl ProofApiService for CosmosToEthProofApiModuleService {
 
         Ok(Response::new(api::UpdateClientResponse {
             tx,
-            address: self.tx_builder.ics26_router_address().to_string(),
+            address: self.ibc_multicall_address.to_string(),
         }))
     }
 }

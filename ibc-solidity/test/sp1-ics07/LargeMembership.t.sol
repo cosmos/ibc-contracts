@@ -67,6 +67,7 @@ contract SP1ICS07LargeMembershipTest is MembershipTest {
             }
         }
 
+        vm.prank(ics26Router);
         ics07Tendermint.multicall(multicallData);
         console.log("Proved", metadata, ", gas used: ", vm.lastCallGas().gasTotalUsed);
     }

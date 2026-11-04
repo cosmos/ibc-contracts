@@ -54,7 +54,9 @@ abstract contract SP1ICS07TendermintTest is
 
     string internal constant FIXTURE_DIR = "/test/sp1-ics07/fixtures/";
 
-    function setUpTest(string memory fileName, address roleManager) public {
+    address public ics26Router = makeAddr("ics26Router");
+
+    function setUpTest(string memory fileName) public {
         genesisFixture = loadGenesisFixture(fileName);
 
         ConsensusState memory trustedConsensusState = abi.decode(genesisFixture.trustedConsensusState, (ConsensusState));
@@ -79,7 +81,7 @@ abstract contract SP1ICS07TendermintTest is
             verifier,
             genesisFixture.trustedClientState,
             trustedConsensusHash,
-            roleManager
+            ics26Router
         );
 
         mockIcs07Tendermint = new SP1ICS07Tendermint(
@@ -90,7 +92,7 @@ abstract contract SP1ICS07TendermintTest is
             address(new SP1MockVerifier()),
             genesisFixture.trustedClientState,
             trustedConsensusHash,
-            roleManager
+            ics26Router
         );
 
         ClientState memory clientState = abi.decode(mockIcs07Tendermint.getClientState(), (ClientState));

@@ -14,8 +14,9 @@ use alloy::{
 use anyhow::Result;
 use ibc_core_host_types::identifiers::ChainId;
 use ibc_eureka_solidity_types::{
+    ibc_multicall::multicall_calldata,
     ics26::{
-        router::{multicallCall, routerCalls, routerInstance, updateClientCall},
+        router::{routerCalls, routerInstance, updateClientCall},
         IICS02ClientMsgs::Height,
     },
     msgs::{
@@ -128,8 +129,6 @@ where
 const SP1_VERIFIER: &str = "sp1_verifier";
 /// The key for the zk algorithm in the parameters map.
 const ZK_ALGORITHM: &str = "zk_algorithm";
-/// The key for the role manager in the parameters map.
-const ROLE_MANAGER: &str = "role_manager";
 
 #[async_trait::async_trait]
 impl<P> TxBuilderService<EthEureka, CosmosSdk> for TxBuilder<P>
@@ -199,18 +198,19 @@ where
         )
         .await?;
 
-        let calls = all_msgs.into_iter().map(|msg| match msg {
-            routerCalls::timeoutPacket(call) => call.abi_encode(),
-            routerCalls::recvPacket(call) => call.abi_encode(),
-            routerCalls::ackPacket(call) => call.abi_encode(),
-            _ => unreachable!(),
-        });
+        let calls = all_msgs
+            .into_iter()
+            .map(|msg| match msg {
+                routerCalls::timeoutPacket(call) => call.abi_encode(),
+                routerCalls::recvPacket(call) => call.abi_encode(),
+                routerCalls::ackPacket(call) => call.abi_encode(),
+                _ => unreachable!(),
+            })
+            .map(Into::into);
 
-        let multicall_tx = multicallCall {
-            data: calls.map(Into::into).collect(),
-        };
-
-        Ok(multicall_tx.abi_encode())
+        // The first message carries the proof that the rest of the batch relies on, so it must
+        // succeed. Every other message is allowed to fail.
+        Ok(multicall_calldata(*self.ics26_router.address(), calls, 1))
     }
 
     #[tracing::instrument(skip_all, err(Debug))]
@@ -218,7 +218,7 @@ where
         // Check if parameters only include correct keys
         parameters
             .keys()
-            .find(|k| ![SP1_VERIFIER, ZK_ALGORITHM, ROLE_MANAGER].contains(&k.as_str()))
+            .find(|k| ![SP1_VERIFIER, ZK_ALGORITHM].contains(&k.as_str()))
             .map_or(Ok(()), |param| {
                 Err(anyhow::anyhow!("Unexpected parameter: `{param}`, only `{SP1_VERIFIER}` and `{ZK_ALGORITHM}` are allowed"))
             })?;
@@ -230,11 +230,6 @@ where
             latest_light_block.height().value()
         );
 
-        let role_admin = parameters
-            .get(ROLE_MANAGER)
-            .map_or(Ok(Address::ZERO), |a| {
-                Address::from_str(a.as_str()).map_err(|e| anyhow::anyhow!(e))
-            })?;
         let sp1_verifier = Address::from_str(
             parameters
                 .get(SP1_VERIFIER)
@@ -290,7 +285,7 @@ where
             sp1_verifier,
             client_state.abi_encode().into(),
             consensus_state_hash,
-            role_admin,
+            *self.ics26_router.address(),
         )
         .calldata()
         .to_vec())
@@ -345,11 +340,16 @@ where
             ),
         };
 
-        Ok(updateClientCall {
+        let update_call = updateClientCall {
             clientId: dst_client_id,
             updateMsg: update_msg.abi_encode().into(),
-        }
-        .abi_encode())
+        };
+
+        Ok(multicall_calldata(
+            *self.ics26_router.address(),
+            [update_call.abi_encode().into()],
+            1,
+        ))
     }
 }
 
@@ -380,7 +380,7 @@ impl<P: Provider + Clone> AttestedTxBuilder<P> {
     /// # Errors
     /// Returns an error if attestation retrieval or transaction building fails.
     pub async fn relay_events(&self, params: RelayEventsParams) -> Result<Vec<u8>> {
-        build_eth_attestor_relay_events_tx(&self.aggregator, params).await
+        build_eth_attestor_relay_events_tx(&self.aggregator, self.ics26_address, params).await
     }
 
     /// Create a client on Ethereum using attestations.
@@ -388,7 +388,11 @@ impl<P: Provider + Clone> AttestedTxBuilder<P> {
     /// # Errors
     /// Returns an error if transaction building fails.
     pub fn create_client(&self, parameters: &HashMap<String, String>) -> Result<Vec<u8>> {
-        build_eth_attestor_create_client_calldata(parameters, self.provider.clone())
+        build_eth_attestor_create_client_calldata(
+            parameters,
+            self.ics26_address,
+            self.provider.clone(),
+        )
     }
 
     /// Update a client on Ethereum using attestations.
@@ -397,6 +401,11 @@ impl<P: Provider + Clone> AttestedTxBuilder<P> {
     /// Returns an error when called (not yet implemented).
     #[allow(clippy::unused_async)]
     pub async fn update_client(&self, dst_client_id: String) -> Result<Vec<u8>> {
-        build_eth_attestor_update_client_calldata(&self.aggregator, dst_client_id).await
+        build_eth_attestor_update_client_calldata(
+            &self.aggregator,
+            self.ics26_address,
+            dst_client_id,
+        )
+        .await
     }
 }

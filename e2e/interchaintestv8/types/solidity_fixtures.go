@@ -12,6 +12,7 @@ import (
 
 	"github.com/cosmos/ibc-contracts/packages/go-abigen/ics26router"
 
+	"github.com/cosmos/ibc-contracts/e2e/v8/ethereum"
 	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
 )
 
@@ -63,7 +64,21 @@ func (g *SolidityFixtureGenerator) GenerateAndSaveSolidityFixture(fileName, erc2
 		return nil
 	}
 
-	fixture, err := g.generateFixture(erc20Address, msgBz, packet)
+	// Fixtures replay the relay directly on the router, so unwrap the calls from the multicall
+	calls, err := ethereum.UnpackIBCMulticall(msgBz)
+	if err != nil {
+		return err
+	}
+	ics26ABI, err := ics26router.ContractMetaData.GetAbi()
+	if err != nil {
+		return err
+	}
+	routerMsgBz, err := ics26ABI.Pack("multicall", calls)
+	if err != nil {
+		return err
+	}
+
+	fixture, err := g.generateFixture(erc20Address, routerMsgBz, packet)
 	if err != nil {
 		return err
 	}

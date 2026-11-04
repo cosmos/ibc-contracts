@@ -3,14 +3,18 @@
 package ethereum
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"math/big"
 	"regexp"
 	"strings"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+
+	"github.com/cosmos/ibc-contracts/packages/go-abigen/ibcmulticall"
 
 	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
 )
@@ -30,8 +34,10 @@ type DeployedContracts struct {
 	// SP1Verifier for groth16
 	VerifierGroth16 string `json:"verifierGroth16"`
 	// Mock SP1 verifier
-	VerifierMock  string `json:"verifierMock"`
-	Ics26Router   string `json:"ics26Router"`
+	VerifierMock string `json:"verifierMock"`
+	Ics26Router  string `json:"ics26Router"`
+	// IBCMulticall that relayers submit proof-api transactions through
+	IbcMulticall  string `json:"ibcMulticall"`
 	Ics20Transfer string `json:"ics20Transfer"`
 	Ics27Gmp      string `json:"ics27Gmp"`
 	Erc20         string `json:"erc20"`
@@ -84,12 +90,37 @@ func GetEthContractsFromDeployOutput(stdout string) (DeployedContracts, error) {
 		embeddedContracts.VerifierPlonk == "" ||
 		embeddedContracts.VerifierGroth16 == "" ||
 		embeddedContracts.VerifierMock == "" ||
-		embeddedContracts.Ics26Router == "" {
+		embeddedContracts.Ics26Router == "" ||
+		embeddedContracts.IbcMulticall == "" {
 
 		return DeployedContracts{}, fmt.Errorf("one or more contracts missing: %+v", embeddedContracts)
 	}
 
 	return embeddedContracts, nil
+}
+
+// UnpackIBCMulticall returns the calldata of each call in an `IBCMulticall.multicall` transaction.
+func UnpackIBCMulticall(tx []byte) ([][]byte, error) {
+	multicallABI, err := ibcmulticall.ContractMetaData.GetAbi()
+	if err != nil {
+		return nil, err
+	}
+	method := multicallABI.Methods["multicall"]
+	if len(tx) < 4 || !bytes.Equal(tx[:4], method.ID) {
+		return nil, fmt.Errorf("not an IBCMulticall multicall transaction")
+	}
+
+	args, err := method.Inputs.Unpack(tx[4:])
+	if err != nil {
+		return nil, err
+	}
+	calls := *abi.ConvertType(args[0], new([]ibcmulticall.IIBCMulticallMsgsCall)).(*[]ibcmulticall.IIBCMulticallMsgsCall)
+
+	callData := make([][]byte, len(calls))
+	for i, call := range calls {
+		callData[i] = call.CallData
+	}
+	return callData, nil
 }
 
 // From https://medium.com/@zhuytt4/verify-the-owner-of-safe-wallet-with-eth-getproof-7edc450504ff

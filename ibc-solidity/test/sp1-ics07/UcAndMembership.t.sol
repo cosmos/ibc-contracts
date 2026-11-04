@@ -51,6 +51,7 @@ contract SP1ICS07UpdateClientAndMembershipTest is MembershipTest {
             });
 
             // run verify
+            vm.prank(ics26Router);
             ics07Tendermint.verifyMembership(membershipMsg);
 
             console.log(
@@ -85,6 +86,7 @@ contract SP1ICS07UpdateClientAndMembershipTest is MembershipTest {
             });
 
             // run verify
+            vm.prank(ics26Router);
             ics07Tendermint.verifyNonMembership(nonMembershipMsg);
 
             console.log(
@@ -118,6 +120,7 @@ contract SP1ICS07UpdateClientAndMembershipTest is MembershipTest {
         });
 
         // run verify
+        vm.startPrank(ics26Router);
         ics07Tendermint.verifyMembership(membershipMsg);
 
         ClientState memory clientState = abi.decode(ics07Tendermint.getClientState(), (ClientState));
@@ -146,6 +149,7 @@ contract SP1ICS07UpdateClientAndMembershipTest is MembershipTest {
 
         // run verify
         ics07Tendermint.verifyNonMembership(nonMembershipMsg);
+        vm.stopPrank();
 
         console.log("Cached UpdateClientAndNonVerifyMembership gas used: ", vm.lastCallGas().gasTotalUsed);
     }
@@ -170,6 +174,7 @@ contract SP1ICS07UpdateClientAndMembershipTest is MembershipTest {
         });
 
         vm.expectRevert();
+        vm.prank(ics26Router);
         ics07Tendermint.verifyNonMembership(nonMembershipMsg);
     }
 
@@ -192,6 +197,7 @@ contract SP1ICS07UpdateClientAndMembershipTest is MembershipTest {
             proof: abi.encode(nonMembershipProof), proofHeight: fixture.proofHeight, path: verifyNonMembershipPath
         });
 
+        vm.startPrank(ics26Router);
         mockIcs07Tendermint.verifyNonMembership(nonMembershipMsg);
 
         // change output so that it is a misbehaviour
@@ -205,5 +211,6 @@ contract SP1ICS07UpdateClientAndMembershipTest is MembershipTest {
         // run verify again
         vm.expectRevert(abi.encodeWithSelector(CannotHandleMisbehavior.selector));
         mockIcs07Tendermint.verifyNonMembership(nonMembershipMsg);
+        vm.stopPrank();
     }
 }

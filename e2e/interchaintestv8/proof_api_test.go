@@ -89,7 +89,7 @@ func (s *ProofAPITestSuite) FilteredRecvPacketToEthTest(
 
 	eth, simd := s.Eth.Chains[0], s.Cosmos.Chains[0]
 
-	ics26Address := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
+	ibcMulticallAddress := ethcommon.HexToAddress(s.contractAddresses.IbcMulticall)
 	transferAmount := big.NewInt(testvalues.TransferAmount)
 	totalTransferAmount := big.NewInt(testvalues.TransferAmount * int64(numOfTransfers))
 	if totalTransferAmount.Int64() > testvalues.InitialBalance {
@@ -175,13 +175,13 @@ func (s *ProofAPITestSuite) FilteredRecvPacketToEthTest(
 			})
 			s.Require().NoError(err)
 			s.Require().NotEmpty(resp.Tx)
-			s.Require().Equal(resp.Address, ics26Address.String())
+			s.Require().Equal(resp.Address, ibcMulticallAddress.String())
 
 			relayTx = resp.Tx
 		}))
 
 		s.Require().True(s.Run("Submit relay tx", func() {
-			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ics26Address, relayTx)
+			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ibcMulticallAddress, relayTx)
 			s.Require().NoError(err)
 			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status, fmt.Sprintf("Tx failed: %+v", receipt))
 		}))
@@ -221,7 +221,7 @@ func (s *ProofAPITestSuite) ConcurrentRecvPacketToEthTest(
 
 	_, simd := s.Eth.Chains[0], s.Cosmos.Chains[0]
 
-	ics26Address := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
+	ibcMulticallAddress := ethcommon.HexToAddress(s.contractAddresses.IbcMulticall)
 	transferAmount := big.NewInt(testvalues.TransferAmount)
 	transferCoin := sdk.NewCoin(simd.Config().Denom, sdkmath.NewIntFromBigInt(transferAmount))
 	totalTransferAmount := big.NewInt(testvalues.TransferAmount * int64(numConcurrentTransfers))
@@ -299,7 +299,7 @@ func (s *ProofAPITestSuite) ConcurrentRecvPacketToEthTest(
 		})
 		s.Require().NoError(err)
 		s.Require().NotEmpty(resp.Tx)
-		s.Require().Equal(resp.Address, ics26Address.String())
+		s.Require().Equal(resp.Address, ibcMulticallAddress.String())
 	}))
 
 	var wg sync.WaitGroup
@@ -320,7 +320,7 @@ func (s *ProofAPITestSuite) ConcurrentRecvPacketToEthTest(
 				})
 				s.Require().NoError(err)
 				s.Require().NotEmpty(resp.Tx)
-				s.Require().Equal(resp.Address, ics26Address.String())
+				s.Require().Equal(resp.Address, ibcMulticallAddress.String())
 			}()
 		}
 	}))
@@ -362,7 +362,7 @@ func (s *ProofAPITestSuite) ICS20TransferERC20TokenBatchedAckToEthTest(
 
 	eth, simd := s.Eth.Chains[0], s.Cosmos.Chains[0]
 
-	ics26Address := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
+	ibcMulticallAddress := ethcommon.HexToAddress(s.contractAddresses.IbcMulticall)
 	ics20Address := ethcommon.HexToAddress(s.contractAddresses.Ics20Transfer)
 	erc20Address := ethcommon.HexToAddress(s.contractAddresses.Erc20)
 
@@ -503,13 +503,13 @@ func (s *ProofAPITestSuite) ICS20TransferERC20TokenBatchedAckToEthTest(
 			})
 			s.Require().NoError(err)
 			s.Require().NotEmpty(resp.Tx)
-			s.Require().Equal(resp.Address, ics26Address.String())
+			s.Require().Equal(resp.Address, ibcMulticallAddress.String())
 
 			relayTx = resp.Tx
 		}))
 
 		s.Require().True(s.Run("Submit relay tx", func() {
-			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ics26Address, relayTx)
+			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ibcMulticallAddress, relayTx)
 			s.Require().NoError(err)
 			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
 
@@ -683,7 +683,7 @@ func (s *IbcEurekaTestSuite) ICS20FinalizedTimeoutPacketFromEthTest(
 
 	eth, simd := s.Eth.Chains[0], s.Cosmos.Chains[0]
 
-	ics26Address := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
+	ibcMulticallAddress := ethcommon.HexToAddress(s.contractAddresses.IbcMulticall)
 	erc20Address := ethcommon.HexToAddress(s.contractAddresses.Erc20)
 
 	transferAmount := big.NewInt(testvalues.TransferAmount)
@@ -801,7 +801,7 @@ func (s *IbcEurekaTestSuite) ICS20FinalizedTimeoutPacketFromEthTest(
 			})
 			s.Require().NoError(err)
 			s.Require().NotEmpty(resp.Tx)
-			s.Require().Equal(resp.Address, ics26Address.String())
+			s.Require().Equal(resp.Address, ibcMulticallAddress.String())
 
 			timeoutRelayTx = resp.Tx
 		}))
@@ -812,7 +812,7 @@ func (s *IbcEurekaTestSuite) ICS20FinalizedTimeoutPacketFromEthTest(
 		}))
 
 		s.Require().True(s.Run("Submit relay tx", func() {
-			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ics26Address, timeoutRelayTx)
+			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ibcMulticallAddress, timeoutRelayTx)
 			s.Require().NoError(err)
 			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
 		}))
@@ -1021,7 +1021,7 @@ func (s *ProofAPITestSuite) ICS20TransferERC20TokenBatchedFilteredAckToCosmosTes
 
 	eth, simd := s.Eth.Chains[0], s.Cosmos.Chains[0]
 
-	ics26Address := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
+	ibcMulticallAddress := ethcommon.HexToAddress(s.contractAddresses.IbcMulticall)
 	transferAmount := big.NewInt(testvalues.TransferAmount)
 	totalTransferAmount := big.NewInt(testvalues.TransferAmount * int64(numOfTransfers))
 	if totalTransferAmount.Int64() > testvalues.InitialBalance {
@@ -1102,13 +1102,13 @@ func (s *ProofAPITestSuite) ICS20TransferERC20TokenBatchedFilteredAckToCosmosTes
 			})
 			s.Require().NoError(err)
 			s.Require().NotEmpty(resp.Tx)
-			s.Require().Equal(resp.Address, ics26Address.String())
+			s.Require().Equal(resp.Address, ibcMulticallAddress.String())
 
 			multicallTx = resp.Tx
 		}))
 
 		s.Require().True(s.Run("Submit relay tx", func() {
-			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ics26Address, multicallTx)
+			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ibcMulticallAddress, multicallTx)
 			s.Require().NoError(err)
 			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status, fmt.Sprintf("Tx failed: %+v", receipt))
 
@@ -1505,7 +1505,7 @@ func (s *ProofAPITestSuite) UpdateClientToEthTest(ctx context.Context, proofType
 
 	eth, simd := s.Eth.Chains[0], s.Cosmos.Chains[0]
 
-	ics26Address := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
+	ibcMulticallAddress := ethcommon.HexToAddress(s.contractAddresses.IbcMulticall)
 
 	var initialHeight uint64
 	s.Require().True(s.Run("Get the initial height", func() {
@@ -1526,13 +1526,13 @@ func (s *ProofAPITestSuite) UpdateClientToEthTest(ctx context.Context, proofType
 			})
 			s.Require().NoError(err)
 			s.Require().NotEmpty(resp.Tx)
-			s.Require().Equal(ics26Address.String(), resp.Address)
+			s.Require().Equal(ibcMulticallAddress.String(), resp.Address)
 
 			updateTxBodyBz = resp.Tx
 		}))
 
 		s.Require().True(s.Run("Broadcast relay tx", func() {
-			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ics26Address, updateTxBodyBz)
+			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ibcMulticallAddress, updateTxBodyBz)
 			s.Require().NoError(err)
 			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
 		}))

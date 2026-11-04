@@ -262,20 +262,22 @@ func (s *IbcEurekaTestSuite) SetupSuite(ctx context.Context, proofType types.Sup
 		// Cosmos → Eth direction
 		if s.isCosmosLcOnEthAttestor() {
 			builder.CosmosToEthAttested(proofapi.CosmosToEthAttestedParams{
-				CosmosChainID:     simd.Config().ChainID,
-				EthChainID:        eth.ChainID.String(),
-				TmRPC:             simd.GetHostRPCAddress(),
-				ICS26Address:      s.contractAddresses.Ics26Router,
-				EthRPC:            eth.RPC,
-				AttestorEndpoints: s.cosmosAttestorEndpoints,
+				CosmosChainID:       simd.Config().ChainID,
+				EthChainID:          eth.ChainID.String(),
+				TmRPC:               simd.GetHostRPCAddress(),
+				ICS26Address:        s.contractAddresses.Ics26Router,
+				IBCMulticallAddress: s.contractAddresses.IbcMulticall,
+				EthRPC:              eth.RPC,
+				AttestorEndpoints:   s.cosmosAttestorEndpoints,
 			})
 		} else {
 			builder.CosmosToEthSP1(proofapi.CosmosToEthSP1Params{
-				CosmosChainID: simd.Config().ChainID,
-				EthChainID:    eth.ChainID.String(),
-				TmRPC:         simd.GetHostRPCAddress(),
-				ICS26Address:  s.contractAddresses.Ics26Router,
-				EthRPC:        eth.RPC,
+				CosmosChainID:       simd.Config().ChainID,
+				EthChainID:          eth.ChainID.String(),
+				TmRPC:               simd.GetHostRPCAddress(),
+				ICS26Address:        s.contractAddresses.Ics26Router,
+				IBCMulticallAddress: s.contractAddresses.IbcMulticall,
+				EthRPC:              eth.RPC,
 				Prover: proofapi.SP1ProverConfig{
 					Type:           prover,
 					PrivateCluster: os.Getenv(testvalues.EnvKeyNetworkPrivateCluster) == testvalues.EnvValueSp1Prover_PrivateCluster,
@@ -323,7 +325,6 @@ func (s *IbcEurekaTestSuite) SetupSuite(ctx context.Context, proofType types.Sup
 				testvalues.ParameterKey_MinRequiredSigs:   strconv.Itoa(testvalues.DefaultMinRequiredSigs),
 				testvalues.ParameterKey_height:            strconv.FormatInt(latestCosmosHeader.Header.Height, 10),
 				testvalues.ParameterKey_timestamp:         strconv.FormatInt(latestCosmosHeader.Header.Time.Unix(), 10),
-				testvalues.ParameterKey_RoleManager:       ethcommon.HexToAddress(s.contractAddresses.Ics26Router).Hex(),
 			}
 
 			var createClientTxBz []byte
@@ -648,7 +649,7 @@ func (s *IbcEurekaTestSuite) ICS20TransferERC20TokenfromEthereumToCosmosAndBackT
 
 	eth, simd := s.Eth.Chains[0], s.Cosmos.Chains[0]
 
-	ics26Address := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
+	ibcMulticallAddress := ethcommon.HexToAddress(s.contractAddresses.IbcMulticall)
 	ics20Address := ethcommon.HexToAddress(s.contractAddresses.Ics20Transfer)
 	erc20Address := ethcommon.HexToAddress(s.contractAddresses.Erc20)
 
@@ -795,13 +796,13 @@ func (s *IbcEurekaTestSuite) ICS20TransferERC20TokenfromEthereumToCosmosAndBackT
 			})
 			s.Require().NoError(err)
 			s.Require().NotEmpty(resp.Tx)
-			s.Require().Equal(resp.Address, ics26Address.String())
+			s.Require().Equal(resp.Address, ibcMulticallAddress.String())
 
 			ackRelayTx = resp.Tx
 		}))
 
 		s.Require().True(s.Run("Submit relay tx", func() {
-			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 15_000_000, &ics26Address, ackRelayTx)
+			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 15_000_000, &ibcMulticallAddress, ackRelayTx)
 			s.Require().NoError(err)
 			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status, fmt.Sprintf("Tx failed: %+v", receipt))
 			s.T().Logf("Multicall ack %d packets gas used: %d", numOfTransfers, receipt.GasUsed)
@@ -897,14 +898,14 @@ func (s *IbcEurekaTestSuite) ICS20TransferERC20TokenfromEthereumToCosmosAndBackT
 			})
 			s.Require().NoError(err)
 			s.Require().NotEmpty(resp.Tx)
-			s.Require().Equal(resp.Address, ics26Address.String())
+			s.Require().Equal(resp.Address, ibcMulticallAddress.String())
 
 			recvRelayTx = resp.Tx
 		}))
 
 		var returnPacket ics26router.IICS26RouterMsgsPacket
 		s.Require().True(s.Run("Submit relay tx", func() {
-			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 15_000_000, &ics26Address, recvRelayTx)
+			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 15_000_000, &ibcMulticallAddress, recvRelayTx)
 			s.Require().NoError(err)
 			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status, fmt.Sprintf("Tx failed: %+v", receipt))
 			s.T().Logf("Multicall receive %d packets gas used: %d", numOfTransfers, receipt.GasUsed)
@@ -998,7 +999,7 @@ func (s *IbcEurekaTestSuite) ICS20TransferERC20TokenFromEthereumToCosmosAndBackF
 
 	eth, simd := s.Eth.Chains[0], s.Cosmos.Chains[0]
 
-	ics26Address := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
+	ibcMulticallAddress := ethcommon.HexToAddress(s.contractAddresses.IbcMulticall)
 	ics20Address := ethcommon.HexToAddress(s.contractAddresses.Ics20Transfer)
 	erc20Address := ethcommon.HexToAddress(s.contractAddresses.Erc20)
 
@@ -1137,7 +1138,7 @@ func (s *IbcEurekaTestSuite) ICS20TransferERC20TokenFromEthereumToCosmosAndBackF
 			}))
 
 			s.Require().True(s.Run("Submit relay tx to eth", func() {
-				receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 15_000_000, &ics26Address, relayTxBodyBz)
+				receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 15_000_000, &ibcMulticallAddress, relayTxBodyBz)
 				s.Require().NoError(err)
 
 				transferRelayTxHashBz = receipt.TxHash.Bytes()
@@ -1197,7 +1198,7 @@ func (s *IbcEurekaTestSuite) ICS20TransferNativeCosmosCoinsToEthereumAndBackTest
 
 	eth, simd := s.Eth.Chains[0], s.Cosmos.Chains[0]
 
-	ics26Address := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
+	ibcMulticallAddress := ethcommon.HexToAddress(s.contractAddresses.IbcMulticall)
 	ics20Address := ethcommon.HexToAddress(s.contractAddresses.Ics20Transfer)
 	transferCoin := sdk.NewCoin(simd.Config().Denom, sdkmath.NewIntFromBigInt(transferAmount))
 	ethereumUserAddress := crypto.PubkeyToAddress(s.key.PublicKey)
@@ -1271,14 +1272,14 @@ func (s *IbcEurekaTestSuite) ICS20TransferNativeCosmosCoinsToEthereumAndBackTest
 			})
 			s.Require().NoError(err)
 			s.Require().NotEmpty(resp.Tx)
-			s.Require().Equal(resp.Address, ics26Address.String())
+			s.Require().Equal(resp.Address, ibcMulticallAddress.String())
 
 			recvRelayTx = resp.Tx
 		}))
 
 		var packet ics26router.IICS26RouterMsgsPacket
 		s.Require().True(s.Run("Submit relay tx", func() {
-			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ics26Address, recvRelayTx)
+			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ibcMulticallAddress, recvRelayTx)
 			s.Require().NoError(err)
 			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status, fmt.Sprintf("Tx failed: %+v", receipt))
 
@@ -1500,13 +1501,13 @@ func (s *IbcEurekaTestSuite) ICS20TransferNativeCosmosCoinsToEthereumAndBackTest
 			})
 			s.Require().NoError(err)
 			s.Require().NotEmpty(resp.Tx)
-			s.Require().Equal(resp.Address, ics26Address.String())
+			s.Require().Equal(resp.Address, ibcMulticallAddress.String())
 
 			ackRelayTx = resp.Tx
 		}))
 
 		s.Require().True(s.Run("Submit relay tx", func() {
-			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ics26Address, ackRelayTx)
+			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ibcMulticallAddress, ackRelayTx)
 			s.Require().NoError(err)
 
 			// Verify the ack packet event exists
@@ -1572,7 +1573,7 @@ func (s *IbcEurekaTestSuite) FilteredICS20TimeoutPacketFromEthereumTest(
 
 	eth, simd := s.Eth.Chains[0], s.Cosmos.Chains[0]
 
-	ics26Address := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
+	ibcMulticallAddress := ethcommon.HexToAddress(s.contractAddresses.IbcMulticall)
 	erc20Address := ethcommon.HexToAddress(s.contractAddresses.Erc20)
 
 	transferAmount := big.NewInt(testvalues.TransferAmount)
@@ -1697,13 +1698,13 @@ func (s *IbcEurekaTestSuite) FilteredICS20TimeoutPacketFromEthereumTest(
 			})
 			s.Require().NoError(err)
 			s.Require().NotEmpty(resp.Tx)
-			s.Require().Equal(resp.Address, ics26Address.String())
+			s.Require().Equal(resp.Address, ibcMulticallAddress.String())
 
 			timeoutRelayTx = resp.Tx
 		}))
 
 		s.Require().True(s.Run("Submit relay tx", func() {
-			_, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ics26Address, timeoutRelayTx)
+			_, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ibcMulticallAddress, timeoutRelayTx)
 			s.Require().NoError(err)
 		}))
 
@@ -1776,7 +1777,7 @@ func (s *IbcEurekaTestSuite) ICS20ErrorAckToEthereumTest(
 	s.SetupSuite(ctx, pt)
 
 	eth, simd := s.Eth.Chains[0], s.Cosmos.Chains[0]
-	ics26Address := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
+	ibcMulticallAddress := ethcommon.HexToAddress(s.contractAddresses.IbcMulticall)
 	erc20Address := ethcommon.HexToAddress(s.contractAddresses.Erc20)
 
 	transferAmount := big.NewInt(testvalues.TransferAmount)
@@ -1892,13 +1893,13 @@ func (s *IbcEurekaTestSuite) ICS20ErrorAckToEthereumTest(
 			})
 			s.Require().NoError(err)
 			s.Require().NotEmpty(resp.Tx)
-			s.Require().Equal(resp.Address, ics26Address.String())
+			s.Require().Equal(resp.Address, ibcMulticallAddress.String())
 
 			ackRelayTx = resp.Tx
 		}))
 
 		s.Require().True(s.Run("Submit relay tx", func() {
-			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ics26Address, ackRelayTx)
+			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ibcMulticallAddress, ackRelayTx)
 			s.Require().NoError(err)
 
 			// Verify the ack packet event exists
@@ -2085,9 +2086,9 @@ func (s *IbcEurekaTestSuite) FilteredICS20TimeoutFromCosmosTimeoutTest(
 	}
 
 	s.Require().True(s.Run("Receive packets on Ethereum after timeout should fail", func() {
-		ics26Address := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
-		_, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ics26Address, txBodyBz)
-		s.Require().Error(err)
+		ibcMulticallAddress := ethcommon.HexToAddress(s.contractAddresses.IbcMulticall)
+		receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ibcMulticallAddress, txBodyBz)
+		s.RequireMulticallRejected(ibcMulticallAddress, txBodyBz, receipt, err)
 
 		// Prove that the erc20 was not created (and by extension, the packet was not received)
 		denomOnEthereum := transfertypes.NewDenom(transferCoin.Denom, transfertypes.NewHop(transfertypes.PortID, testvalues.CustomClientID))
@@ -2110,7 +2111,7 @@ func (s *IbcEurekaTestSuite) TimeoutPacketEthRemintsVouchersTest(ctx context.Con
 
 	eth, simd := s.Eth.Chains[0], s.Cosmos.Chains[0]
 
-	ics26Address := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
+	ibcMulticallAddress := ethcommon.HexToAddress(s.contractAddresses.IbcMulticall)
 	ics20Address := ethcommon.HexToAddress(s.contractAddresses.Ics20Transfer)
 	transferAmount := big.NewInt(testvalues.TransferAmount)
 	transferCoin := sdk.NewCoin(simd.Config().Denom, sdkmath.NewIntFromBigInt(transferAmount))
@@ -2175,7 +2176,7 @@ func (s *IbcEurekaTestSuite) TimeoutPacketEthRemintsVouchersTest(ctx context.Con
 
 		var packet ics26router.IICS26RouterMsgsPacket
 		s.Require().True(s.Run("Broadcast relay tx", func() {
-			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ics26Address, recvRelayTx)
+			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ibcMulticallAddress, recvRelayTx)
 			s.Require().NoError(err)
 			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
 
@@ -2281,7 +2282,7 @@ func (s *IbcEurekaTestSuite) TimeoutPacketEthRemintsVouchersTest(ctx context.Con
 		}))
 
 		s.Require().True(s.Run("Broadcast relay tx", func() {
-			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ics26Address, timeoutRelayTx)
+			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ibcMulticallAddress, timeoutRelayTx)
 			s.Require().NoError(err)
 			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
 
@@ -2321,7 +2322,7 @@ func (s *IbcEurekaTestSuite) TimeoutPacketCosmosRemintsVouchersTest(ctx context.
 
 	eth, simd := s.Eth.Chains[0], s.Cosmos.Chains[0]
 
-	ics26Address := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
+	ibcMulticallAddress := ethcommon.HexToAddress(s.contractAddresses.IbcMulticall)
 	ics20Address := ethcommon.HexToAddress(s.contractAddresses.Ics20Transfer)
 	erc20Address := ethcommon.HexToAddress(s.contractAddresses.Erc20)
 
@@ -2449,7 +2450,7 @@ func (s *IbcEurekaTestSuite) TimeoutPacketCosmosRemintsVouchersTest(ctx context.
 			s.Require().NoError(err)
 			ackRelayTx = resp.Tx
 		}))
-		receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 15_000_000, &ics26Address, ackRelayTx)
+		receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 15_000_000, &ibcMulticallAddress, ackRelayTx)
 		s.Require().NoError(err)
 		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status, fmt.Sprintf("Tx failed: %+v", receipt))
 
@@ -2549,7 +2550,7 @@ func (s *IbcEurekaTestSuite) TimeoutPacketCosmosRemintsVouchersTest(ctx context.
 	}))
 
 	s.Require().True(s.Run("Verify recvPacket fails on Eth", func() {
-		_, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ics26Address, recvRelayTx)
-		s.Require().Error(err)
+		receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ibcMulticallAddress, recvRelayTx)
+		s.RequireMulticallRejected(ibcMulticallAddress, recvRelayTx, receipt, err)
 	}))
 }
