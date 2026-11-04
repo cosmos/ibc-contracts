@@ -41,11 +41,13 @@ var (
 	KurtosisConfig = kurtosisNetworkParams{
 		Participants: []kurtosisParticipant{
 			{
-				CLType:         "lodestar",
-				CLImage:        "chainsafe/lodestar:v1.40.0",
-				ELType:         "geth",
-				ELImage:        "ethereum/client-go:v1.17.10",
-				ELExtraParams:  []string{"--gcmode=archive"},
+				CLType:  "lodestar",
+				CLImage: "chainsafe/lodestar:v1.50.1",
+				ELType:  "geth",
+				ELImage: "ethereum/client-go:v1.17.10",
+				// The package omits --syncmode for archive nodes, and geth's default of snap
+				// sync never completes on this single-node network
+				ELExtraParams:  []string{"--gcmode=archive", "--syncmode=full"},
 				ELLogLevel:     "info",
 				ValidatorCount: 128,
 				// Supernode required for Fulu testing
