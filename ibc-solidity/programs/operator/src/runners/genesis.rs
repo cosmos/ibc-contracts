@@ -52,7 +52,7 @@ impl SP1ICS07TendermintGenesis {
         misbehaviour: &MisbehaviourProgram,
     ) -> anyhow::Result<Self> {
         setup_logger();
-        if dotenv::dotenv().is_err() {
+        if dotenvy::dotenv().is_err() {
             tracing::warn!("No .env file found");
         }
 
