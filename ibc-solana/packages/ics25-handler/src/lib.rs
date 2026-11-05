@@ -10,8 +10,22 @@
 
 use anchor_lang::prelude::*;
 
-// Include generated discriminators from build.rs
-include!(concat!(env!("OUT_DIR"), "/discriminators.rs"));
+/// Standard instruction discriminators for IBC light client operations
+pub mod discriminators {
+    use solana_ibc_macros::discriminator;
+
+    /// Discriminator for `verify_membership` instruction
+    /// Computed from `sha256("global:verify_membership")`
+    pub const VERIFY_MEMBERSHIP: [u8; 8] = discriminator!("verify_membership");
+
+    /// Discriminator for `verify_non_membership` instruction
+    /// Computed from `sha256("global:verify_non_membership")`
+    pub const VERIFY_NON_MEMBERSHIP: [u8; 8] = discriminator!("verify_non_membership");
+
+    /// Discriminator for `client_status` instruction
+    /// Computed from `sha256("global:client_status")`
+    pub const CLIENT_STATUS: [u8; 8] = discriminator!("client_status");
+}
 
 /// Standard message structure for membership verification
 /// All light clients must accept this structure
@@ -70,5 +84,32 @@ impl TryFrom<u8> for ClientStatus {
             2 => Ok(Self::Expired),
             other => Err(other),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::discriminators::*;
+    use sha2::{Digest, Sha256};
+
+    fn sighash(name: &str) -> [u8; 8] {
+        Sha256::digest(format!("global:{name}").as_bytes())[..8]
+            .try_into()
+            .unwrap()
+    }
+
+    #[test]
+    fn discriminators_match_anchor_sighash() {
+        assert_eq!(VERIFY_MEMBERSHIP, sighash("verify_membership"));
+        assert_eq!(VERIFY_NON_MEMBERSHIP, sighash("verify_non_membership"));
+        assert_eq!(CLIENT_STATUS, sighash("client_status"));
+    }
+
+    /// Bytes as emitted in the deployed light client IDLs.
+    #[test]
+    fn discriminators_match_deployed_idl() {
+        assert_eq!(VERIFY_MEMBERSHIP, [101, 53, 78, 0, 103, 151, 236, 209]);
+        assert_eq!(VERIFY_NON_MEMBERSHIP, [231, 161, 86, 239, 111, 236, 14, 74]);
+        assert_eq!(CLIENT_STATUS, [75, 93, 126, 21, 10, 112, 109, 139]);
     }
 }

@@ -617,8 +617,10 @@ mod integration_tests {
         );
 
         // Pre-create AccessManager PDA with pauser + unpauser roles
-        let (access_manager_pda, _) =
-            solana_ibc_types::access_manager::AccessManager::pda(access_manager::ID);
+        let (access_manager_pda, _) = Pubkey::find_program_address(
+            &[access_manager::state::AccessManager::SEED],
+            &access_manager::ID,
+        );
 
         let am = access_manager::state::AccessManager {
             roles: vec![

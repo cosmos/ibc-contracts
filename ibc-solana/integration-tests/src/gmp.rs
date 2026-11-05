@@ -299,9 +299,8 @@ pub fn encode_gmp_packet(
 
     ics27_gmp::encoding::encode_gmp_packet(
         solana_ibc_gmp_types::GmpPacketData::try_from(raw_packet).expect("valid GMP packet data"),
-        ICS27_ENCODING_PROTOBUF,
+        ics27_gmp::encoding::GmpEncoding::Protobuf,
     )
-    .expect("GMP packet encoding should succeed")
 }
 
 /// Build `remaining_accounts` entries for GMP `recv_packet` targeting

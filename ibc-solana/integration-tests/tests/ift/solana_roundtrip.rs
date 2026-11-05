@@ -183,8 +183,8 @@ async fn test_ift_solana_roundtrip() {
     // `ift_mint` returns `Result<()>` (no return data), so GMP encodes an
     // empty-result success ack. Reconstruct the same bytes the on-chain GMP
     // program produced so the router's commitment check passes.
-    let raw_ack = ics27_gmp::encoding::encode_gmp_ack(&[], gmp::ICS27_ENCODING_PROTOBUF)
-        .expect("encode IFT GMP ack");
+    let raw_ack =
+        ics27_gmp::encoding::encode_gmp_ack(&[], ics27_gmp::encoding::GmpEncoding::Protobuf);
     let ack_commitment = extract_ack_data(&chain_b, recv.ack_pda).await;
     let ack_entry = attestation::ack_commitment_entry(
         chain_a.counterparty_client_id(),

@@ -7,6 +7,7 @@ use crate::types::{AppState, ClientState, ConsensusState, UpdateResult};
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::program::set_return_data;
 use ibc_client_tendermint::types::{ConsensusState as IbcConsensusState, Header};
+use solana_ibc_types::verify_chunk_account;
 use tendermint_light_client_update_client::ClientState as UpdateClientState;
 
 /// Reassembles previously uploaded header chunks, verifies the Tendermint header
@@ -125,24 +126,8 @@ fn assemble_chunks(
     let mut header_bytes = Vec::with_capacity(header_size);
 
     for (index, chunk_account) in ctx.remaining_accounts[..chunk_count].iter().enumerate() {
-        let expected_seeds = &[
-            crate::state::HeaderChunk::SEED,
-            submitter.as_ref(),
-            &target_height.to_le_bytes(),
-            &[index as u8],
-        ];
-        let (expected_pda, _) = Pubkey::find_program_address(expected_seeds, &crate::ID);
-        require_keys_eq!(
-            chunk_account.key(),
-            expected_pda,
-            ErrorCode::InvalidChunkAccount
-        );
-
-        require_keys_eq!(
-            *chunk_account.owner,
-            crate::ID,
-            ErrorCode::InvalidAccountOwner
-        );
+        let expected_pda = HeaderChunk::pda(&submitter, target_height, index as u8);
+        verify_chunk_account(chunk_account, &expected_pda, &crate::ID).map_err(ErrorCode::from)?;
 
         let chunk_data = chunk_account.try_borrow_data()?;
 

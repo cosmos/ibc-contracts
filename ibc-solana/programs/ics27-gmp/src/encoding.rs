@@ -10,6 +10,39 @@ use solana_ibc_proto::{
 use crate::sol_types::IICS27GMPMsgs::GMPAcknowledgement as GmpAcknowledgementAbi;
 pub use crate::sol_types::IICS27GMPMsgs::GMPPacketData as GmpPacketDataAbi;
 
+/// Wire encoding of GMP packet data, named by the IBC payload's `encoding` field.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GmpEncoding {
+    /// [`ICS27_ENCODING_ABI`] — Solidity ABI encoding
+    Abi,
+    /// [`ICS27_ENCODING_PROTOBUF`] — Protobuf encoding
+    Protobuf,
+}
+
+impl GmpEncoding {
+    /// The payload `encoding` string for this encoding.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Abi => ICS27_ENCODING_ABI,
+            Self::Protobuf => ICS27_ENCODING_PROTOBUF,
+        }
+    }
+}
+
+impl TryFrom<&str> for GmpEncoding {
+    type Error = GMPError;
+
+    /// Returns [`GMPError::InvalidEncoding`] for any string other than
+    /// [`ICS27_ENCODING_ABI`] or [`ICS27_ENCODING_PROTOBUF`].
+    fn try_from(encoding: &str) -> core::result::Result<Self, Self::Error> {
+        match encoding {
+            ICS27_ENCODING_ABI => Ok(Self::Abi),
+            ICS27_ENCODING_PROTOBUF => Ok(Self::Protobuf),
+            _ => Err(GMPError::InvalidEncoding),
+        }
+    }
+}
+
 impl From<GmpPacketData> for GmpPacketDataAbi {
     fn from(data: GmpPacketData) -> Self {
         Self {
@@ -43,20 +76,13 @@ impl From<GmpPacketDataAbi> for RawGmpPacketData {
 }
 
 /// Encodes a validated [`GmpPacketData`] into its wire format.
-///
-/// # Errors
-///
-/// Returns [`GMPError::InvalidEncoding`] if `encoding` is not one of:
-/// - `"application/x-solidity-abi"` — Solidity ABI encoding
-/// - `"application/x-protobuf"` — Protobuf encoding
-pub fn encode_gmp_packet(data: GmpPacketData, encoding: &str) -> Result<Vec<u8>> {
+pub fn encode_gmp_packet(data: GmpPacketData, encoding: GmpEncoding) -> Vec<u8> {
     match encoding {
-        ICS27_ENCODING_ABI => {
+        GmpEncoding::Abi => {
             use alloy_sol_types::SolValue;
-            Ok(GmpPacketDataAbi::from(data).abi_encode())
+            GmpPacketDataAbi::from(data).abi_encode()
         }
-        ICS27_ENCODING_PROTOBUF => Ok(data.encode_vec()),
-        _ => Err(GMPError::InvalidEncoding.into()),
+        GmpEncoding::Protobuf => data.encode_vec(),
     }
 }
 
@@ -66,22 +92,18 @@ pub fn encode_gmp_packet(data: GmpPacketData, encoding: &str) -> Result<Vec<u8>>
 ///
 /// # Errors
 ///
-/// - [`GMPError::InvalidEncoding`] if `encoding` is not one of:
-///   - `"application/x-solidity-abi"` — Solidity ABI encoding
-///   - `"application/x-protobuf"` — Protobuf encoding
-/// - [`GMPError::InvalidPacketData`] if `bytes` cannot be decoded in the given format.
-pub fn decode_gmp_packet(bytes: &[u8], encoding: &str) -> Result<RawGmpPacketData> {
+/// Returns [`GMPError::InvalidPacketData`] if `bytes` cannot be decoded in the given format.
+pub fn decode_gmp_packet(bytes: &[u8], encoding: GmpEncoding) -> Result<RawGmpPacketData> {
     match encoding {
-        ICS27_ENCODING_ABI => {
+        GmpEncoding::Abi => {
             use alloy_sol_types::SolValue;
             let abi =
                 GmpPacketDataAbi::abi_decode(bytes).map_err(|_| GMPError::InvalidPacketData)?;
             Ok(RawGmpPacketData::from(abi))
         }
-        ICS27_ENCODING_PROTOBUF => {
+        GmpEncoding::Protobuf => {
             RawGmpPacketData::decode(bytes).map_err(|_| GMPError::InvalidPacketData.into())
         }
-        _ => Err(GMPError::InvalidEncoding.into()),
     }
 }
 
@@ -90,30 +112,20 @@ pub fn decode_gmp_packet(bytes: &[u8], encoding: &str) -> Result<RawGmpPacketDat
 /// `result` is the raw success payload, not a pre-built [`GmpAcknowledgement`].
 /// For protobuf encoding with an empty `result`, a sentinel byte (`0x00`) is
 /// used to distinguish success-with-no-data from a missing field.
-///
-/// # Errors
-///
-/// Returns [`GMPError::InvalidEncoding`] if `encoding` is not one of:
-/// - `"application/x-solidity-abi"` — Solidity ABI encoding
-/// - `"application/x-protobuf"` — Protobuf encoding
-pub fn encode_gmp_ack(result: &[u8], encoding: &str) -> Result<Vec<u8>> {
+pub fn encode_gmp_ack(result: &[u8], encoding: GmpEncoding) -> Vec<u8> {
     match encoding {
-        ICS27_ENCODING_ABI => {
+        GmpEncoding::Abi => {
             use alloy_sol_types::SolValue;
-            Ok(
-                GmpAcknowledgementAbi::from(GmpAcknowledgement::success(result.to_vec()))
-                    .abi_encode(),
-            )
+            GmpAcknowledgementAbi::from(GmpAcknowledgement::success(result.to_vec())).abi_encode()
         }
-        ICS27_ENCODING_PROTOBUF => {
+        GmpEncoding::Protobuf => {
             let ack = if result.is_empty() {
                 GmpAcknowledgement::protobuf_empty_success()
             } else {
                 GmpAcknowledgement::success(result.to_vec())
             };
-            Ok(ack.encode_to_vec())
+            ack.encode_to_vec()
         }
-        _ => Err(GMPError::InvalidEncoding.into()),
     }
 }
 
@@ -121,22 +133,18 @@ pub fn encode_gmp_ack(result: &[u8], encoding: &str) -> Result<Vec<u8>> {
 ///
 /// # Errors
 ///
-/// - [`GMPError::InvalidEncoding`] if `encoding` is not one of:
-///   - `"application/x-solidity-abi"` — Solidity ABI encoding
-///   - `"application/x-protobuf"` — Protobuf encoding
-/// - [`GMPError::InvalidPacketData`] if `bytes` cannot be decoded in the given format.
-pub fn decode_gmp_ack(bytes: &[u8], encoding: &str) -> Result<GmpAcknowledgement> {
+/// Returns [`GMPError::InvalidPacketData`] if `bytes` cannot be decoded in the given format.
+pub fn decode_gmp_ack(bytes: &[u8], encoding: GmpEncoding) -> Result<GmpAcknowledgement> {
     match encoding {
-        ICS27_ENCODING_ABI => {
+        GmpEncoding::Abi => {
             use alloy_sol_types::SolValue;
             let abi = GmpAcknowledgementAbi::abi_decode(bytes)
                 .map_err(|_| GMPError::InvalidPacketData)?;
             Ok(GmpAcknowledgement::success(abi.result.into()))
         }
-        ICS27_ENCODING_PROTOBUF => {
+        GmpEncoding::Protobuf => {
             GmpAcknowledgement::decode_vec(bytes).map_err(|_| GMPError::InvalidPacketData.into())
         }
-        _ => Err(GMPError::InvalidEncoding.into()),
     }
 }
 
@@ -165,10 +173,27 @@ mod tests {
     }
 
     #[test]
+    fn encoding_string_round_trip() {
+        for encoding in [GmpEncoding::Abi, GmpEncoding::Protobuf] {
+            assert!(matches!(GmpEncoding::try_from(encoding.as_str()), Ok(e) if e == encoding));
+        }
+        assert_eq!(GmpEncoding::Abi.as_str(), ICS27_ENCODING_ABI);
+        assert_eq!(GmpEncoding::Protobuf.as_str(), ICS27_ENCODING_PROTOBUF);
+    }
+
+    #[test]
+    fn invalid_encoding_rejected() {
+        assert!(matches!(
+            GmpEncoding::try_from("application/json"),
+            Err(GMPError::InvalidEncoding)
+        ));
+    }
+
+    #[test]
     fn abi_round_trip() {
         let original = sample_packet_data();
-        let encoded = encode_gmp_packet(original, ICS27_ENCODING_ABI).unwrap();
-        let raw = decode_gmp_packet(&encoded, ICS27_ENCODING_ABI).unwrap();
+        let encoded = encode_gmp_packet(original, GmpEncoding::Abi);
+        let raw = decode_gmp_packet(&encoded, GmpEncoding::Abi).unwrap();
         assert_raw_matches_sample(&raw);
 
         let validated = GmpPacketData::try_from(raw).unwrap();
@@ -178,25 +203,12 @@ mod tests {
     #[test]
     fn protobuf_round_trip() {
         let original = sample_packet_data();
-        let encoded = encode_gmp_packet(original, ICS27_ENCODING_PROTOBUF).unwrap();
-        let raw = decode_gmp_packet(&encoded, ICS27_ENCODING_PROTOBUF).unwrap();
+        let encoded = encode_gmp_packet(original, GmpEncoding::Protobuf);
+        let raw = decode_gmp_packet(&encoded, GmpEncoding::Protobuf).unwrap();
         assert_raw_matches_sample(&raw);
 
         let validated = GmpPacketData::try_from(raw).unwrap();
         assert_eq!(validated.sender.as_ref(), "solana_sender_pubkey");
-    }
-
-    #[test]
-    fn invalid_encoding_rejected() {
-        let data = sample_packet_data();
-        let result = encode_gmp_packet(data, "application/json");
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn invalid_encoding_decode_rejected() {
-        let result = decode_gmp_packet(&[0, 1, 2], "application/json");
-        assert!(result.is_err());
     }
 
     #[test]
@@ -228,40 +240,35 @@ mod tests {
     #[test]
     fn ack_abi_round_trip() {
         let data = vec![1, 2, 3, 4];
-        let encoded = encode_gmp_ack(&data, ICS27_ENCODING_ABI).unwrap();
+        let encoded = encode_gmp_ack(&data, GmpEncoding::Abi);
         assert!(!encoded.is_empty());
-        let decoded = decode_gmp_ack(&encoded, ICS27_ENCODING_ABI).unwrap();
+        let decoded = decode_gmp_ack(&encoded, GmpEncoding::Abi).unwrap();
         assert_eq!(decoded.result, data);
     }
 
     #[test]
     fn ack_abi_empty_result() {
-        let encoded = encode_gmp_ack(&[], ICS27_ENCODING_ABI).unwrap();
+        let encoded = encode_gmp_ack(&[], GmpEncoding::Abi);
         assert!(!encoded.is_empty());
-        let decoded = decode_gmp_ack(&encoded, ICS27_ENCODING_ABI).unwrap();
+        let decoded = decode_gmp_ack(&encoded, GmpEncoding::Abi).unwrap();
         assert!(decoded.result.is_empty());
     }
 
     #[test]
     fn ack_protobuf_round_trip() {
         let data = vec![1, 2, 3, 4];
-        let encoded = encode_gmp_ack(&data, ICS27_ENCODING_PROTOBUF).unwrap();
+        let encoded = encode_gmp_ack(&data, GmpEncoding::Protobuf);
         assert!(!encoded.is_empty());
-        let decoded = decode_gmp_ack(&encoded, ICS27_ENCODING_PROTOBUF).unwrap();
+        let decoded = decode_gmp_ack(&encoded, GmpEncoding::Protobuf).unwrap();
         assert_eq!(decoded.result, data);
     }
 
     #[test]
     fn ack_protobuf_empty_result_uses_sentinel() {
-        let encoded = encode_gmp_ack(&[], ICS27_ENCODING_PROTOBUF).unwrap();
+        let encoded = encode_gmp_ack(&[], GmpEncoding::Protobuf);
         assert!(!encoded.is_empty());
-        let decoded = decode_gmp_ack(&encoded, ICS27_ENCODING_PROTOBUF).unwrap();
+        let decoded = decode_gmp_ack(&encoded, GmpEncoding::Protobuf).unwrap();
         assert_eq!(decoded.result, vec![0]);
-    }
-
-    #[test]
-    fn invalid_encoding_ack_rejected() {
-        assert!(encode_gmp_ack(&[1], "application/json").is_err());
     }
 
     #[test]

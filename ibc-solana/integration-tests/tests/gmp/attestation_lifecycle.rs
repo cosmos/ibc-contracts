@@ -120,9 +120,8 @@ async fn test_gmp_attestation_full_lifecycle() {
     // The router hashes this to get the commitment stored in the ack PDA.
     let raw_gmp_ack = ics27_gmp::encoding::encode_gmp_ack(
         &increment_amount.to_le_bytes(),
-        gmp::ICS27_ENCODING_PROTOBUF,
-    )
-    .expect("encode GMP ack");
+        ics27_gmp::encoding::GmpEncoding::Protobuf,
+    );
 
     // The ack PDA stores the commitment hash — verify consistency.
     let ack_commitment = extract_ack_data(&chain_b, recv.ack_pda).await;

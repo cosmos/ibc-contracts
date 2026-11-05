@@ -538,9 +538,10 @@ async fn run_gmp_leg(
         .await
         .expect("upload ack chunks failed");
 
-    let raw_ack =
-        ics27_gmp::encoding::encode_gmp_ack(&amount.to_le_bytes(), gmp::ICS27_ENCODING_PROTOBUF)
-            .expect("encode GMP ack");
+    let raw_ack = ics27_gmp::encoding::encode_gmp_ack(
+        &amount.to_le_bytes(),
+        ics27_gmp::encoding::GmpEncoding::Protobuf,
+    );
 
     let (ack_ix, _) = gmp::build_gmp_ack_packet_ix(
         relayer.pubkey(),

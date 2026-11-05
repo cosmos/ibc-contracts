@@ -103,9 +103,8 @@ async fn lifecycle(
 
     let raw_ack = ics27_gmp::encoding::encode_gmp_ack(
         &expected_counter.to_le_bytes(),
-        gmp::ICS27_ENCODING_PROTOBUF,
-    )
-    .expect("encode GMP ack");
+        ics27_gmp::encoding::GmpEncoding::Protobuf,
+    );
 
     relayer
         .gmp_ack_packet(

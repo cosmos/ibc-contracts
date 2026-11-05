@@ -3406,6 +3406,7 @@ version = "0.1.0"
 dependencies = [
  "anchor-lang",
  "sha2 0.10.9",
+ "solana-ibc-macros",
 ]
 
 [[package]]

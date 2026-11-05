@@ -194,8 +194,10 @@ mod tests {
         );
 
         // Pre-create AccessManager PDA
-        let (access_manager_pda, _) =
-            solana_ibc_types::access_manager::AccessManager::pda(access_manager::ID);
+        let (access_manager_pda, _) = Pubkey::find_program_address(
+            &[access_manager::state::AccessManager::SEED],
+            &access_manager::ID,
+        );
         let am = access_manager::state::AccessManager {
             roles: vec![access_manager::RoleData {
                 role_id: solana_ibc_types::roles::ADMIN_ROLE,
@@ -844,8 +846,10 @@ mod tests {
         );
 
         // AccessManager
-        let (access_manager_pda, _) =
-            solana_ibc_types::access_manager::AccessManager::pda(access_manager::ID);
+        let (access_manager_pda, _) = Pubkey::find_program_address(
+            &[access_manager::state::AccessManager::SEED],
+            &access_manager::ID,
+        );
         let am = access_manager::state::AccessManager {
             roles: vec![access_manager::RoleData {
                 role_id: solana_ibc_types::roles::ADMIN_ROLE,
@@ -1174,8 +1178,10 @@ mod tests {
             },
         );
 
-        let (access_manager_pda, _) =
-            solana_ibc_types::access_manager::AccessManager::pda(access_manager::ID);
+        let (access_manager_pda, _) = Pubkey::find_program_address(
+            &[access_manager::state::AccessManager::SEED],
+            &access_manager::ID,
+        );
         let am = access_manager::state::AccessManager {
             roles: vec![access_manager::RoleData {
                 role_id: solana_ibc_types::roles::ADMIN_ROLE,
@@ -1565,8 +1571,10 @@ mod tests {
             },
         );
 
-        let (access_manager_pda, _) =
-            solana_ibc_types::access_manager::AccessManager::pda(access_manager::ID);
+        let (access_manager_pda, _) = Pubkey::find_program_address(
+            &[access_manager::state::AccessManager::SEED],
+            &access_manager::ID,
+        );
         let am = access_manager::state::AccessManager {
             roles: vec![access_manager::RoleData {
                 role_id: solana_ibc_types::roles::ADMIN_ROLE,
@@ -1731,8 +1739,10 @@ mod tests {
             },
         );
 
-        let (access_manager_pda, _) =
-            solana_ibc_types::access_manager::AccessManager::pda(access_manager::ID);
+        let (access_manager_pda, _) = Pubkey::find_program_address(
+            &[access_manager::state::AccessManager::SEED],
+            &access_manager::ID,
+        );
         let am = access_manager::state::AccessManager {
             roles: vec![access_manager::RoleData {
                 role_id: solana_ibc_types::roles::ADMIN_ROLE,
