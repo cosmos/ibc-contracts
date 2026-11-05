@@ -461,6 +461,39 @@ abstract contract QBFTSimSuiteTest is Test {
         client.updateClient(update);
     }
 
+    /// @dev The clock drift check runs before any conflict check: `updateClient` rejects a conflicting header from the
+    /// future without freezing the client, while `misbehaviour` still accepts it as evidence.
+    function test_timestampFromFutureConflictingHeader() public {
+        SimHeader.Data memory stored = sim.seal(sim.nextBlock());
+        SimHeader.Data memory future = sim.nextBlock();
+        future.stateRoot = keccak256("equivocation");
+        future.timestamp = uint64(vm.getBlockTimestamp()) + MAX_CLOCK_DRIFT + 1;
+        future = sim.seal(future);
+        bytes memory storedUpdate = sim.updateMsg(2, stored);
+        bytes memory futureUpdate = sim.updateMsg(2, future);
+
+        vm.startPrank(ics26Router);
+        client.updateClient(storedUpdate);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IBesuLightClientErrors.HeaderFromFuture.selector,
+                vm.getBlockTimestamp(),
+                future.timestamp,
+                MAX_CLOCK_DRIFT
+            )
+        );
+        client.updateClient(futureUpdate);
+        assertFalse(_isFrozen(client));
+
+        vm.expectEmit(address(client));
+        emit IBesuLightClient.DoubleSign(
+            3, keccak256(abi.encode(_consensusState(stored))), keccak256(abi.encode(_consensusState(future)))
+        );
+        client.misbehaviour(_conflictingHeadersMisbehaviour(futureUpdate, storedUpdate));
+        vm.stopPrank();
+        assertTrue(_isFrozen(client));
+    }
+
     function test_lowQuorumAndUnknownSigner() public {
         address[] memory two = new address[](2);
         (two[0], two[1]) = (sim.validators()[0], sim.validators()[1]);
