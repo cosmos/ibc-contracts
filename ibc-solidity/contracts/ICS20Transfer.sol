@@ -156,13 +156,7 @@ contract ICS20Transfer is
         nonReentrant
         returns (uint64)
     {
-        require(msg_.amount > 0, IICS20Errors.ICS20InvalidAmount(0));
-        // transfer the tokens to us (requires the allowance to be set)
-        IEscrow escrow = _getOrCreateEscrow(msg_.sourceClient);
-        _transferFrom(_msgSender(), address(escrow), msg_.denom, msg_.amount);
-        escrow.recvCallback(msg_.denom, _msgSender(), msg_.amount);
-
-        return _sendTransferFromEscrowWithSender(msg_, address(escrow), _msgSender());
+        return _sendTransfer(msg_, _msgSender());
     }
 
     /// @inheritdoc IICS20Transfer
@@ -204,6 +198,16 @@ contract ICS20Transfer is
         restricted
         returns (uint64)
     {
+        return _sendTransfer(msg_, sender);
+    }
+
+    /// @notice Escrows the caller's tokens and sends a transfer on behalf of `sender`
+    /// @param msg_ The message for sending a transfer
+    /// @param sender The address of the sender, used to refund the tokens if the packet fails
+    /// @return sequence The sequence number of the packet created
+    // NOTE: We disable reentrancy for public functions.
+    // slither-disable-next-line reentrancy-no-eth
+    function _sendTransfer(IICS20TransferMsgs.SendTransferMsg calldata msg_, address sender) private returns (uint64) {
         require(msg_.amount > 0, IICS20Errors.ICS20InvalidAmount(0));
         // transfer the tokens to us (requires the allowance to be set)
         IEscrow escrow = _getOrCreateEscrow(msg_.sourceClient);
