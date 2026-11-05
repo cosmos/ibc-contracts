@@ -94,31 +94,6 @@ func TestWithIbcEurekaTestSuite(t *testing.T) {
 	suite.Run(t, new(IbcEurekaTestSuite))
 }
 
-// isEthLcOnCosmosAttestor returns true if the Ethereum light client on Cosmos uses any attestor type (attestor-native)
-func (s *IbcEurekaTestSuite) isEthLcOnCosmosAttestor() bool {
-	return s.GetEthLightClientType() == testvalues.EthLCOnCosmosTypeAttestorNative
-}
-
-// isEthLcOnCosmosNativeAttestor returns true if the Ethereum light client on Cosmos is a native ibc-go attestor (attestor-native)
-func (s *IbcEurekaTestSuite) isEthLcOnCosmosNativeAttestor() bool {
-	return s.GetEthLightClientType() == testvalues.EthLCOnCosmosTypeAttestorNative
-}
-
-// isCosmosLcOnEthAttestor returns true if the Cosmos light client on Ethereum uses attestor (COSMOS_LC_ON_ETH=attestor)
-func (s *IbcEurekaTestSuite) isCosmosLcOnEthAttestor() bool {
-	cosmosLcType := os.Getenv(testvalues.EnvKeyCosmosLcOnEth)
-	return cosmosLcType == testvalues.CosmosLcTypeAttestor
-}
-
-// getEthLcClientIDOnCosmos returns the expected client ID for the Ethereum light client deployed on Cosmos.
-// Returns FirstAttestationsClientID for native attestor, FirstWasmClientID otherwise.
-func (s *IbcEurekaTestSuite) getEthLcClientIDOnCosmos() string {
-	if s.isEthLcOnCosmosNativeAttestor() {
-		return testvalues.FirstAttestationsClientID
-	}
-	return testvalues.FirstWasmClientID
-}
-
 // SetupSuite calls the underlying IbcEurekaTestSuite's SetupSuite method
 // and deploys the IbcEureka contract
 func (s *IbcEurekaTestSuite) SetupSuite(ctx context.Context, proofType types.SupportedProofType) {
@@ -170,9 +145,7 @@ func (s *IbcEurekaTestSuite) SetupSuite(ctx context.Context, proofType types.Sup
 			s.Require().Fail("invalid prover type: %s", prover)
 		}
 
-		if os.Getenv(testvalues.EnvKeyRustLog) == "" {
-			os.Setenv(testvalues.EnvKeyRustLog, testvalues.EnvValueRustLog_Info)
-		}
+		testvalues.EnvEnsure(testvalues.EnvKeyRustLog, testvalues.EnvValueRustLog_Info)
 		os.Setenv(testvalues.EnvKeyEthRPC, eth.RPC)
 		os.Setenv(testvalues.EnvKeyTendermintRPC, simd.GetHostRPCAddress())
 		os.Setenv(testvalues.EnvKeySp1Prover, prover)
@@ -185,7 +158,7 @@ func (s *IbcEurekaTestSuite) SetupSuite(ctx context.Context, proofType types.Sup
 
 	s.Require().True(s.Run("Deploy IBC contracts", func() {
 		var forgeArgs []string
-		if os.Getenv(testvalues.EnvKeyEthTestnetType) == testvalues.EthTestnetTypeBesuQBFT {
+		if s.GetEthTestnetType() == testvalues.EthTestnetTypeBesuQBFT {
 			forgeArgs = []string{"--slow"}
 		}
 		stdout, err := eth.ForgeScript(s.deployer, testvalues.E2EDeployScriptPath, forgeArgs...)
@@ -204,10 +177,10 @@ func (s *IbcEurekaTestSuite) SetupSuite(ctx context.Context, proofType types.Sup
 	// Start Ethereum attestors if ETH_LC_TYPE=attestor (for eth→cosmos direction)
 	// NOTE: Not wrapped in s.Run() subtest to ensure t.Cleanup() registers on parent test,
 	// preventing premature container cleanup when subtest completes
-	if s.isEthLcOnCosmosAttestor() {
+	if s.IsEthLcOnCosmosAttestor() {
 		s.T().Log("Setting up Ethereum attestors...")
 		chainType := attestor.ChainTypeEvm
-		if os.Getenv(testvalues.EnvKeyEthTestnetType) == testvalues.EthTestnetTypePoS {
+		if s.GetEthTestnetType() == testvalues.EthTestnetTypePoS {
 			chainType = attestor.ChainTypeCosmos
 		}
 		result := attestor.SetupEthAttestors(ctx, s.T(), s.GetDockerClient(), s.GetNetworkID(), eth.DockerRPC, s.contractAddresses.Ics26Router, chainType)
@@ -218,7 +191,7 @@ func (s *IbcEurekaTestSuite) SetupSuite(ctx context.Context, proofType types.Sup
 	// Start Cosmos attestors if COSMOS_LC_TYPE=attestor (for cosmos→eth direction)
 	// NOTE: Not wrapped in s.Run() subtest to ensure t.Cleanup() registers on parent test,
 	// preventing premature container cleanup when subtest completes
-	if s.isCosmosLcOnEthAttestor() {
+	if s.IsCosmosLcOnEthAttestor() {
 		s.T().Log("Setting up Cosmos attestors...")
 		result := attestor.SetupCosmosAttestors(ctx, s.T(), s.GetDockerClient(), s.GetNetworkID(), simd.GetRPCAddress())
 		s.cosmosAttestorEndpoints = result.Endpoints
@@ -232,7 +205,7 @@ func (s *IbcEurekaTestSuite) SetupSuite(ctx context.Context, proofType types.Sup
 		builder := proofapi.NewConfigBuilder()
 
 		// Eth → Cosmos direction
-		if s.isEthLcOnCosmosAttestor() {
+		if s.IsEthLcOnCosmosAttestor() {
 			builder.EthToCosmosAttested(proofapi.EthToCosmosAttestedParams{
 				EthChainID:        eth.ChainID.String(),
 				CosmosChainID:     simd.Config().ChainID,
@@ -255,12 +228,12 @@ func (s *IbcEurekaTestSuite) SetupSuite(ctx context.Context, proofType types.Sup
 				EthRPC:        eth.RPC,
 				BeaconAPI:     beaconAPI,
 				SignerAddress: s.SimdRelayerSubmitter.FormattedAddress(),
-				MockClient:    os.Getenv(testvalues.EnvKeyEthTestnetType) == testvalues.EthTestnetTypeAnvil,
+				MockClient:    s.GetEthTestnetType() == testvalues.EthTestnetTypeAnvil,
 			})
 		}
 
 		// Cosmos → Eth direction
-		if s.isCosmosLcOnEthAttestor() {
+		if s.IsCosmosLcOnEthAttestor() {
 			builder.CosmosToEthAttested(proofapi.CosmosToEthAttestedParams{
 				CosmosChainID:       simd.Config().ChainID,
 				EthChainID:          eth.ChainID.String(),
@@ -286,15 +259,7 @@ func (s *IbcEurekaTestSuite) SetupSuite(ctx context.Context, proofType types.Sup
 		}
 
 		config := builder.Build()
-		err := config.GenerateConfigFile(testvalues.ProofAPIConfigFilePath)
-		s.Require().NoError(err)
-
-		proofApiProcess, err = proofapi.StartProofAPI(testvalues.ProofAPIConfigFilePath)
-		s.Require().NoError(err)
-
-		s.T().Cleanup(func() {
-			os.Remove(testvalues.ProofAPIConfigFilePath)
-		})
+		proofApiProcess = s.StartProofAPI(config)
 	}))
 
 	s.T().Cleanup(func() {
@@ -313,7 +278,7 @@ func (s *IbcEurekaTestSuite) SetupSuite(ctx context.Context, proofType types.Sup
 	}))
 
 	// Deploy light client on Ethereum for Cosmos→Eth direction
-	if s.isCosmosLcOnEthAttestor() {
+	if s.IsCosmosLcOnEthAttestor() {
 		s.Require().True(s.Run("Deploy Cosmos attestor light client on EVM", func() {
 			latestCosmosHeader, err := simd.GetFullNode().Client.Header(ctx, nil)
 			s.Require().NoError(err)
@@ -397,7 +362,7 @@ func (s *IbcEurekaTestSuite) SetupSuite(ctx context.Context, proofType types.Sup
 	s.Require().True(s.Run("Create ethereum light client on Cosmos chain", func() {
 		checksumHex := s.StoreLightClient(ctx, simd, s.SimdRelayerSubmitter)
 		// checksumHex is empty for native attestor (no wasm needed)
-		if !s.isEthLcOnCosmosNativeAttestor() {
+		if !s.IsEthLcOnCosmosAttestor() {
 			s.Require().NotEmpty(checksumHex)
 		}
 
@@ -405,7 +370,7 @@ func (s *IbcEurekaTestSuite) SetupSuite(ctx context.Context, proofType types.Sup
 
 		// Get attestor address if Eth→Cosmos uses attestor mode
 		var attestorAddress string
-		if s.isEthLcOnCosmosAttestor() {
+		if s.IsEthLcOnCosmosAttestor() {
 			s.Require().NotEmpty(s.ethAttestorAddresses, "eth attestor addresses should be set")
 			attestorAddress = s.ethAttestorAddresses[0]
 		}
@@ -416,7 +381,7 @@ func (s *IbcEurekaTestSuite) SetupSuite(ctx context.Context, proofType types.Sup
 			}
 
 			// Add attestor-specific parameters if Eth→Cosmos uses attestor mode
-			if s.isEthLcOnCosmosAttestor() {
+			if s.IsEthLcOnCosmosAttestor() {
 				currentBlockHeader, err := eth.RPCClient.HeaderByNumber(ctx, nil)
 				s.Require().NoError(err)
 
@@ -453,7 +418,7 @@ func (s *IbcEurekaTestSuite) SetupSuite(ctx context.Context, proofType types.Sup
 			resp := s.MustBroadcastSdkTxBody(ctx, simd, s.SimdRelayerSubmitter, 20_000_000, createClientTxBodyBz)
 			clientId, err := cosmos.GetEventValue(resp.Events, clienttypes.EventTypeCreateClient, clienttypes.AttributeKeyClientID)
 			s.Require().NoError(err)
-			s.Require().Equal(s.getEthLcClientIDOnCosmos(), clientId)
+			s.Require().Equal(s.GetEthLcClientIDOnCosmos(), clientId)
 		}))
 	}))
 
@@ -462,14 +427,14 @@ func (s *IbcEurekaTestSuite) SetupSuite(ctx context.Context, proofType types.Sup
 		// Attestor: uses keccak256(commitment_path) directly, so prefix is [""]
 		// SP1: uses ICS23 merkle proofs against IAVL, so prefix is ["ibc", ""]
 		var merklePrefix [][]byte
-		if s.isCosmosLcOnEthAttestor() {
+		if s.IsCosmosLcOnEthAttestor() {
 			merklePrefix = [][]byte{[]byte("")}
 		} else {
 			merklePrefix = [][]byte{[]byte(ibcexported.StoreKey), []byte("")}
 		}
 
 		counterpartyInfo := ics26router.IICS02ClientMsgsCounterpartyInfo{
-			ClientId:     s.getEthLcClientIDOnCosmos(),
+			ClientId:     s.GetEthLcClientIDOnCosmos(),
 			MerklePrefix: merklePrefix,
 		}
 		tx, err := s.ics26Contract.AddClient(s.GetTransactOpts(s.deployer, eth), testvalues.CustomClientID, counterpartyInfo, s.sp1Ics07Address)
@@ -481,14 +446,14 @@ func (s *IbcEurekaTestSuite) SetupSuite(ctx context.Context, proofType types.Sup
 		event, err := e2esuite.GetEvmEvent(receipt, s.ics26Contract.ParseICS02ClientAdded)
 		s.Require().NoError(err)
 		s.Require().Equal(testvalues.CustomClientID, event.ClientId)
-		s.Require().Equal(s.getEthLcClientIDOnCosmos(), event.CounterpartyInfo.ClientId)
+		s.Require().Equal(s.GetEthLcClientIDOnCosmos(), event.CounterpartyInfo.ClientId)
 	}))
 
 	s.Require().True(s.Run("Register counterparty on Cosmos chain", func() {
 		merklePathPrefix := [][]byte{[]byte("")}
 
 		_, err := s.BroadcastMessages(ctx, simd, s.SimdRelayerSubmitter, 200_000, &clienttypesv2.MsgRegisterCounterparty{
-			ClientId:                 s.getEthLcClientIDOnCosmos(),
+			ClientId:                 s.GetEthLcClientIDOnCosmos(),
 			CounterpartyMerklePrefix: merklePathPrefix,
 			CounterpartyClientId:     testvalues.CustomClientID,
 			Signer:                   s.SimdRelayerSubmitter.FormattedAddress(),
@@ -535,7 +500,7 @@ func (s *IbcEurekaTestSuite) DeployTest(ctx context.Context, proofType types.Sup
 
 	eth, simd := s.Eth.Chains[0], s.Cosmos.Chains[0]
 
-	if !s.isCosmosLcOnEthAttestor() {
+	if !s.IsCosmosLcOnEthAttestor() {
 		s.Require().True(s.Run("Verify SP1 Client", func() {
 			clientState, err := s.sp1Ics07Contract.ClientState(nil)
 			s.Require().NoError(err)
@@ -558,13 +523,13 @@ func (s *IbcEurekaTestSuite) DeployTest(ctx context.Context, proofType types.Sup
 		clientAddress, err := s.ics26Contract.GetClient(nil, testvalues.CustomClientID)
 		s.Require().NoError(err)
 		s.Require().NotEqual(ethcommon.Address{}, clientAddress)
-		if !s.isCosmosLcOnEthAttestor() {
+		if !s.IsCosmosLcOnEthAttestor() {
 			s.Require().Equal(s.sp1Ics07Address, clientAddress)
 		}
 
 		counterpartyInfo, err := s.ics26Contract.GetCounterparty(nil, testvalues.CustomClientID)
 		s.Require().NoError(err)
-		s.Require().Equal(s.getEthLcClientIDOnCosmos(), counterpartyInfo.ClientId)
+		s.Require().Equal(s.GetEthLcClientIDOnCosmos(), counterpartyInfo.ClientId)
 	}))
 
 	s.Require().True(s.Run("Verify ICS26 Router", func() {
@@ -581,12 +546,12 @@ func (s *IbcEurekaTestSuite) DeployTest(ctx context.Context, proofType types.Sup
 
 	s.Require().True(s.Run("Verify ethereum light client", func() {
 		_, err := e2esuite.GRPCQuery[clienttypes.QueryClientStateResponse](ctx, simd, &clienttypes.QueryClientStateRequest{
-			ClientId: s.getEthLcClientIDOnCosmos(),
+			ClientId: s.GetEthLcClientIDOnCosmos(),
 		})
 		s.Require().NoError(err)
 
 		counterpartyInfoResp, err := e2esuite.GRPCQuery[clienttypesv2.QueryCounterpartyInfoResponse](ctx, simd, &clienttypesv2.QueryCounterpartyInfoRequest{
-			ClientId: s.getEthLcClientIDOnCosmos(),
+			ClientId: s.GetEthLcClientIDOnCosmos(),
 		})
 		s.Require().NoError(err)
 		s.Require().Equal(testvalues.CustomClientID, counterpartyInfoResp.CounterpartyInfo.ClientId)
@@ -715,7 +680,7 @@ func (s *IbcEurekaTestSuite) ICS20TransferERC20TokenfromEthereumToCosmosAndBackT
 		s.Require().Equal(transfertypes.PortID, sendPacket.Payloads[0].SourcePort)
 		s.Require().Equal(testvalues.CustomClientID, sendPacket.SourceClient)
 		s.Require().Equal(transfertypes.PortID, sendPacket.Payloads[0].DestPort)
-		s.Require().Equal(s.getEthLcClientIDOnCosmos(), sendPacket.DestClient)
+		s.Require().Equal(s.GetEthLcClientIDOnCosmos(), sendPacket.DestClient)
 		s.Require().Equal(transfertypes.V1, sendPacket.Payloads[0].Version)
 		s.Require().Equal(transfertypes.EncodingABI, sendPacket.Payloads[0].Encoding)
 
@@ -748,7 +713,7 @@ func (s *IbcEurekaTestSuite) ICS20TransferERC20TokenfromEthereumToCosmosAndBackT
 				DstChain:    simd.Config().ChainID,
 				SourceTxIds: [][]byte{ethSendTxHash},
 				SrcClientId: testvalues.CustomClientID,
-				DstClientId: s.getEthLcClientIDOnCosmos(),
+				DstClientId: s.GetEthLcClientIDOnCosmos(),
 			})
 			s.Require().NoError(err)
 			s.Require().NotEmpty(resp.Tx)
@@ -770,7 +735,7 @@ func (s *IbcEurekaTestSuite) ICS20TransferERC20TokenfromEthereumToCosmosAndBackT
 		}))
 
 		s.Require().True(s.Run("Verify balances on Cosmos chain", func() {
-			denomOnCosmos = transfertypes.NewDenom(s.contractAddresses.Erc20, transfertypes.NewHop(transfertypes.PortID, s.getEthLcClientIDOnCosmos()))
+			denomOnCosmos = transfertypes.NewDenom(s.contractAddresses.Erc20, transfertypes.NewHop(transfertypes.PortID, s.GetEthLcClientIDOnCosmos()))
 
 			// User balance on Cosmos chain
 			resp, err := e2esuite.GRPCQuery[banktypes.QueryBalanceResponse](ctx, simd, &banktypes.QueryBalanceRequest{
@@ -791,7 +756,7 @@ func (s *IbcEurekaTestSuite) ICS20TransferERC20TokenfromEthereumToCosmosAndBackT
 				SrcChain:    simd.Config().ChainID,
 				DstChain:    eth.ChainID.String(),
 				SourceTxIds: [][]byte{ackTxHash},
-				SrcClientId: s.getEthLcClientIDOnCosmos(),
+				SrcClientId: s.GetEthLcClientIDOnCosmos(),
 				DstClientId: testvalues.CustomClientID,
 			})
 			s.Require().NoError(err)
@@ -856,7 +821,7 @@ func (s *IbcEurekaTestSuite) ICS20TransferERC20TokenfromEthereumToCosmosAndBackT
 		transferMsgs := make([]sdk.Msg, numOfTransfers)
 		for i := range numOfTransfers {
 			transferMsgs[i] = &channeltypesv2.MsgSendPacket{
-				SourceClient:     s.getEthLcClientIDOnCosmos(),
+				SourceClient:     s.GetEthLcClientIDOnCosmos(),
 				TimeoutTimestamp: timeout,
 				Payloads: []channeltypesv2.Payload{
 					payload,
@@ -893,7 +858,7 @@ func (s *IbcEurekaTestSuite) ICS20TransferERC20TokenfromEthereumToCosmosAndBackT
 				SrcChain:    simd.Config().ChainID,
 				DstChain:    eth.ChainID.String(),
 				SourceTxIds: [][]byte{returnSendTxHash},
-				SrcClientId: s.getEthLcClientIDOnCosmos(),
+				SrcClientId: s.GetEthLcClientIDOnCosmos(),
 				DstClientId: testvalues.CustomClientID,
 			})
 			s.Require().NoError(err)
@@ -938,7 +903,7 @@ func (s *IbcEurekaTestSuite) ICS20TransferERC20TokenfromEthereumToCosmosAndBackT
 		s.Require().True(s.Run("Verify commitments exists", func() {
 			for i := range numOfTransfers {
 				resp, err := e2esuite.GRPCQuery[channeltypesv2.QueryPacketCommitmentResponse](ctx, simd, &channeltypesv2.QueryPacketCommitmentRequest{
-					ClientId: s.getEthLcClientIDOnCosmos(),
+					ClientId: s.GetEthLcClientIDOnCosmos(),
 					Sequence: uint64(i) + 1,
 				})
 				s.Require().NoError(err)
@@ -953,7 +918,7 @@ func (s *IbcEurekaTestSuite) ICS20TransferERC20TokenfromEthereumToCosmosAndBackT
 				DstChain:    simd.Config().ChainID,
 				SourceTxIds: [][]byte{returnAckTxHash},
 				SrcClientId: testvalues.CustomClientID,
-				DstClientId: s.getEthLcClientIDOnCosmos(),
+				DstClientId: s.GetEthLcClientIDOnCosmos(),
 			})
 			s.Require().NoError(err)
 			s.Require().NotEmpty(resp.Tx)
@@ -977,7 +942,7 @@ func (s *IbcEurekaTestSuite) ICS20TransferERC20TokenfromEthereumToCosmosAndBackT
 		s.Require().True(s.Run("Verify commitments removed", func() {
 			for i := range numOfTransfers {
 				_, err := e2esuite.GRPCQuery[channeltypesv2.QueryPacketCommitmentResponse](ctx, simd, &channeltypesv2.QueryPacketCommitmentRequest{
-					ClientId: s.getEthLcClientIDOnCosmos(),
+					ClientId: s.GetEthLcClientIDOnCosmos(),
 					Sequence: uint64(i) + 1,
 				})
 				s.Require().ErrorContains(err, "packet commitment hash not found")
@@ -1060,7 +1025,7 @@ func (s *IbcEurekaTestSuite) ICS20TransferERC20TokenFromEthereumToCosmosAndBackF
 				DstChain:    simd.Config().ChainID,
 				SourceTxIds: [][]byte{ethSendTxHash},
 				SrcClientId: testvalues.CustomClientID,
-				DstClientId: s.getEthLcClientIDOnCosmos(),
+				DstClientId: s.GetEthLcClientIDOnCosmos(),
 			})
 			s.Require().NoError(err)
 
@@ -1078,7 +1043,7 @@ func (s *IbcEurekaTestSuite) ICS20TransferERC20TokenFromEthereumToCosmosAndBackF
 	}))
 
 	s.Require().True(s.Run("Transfer tokens back from Cosmos chain with invalid receiver should fail", func() {
-		denomOnCosmos := transfertypes.NewDenom(s.contractAddresses.Erc20, transfertypes.NewHop(transfertypes.PortID, s.getEthLcClientIDOnCosmos()))
+		denomOnCosmos := transfertypes.NewDenom(s.contractAddresses.Erc20, transfertypes.NewHop(transfertypes.PortID, s.GetEthLcClientIDOnCosmos()))
 		timeout := uint64(time.Now().Add(30 * time.Minute).Unix())
 		ibcCoin := sdk.NewCoin(denomOnCosmos.Path(), sdkmath.NewIntFromBigInt(transferAmount))
 
@@ -1101,7 +1066,7 @@ func (s *IbcEurekaTestSuite) ICS20TransferERC20TokenFromEthereumToCosmosAndBackF
 		}
 
 		transferMsg := &channeltypesv2.MsgSendPacket{
-			SourceClient:     s.getEthLcClientIDOnCosmos(),
+			SourceClient:     s.GetEthLcClientIDOnCosmos(),
 			TimeoutTimestamp: timeout,
 			Payloads: []channeltypesv2.Payload{
 				payload,
@@ -1127,7 +1092,7 @@ func (s *IbcEurekaTestSuite) ICS20TransferERC20TokenFromEthereumToCosmosAndBackF
 					SrcChain:    simd.Config().ChainID,
 					DstChain:    eth.ChainID.String(),
 					SourceTxIds: [][]byte{relayTxHash},
-					SrcClientId: s.getEthLcClientIDOnCosmos(),
+					SrcClientId: s.GetEthLcClientIDOnCosmos(),
 					DstClientId: testvalues.CustomClientID,
 				})
 				s.Require().NoError(err)
@@ -1153,7 +1118,7 @@ func (s *IbcEurekaTestSuite) ICS20TransferERC20TokenFromEthereumToCosmosAndBackF
 					DstChain:    simd.Config().ChainID,
 					SourceTxIds: [][]byte{transferRelayTxHashBz},
 					SrcClientId: testvalues.CustomClientID,
-					DstClientId: s.getEthLcClientIDOnCosmos(),
+					DstClientId: s.GetEthLcClientIDOnCosmos(),
 				})
 				s.Require().NoError(err)
 				s.Require().NotEmpty(resp.Tx)
@@ -1232,7 +1197,7 @@ func (s *IbcEurekaTestSuite) ICS20TransferNativeCosmosCoinsToEthereumAndBackTest
 			Value:           encodedPayload,
 		}
 		msgSendPacket := channeltypesv2.MsgSendPacket{
-			SourceClient:     s.getEthLcClientIDOnCosmos(),
+			SourceClient:     s.GetEthLcClientIDOnCosmos(),
 			TimeoutTimestamp: timeout,
 			Payloads: []channeltypesv2.Payload{
 				payload,
@@ -1267,7 +1232,7 @@ func (s *IbcEurekaTestSuite) ICS20TransferNativeCosmosCoinsToEthereumAndBackTest
 				SrcChain:    simd.Config().ChainID,
 				DstChain:    eth.ChainID.String(),
 				SourceTxIds: [][]byte{cosmosSendTxHash},
-				SrcClientId: s.getEthLcClientIDOnCosmos(),
+				SrcClientId: s.GetEthLcClientIDOnCosmos(),
 				DstClientId: testvalues.CustomClientID,
 			})
 			s.Require().NoError(err)
@@ -1333,7 +1298,7 @@ func (s *IbcEurekaTestSuite) ICS20TransferNativeCosmosCoinsToEthereumAndBackTest
 	s.Require().True(s.Run("Acknowledge packet on Cosmos chain", func() {
 		s.Require().True(s.Run("Verify commitments exists", func() {
 			resp, err := e2esuite.GRPCQuery[channeltypesv2.QueryPacketCommitmentResponse](ctx, simd, &channeltypesv2.QueryPacketCommitmentRequest{
-				ClientId: s.getEthLcClientIDOnCosmos(),
+				ClientId: s.GetEthLcClientIDOnCosmos(),
 				Sequence: 1,
 			})
 			s.Require().NoError(err)
@@ -1347,7 +1312,7 @@ func (s *IbcEurekaTestSuite) ICS20TransferNativeCosmosCoinsToEthereumAndBackTest
 				DstChain:    simd.Config().ChainID,
 				SourceTxIds: [][]byte{ackTxHash},
 				SrcClientId: testvalues.CustomClientID,
-				DstClientId: s.getEthLcClientIDOnCosmos(),
+				DstClientId: s.GetEthLcClientIDOnCosmos(),
 			})
 			s.Require().NoError(err)
 			s.Require().NotEmpty(resp.Tx)
@@ -1371,7 +1336,7 @@ func (s *IbcEurekaTestSuite) ICS20TransferNativeCosmosCoinsToEthereumAndBackTest
 
 		s.Require().True(s.Run("Verify commitments removed", func() {
 			_, err := e2esuite.GRPCQuery[channeltypesv2.QueryPacketCommitmentResponse](ctx, simd, &channeltypesv2.QueryPacketCommitmentRequest{
-				ClientId: s.getEthLcClientIDOnCosmos(),
+				ClientId: s.GetEthLcClientIDOnCosmos(),
 				Sequence: 1,
 			})
 			s.Require().ErrorContains(err, "packet commitment hash not found")
@@ -1420,7 +1385,7 @@ func (s *IbcEurekaTestSuite) ICS20TransferNativeCosmosCoinsToEthereumAndBackTest
 		s.Require().Equal(transfertypes.PortID, sendPacketEvent.Packet.Payloads[0].SourcePort)
 		s.Require().Equal(testvalues.CustomClientID, sendPacketEvent.Packet.SourceClient)
 		s.Require().Equal(transfertypes.PortID, sendPacketEvent.Packet.Payloads[0].DestPort)
-		s.Require().Equal(s.getEthLcClientIDOnCosmos(), sendPacketEvent.Packet.DestClient)
+		s.Require().Equal(s.GetEthLcClientIDOnCosmos(), sendPacketEvent.Packet.DestClient)
 		s.Require().Equal(transfertypes.V1, sendPacketEvent.Packet.Payloads[0].Version)
 		s.Require().Equal(transfertypes.EncodingABI, sendPacketEvent.Packet.Payloads[0].Encoding)
 
@@ -1445,7 +1410,7 @@ func (s *IbcEurekaTestSuite) ICS20TransferNativeCosmosCoinsToEthereumAndBackTest
 				DstChain:    simd.Config().ChainID,
 				SourceTxIds: [][]byte{ethSendTxHash},
 				SrcClientId: testvalues.CustomClientID,
-				DstClientId: s.getEthLcClientIDOnCosmos(),
+				DstClientId: s.GetEthLcClientIDOnCosmos(),
 			})
 			s.Require().NoError(err)
 			s.Require().NotEmpty(resp.Tx)
@@ -1496,7 +1461,7 @@ func (s *IbcEurekaTestSuite) ICS20TransferNativeCosmosCoinsToEthereumAndBackTest
 				SrcChain:    simd.Config().ChainID,
 				DstChain:    eth.ChainID.String(),
 				SourceTxIds: [][]byte{returnAckTxHash},
-				SrcClientId: s.getEthLcClientIDOnCosmos(),
+				SrcClientId: s.GetEthLcClientIDOnCosmos(),
 				DstClientId: testvalues.CustomClientID,
 			})
 			s.Require().NoError(err)
@@ -1590,7 +1555,7 @@ func (s *IbcEurekaTestSuite) FilteredICS20TimeoutPacketFromEthereumTest(
 
 	var originalBalance *sdk.Coin
 	s.Require().True(s.Run("Retrieve original balance", func() {
-		denomOnCosmos := transfertypes.NewDenom(s.contractAddresses.Erc20, transfertypes.NewHop(transfertypes.PortID, s.getEthLcClientIDOnCosmos()))
+		denomOnCosmos := transfertypes.NewDenom(s.contractAddresses.Erc20, transfertypes.NewHop(transfertypes.PortID, s.GetEthLcClientIDOnCosmos()))
 
 		resp, err := e2esuite.GRPCQuery[banktypes.QueryBalanceResponse](ctx, simd, &banktypes.QueryBalanceRequest{
 			Address: cosmosUserAddress,
@@ -1672,7 +1637,7 @@ func (s *IbcEurekaTestSuite) FilteredICS20TimeoutPacketFromEthereumTest(
 			DstChain:    simd.Config().ChainID,
 			SourceTxIds: ethSendTxHashes,
 			SrcClientId: testvalues.CustomClientID,
-			DstClientId: s.getEthLcClientIDOnCosmos(),
+			DstClientId: s.GetEthLcClientIDOnCosmos(),
 		})
 		s.Require().NoError(err)
 		s.Require().NotEmpty(resp.Tx)
@@ -1692,7 +1657,7 @@ func (s *IbcEurekaTestSuite) FilteredICS20TimeoutPacketFromEthereumTest(
 				SrcChain:           simd.Config().ChainID,
 				DstChain:           eth.ChainID.String(),
 				TimeoutTxIds:       ethSendTxHashes,
-				SrcClientId:        s.getEthLcClientIDOnCosmos(),
+				SrcClientId:        s.GetEthLcClientIDOnCosmos(),
 				DstClientId:        testvalues.CustomClientID,
 				DstPacketSequences: timeoutFilter,
 			})
@@ -1733,7 +1698,7 @@ func (s *IbcEurekaTestSuite) FilteredICS20TimeoutPacketFromEthereumTest(
 		}))
 
 		s.Require().True(s.Run("Verify no balance on Cosmos chain", func() {
-			denomOnCosmos := transfertypes.NewDenom(s.contractAddresses.Erc20, transfertypes.NewHop(transfertypes.PortID, s.getEthLcClientIDOnCosmos()))
+			denomOnCosmos := transfertypes.NewDenom(s.contractAddresses.Erc20, transfertypes.NewHop(transfertypes.PortID, s.GetEthLcClientIDOnCosmos()))
 
 			resp, err := e2esuite.GRPCQuery[banktypes.QueryBalanceResponse](ctx, simd, &banktypes.QueryBalanceRequest{
 				Address: cosmosUserAddress,
@@ -1750,7 +1715,7 @@ func (s *IbcEurekaTestSuite) FilteredICS20TimeoutPacketFromEthereumTest(
 			DstChain:    simd.Config().ChainID,
 			SourceTxIds: ethSendTxHashes,
 			SrcClientId: testvalues.CustomClientID,
-			DstClientId: s.getEthLcClientIDOnCosmos(),
+			DstClientId: s.GetEthLcClientIDOnCosmos(),
 		})
 		// TODO: https://github.com/lfdt-ibc/ibc-contracts/issues/363
 		// The following assertions should be Error and Nil, but the relayer returns a valid response currently.
@@ -1852,7 +1817,7 @@ func (s *IbcEurekaTestSuite) ICS20ErrorAckToEthereumTest(
 				DstChain:    simd.Config().ChainID,
 				SourceTxIds: [][]byte{ethSendTxHash},
 				SrcClientId: testvalues.CustomClientID,
-				DstClientId: s.getEthLcClientIDOnCosmos(),
+				DstClientId: s.GetEthLcClientIDOnCosmos(),
 			})
 			s.Require().NoError(err)
 			s.Require().NotEmpty(resp.Tx)
@@ -1871,7 +1836,7 @@ func (s *IbcEurekaTestSuite) ICS20ErrorAckToEthereumTest(
 		}))
 
 		s.Require().True(s.Run("Verify no balance on Cosmos chain", func() {
-			denomOnCosmos = transfertypes.NewDenom(s.contractAddresses.Erc20, transfertypes.NewHop(transfertypes.PortID, s.getEthLcClientIDOnCosmos()))
+			denomOnCosmos = transfertypes.NewDenom(s.contractAddresses.Erc20, transfertypes.NewHop(transfertypes.PortID, s.GetEthLcClientIDOnCosmos()))
 
 			_, err := e2esuite.GRPCQuery[banktypes.QueryBalanceResponse](ctx, simd, &banktypes.QueryBalanceRequest{
 				Address: ibctesting.InvalidID,
@@ -1888,7 +1853,7 @@ func (s *IbcEurekaTestSuite) ICS20ErrorAckToEthereumTest(
 				SrcChain:    simd.Config().ChainID,
 				DstChain:    eth.ChainID.String(),
 				SourceTxIds: [][]byte{ackTxHash},
-				SrcClientId: s.getEthLcClientIDOnCosmos(),
+				SrcClientId: s.GetEthLcClientIDOnCosmos(),
 				DstClientId: testvalues.CustomClientID,
 			})
 			s.Require().NoError(err)
@@ -1992,7 +1957,7 @@ func (s *IbcEurekaTestSuite) FilteredICS20TimeoutFromCosmosTimeoutTest(
 				Value:           encodedPayload,
 			}
 			msgSendPacket := channeltypesv2.MsgSendPacket{
-				SourceClient:     s.getEthLcClientIDOnCosmos(),
+				SourceClient:     s.GetEthLcClientIDOnCosmos(),
 				TimeoutTimestamp: timeout,
 				Payloads: []channeltypesv2.Payload{
 					payload,
@@ -2028,7 +1993,7 @@ func (s *IbcEurekaTestSuite) FilteredICS20TimeoutFromCosmosTimeoutTest(
 			SrcChain:    simd.Config().ChainID,
 			DstChain:    eth.ChainID.String(),
 			SourceTxIds: sendTxHashes,
-			SrcClientId: s.getEthLcClientIDOnCosmos(),
+			SrcClientId: s.GetEthLcClientIDOnCosmos(),
 			DstClientId: testvalues.CustomClientID,
 		})
 		s.Require().NoError(err)
@@ -2049,7 +2014,7 @@ func (s *IbcEurekaTestSuite) FilteredICS20TimeoutFromCosmosTimeoutTest(
 				DstChain:           simd.Config().ChainID,
 				TimeoutTxIds:       sendTxHashes,
 				SrcClientId:        testvalues.CustomClientID,
-				DstClientId:        s.getEthLcClientIDOnCosmos(),
+				DstClientId:        s.GetEthLcClientIDOnCosmos(),
 				DstPacketSequences: timeoutFilter,
 			})
 			s.Require().NoError(err)
@@ -2081,7 +2046,7 @@ func (s *IbcEurekaTestSuite) FilteredICS20TimeoutFromCosmosTimeoutTest(
 
 	// We are skipping the replay attack test on non-PoS mode
 	// In PoW mode, the test below will NOT fail as the mock light client accepts all proofs without verification.
-	if os.Getenv(testvalues.EnvKeyEthTestnetType) != testvalues.EthTestnetTypePoS {
+	if s.GetEthTestnetType() != testvalues.EthTestnetTypePoS {
 		s.T().Skip("Skipping replay attack test on non-PoS mode")
 	}
 
@@ -2141,7 +2106,7 @@ func (s *IbcEurekaTestSuite) TimeoutPacketEthRemintsVouchersTest(ctx context.Con
 			Value:           encodedPayload,
 		}
 		msgSendPacket := channeltypesv2.MsgSendPacket{
-			SourceClient:     s.getEthLcClientIDOnCosmos(),
+			SourceClient:     s.GetEthLcClientIDOnCosmos(),
 			TimeoutTimestamp: timeout,
 			Payloads: []channeltypesv2.Payload{
 				payload,
@@ -2167,7 +2132,7 @@ func (s *IbcEurekaTestSuite) TimeoutPacketEthRemintsVouchersTest(ctx context.Con
 				SrcChain:    simd.Config().ChainID,
 				DstChain:    eth.ChainID.String(),
 				SourceTxIds: [][]byte{cosmosSendTxHash},
-				SrcClientId: s.getEthLcClientIDOnCosmos(),
+				SrcClientId: s.GetEthLcClientIDOnCosmos(),
 				DstClientId: testvalues.CustomClientID,
 			})
 			s.Require().NoError(err)
@@ -2208,7 +2173,7 @@ func (s *IbcEurekaTestSuite) TimeoutPacketEthRemintsVouchersTest(ctx context.Con
 				DstChain:    simd.Config().ChainID,
 				SourceTxIds: [][]byte{ackTxHash},
 				SrcClientId: testvalues.CustomClientID,
-				DstClientId: s.getEthLcClientIDOnCosmos(),
+				DstClientId: s.GetEthLcClientIDOnCosmos(),
 			})
 			s.Require().NoError(err)
 			ackRelayTxBodyBz = resp.Tx
@@ -2257,7 +2222,7 @@ func (s *IbcEurekaTestSuite) TimeoutPacketEthRemintsVouchersTest(ctx context.Con
 			DstChain:    simd.Config().ChainID,
 			SourceTxIds: [][]byte{ethTimeoutSendTxHash},
 			SrcClientId: testvalues.CustomClientID,
-			DstClientId: s.getEthLcClientIDOnCosmos(),
+			DstClientId: s.GetEthLcClientIDOnCosmos(),
 		})
 		s.Require().NoError(err)
 		recvRelayTxBodyBz = resp.Tx
@@ -2274,7 +2239,7 @@ func (s *IbcEurekaTestSuite) TimeoutPacketEthRemintsVouchersTest(ctx context.Con
 				SrcChain:     simd.Config().ChainID, // Source of the *timeout* message is Cosmos
 				DstChain:     eth.ChainID.String(),  // Destination is Eth
 				TimeoutTxIds: [][]byte{ethTimeoutSendTxHash},
-				SrcClientId:  s.getEthLcClientIDOnCosmos(),
+				SrcClientId:  s.GetEthLcClientIDOnCosmos(),
 				DstClientId:  testvalues.CustomClientID,
 			})
 			s.Require().NoError(err)
@@ -2377,7 +2342,7 @@ func (s *IbcEurekaTestSuite) TimeoutPacketCosmosRemintsVouchersTest(ctx context.
 		s.Require().Equal(transfertypes.PortID, sendPacket.Payloads[0].SourcePort)
 		s.Require().Equal(testvalues.CustomClientID, sendPacket.SourceClient)
 		s.Require().Equal(transfertypes.PortID, sendPacket.Payloads[0].DestPort)
-		s.Require().Equal(s.getEthLcClientIDOnCosmos(), sendPacket.DestClient)
+		s.Require().Equal(s.GetEthLcClientIDOnCosmos(), sendPacket.DestClient)
 		s.Require().Equal(transfertypes.V1, sendPacket.Payloads[0].Version)
 		s.Require().Equal(transfertypes.EncodingABI, sendPacket.Payloads[0].Encoding)
 
@@ -2410,7 +2375,7 @@ func (s *IbcEurekaTestSuite) TimeoutPacketCosmosRemintsVouchersTest(ctx context.
 				DstChain:    simd.Config().ChainID,
 				SourceTxIds: [][]byte{ethSendTxHash},
 				SrcClientId: testvalues.CustomClientID,
-				DstClientId: s.getEthLcClientIDOnCosmos(),
+				DstClientId: s.GetEthLcClientIDOnCosmos(),
 			})
 			s.Require().NoError(err)
 			s.Require().NotEmpty(resp.Tx)
@@ -2425,7 +2390,7 @@ func (s *IbcEurekaTestSuite) TimeoutPacketCosmosRemintsVouchersTest(ctx context.
 			ackTxHash, err = hex.DecodeString(resp.TxHash)
 			s.Require().NoError(err)
 
-			denomOnCosmos = transfertypes.NewDenom(s.contractAddresses.Erc20, transfertypes.NewHop(transfertypes.PortID, s.getEthLcClientIDOnCosmos()))
+			denomOnCosmos = transfertypes.NewDenom(s.contractAddresses.Erc20, transfertypes.NewHop(transfertypes.PortID, s.GetEthLcClientIDOnCosmos()))
 
 			// Verify initial voucher balance
 			balanceResp, err := e2esuite.GRPCQuery[banktypes.QueryBalanceResponse](ctx, simd, &banktypes.QueryBalanceRequest{
@@ -2444,7 +2409,7 @@ func (s *IbcEurekaTestSuite) TimeoutPacketCosmosRemintsVouchersTest(ctx context.
 				SrcChain:    simd.Config().ChainID,
 				DstChain:    eth.ChainID.String(),
 				SourceTxIds: [][]byte{ackTxHash},
-				SrcClientId: s.getEthLcClientIDOnCosmos(),
+				SrcClientId: s.GetEthLcClientIDOnCosmos(),
 				DstClientId: testvalues.CustomClientID,
 			})
 			s.Require().NoError(err)
@@ -2482,7 +2447,7 @@ func (s *IbcEurekaTestSuite) TimeoutPacketCosmosRemintsVouchersTest(ctx context.
 			Value:           encodedPayload,
 		}
 		msgSendPacket := channeltypesv2.MsgSendPacket{
-			SourceClient:     s.getEthLcClientIDOnCosmos(),
+			SourceClient:     s.GetEthLcClientIDOnCosmos(),
 			TimeoutTimestamp: timeout,
 			Payloads: []channeltypesv2.Payload{
 				payload,
@@ -2511,7 +2476,7 @@ func (s *IbcEurekaTestSuite) TimeoutPacketCosmosRemintsVouchersTest(ctx context.
 			SrcChain:    simd.Config().ChainID,
 			DstChain:    eth.ChainID.String(),
 			SourceTxIds: [][]byte{cosmosTimeoutSendTxHash},
-			SrcClientId: s.getEthLcClientIDOnCosmos(),
+			SrcClientId: s.GetEthLcClientIDOnCosmos(),
 			DstClientId: testvalues.CustomClientID,
 		})
 		s.Require().NoError(err)
@@ -2530,7 +2495,7 @@ func (s *IbcEurekaTestSuite) TimeoutPacketCosmosRemintsVouchersTest(ctx context.
 				DstChain:     simd.Config().ChainID, // Destination is Cosmos
 				TimeoutTxIds: [][]byte{cosmosTimeoutSendTxHash},
 				SrcClientId:  testvalues.CustomClientID,
-				DstClientId:  s.getEthLcClientIDOnCosmos(),
+				DstClientId:  s.GetEthLcClientIDOnCosmos(),
 			})
 			s.Require().NoError(err)
 			timeoutRelayTxBodyBz = resp.Tx

@@ -25,8 +25,9 @@ func envInt(key string, defaultVal int) int {
 
 // ethereumConfig holds configuration for Ethereum chain setup.
 type ethereumConfig struct {
-	testnetType string
-	anvilCount  int
+	testnetType     string
+	anvilCount      int
+	lightClientType string // Cosmos light client deployed on Ethereum (sp1 or attestor)
 }
 
 // isAnvilBased returns true for testnets using local Anvil chain.

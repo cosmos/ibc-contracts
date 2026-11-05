@@ -125,9 +125,7 @@ func (s *IbcEurekaGmpTestSuite) SetupSuite(ctx context.Context, proofType types.
 			s.Require().Fail("invalid prover type: %s", prover)
 		}
 
-		if os.Getenv(testvalues.EnvKeyRustLog) == "" {
-			os.Setenv(testvalues.EnvKeyRustLog, testvalues.EnvValueRustLog_Info)
-		}
+		testvalues.EnvEnsure(testvalues.EnvKeyRustLog, testvalues.EnvValueRustLog_Info)
 		os.Setenv(testvalues.EnvKeyEthRPC, eth.RPC)
 		os.Setenv(testvalues.EnvKeyTendermintRPC, simd.GetHostRPCAddress())
 		os.Setenv(testvalues.EnvKeySp1Prover, prover)
@@ -165,7 +163,7 @@ func (s *IbcEurekaGmpTestSuite) SetupSuite(ctx context.Context, proofType types.
 				EthRPC:        eth.RPC,
 				BeaconAPI:     beaconAPI,
 				SignerAddress: s.SimdRelayerSubmitter.FormattedAddress(),
-				MockClient:    os.Getenv(testvalues.EnvKeyEthTestnetType) == testvalues.EthTestnetTypeAnvil,
+				MockClient:    s.GetEthTestnetType() == testvalues.EthTestnetTypeAnvil,
 			}).
 			CosmosToEthSP1(proofapi.CosmosToEthSP1Params{
 				EthChainID:          eth.ChainID.String(),
@@ -181,15 +179,7 @@ func (s *IbcEurekaGmpTestSuite) SetupSuite(ctx context.Context, proofType types.
 			}).
 			Build()
 
-		err := config.GenerateConfigFile(testvalues.ProofAPIConfigFilePath)
-		s.Require().NoError(err)
-
-		proofApiProcess, err = proofapi.StartProofAPI(testvalues.ProofAPIConfigFilePath)
-		s.Require().NoError(err)
-
-		s.T().Cleanup(func() {
-			os.Remove(testvalues.ProofAPIConfigFilePath)
-		})
+		proofApiProcess = s.StartProofAPI(config)
 	}))
 
 	s.T().Cleanup(func() {

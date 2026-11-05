@@ -69,9 +69,28 @@ func (s *TestSuite) SetupSuite(ctx context.Context) {
 	s.processChains(ctx, s.config, chains)
 }
 
-// GetEthLightClientType returns the Ethereum light client type on Cosmos (dummy, full, attestor-native).
-func (s *TestSuite) GetEthLightClientType() string {
-	return s.config.cosmos.lightClientType
+// GetEthTestnetType returns the Ethereum testnet type (anvil, pos, besu-qbft, none).
+func (s *TestSuite) GetEthTestnetType() string {
+	return s.config.ethereum.testnetType
+}
+
+// IsEthLcOnCosmosAttestor returns true if the Ethereum light client on Cosmos is the native attestor (attestor-native).
+func (s *TestSuite) IsEthLcOnCosmosAttestor() bool {
+	return s.config.cosmos.lightClientType == testvalues.EthLCOnCosmosTypeAttestorNative
+}
+
+// IsCosmosLcOnEthAttestor returns true if the Cosmos light client on Ethereum uses attestor (COSMOS_LC_ON_ETH=attestor).
+func (s *TestSuite) IsCosmosLcOnEthAttestor() bool {
+	return s.config.ethereum.lightClientType == testvalues.CosmosLcTypeAttestor
+}
+
+// GetEthLcClientIDOnCosmos returns the expected client ID for the Ethereum light client deployed on Cosmos.
+// Returns FirstAttestationsClientID for native attestor, FirstWasmClientID otherwise.
+func (s *TestSuite) GetEthLcClientIDOnCosmos() string {
+	if s.IsEthLcOnCosmosAttestor() {
+		return testvalues.FirstAttestationsClientID
+	}
+	return testvalues.FirstWasmClientID
 }
 
 // GetDockerClient returns the Docker client used for container management.
@@ -98,8 +117,9 @@ func (s *TestSuite) SetupDocker() {
 func (s *TestSuite) parseConfig() setupConfig {
 	return setupConfig{
 		ethereum: ethereumConfig{
-			testnetType: os.Getenv(testvalues.EnvKeyEthTestnetType),
-			anvilCount:  envInt(testvalues.EnvKeyEthAnvilCount, 1),
+			testnetType:     os.Getenv(testvalues.EnvKeyEthTestnetType),
+			anvilCount:      envInt(testvalues.EnvKeyEthAnvilCount, 1),
+			lightClientType: os.Getenv(testvalues.EnvKeyCosmosLcOnEth),
 		},
 		solana: solanaConfig{
 			testnetType: os.Getenv(testvalues.EnvKeySolanaTestnetType),

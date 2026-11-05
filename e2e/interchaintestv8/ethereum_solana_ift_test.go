@@ -101,11 +101,6 @@ func (s *EthereumSolanaIFTTestSuite) IFTMint() solanago.PublicKey {
 	return s.IFTMintWallet.PublicKey()
 }
 
-func (s *EthereumSolanaIFTTestSuite) IFTMintBytes() []byte {
-	pk := s.IFTMintWallet.PublicKey()
-	return pk[:]
-}
-
 // deriveIFTConstructorPDAs derives the PDAs needed for a SolanaIFTSendCallConstructor deployment.
 func (s *EthereumSolanaIFTTestSuite) deriveIFTConstructorPDAs(
 	clientID string, mint solanago.PublicKey, iftContractAddr string,
@@ -198,9 +193,7 @@ func (s *EthereumSolanaIFTTestSuite) SetupSuite(ctx context.Context) {
 		os.Setenv(testvalues.EnvKeySp1Prover, prover)
 		os.Setenv(testvalues.EnvKeyVerifier, testvalues.EnvValueVerifier_Mock)
 
-		if os.Getenv(testvalues.EnvKeyRustLog) == "" {
-			os.Setenv(testvalues.EnvKeyRustLog, testvalues.EnvValueRustLog_Info)
-		}
+		testvalues.EnvEnsure(testvalues.EnvKeyRustLog, testvalues.EnvValueRustLog_Info)
 		os.Setenv(testvalues.EnvKeyEthRPC, eth.RPC)
 		os.Setenv(testvalues.EnvKeyOperatorPrivateKey, hex.EncodeToString(crypto.FromECDSA(operatorKey)))
 	}))
@@ -484,15 +477,7 @@ func (s *EthereumSolanaIFTTestSuite) SetupSuite(ctx context.Context) {
 			}).
 			Build()
 
-		err := config.GenerateConfigFile(testvalues.ProofAPIConfigFilePath)
-		s.Require().NoError(err)
-
-		s.ProofApiProcess, err = proofapi.StartProofAPI(testvalues.ProofAPIConfigFilePath)
-		s.Require().NoError(err)
-
-		s.T().Cleanup(func() {
-			os.Remove(testvalues.ProofAPIConfigFilePath)
-		})
+		s.ProofApiProcess = s.StartProofAPI(config)
 	}))
 
 	s.Require().True(s.Run("Create Proof API Client", func() {
@@ -696,7 +681,7 @@ func (s *EthereumSolanaIFTTestSuite) createIFTSplToken(ctx context.Context, mint
 }
 
 func (s *EthereumSolanaIFTTestSuite) registerSolanaIFTBridgeForEVM(ctx context.Context, clientID string, counterpartyIFTAddress string) {
-	bridgePDA, _ := solana.Ift.IftBridgePDA(ift.ProgramID, s.IFTMintBytes(), []byte(clientID))
+	bridgePDA, _ := solana.Ift.IftBridgePDA(ift.ProgramID, s.IFTMint().Bytes(), []byte(clientID))
 	s.IFTBridge = bridgePDA
 
 	// EVM counterparty uses the unit variant (no fields)
@@ -749,7 +734,7 @@ func (s *EthereumSolanaIFTTestSuite) mintEthIFTTokens(ctx context.Context, eth *
 
 func (s *EthereumSolanaIFTTestSuite) adminMintIFTTokens(ctx context.Context, receiver solanago.PublicKey, amount uint64) {
 	mint := s.IFTMint()
-	mintBytes := s.IFTMintBytes()
+	mintBytes := mint.Bytes()
 
 	receiverATA, err := solana.AssociatedTokenAccountAddress(receiver, mint)
 	s.Require().NoError(err)
@@ -949,7 +934,7 @@ func (s *EthereumSolanaIFTTestSuite) Test_EthSolana_IFT_Roundtrip() {
 			binary.LittleEndian.PutUint64(seqBytes, solanaToEthSequence)
 
 			packetCommitmentPDA, _ := solana.Ics26Router.PacketCommitmentWithArgSeedPDA(ics26_router.ProgramID, []byte(EthClientIDOnSolana), seqBytes)
-			pendingTransferPDA, _ := solana.Ift.PendingTransferPDA(ift.ProgramID, s.IFTMintBytes(), []byte(EthClientIDOnSolana), seqBytes)
+			pendingTransferPDA, _ := solana.Ift.PendingTransferPDA(ift.ProgramID, s.IFTMint().Bytes(), []byte(EthClientIDOnSolana), seqBytes)
 
 			transferMsg := ift.IftStateIftTransferMsg{
 				ClientId:         EthClientIDOnSolana,
@@ -960,7 +945,7 @@ func (s *EthereumSolanaIFTTestSuite) Test_EthSolana_IFT_Roundtrip() {
 			}
 
 			attestationClientStatePDA, _ := solana.Attestation.ClientPDA(attestation.ProgramID)
-			consensusStatePDA := s.deriveAttestationConsensusStatePDA(ctx, attestationClientStatePDA)
+			consensusStatePDA := s.Solana.Chain.AttestationConsensusStatePDA(ctx, s.T(), s.Require(), attestationClientStatePDA)
 
 			transferIx, err := ift.NewIftTransferInstruction(
 				transferMsg, s.IFTAppState, s.IFTAppMintState, s.IFTBridge, s.IFTMint(), s.SenderTokenAccount,
@@ -1473,7 +1458,7 @@ func (s *EthereumSolanaIFTTestSuite) Test_EthSolana_IFT_TimeoutFromSolana() {
 		binary.LittleEndian.PutUint64(seqBytes, timeoutSequence)
 
 		packetCommitmentPDA, _ := solana.Ics26Router.PacketCommitmentWithArgSeedPDA(ics26_router.ProgramID, []byte(EthClientIDOnSolana), seqBytes)
-		pendingTransferPDA, _ := solana.Ift.PendingTransferPDA(ift.ProgramID, s.IFTMintBytes(), []byte(EthClientIDOnSolana), seqBytes)
+		pendingTransferPDA, _ := solana.Ift.PendingTransferPDA(ift.ProgramID, s.IFTMint().Bytes(), []byte(EthClientIDOnSolana), seqBytes)
 
 		transferMsg := ift.IftStateIftTransferMsg{
 			ClientId:         EthClientIDOnSolana,
@@ -1484,7 +1469,7 @@ func (s *EthereumSolanaIFTTestSuite) Test_EthSolana_IFT_TimeoutFromSolana() {
 		}
 
 		attestationClientStatePDA, _ := solana.Attestation.ClientPDA(attestation.ProgramID)
-		consensusStatePDA := s.deriveAttestationConsensusStatePDA(ctx, attestationClientStatePDA)
+		consensusStatePDA := s.Solana.Chain.AttestationConsensusStatePDA(ctx, s.T(), s.Require(), attestationClientStatePDA)
 
 		transferIx, err := ift.NewIftTransferInstruction(
 			transferMsg, s.IFTAppState, s.IFTAppMintState, s.IFTBridge, s.IFTMint(), s.SenderTokenAccount,
@@ -1596,7 +1581,7 @@ func (s *EthereumSolanaIFTTestSuite) Test_EthSolana_IFT_FailedReceiveOnEth() {
 		binary.LittleEndian.PutUint64(seqBytes, failedRecvSequence)
 
 		packetCommitmentPDA, _ := solana.Ics26Router.PacketCommitmentWithArgSeedPDA(ics26_router.ProgramID, []byte(EthClientIDOnSolana), seqBytes)
-		pendingTransferPDA, _ := solana.Ift.PendingTransferPDA(ift.ProgramID, s.IFTMintBytes(), []byte(EthClientIDOnSolana), seqBytes)
+		pendingTransferPDA, _ := solana.Ift.PendingTransferPDA(ift.ProgramID, s.IFTMint().Bytes(), []byte(EthClientIDOnSolana), seqBytes)
 
 		transferMsg := ift.IftStateIftTransferMsg{
 			ClientId:         EthClientIDOnSolana,
@@ -1607,7 +1592,7 @@ func (s *EthereumSolanaIFTTestSuite) Test_EthSolana_IFT_FailedReceiveOnEth() {
 		}
 
 		attestationClientStatePDA, _ := solana.Attestation.ClientPDA(attestation.ProgramID)
-		consensusStatePDA := s.deriveAttestationConsensusStatePDA(ctx, attestationClientStatePDA)
+		consensusStatePDA := s.Solana.Chain.AttestationConsensusStatePDA(ctx, s.T(), s.Require(), attestationClientStatePDA)
 
 		transferIx, err := ift.NewIftTransferInstruction(
 			transferMsg, s.IFTAppState, s.IFTAppMintState, s.IFTBridge, s.IFTMint(), s.SenderTokenAccount,
@@ -1692,25 +1677,6 @@ func (s *EthereumSolanaIFTTestSuite) Test_EthSolana_IFT_FailedReceiveOnEth() {
 		s.Solana.Chain.VerifyPendingTransferClosed(ctx, s.T(), s.Require(),
 			ift.ProgramID, s.IFTMint(), EthClientIDOnSolana, failedRecvSequence)
 	}))
-}
-
-func (s *EthereumSolanaIFTTestSuite) deriveAttestationConsensusStatePDA(ctx context.Context, clientStatePDA solanago.PublicKey) solanago.PublicKey {
-	accountInfo, err := s.Solana.Chain.RPCClient.GetAccountInfoWithOpts(ctx, clientStatePDA, &rpc.GetAccountInfoOpts{
-		Commitment: rpc.CommitmentConfirmed,
-	})
-	s.Require().NoError(err)
-
-	clientState, err := attestation.ParseAccount_AttestationTypesClientState(accountInfo.Value.Data.GetBinary())
-	s.Require().NoError(err)
-
-	heightBytes := make([]byte, 8)
-	binary.LittleEndian.PutUint64(heightBytes, clientState.LatestHeight)
-
-	consensusStatePDA, _ := solana.Attestation.ConsensusStateWithArgSeedPDA(
-		attestation.ProgramID,
-		heightBytes,
-	)
-	return consensusStatePDA
 }
 
 func (s *EthereumSolanaIFTTestSuite) updateAttestationClientOnSolana(ctx context.Context, ethChainID string) {

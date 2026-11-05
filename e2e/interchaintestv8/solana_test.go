@@ -311,19 +311,11 @@ func (s *IbcEurekaSolanaTestSuite) SetupSuite(ctx context.Context) {
 			}).
 			Build()
 
-		err := config.GenerateConfigFile(testvalues.ProofAPIConfigFilePath)
-		s.Require().NoError(err)
-
-		proofApiProcess, err = proofapi.StartProofAPI(testvalues.ProofAPIConfigFilePath)
-		s.Require().NoError(err)
+		proofApiProcess = s.StartProofAPI(config)
 
 		if s.SolanaAltAddress != "" {
 			s.T().Logf("Started proof API with ALT address: %s", s.SolanaAltAddress)
 		}
-
-		s.T().Cleanup(func() {
-			os.Remove(testvalues.ProofAPIConfigFilePath)
-		})
 	}))
 
 	s.T().Cleanup(func() {

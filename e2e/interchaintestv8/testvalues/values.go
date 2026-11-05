@@ -324,15 +324,7 @@ var (
 	}()
 )
 
-func EnvGet(key, defaultValue string) string {
-	value := os.Getenv(key)
-	if value == "" {
-		return defaultValue
-	}
-
-	return value
-}
-
+// EnvEnsure returns the value of key, first setting it to defaultValue if it is unset or empty.
 func EnvEnsure(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value

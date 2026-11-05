@@ -21,7 +21,6 @@ import (
 	sdkmath "cosmossdk.io/math"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
 
 	clienttypes "github.com/cosmos/ibc-go/v11/modules/core/02-client/types"
@@ -45,7 +44,6 @@ import (
 	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/types"
 	proofapitypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/proofapi"
 	ifttypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/wfchain/ift"
-	tokenfactorytypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/wfchain/tokenfactory"
 )
 
 // CosmosEthereumIFTTestSuite tests IFT transfers between wfchain and Ethereum
@@ -137,9 +135,7 @@ func (s *CosmosEthereumIFTTestSuite) SetupSuite(ctx context.Context, proofType t
 			s.Require().Fail("invalid prover type: %s", s.prover)
 		}
 
-		if os.Getenv(testvalues.EnvKeyRustLog) == "" {
-			os.Setenv(testvalues.EnvKeyRustLog, testvalues.EnvValueRustLog_Info)
-		}
+		testvalues.EnvEnsure(testvalues.EnvKeyRustLog, testvalues.EnvValueRustLog_Info)
 		os.Setenv(testvalues.EnvKeyEthRPC, eth.RPC)
 		os.Setenv(testvalues.EnvKeyTendermintRPC, s.Wfchain.GetHostRPCAddress())
 		os.Setenv(testvalues.EnvKeySp1Prover, s.prover)
@@ -226,15 +222,7 @@ func (s *CosmosEthereumIFTTestSuite) SetupSuite(ctx context.Context, proofType t
 			}).
 			Build()
 
-		err := config.GenerateConfigFile(testvalues.ProofAPIConfigFilePath)
-		s.Require().NoError(err)
-
-		proofApiProcess, err = proofapi.StartProofAPI(testvalues.ProofAPIConfigFilePath)
-		s.Require().NoError(err)
-
-		s.T().Cleanup(func() {
-			os.Remove(testvalues.ProofAPIConfigFilePath)
-		})
+		proofApiProcess = s.StartProofAPI(config)
 	}))
 
 	s.T().Cleanup(func() {
@@ -441,7 +429,7 @@ func (s *CosmosEthereumIFTTestSuite) setupIFTInfrastructure(ctx context.Context,
 		}))
 
 		s.Require().True(s.Run("Create denom on Cosmos", func() {
-			tc.cosmosDenom = s.createTokenFactoryDenom(ctx, s.CosmosRelayerSubmitter, testvalues.IFTTestDenom)
+			tc.cosmosDenom = s.CreateTokenFactoryDenom(ctx, s.Wfchain, s.CosmosRelayerSubmitter, testvalues.IFTTestDenom)
 		}))
 
 		s.Require().True(s.Run("Verify CosmosIFTSendCallConstructor deployment", func() {
@@ -451,7 +439,7 @@ func (s *CosmosEthereumIFTTestSuite) setupIFTInfrastructure(ctx context.Context,
 		}))
 
 		s.Require().True(s.Run("Register IFT bridge on Ethereum", func() {
-			cosmosIFTModuleAddr := s.getIFTModuleAddress()
+			cosmosIFTModuleAddr := s.GetIFTModuleAddress(s.Wfchain)
 
 			iftContract, err := evmift.NewContract(tc.ethIFTAddress, eth.RPCClient)
 			s.Require().NoError(err)
@@ -492,7 +480,7 @@ func (s *CosmosEthereumIFTTestSuite) Test_IFTTransfer_Roundtrip() {
 	tc := s.setupIFTInfrastructure(ctx, s.prover, s.proofType)
 
 	s.Require().True(s.Run("Mint tokens to user on Cosmos", func() {
-		s.mintTokensOnCosmos(ctx, s.CosmosRelayerSubmitter, tc.cosmosDenom, transferAmount, s.CosmosUser.FormattedAddress())
+		s.MintTokenFactory(ctx, s.Wfchain, s.CosmosRelayerSubmitter, tc.cosmosDenom, transferAmount, s.CosmosUser.FormattedAddress())
 		balance, err := s.Wfchain.GetBalance(ctx, s.CosmosUser.FormattedAddress(), tc.cosmosDenom)
 		s.Require().NoError(err)
 		s.Require().True(balance.Equal(transferAmount))
@@ -686,7 +674,7 @@ func (s *CosmosEthereumIFTTestSuite) Test_IFTTransfer_TimeoutCosmosToEthereum() 
 	ethUserAddr := crypto.PubkeyToAddress(s.ethUser.PublicKey)
 
 	s.Require().True(s.Run("Mint tokens to user on Cosmos", func() {
-		s.mintTokensOnCosmos(ctx, s.CosmosRelayerSubmitter, tc.cosmosDenom, transferAmount, s.CosmosUser.FormattedAddress())
+		s.MintTokenFactory(ctx, s.Wfchain, s.CosmosRelayerSubmitter, tc.cosmosDenom, transferAmount, s.CosmosUser.FormattedAddress())
 		balance, err := s.Wfchain.GetBalance(ctx, s.CosmosUser.FormattedAddress(), tc.cosmosDenom)
 		s.Require().NoError(err)
 		s.Require().True(balance.Equal(transferAmount))
@@ -1109,7 +1097,7 @@ func (s *CosmosEthereumIFTTestSuite) Test_IFTTransfer_FailedReceiveOnEthereum() 
 	var cosmosDenom string
 	s.Require().True(s.Run("Setup IFT bridge on Cosmos only", func() {
 		s.Require().True(s.Run("Create denom on Cosmos", func() {
-			cosmosDenom = s.createTokenFactoryDenom(ctx, s.CosmosRelayerSubmitter, testvalues.IFTTestDenom)
+			cosmosDenom = s.CreateTokenFactoryDenom(ctx, s.Wfchain, s.CosmosRelayerSubmitter, testvalues.IFTTestDenom)
 		}))
 
 		s.Require().True(s.Run("Register IFT bridge on Cosmos", func() {
@@ -1128,7 +1116,7 @@ func (s *CosmosEthereumIFTTestSuite) Test_IFTTransfer_FailedReceiveOnEthereum() 
 	ethReceiverAddr := crypto.PubkeyToAddress(s.ethUser.PublicKey)
 
 	s.Require().True(s.Run("Mint tokens to user on Cosmos", func() {
-		s.mintTokensOnCosmos(ctx, s.CosmosRelayerSubmitter, cosmosDenom, transferAmount, s.CosmosUser.FormattedAddress())
+		s.MintTokenFactory(ctx, s.Wfchain, s.CosmosRelayerSubmitter, cosmosDenom, transferAmount, s.CosmosUser.FormattedAddress())
 		balance, err := s.Wfchain.GetBalance(ctx, s.CosmosUser.FormattedAddress(), cosmosDenom)
 		s.Require().NoError(err)
 		s.Require().True(balance.Equal(transferAmount))
@@ -1219,36 +1207,6 @@ func (s *CosmosEthereumIFTTestSuite) Test_IFTTransfer_FailedReceiveOnEthereum() 
 }
 
 // Helper functions
-
-func (s *CosmosEthereumIFTTestSuite) getIFTModuleAddress() string {
-	iftAddr := authtypes.NewModuleAddress(testvalues.IFTModuleName)
-	bech32Addr, err := sdk.Bech32ifyAddressBytes(s.Wfchain.Config().Bech32Prefix, iftAddr)
-	s.Require().NoError(err)
-	return bech32Addr
-}
-
-func (s *CosmosEthereumIFTTestSuite) createTokenFactoryDenom(ctx context.Context, user ibc.Wallet, denom string) string {
-	msg := &tokenfactorytypes.MsgCreateDenom{
-		Sender: user.FormattedAddress(),
-		Denom:  denom,
-	}
-
-	_, err := s.BroadcastMessages(ctx, s.Wfchain, user, 200_000, msg)
-	s.Require().NoError(err)
-
-	return denom
-}
-
-func (s *CosmosEthereumIFTTestSuite) mintTokensOnCosmos(ctx context.Context, user ibc.Wallet, denom string, amount sdkmath.Int, recipient string) {
-	msg := &tokenfactorytypes.MsgMint{
-		From:    user.FormattedAddress(),
-		Address: recipient,
-		Amount:  sdk.Coin{Denom: denom, Amount: amount},
-	}
-
-	_, err := s.BroadcastMessages(ctx, s.Wfchain, user, 200_000, msg)
-	s.Require().NoError(err)
-}
 
 func (s *CosmosEthereumIFTTestSuite) registerIFTBridgeOnCosmos(ctx context.Context, user ibc.Wallet, denom, clientId, counterpartyIftAddr, constructor string) {
 	govModuleAddr, err := s.Wfchain.AuthQueryModuleAddress(ctx, govtypes.ModuleName)

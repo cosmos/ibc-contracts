@@ -91,9 +91,7 @@ func (s *EthToEthAttestedTestSuite) EthChainB() *ethereum.Ethereum {
 func (s *EthToEthAttestedTestSuite) SetupSuite(ctx context.Context) {
 	s.T().Log("Setting up EthToEthAttestedTestSuite")
 
-	if os.Getenv(testvalues.EnvKeyRustLog) == "" {
-		os.Setenv(testvalues.EnvKeyRustLog, testvalues.EnvValueRustLog_Info)
-	}
+	testvalues.EnvEnsure(testvalues.EnvKeyRustLog, testvalues.EnvValueRustLog_Info)
 
 	// Configure for two Anvil chains
 	os.Setenv(testvalues.EnvKeyEthTestnetType, testvalues.EthTestnetTypeAnvil)

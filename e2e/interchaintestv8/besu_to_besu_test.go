@@ -121,9 +121,7 @@ func (s *BesuToBesuTestSuite) SetupSuite(ctx context.Context, consensus string) 
 		s.chainA, s.chainB = besuToBesuChainState{}, besuToBesuChainState{}
 	})
 
-	if os.Getenv(testvalues.EnvKeyRustLog) == "" {
-		os.Setenv(testvalues.EnvKeyRustLog, testvalues.EnvValueRustLog_Info)
-	}
+	testvalues.EnvEnsure(testvalues.EnvKeyRustLog, testvalues.EnvValueRustLog_Info)
 
 	var err error
 	s.cwd, err = os.Getwd()
