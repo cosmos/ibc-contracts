@@ -38,18 +38,10 @@ use prost::Message;
 use tendermint_rpc::{Client, HttpClient};
 
 use proof_api_lib::{
-    aggregator::Aggregator,
     chain::{CosmosSdk, EthEureka},
     events::EurekaEventWithHeight,
     tx_builder::TxBuilderService,
-    utils::{
-        cosmos,
-        cosmos_attested::{
-            build_attestor_create_client_tx, build_attestor_relay_events_tx,
-            build_attestor_update_client_tx,
-        },
-        wait_for_condition, RelayEventsParams,
-    },
+    utils::{cosmos, wait_for_condition},
 };
 
 /// The `TxBuilder` produces txs to [`CosmosSdk`] based on events from [`EthEureka`].
@@ -814,58 +806,5 @@ where
             ..Default::default()
         }
         .encode_to_vec())
-    }
-}
-
-/// Transaction builder for attested relay to Cosmos.
-pub struct AttestedTxBuilder {
-    aggregator: Aggregator,
-    ics26_router: Address,
-    signer_address: String,
-}
-
-impl AttestedTxBuilder {
-    /// Create a new [`AttestedTxBuilder`] instance.
-    #[must_use]
-    pub const fn new(
-        aggregator: Aggregator,
-        ics26_router: Address,
-        signer_address: String,
-    ) -> Self {
-        Self {
-            aggregator,
-            ics26_router,
-            signer_address,
-        }
-    }
-
-    /// Returns the ICS26 router address.
-    #[must_use]
-    pub const fn ics26_router(&self) -> &Address {
-        &self.ics26_router
-    }
-
-    /// Relay events from source chain to Cosmos using attestations.
-    ///
-    /// # Errors
-    /// Returns an error if attestation retrieval or transaction building fails.
-    pub async fn relay_events(&self, params: RelayEventsParams) -> Result<Vec<u8>> {
-        build_attestor_relay_events_tx(&self.aggregator, params, &self.signer_address).await
-    }
-
-    /// Create a client on Cosmos using attestations.
-    ///
-    /// # Errors
-    /// Returns an error if transaction building fails.
-    pub fn create_client(&self, parameters: &HashMap<String, String>) -> Result<Vec<u8>> {
-        build_attestor_create_client_tx(parameters, &self.signer_address)
-    }
-
-    /// Update a client on Cosmos using attestations.
-    ///
-    /// # Errors
-    /// Returns an error if attestation retrieval or transaction building fails.
-    pub async fn update_client(&self, dst_client_id: &str) -> Result<Vec<u8>> {
-        build_attestor_update_client_tx(&self.aggregator, dst_client_id, &self.signer_address).await
     }
 }

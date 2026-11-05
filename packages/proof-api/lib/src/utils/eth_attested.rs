@@ -15,7 +15,11 @@ use crate::utils::{
     eth_eureka::{self, PacketCall},
     wait_for_condition, RelayEventsParams,
 };
-use alloy::{primitives::Address, primitives::Bytes, sol_types::SolValue};
+use alloy::{
+    primitives::{Address, Bytes},
+    providers::Provider,
+    sol_types::SolValue,
+};
 use anyhow::Result;
 use ibc_eureka_solidity_types::{
     ibc_multicall::multicall_calldata, ics26::IICS02ClientMsgs::Height as ICS26Height,
@@ -216,127 +220,132 @@ pub fn build_eth_multicall(input: MulticallInput) -> Result<Vec<u8>> {
     Ok(multicall_calldata(input.ics26_address, all_calls, 1))
 }
 
-/// Builds an attested relay events transaction for Ethereum targets.
-///
-/// This function handles the complete flow of:
-/// 1. Collecting and encoding packets from source and target events
-/// 2. Fetching attestations from the aggregator
-/// 3. Building the `IBCMulticall` transaction that calls the router at `ics26_address`
-///
-/// # Errors
-/// Returns an error if attestation fetching or transaction building fails.
-pub async fn build_eth_attestor_relay_events_tx(
-    aggregator: &Aggregator,
-    ics26_address: Address,
-    params: RelayEventsParams,
-) -> Result<Vec<u8>> {
-    tracing::info!(
-        "Building relay transaction from aggregator for {} source events and {} timeout events",
-        params.src_events.len(),
-        params.target_events.len()
-    );
-
-    let (send_packets, ack_packets, mut relay_height) = collect_send_and_ack_packets_with_height(
-        &params.src_events,
-        &params.src_client_id,
-        &params.dst_client_id,
-        &params.src_packet_seqs,
-        &params.dst_packet_seqs,
-    );
-
-    let timeout_packets = collect_timeout_packets(
-        &params.target_events,
-        &params.src_client_id,
-        &params.dst_client_id,
-        &params.dst_packet_seqs,
-    );
-
-    if timeout_packets.is_empty() {
-        tracing::debug!("No timeout packets collected");
-    } else {
-        let timeout_height = params
-            .timeout_relay_height
-            .ok_or_else(|| anyhow::anyhow!("timeout_relay_height required for timeout packets"))?;
-        // Use max of src_events height and timeout height
-        relay_height = Some(relay_height.map_or(timeout_height, |h| h.max(timeout_height)));
-    }
-
-    let relay_height = relay_height.ok_or_else(|| anyhow::anyhow!("No packets collected"))?;
-    wait_for_condition(Duration::from_mins(15), Duration::from_secs(1), || async {
-        let finalized_height = aggregator.get_latest_height().await?;
-        Ok(finalized_height >= relay_height)
-    })
-    .await?;
-
-    let attestations = fetch_attestations(
-        aggregator,
-        send_packets,
-        ack_packets,
-        timeout_packets,
-        relay_height,
-    )
-    .await?;
-
-    build_eth_multicall(MulticallInput {
-        ics26_address,
-        attestations,
-        src_events: params.src_events,
-        target_events: params.target_events,
-        src_client_id: params.src_client_id,
-        dst_client_id: params.dst_client_id,
-        src_packet_seqs: params.src_packet_seqs,
-        dst_packet_seqs: params.dst_packet_seqs,
-    })
-}
-
-/// Builds create client calldata for an Ethereum attestor light client.
-///
-/// The client is bound to the `ICS26Router` at `ics26_address`.
-///
-/// # Errors
-/// Returns an error if parameter parsing fails.
-pub fn build_eth_attestor_create_client_calldata<
-    S: std::hash::BuildHasher,
-    P: alloy::providers::Provider + Clone,
->(
-    parameters: &std::collections::HashMap<String, String, S>,
+/// Builds attested relay transactions to the ICS26 router of an Ethereum chain.
+pub struct EthAttestedTxBuilder<P> {
+    aggregator: Aggregator,
     ics26_address: Address,
     provider: P,
-) -> Result<Vec<u8>> {
-    let params = parse_attestor_client_params(parameters)?;
-
-    Ok(
-        ibc_eureka_solidity_types::attestation::light_client::deploy_builder(
-            provider,
-            params.attestor_addresses,
-            params.min_required_sigs,
-            params.height,
-            params.timestamp,
-            ics26_address,
-        )
-        .calldata()
-        .to_vec(),
-    )
 }
 
-/// Builds update client calldata for an Ethereum attestor light client.
-///
-/// Fetches the latest state attestation from the aggregator and builds an `IBCMulticall`
-/// transaction that calls `updateClient` on the ICS26 router at `ics26_address`.
-///
-/// # Errors
-/// Returns an error if fetching attestation fails.
-pub async fn build_eth_attestor_update_client_calldata(
-    aggregator: &Aggregator,
-    ics26_address: Address,
-    dst_client_id: String,
-) -> Result<Vec<u8>> {
-    let current_height = aggregator.get_latest_height().await?;
-    let state = aggregator.get_state_attestation(current_height).await?;
+impl<P: Provider + Clone> EthAttestedTxBuilder<P> {
+    /// Creates a builder for the ICS26 router at `ics26_address`.
+    pub const fn new(aggregator: Aggregator, ics26_address: Address, provider: P) -> Self {
+        Self {
+            aggregator,
+            ics26_address,
+            provider,
+        }
+    }
 
-    Ok(eth_eureka::update_client_multicall_calldata(
-        ics26_address,
-        dst_client_id,
-        build_eth_attestor_proof(state.attested_data, state.signatures).into(),
-    ))
+    /// Builds the `IBCMulticall` relay transaction for `params`.
+    ///
+    /// Collects the packets to relay, waits for the aggregator to finalize the relay height,
+    /// fetches the attestations and builds the `IBCMulticall` transaction that updates the client
+    /// and relays the packets through the router.
+    ///
+    /// # Errors
+    /// Returns an error if attestation fetching or transaction building fails.
+    pub async fn relay_events(&self, params: RelayEventsParams) -> Result<Vec<u8>> {
+        tracing::info!(
+            "Building relay transaction from aggregator for {} source events and {} timeout events",
+            params.src_events.len(),
+            params.target_events.len()
+        );
+
+        let (send_packets, ack_packets, mut relay_height) =
+            collect_send_and_ack_packets_with_height(
+                &params.src_events,
+                &params.src_client_id,
+                &params.dst_client_id,
+                &params.src_packet_seqs,
+                &params.dst_packet_seqs,
+            );
+
+        let timeout_packets = collect_timeout_packets(
+            &params.target_events,
+            &params.src_client_id,
+            &params.dst_client_id,
+            &params.dst_packet_seqs,
+        );
+
+        if timeout_packets.is_empty() {
+            tracing::debug!("No timeout packets collected");
+        } else {
+            let timeout_height = params.timeout_relay_height.ok_or_else(|| {
+                anyhow::anyhow!("timeout_relay_height required for timeout packets")
+            })?;
+            // Use max of src_events height and timeout height
+            relay_height = Some(relay_height.map_or(timeout_height, |h| h.max(timeout_height)));
+        }
+
+        let relay_height = relay_height.ok_or_else(|| anyhow::anyhow!("No packets collected"))?;
+        wait_for_condition(Duration::from_mins(15), Duration::from_secs(1), || async {
+            let finalized_height = self.aggregator.get_latest_height().await?;
+            Ok(finalized_height >= relay_height)
+        })
+        .await?;
+
+        let attestations = fetch_attestations(
+            &self.aggregator,
+            send_packets,
+            ack_packets,
+            timeout_packets,
+            relay_height,
+        )
+        .await?;
+
+        build_eth_multicall(MulticallInput {
+            ics26_address: self.ics26_address,
+            attestations,
+            src_events: params.src_events,
+            target_events: params.target_events,
+            src_client_id: params.src_client_id,
+            dst_client_id: params.dst_client_id,
+            src_packet_seqs: params.src_packet_seqs,
+            dst_packet_seqs: params.dst_packet_seqs,
+        })
+    }
+
+    /// Builds the deployment calldata of an attestor light client bound to the router.
+    ///
+    /// # Errors
+    /// Returns an error if parameter parsing fails.
+    pub fn create_client<S: std::hash::BuildHasher>(
+        &self,
+        parameters: &HashMap<String, String, S>,
+    ) -> Result<Vec<u8>> {
+        let params = parse_attestor_client_params(parameters)?;
+
+        Ok(
+            ibc_eureka_solidity_types::attestation::light_client::deploy_builder(
+                self.provider.clone(),
+                params.attestor_addresses,
+                params.min_required_sigs,
+                params.height,
+                params.timestamp,
+                self.ics26_address,
+            )
+            .calldata()
+            .to_vec(),
+        )
+    }
+
+    /// Builds the `IBCMulticall` transaction that updates `dst_client_id` to the aggregator's
+    /// latest state attestation.
+    ///
+    /// # Errors
+    /// Returns an error if fetching attestation fails.
+    pub async fn update_client(&self, dst_client_id: &str) -> Result<Vec<u8>> {
+        let current_height = self.aggregator.get_latest_height().await?;
+        let state = self
+            .aggregator
+            .get_state_attestation(current_height)
+            .await?;
+
+        Ok(eth_eureka::update_client_multicall_calldata(
+            self.ics26_address,
+            dst_client_id.to_string(),
+            build_eth_attestor_proof(state.attested_data, state.signatures).into(),
+        ))
+    }
 }

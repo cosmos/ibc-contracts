@@ -19,7 +19,9 @@ use proof_api_lib::service_utils::parse_cosmos_tx_hashes;
 use proof_api_lib::service_utils::parse_solana_tx_hashes;
 use proof_api_lib::service_utils::to_tonic_status;
 use proof_api_lib::tx_builder::TxBuilderService;
-use proof_api_lib::utils::{wait_for_condition, RelayEventsParams};
+use proof_api_lib::utils::{
+    cosmos_attested::CosmosAttestedTxBuilder, wait_for_condition, RelayEventsParams,
+};
 use tendermint_rpc::HttpClient;
 use tonic::{Request, Response};
 
@@ -30,7 +32,7 @@ use proof_api_core::{
 
 enum SolanaToCosmosTxBuilder {
     Mock(tx_builder::MockTxBuilder),
-    Attested(tx_builder::AttestedTxBuilder),
+    Attested(CosmosAttestedTxBuilder),
 }
 
 /// The `SolanaToCosmosProofApiModule` struct defines the Solana to Cosmos proof API module.
@@ -99,7 +101,7 @@ impl SolanaToCosmosProofApiModuleService {
                 let aggregator = Aggregator::from_config(aggregator_config)
                     .await
                     .map_err(|e| anyhow::anyhow!("failed to create aggregator: {e}"))?;
-                SolanaToCosmosTxBuilder::Attested(tx_builder::AttestedTxBuilder::new(
+                SolanaToCosmosTxBuilder::Attested(CosmosAttestedTxBuilder::new(
                     aggregator,
                     config.signer_address,
                 ))

@@ -9,8 +9,6 @@
 #![deny(clippy::nursery, clippy::pedantic, warnings)]
 #![allow(missing_docs, unused_crate_dependencies)]
 
-pub mod tx_builder;
-
 use std::collections::HashMap;
 
 use alloy::{
@@ -18,11 +16,11 @@ use alloy::{
     providers::{Provider, RootProvider},
 };
 use proof_api_lib::{
-    aggregator::Config as AggregatorConfig,
+    aggregator::{Aggregator, Config as AggregatorConfig},
     events::EurekaEventWithHeight,
     listener::{eth_eureka, solana, ChainListenerService},
     service_utils::{parse_eth_tx_hashes, parse_solana_tx_hashes, to_tonic_status},
-    utils::RelayEventsParams,
+    utils::{eth_attested::EthAttestedTxBuilder, RelayEventsParams},
 };
 use solana_sdk::commitment_config::CommitmentConfig;
 use tonic::{Request, Response};
@@ -54,7 +52,7 @@ struct SolanaToEthProofApiModuleService {
 /// Enum wrapping transaction builders for different modes.
 enum SolanaToEthTxBuilder {
     /// Attestation light client mode.
-    Attested(tx_builder::AttestedTxBuilder),
+    Attested(EthAttestedTxBuilder<RootProvider>),
 }
 
 /// Configuration for the Solana to Ethereum proof API module.
@@ -103,13 +101,12 @@ impl SolanaToEthProofApiModuleService {
 
         let tx_builder = match config.mode {
             SolanaToEthTxBuilderMode::Attested(aggregator_config) => {
-                let attested = tx_builder::AttestedTxBuilder::new(
-                    aggregator_config,
+                let aggregator = Aggregator::from_config(aggregator_config).await?;
+                SolanaToEthTxBuilder::Attested(EthAttestedTxBuilder::new(
+                    aggregator,
                     config.ics26_address,
                     provider,
-                )
-                .await?;
-                SolanaToEthTxBuilder::Attested(attested)
+                ))
             }
         };
 
