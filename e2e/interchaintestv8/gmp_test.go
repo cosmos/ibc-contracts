@@ -165,7 +165,7 @@ func (s *IbcEurekaGmpTestSuite) SetupSuite(ctx context.Context, proofType types.
 				EthRPC:        eth.RPC,
 				BeaconAPI:     beaconAPI,
 				SignerAddress: s.SimdRelayerSubmitter.FormattedAddress(),
-				MockClient:    os.Getenv(testvalues.EnvKeyEthTestnetType) == testvalues.EthTestnetTypeAnvil,
+				MockClient:    s.GetEthTestnetType() == testvalues.EthTestnetTypeAnvil,
 			}).
 			CosmosToEthSP1(proofapi.CosmosToEthSP1Params{
 				EthChainID:          eth.ChainID.String(),
@@ -181,15 +181,7 @@ func (s *IbcEurekaGmpTestSuite) SetupSuite(ctx context.Context, proofType types.
 			}).
 			Build()
 
-		err := config.GenerateConfigFile(testvalues.ProofAPIConfigFilePath)
-		s.Require().NoError(err)
-
-		proofApiProcess, err = proofapi.StartProofAPI(testvalues.ProofAPIConfigFilePath)
-		s.Require().NoError(err)
-
-		s.T().Cleanup(func() {
-			os.Remove(testvalues.ProofAPIConfigFilePath)
-		})
+		proofApiProcess = s.StartProofAPI(config)
 	}))
 
 	s.T().Cleanup(func() {
