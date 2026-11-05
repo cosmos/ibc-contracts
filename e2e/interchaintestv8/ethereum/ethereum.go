@@ -12,9 +12,9 @@ import (
 	"math/big"
 	"os"
 	"os/exec"
+	"strconv"
 	"time"
 
-	goethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
@@ -27,6 +27,13 @@ import (
 )
 
 const forgeScriptTimeout = 5 * time.Minute
+
+// gloasGasLimitMultiplier scales gas limits on Gloas chains, where state creation costs around 7
+// times more than the limits and simulations in the tests account for. It only applies once Gloas
+// is active, since the scaled limits are above the transaction gas limit cap of Fulu. Limits are
+// scaled rather than estimated because simulations of relay transactions can revert when their
+// proofs are newer than the latest block, even though the transactions succeed once sent.
+const gloasGasLimitMultiplier = 10
 
 type Ethereum struct {
 	ChainID         *big.Int
@@ -74,9 +81,12 @@ func (e *Ethereum) BroadcastTx(ctx context.Context, userKey *ecdsa.PrivateKey, g
 		return nil, err
 	}
 
-	gasLimit, err = e.gasLimitForFork(ctx, txOpts.From, address, txBz, gasLimit)
+	isGloas, err := e.isGloasActive()
 	if err != nil {
 		return nil, err
+	}
+	if isGloas {
+		gasLimit *= gloasGasLimitMultiplier
 	}
 
 	tx := ethtypes.NewTx(&ethtypes.LegacyTx{
@@ -104,7 +114,7 @@ func (e *Ethereum) BroadcastTx(ctx context.Context, userKey *ecdsa.PrivateKey, g
 	}
 
 	if receipt != nil && receipt.Status != ethtypes.ReceiptStatusSuccessful {
-		return nil, fmt.Errorf("eth transaction was broadcasted, but failed on-chain with status %d", receipt.Status)
+		return nil, fmt.Errorf("eth transaction was broadcasted, but failed on-chain with status %d (gas used %d of %d)", receipt.Status, receipt.GasUsed, gasLimit)
 	}
 
 	return receipt, nil
@@ -127,10 +137,8 @@ func (e Ethereum) forgeScript(timeout time.Duration, deployer *ecdsa.PrivateKey,
 		return nil, err
 	}
 	if isGloas {
-		// Forge simulates transactions with the gas rules of its configured EVM version, but state
-		// creation costs around 7 times more from Gloas onwards. This can't be set before Gloas
-		// since the resulting gas limits are above the transaction gas limit cap of Fulu.
-		cmdArgs = append(cmdArgs, "--gas-estimate-multiplier", "1000")
+		// Forge simulates transactions with the gas rules of its configured EVM version
+		cmdArgs = append(cmdArgs, "--gas-estimate-multiplier", strconv.Itoa(gloasGasLimitMultiplier*100))
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -165,23 +173,6 @@ func (e Ethereum) forgeScript(timeout time.Duration, deployer *ecdsa.PrivateKey,
 	}
 
 	return stdoutBuf.Bytes(), nil
-}
-
-// gasLimitForFork returns the gas limit to use for a transaction. Limits chosen by callers don't
-// account for the cost of state creation from Gloas onwards, so the node's estimate is used instead.
-// Transactions that can't be estimated keep the given limit so that they can still revert on-chain.
-func (e *Ethereum) gasLimitForFork(ctx context.Context, from ethcommon.Address, to *ethcommon.Address, data []byte, gasLimit uint64) (uint64, error) {
-	isGloas, err := e.isGloasActive()
-	if err != nil || !isGloas {
-		return gasLimit, err
-	}
-
-	estimate, err := e.RPCClient.EstimateGas(ctx, goethereum.CallMsg{From: from, To: to, Data: data})
-	if err != nil {
-		return gasLimit, nil //nolint:nilerr
-	}
-
-	return estimate + estimate/5, nil
 }
 
 // isGloasActive returns whether the chain has reached the Gloas fork. Chains without a beacon node
