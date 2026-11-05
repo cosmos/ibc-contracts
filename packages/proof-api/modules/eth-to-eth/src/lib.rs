@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
-//! This is a one-sided proof API module from Ethereum to Ethereum.
+//! One-sided proof API modules from an EVM chain to Ethereum: `eth_to_eth` relays with
+//! attestations and `besu_to_eth` with Besu light client proofs.
 
 #![deny(clippy::nursery, clippy::pedantic, warnings, unused_crate_dependencies)]
 #![allow(unused_crate_dependencies, missing_docs)]
+
+mod besu;
 
 use std::collections::HashMap;
 
@@ -23,6 +26,8 @@ use proof_api_core::{
     api::{self, proof_api_service_server::ProofApiService},
     modules::ProofApiModule,
 };
+
+pub use besu::{BesuConsensusType, BesuToEthConfig, BesuToEthProofApiModule};
 
 /// The `EthToEthProofApiModule` struct defines the Ethereum to Ethereum proof API module.
 #[derive(Clone, Copy, Debug)]
@@ -47,6 +52,7 @@ struct EthToEthProofApiModuleService {
 
 enum EthToEthTxBuilder {
     Attested(EthAttestedTxBuilder<RootProvider>),
+    Besu(besu::TxBuilder),
 }
 
 /// The configuration for the Ethereum to Ethereum proof API module.
@@ -73,6 +79,9 @@ pub struct EthToEthConfig {
 pub enum TxBuilderMode {
     /// Attested mode using aggregator attestations.
     Attested(AggregatorConfig),
+    /// Besu light client mode, configured through the `besu_to_eth` module.
+    #[serde(skip)]
+    Besu(BesuConsensusType),
 }
 
 impl EthToEthProofApiModuleService {
@@ -87,7 +96,8 @@ impl EthToEthProofApiModuleService {
             .await
             .map_err(|e| anyhow::anyhow!("failed to create destination provider: {e}"))?;
 
-        let src_listener = eth_eureka::ChainListener::new(config.src_ics26_address, src_provider);
+        let src_listener =
+            eth_eureka::ChainListener::new(config.src_ics26_address, src_provider.clone());
         let dst_listener =
             eth_eureka::ChainListener::new(config.dst_ics26_address, dst_provider.clone());
 
@@ -102,6 +112,13 @@ impl EthToEthProofApiModuleService {
                     dst_provider,
                 ))
             }
+            TxBuilderMode::Besu(consensus_type) => EthToEthTxBuilder::Besu(besu::TxBuilder::new(
+                src_provider,
+                dst_provider,
+                config.src_ics26_address,
+                config.dst_ics26_address,
+                consensus_type,
+            )),
         };
 
         Ok(Self {
@@ -186,8 +203,8 @@ impl ProofApiService for EthToEthProofApiModuleService {
             timeout_txs.len()
         );
 
-        // For timeouts in attested mode, get the current height from the source chain
-        // (where non-membership is proven). Note: eth-to-eth is always attested mode.
+        // For timeouts, get the current height from the source chain (where non-membership is
+        // proven).
         let timeout_relay_height = if timeout_txs.is_empty() {
             None
         } else {
@@ -231,6 +248,7 @@ impl ProofApiService for EthToEthProofApiModuleService {
         let tx = self
             .tx_builder
             .create_client(&inner_req.parameters)
+            .await
             .map_err(to_tonic_status)?;
 
         tracing::info!("Create client request completed.");
@@ -283,26 +301,73 @@ impl EthToEthTxBuilder {
     async fn relay_events(&self, params: RelayEventsParams) -> anyhow::Result<Vec<u8>> {
         match self {
             Self::Attested(tb) => tb.relay_events(params).await,
+            Self::Besu(tb) => tb.relay_events(params).await,
         }
     }
 
-    fn create_client(&self, parameters: &HashMap<String, String>) -> anyhow::Result<Vec<u8>> {
+    async fn create_client(&self, parameters: &HashMap<String, String>) -> anyhow::Result<Vec<u8>> {
         match self {
             Self::Attested(tb) => tb.create_client(parameters),
+            Self::Besu(tb) => tb.create_client(parameters).await,
         }
     }
 
     async fn update_client(&self, dst_client_id: String) -> anyhow::Result<Vec<u8>> {
         match self {
             Self::Attested(tb) => tb.update_client(dst_client_id).await,
+            Self::Besu(tb) => tb.update_client(&dst_client_id).await,
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::EthToEthConfig;
+    use super::{BesuConsensusType, BesuToEthConfig, EthToEthConfig, TxBuilderMode};
     use alloy::providers::{Provider, RootProvider};
+
+    #[test]
+    fn besu_to_eth_config_selects_besu_mode() {
+        let config: BesuToEthConfig = serde_json::from_value(serde_json::json!({
+            "src_rpc_url": "http://localhost:8545",
+            "src_ics26_address": "0x0000000000000000000000000000000000000001",
+            "dst_rpc_url": "http://localhost:9545",
+            "dst_ics26_address": "0x0000000000000000000000000000000000000002",
+            "dst_ibc_multicall_address": "0x0000000000000000000000000000000000000003",
+            "consensus_type": "ibft2"
+        }))
+        .unwrap();
+
+        let config = EthToEthConfig::from(config);
+        assert_eq!(config.src_rpc_url, "http://localhost:8545");
+        assert_eq!(config.dst_rpc_url, "http://localhost:9545");
+        assert_eq!(
+            config.dst_ibc_multicall_address,
+            "0x0000000000000000000000000000000000000003"
+                .parse::<alloy::primitives::Address>()
+                .unwrap()
+        );
+        assert!(matches!(
+            config.mode,
+            TxBuilderMode::Besu(BesuConsensusType::Ibft2)
+        ));
+    }
+
+    #[test]
+    fn eth_to_eth_config_rejects_besu_mode() {
+        let result = serde_json::from_value::<EthToEthConfig>(serde_json::json!({
+            "src_rpc_url": "http://localhost:8545",
+            "src_ics26_address": "0x0000000000000000000000000000000000000001",
+            "dst_rpc_url": "http://localhost:9545",
+            "dst_ics26_address": "0x0000000000000000000000000000000000000002",
+            "dst_ibc_multicall_address": "0x0000000000000000000000000000000000000003",
+            "mode": { "besu": "qbft" }
+        }));
+
+        assert!(
+            result.is_err(),
+            "Besu mode is configured through besu_to_eth"
+        );
+    }
 
     #[test]
     fn obsolete_src_chain_id_is_ignored() {

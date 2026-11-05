@@ -7,12 +7,16 @@ license.workspace = true
 
 [dependencies]
 alloy = { workspace = true, features = ["full", "node-bindings", "reqwest-rustls-tls"] }
-anyhow = { workspace = true }
+alloy-rlp = { workspace = true }
+anyhow = { workspace = true, features = ["std"] }
 async-trait = { workspace = true }
+ethereum-apis = { workspace = true }
+ethereum-light-client = { workspace = true }
 proof-api-core = { workspace = true }
 proof-api-lib = { workspace = true }
-ibc-eureka-solidity-types = { workspace = true }
-serde = { workspace = true }
+ibc-eureka-solidity-types = { workspace = true, features = ["rpc"] }
+rlp = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tonic = { workspace = true }
 tracing = { workspace = true }
