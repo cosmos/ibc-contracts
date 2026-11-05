@@ -13,6 +13,7 @@ use solana_sdk::{
 };
 
 use proof_api_core::api::SolanaPacketTxs;
+use solana_client::rpc_client::RpcClient;
 use solana_ibc_constants::CHUNK_DATA_SIZE;
 use solana_ibc_sdk::access_manager::instructions as access_manager_instructions;
 use solana_ibc_sdk::attestation::instructions as attestation_instructions;
@@ -33,7 +34,10 @@ use solana_ibc_sdk::pda::{
     ics26_router::{payload_chunk_pda, proof_chunk_pda},
 };
 
-use proof_api_lib::utils::solana_v0_tx::{derive_alt_address, extend_compute_ix};
+use proof_api_lib::utils::{
+    solana_attested::SolanaAttestationTxBuilder,
+    solana_v0_tx::{derive_alt_address, extend_compute_ix},
+};
 
 use crate::constants::ANCHOR_DISCRIMINATOR_SIZE;
 use crate::{gmp, ift};
@@ -769,12 +773,28 @@ impl super::SolanaTxBuilder {
             capped,
         )))
     }
+}
 
-    // -----------------------------------------------------------------------
-    // High-level chunked packet builders (called from attested.rs)
-    // -----------------------------------------------------------------------
+impl SolanaAttestationTxBuilder for super::SolanaTxBuilder {
+    type PacketTxs = SolanaPacketTxs;
 
-    pub(crate) fn build_recv_packet_chunked(
+    fn solana_client(&self) -> &RpcClient {
+        &self.target_solana_client
+    }
+
+    fn solana_ics26_program_id(&self) -> Pubkey {
+        self.solana_ics26_program_id
+    }
+
+    fn fee_payer(&self) -> Pubkey {
+        self.fee_payer
+    }
+
+    fn alt_address(&self) -> Option<Pubkey> {
+        self.alt_address
+    }
+
+    fn build_recv_packet_chunked(
         &self,
         msg: &MsgRecvPacket,
         payload_data: &[Vec<u8>],
@@ -826,7 +846,7 @@ impl super::SolanaTxBuilder {
         })
     }
 
-    pub(crate) fn build_ack_packet_chunked(
+    fn build_ack_packet_chunked(
         &self,
         msg: &MsgAckPacket,
         payload_data: &[Vec<u8>],
@@ -909,7 +929,7 @@ impl super::SolanaTxBuilder {
         })
     }
 
-    pub(crate) fn build_timeout_packet_chunked(
+    fn build_timeout_packet_chunked(
         &self,
         msg: &MsgTimeoutPacket,
         payload_data: &[Vec<u8>],

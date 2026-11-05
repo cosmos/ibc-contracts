@@ -4,6 +4,7 @@
 
 use anchor_lang::prelude::*;
 use anyhow::Result;
+use proof_api_lib::utils::solana_attested::SolanaAttestationTxBuilder as _;
 use solana_sdk::{
     commitment_config::CommitmentConfig,
     instruction::{AccountMeta, Instruction},

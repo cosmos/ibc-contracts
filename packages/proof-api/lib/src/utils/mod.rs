@@ -7,16 +7,16 @@ use futures_timer::Delay;
 use std::future::Future;
 use std::time::{Duration, Instant};
 
-/// Parameters for relay events operations in attested mode.
+/// Parameters for relay events operations.
 ///
 /// This struct groups the common parameters needed for building relay transactions
-/// across different chain combinations.
+/// across different chain combinations. `T` is the event type of the target chain.
 #[derive(Debug, Clone)]
-pub struct RelayEventsParams {
+pub struct RelayEventsParams<T = EurekaEventWithHeight> {
     /// Events from the source chain containing send packets and acknowledgements.
     pub src_events: Vec<EurekaEventWithHeight>,
     /// Events from the target chain (used for timeout detection).
-    pub target_events: Vec<EurekaEventWithHeight>,
+    pub target_events: Vec<T>,
     /// For timeout packets, the height from the source chain to use for attestation.
     /// Required when processing timeouts. The caller should provide the current height
     /// from the source chain (where non-membership needs to be proven).

@@ -4,6 +4,7 @@
 
 use anyhow::{Context, Result};
 use ibc_client_tendermint::types::Header as TmHeader;
+use proof_api_lib::utils::solana_attested::SolanaAttestationTxBuilder as _;
 use solana_sdk::{
     ed25519_instruction::{Ed25519SignatureOffsets, DATA_START},
     instruction::{AccountMeta, Instruction},

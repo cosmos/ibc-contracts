@@ -235,6 +235,20 @@ pub fn convert_client_state_to_ibc(
     )
 }
 
+/// Returns the latest timeout timestamp of the packets sent in `target_events`.
+///
+/// This is the latest timeout that a relay to the source chain may need to prove.
+#[must_use]
+pub fn max_timeout_timestamp(target_events: &[SolanaEurekaEventWithHeight]) -> Option<u64> {
+    target_events
+        .iter()
+        .filter_map(|e| match &e.event {
+            SolanaEurekaEvent::SendPacket(event) => Some(event.timeout_timestamp),
+            SolanaEurekaEvent::WriteAcknowledgement(_) => None,
+        })
+        .max()
+}
+
 /// Converts a list of [`SolanaEurekaEvent`]s to a list of timeout packets with chunk data.
 ///
 /// # Arguments
