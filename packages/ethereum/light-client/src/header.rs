@@ -158,7 +158,7 @@ mod test {
                     "6d4cdea27ed68f0d4cbd443db0efe584a253fccf445e280040c81ba6502cf977"
                 ),
                 block_number: 71,
-                timestamp: 1793869254,
+                timestamp: 1_793_869_254,
             }
         );
     }

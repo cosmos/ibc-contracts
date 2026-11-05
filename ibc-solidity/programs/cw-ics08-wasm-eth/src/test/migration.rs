@@ -81,6 +81,7 @@ pub mod v1_2_0 {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     #[test]
     fn test_migrate_from_v1_2_0() {
         // Initialize v1_2_0
