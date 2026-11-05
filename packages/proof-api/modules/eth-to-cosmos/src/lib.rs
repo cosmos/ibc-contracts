@@ -26,7 +26,7 @@ use proof_api_lib::{
     listener::{cosmos_sdk, eth_eureka, ChainListenerService},
     service_utils::{parse_cosmos_tx_hashes, parse_eth_tx_hashes, to_tonic_status},
     tx_builder::TxBuilderService,
-    utils::RelayEventsParams,
+    utils::{cosmos_attested::CosmosAttestedTxBuilder, RelayEventsParams},
 };
 use tendermint_rpc::HttpClient;
 use tonic::{Request, Response};
@@ -46,6 +46,8 @@ struct EthToCosmosProofApiModuleService {
     pub eth_listener: eth_eureka::ChainListener<RootProvider>,
     /// The chain listener for Cosmos SDK.
     pub tm_listener: cosmos_sdk::ChainListener,
+    /// The ICS26 router address.
+    pub ics26_address: Address,
     /// The transaction builder for Ethereum to Cosmos.
     pub tx_builder: EthToCosmosTxBuilder,
 }
@@ -53,7 +55,7 @@ struct EthToCosmosProofApiModuleService {
 enum EthToCosmosTxBuilder {
     Real(tx_builder::TxBuilder<RootProvider>),
     Mock(tx_builder::MockTxBuilder<RootProvider>),
-    Attested(tx_builder::AttestedTxBuilder),
+    Attested(CosmosAttestedTxBuilder),
 }
 
 /// The configuration for the Ethereum to Cosmos proof API module.
@@ -115,9 +117,8 @@ impl EthToCosmosProofApiModuleService {
                 let aggregator = Aggregator::from_config(aggregator_config)
                     .await
                     .map_err(|e| anyhow::anyhow!("failed to create aggregator: {e}"))?;
-                EthToCosmosTxBuilder::Attested(tx_builder::AttestedTxBuilder::new(
+                EthToCosmosTxBuilder::Attested(CosmosAttestedTxBuilder::new(
                     aggregator,
-                    config.ics26_address,
                     config.signer_address,
                 ))
             }
@@ -126,6 +127,7 @@ impl EthToCosmosProofApiModuleService {
         Ok(Self {
             eth_listener,
             tm_listener,
+            ics26_address: config.ics26_address,
             tx_builder,
         })
     }
@@ -152,7 +154,7 @@ impl ProofApiService for EthToCosmosProofApiModuleService {
                     .await
                     .map_err(to_tonic_status)?,
                 ibc_version: "2".to_string(),
-                ibc_contract: self.tx_builder.ics26_router_address().to_string(),
+                ibc_contract: self.ics26_address.to_string(),
             }),
             metadata: HashMap::default(),
         }))
@@ -337,14 +339,6 @@ impl EthToCosmosTxBuilder {
             Self::Real(tb) => tb.update_client(dst_client_id).await,
             Self::Mock(tb) => tb.update_client(dst_client_id).await,
             Self::Attested(tb) => tb.update_client(&dst_client_id).await,
-        }
-    }
-
-    const fn ics26_router_address(&self) -> &Address {
-        match self {
-            Self::Real(tb) => tb.ics26_router.address(),
-            Self::Mock(tb) => tb.ics26_router.address(),
-            Self::Attested(tb) => tb.ics26_router(),
         }
     }
 

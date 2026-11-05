@@ -14,13 +14,8 @@ use alloy::{
 use proof_api_lib::{
     aggregator::{Aggregator, Config as AggregatorConfig},
     listener::{eth_eureka, ChainListenerService},
-    utils::{
-        eth_attested::{
-            build_eth_attestor_create_client_calldata, build_eth_attestor_relay_events_tx,
-            build_eth_attestor_update_client_calldata,
-        },
-        RelayEventsParams,
-    },
+    service_utils::{parse_eth_tx_hashes, to_tonic_status},
+    utils::{eth_attested::EthAttestedTxBuilder, RelayEventsParams},
 };
 use tonic::{Request, Response};
 
@@ -41,6 +36,8 @@ struct EthToEthProofApiModuleService {
     src_listener: eth_eureka::ChainListener<RootProvider>,
     /// The chain listener for destination Ethereum.
     dst_listener: eth_eureka::ChainListener<RootProvider>,
+    /// The destination ICS26 address.
+    dst_ics26_address: Address,
     /// The transaction builder.
     tx_builder: EthToEthTxBuilder,
     /// The destination `IBCMulticall` address that relay and update client transactions are
@@ -49,14 +46,7 @@ struct EthToEthProofApiModuleService {
 }
 
 enum EthToEthTxBuilder {
-    Attested(AttestedTxBuilder),
-}
-
-/// Transaction builder for attested relay from Ethereum to Ethereum.
-struct AttestedTxBuilder {
-    aggregator: Aggregator,
-    ics26_address: Address,
-    provider: RootProvider,
+    Attested(EthAttestedTxBuilder<RootProvider>),
 }
 
 /// The configuration for the Ethereum to Ethereum proof API module.
@@ -106,11 +96,11 @@ impl EthToEthProofApiModuleService {
                 let aggregator = Aggregator::from_config(aggregator_config)
                     .await
                     .map_err(|e| anyhow::anyhow!("failed to create aggregator: {e}"))?;
-                EthToEthTxBuilder::Attested(AttestedTxBuilder {
+                EthToEthTxBuilder::Attested(EthAttestedTxBuilder::new(
                     aggregator,
-                    ics26_address: config.dst_ics26_address,
-                    provider: dst_provider,
-                })
+                    config.dst_ics26_address,
+                    dst_provider,
+                ))
             }
         };
 
@@ -118,24 +108,11 @@ impl EthToEthProofApiModuleService {
             src_ics26_address: config.src_ics26_address,
             src_listener,
             dst_listener,
+            dst_ics26_address: config.dst_ics26_address,
             tx_builder,
             dst_ibc_multicall_address: config.dst_ibc_multicall_address,
         })
     }
-}
-
-fn to_tonic_status(e: anyhow::Error) -> tonic::Status {
-    tonic::Status::from_error(e.into())
-}
-
-#[allow(clippy::result_large_err)]
-fn parse_eth_tx_hashes(tx_ids: Vec<Vec<u8>>) -> Result<Vec<TxHash>, tonic::Status> {
-    tx_ids
-        .into_iter()
-        .map(TryInto::<[u8; 32]>::try_into)
-        .map(|tx_hash| tx_hash.map(TxHash::from))
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|tx| tonic::Status::from_error(format!("invalid tx hash: {tx:?}").into()))
 }
 
 #[tonic::async_trait]
@@ -155,7 +132,7 @@ impl ProofApiService for EthToEthProofApiModuleService {
                     .await
                     .map_err(to_tonic_status)?,
                 ibc_version: "2".to_string(),
-                ibc_contract: self.tx_builder.ics26_router_address().to_string(),
+                ibc_contract: self.dst_ics26_address.to_string(),
             }),
             source_chain: Some(api::Chain {
                 chain_id: src_chain,
@@ -176,8 +153,14 @@ impl ProofApiService for EthToEthProofApiModuleService {
         tracing::info!("Got {} source tx IDs", inner_req.source_tx_ids.len());
         tracing::info!("Got {} timeout tx IDs", inner_req.timeout_tx_ids.len());
 
-        let src_txs = parse_eth_tx_hashes(inner_req.source_tx_ids)?;
-        let timeout_txs = parse_eth_tx_hashes(inner_req.timeout_tx_ids)?;
+        let src_txs = parse_eth_tx_hashes(inner_req.source_tx_ids)?
+            .into_iter()
+            .map(TxHash::from)
+            .collect();
+        let timeout_txs = parse_eth_tx_hashes(inner_req.timeout_tx_ids)?
+            .into_iter()
+            .map(TxHash::from)
+            .collect();
 
         let src_events = self
             .src_listener
@@ -299,38 +282,19 @@ impl ProofApiModule for EthToEthProofApiModule {
 impl EthToEthTxBuilder {
     async fn relay_events(&self, params: RelayEventsParams) -> anyhow::Result<Vec<u8>> {
         match self {
-            Self::Attested(tb) => {
-                build_eth_attestor_relay_events_tx(&tb.aggregator, tb.ics26_address, params).await
-            }
+            Self::Attested(tb) => tb.relay_events(params).await,
         }
     }
 
     fn create_client(&self, parameters: &HashMap<String, String>) -> anyhow::Result<Vec<u8>> {
         match self {
-            Self::Attested(tb) => build_eth_attestor_create_client_calldata(
-                parameters,
-                tb.ics26_address,
-                tb.provider.clone(),
-            ),
+            Self::Attested(tb) => tb.create_client(parameters),
         }
     }
 
     async fn update_client(&self, dst_client_id: String) -> anyhow::Result<Vec<u8>> {
         match self {
-            Self::Attested(tb) => {
-                build_eth_attestor_update_client_calldata(
-                    &tb.aggregator,
-                    tb.ics26_address,
-                    dst_client_id,
-                )
-                .await
-            }
-        }
-    }
-
-    const fn ics26_router_address(&self) -> &Address {
-        match self {
-            Self::Attested(tb) => &tb.ics26_address,
+            Self::Attested(tb) => tb.update_client(dst_client_id).await,
         }
     }
 }
