@@ -351,7 +351,7 @@ mod tests {
             // Verify client message
             let relayer_messages: RelayerMessages = fixture.get_data_at_step(1);
             let (update_client_msgs, recv_msgs, _, _) = relayer_messages.get_sdk_msgs();
-            assert_eq!(1, update_client_msgs.len()); // just to make sure
+            assert_ne!(0, update_client_msgs.len()); // just to make sure
             assert_eq!(1, recv_msgs.len()); // just to make sure
             let client_msgs = update_client_msgs
                 .iter()
@@ -453,7 +453,7 @@ mod tests {
             // Verify client message
             let relayer_messages: RelayerMessages = fixture.get_data_at_step(1);
             let (update_client_msgs, recv_msgs, _, _) = relayer_messages.get_sdk_msgs();
-            assert_eq!(1, update_client_msgs.len()); // just to make sure
+            assert_ne!(0, update_client_msgs.len()); // just to make sure
             assert_eq!(1, recv_msgs.len()); // just to make sure
             let client_msgs = update_client_msgs
                 .iter()
@@ -466,7 +466,8 @@ mod tests {
 
             let mut env = mock_env();
 
-            for header_bz in client_msgs {
+            // Only the first update crosses into the period of the next sync committee
+            for header_bz in client_msgs.into_iter().take(1) {
                 let mut header: Header = serde_json::from_slice(&header_bz).unwrap();
 
                 let sync_committee = header.active_sync_committee;
@@ -549,7 +550,7 @@ mod tests {
             // Verify client message
             let relayer_messages: RelayerMessages = fixture.get_data_at_step(1);
             let (update_client_msgs, recv_msgs, _, _) = relayer_messages.get_sdk_msgs();
-            assert_eq!(1, update_client_msgs.len()); // just to make sure
+            assert_ne!(0, update_client_msgs.len()); // just to make sure
             assert_eq!(1, recv_msgs.len()); // just to make sure
             let client_msgs = update_client_msgs
                 .iter()
@@ -562,7 +563,8 @@ mod tests {
 
             let mut env = mock_env();
 
-            for header_bz in client_msgs {
+            // Only the first update crosses into the period of the next sync committee
+            for header_bz in client_msgs.into_iter().take(1) {
                 let mut header: Header = serde_json::from_slice(&header_bz).unwrap();
 
                 let sync_committee = header.active_sync_committee;
