@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"math/big"
 	"os"
@@ -42,12 +43,14 @@ import (
 	"github.com/cosmos/ibc-contracts/packages/go-abigen/ibcerc20"
 	"github.com/cosmos/ibc-contracts/packages/go-abigen/ics20transfer"
 
+	"github.com/cosmos/ibc-contracts/e2e/v8/chainconfig"
 	"github.com/cosmos/ibc-contracts/e2e/v8/e2esuite"
 	proofapi "github.com/cosmos/ibc-contracts/e2e/v8/proofapi"
 	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
 	"github.com/cosmos/ibc-contracts/e2e/v8/types"
 	ethereumtypes "github.com/cosmos/ibc-contracts/e2e/v8/types/ethereum"
 	proofapitypes "github.com/cosmos/ibc-contracts/e2e/v8/types/proofapi"
+	"github.com/cosmos/ibc-contracts/e2e/v8/wasm"
 )
 
 // ProofAPITestSuite is a suite of tests that wraps IbcEurekaTestSuite
@@ -860,6 +863,107 @@ func (s *ProofAPITestSuite) Test_10_FilteredRecvPacketToCosmos() {
 	s.FilteredRecvPacketToCosmosTest(ctx, 10, big.NewInt(testvalues.TransferAmount), []uint64{2, 6})
 }
 
+// Test_Gloas_Fork upgrades a live light client through the Gloas fork in the same way as on mainnet.
+// The client is created on Fulu with the latest release, which doesn't know about Gloas. Packets
+// must keep being relayed after the client is migrated to the local version before the fork, and
+// after the chain has forked.
+func (s *ProofAPITestSuite) Test_Gloas_Fork() {
+	if os.Getenv(testvalues.EnvKeyEthTestnetType) != testvalues.EthTestnetTypePoS {
+		s.T().Skip("Test is only relevant for PoS networks")
+	}
+
+	ctx := context.Background()
+	proofType := types.GetEnvProofType()
+
+	var gloasForkEpoch uint64
+	if chainconfig.GetKurtosisPreset() == testvalues.EnvValueEthereumPosPreset_Minimal {
+		gloasForkEpoch = 40
+	} else {
+		// For mainnet, epochs are longer so we set the fork epoch lower to avoid long waits
+		gloasForkEpoch = 7
+	}
+	defaultGloasForkEpoch := chainconfig.KurtosisConfig.NetworkParams.GloasForkEpoch
+	chainconfig.KurtosisConfig.NetworkParams.GloasForkEpoch = gloasForkEpoch
+	s.T().Cleanup(func() {
+		chainconfig.KurtosisConfig.NetworkParams.GloasForkEpoch = defaultGloasForkEpoch
+	})
+	s.T().Setenv(testvalues.EnvKeyE2EWasmLightClientTag, testvalues.PreGloasWasmLightClientTag)
+
+	s.SetupSuite(ctx, proofType)
+
+	eth, simd := s.Eth.Chains[0], s.Cosmos.Chains[0]
+
+	spec, err := eth.BeaconAPIClient.GetSpec()
+	s.Require().NoError(err)
+	s.Require().Equal(gloasForkEpoch, spec.GloasForkEpoch)
+
+	queryClientState := func() (ibcwasmtypes.ClientState, ethereumtypes.ClientState) {
+		resp, err := e2esuite.GRPCQuery[clienttypes.QueryClientStateResponse](ctx, simd, &clienttypes.QueryClientStateRequest{
+			ClientId: testvalues.FirstWasmClientID,
+		})
+		s.Require().NoError(err)
+
+		var wasmClientState ibcwasmtypes.ClientState
+		s.Require().NoError(proto.Unmarshal(resp.ClientState.Value, &wasmClientState))
+
+		var clientState ethereumtypes.ClientState
+		s.Require().NoError(json.Unmarshal(wasmClientState.Data, &clientState))
+
+		return wasmClientState, clientState
+	}
+	latestEpoch := func() uint64 {
+		wasmClientState, _ := queryClientState()
+		return wasmClientState.LatestHeight.RevisionHeight / spec.SlotsPerEpoch
+	}
+
+	s.FilteredRecvPacketToCosmosTest(ctx, 1, big.NewInt(testvalues.TransferAmount), nil)
+	s.Require().Less(latestEpoch(), gloasForkEpoch)
+
+	s.Require().True(s.Run("Migrate the light client before the fork", func() {
+		wasmBinary, err := wasm.GetLocalWasmEthLightClient()
+		s.Require().NoError(err)
+		checksum := s.PushNewWasmClientProposal(ctx, simd, s.SimdRelayerSubmitter, wasmBinary)
+
+		// The client state was last written by the latest release, which drops the fork it doesn't know
+		_, clientState := queryClientState()
+		s.Require().Nil(clientState.ForkParameters.Gloas)
+
+		forkParameters := clientState.ForkParameters
+		forkParameters.Gloas = &ethereumtypes.Fork{
+			Version: ethcommon.Bytes2Hex(spec.GloasForkVersion[:]),
+			Epoch:   spec.GloasForkEpoch,
+		}
+		migrateMsg, err := json.Marshal(ethereumtypes.NewUpdateForkParametersMigrateMsg(forkParameters))
+		s.Require().NoError(err)
+		s.PushMigrateWasmClientProposal(ctx, simd, s.SimdRelayerSubmitter, testvalues.FirstWasmClientID, checksum, migrateMsg)
+
+		wasmClientState, clientState := queryClientState()
+		s.Require().Equal(checksum, hex.EncodeToString(wasmClientState.Checksum))
+		s.Require().Equal(forkParameters, clientState.ForkParameters)
+
+		header, err := eth.BeaconAPIClient.GetHeader("head")
+		s.Require().NoError(err)
+		s.Require().Less(uint64(header.Header.Message.Slot)/spec.SlotsPerEpoch, gloasForkEpoch, "the chain forked before the client was migrated")
+	}))
+
+	s.Require().True(s.Run("Wait for the fork to finalize", func() {
+		err := testutil.WaitForCondition(time.Minute*30, time.Second*30, func() (bool, error) {
+			finalityUpdate, err := eth.BeaconAPIClient.GetFinalityUpdate()
+			if err != nil {
+				return false, err
+			}
+
+			finalizedEpoch := finalityUpdate.Data.FinalizedHeader.Beacon.GetSlot() / spec.SlotsPerEpoch
+			s.T().Logf("Waiting for epoch %d, current finalized epoch: %d", gloasForkEpoch, finalizedEpoch)
+			return finalizedEpoch >= gloasForkEpoch, nil
+		})
+		s.Require().NoError(err)
+	}))
+
+	s.FilteredRecvPacketToCosmosTest(ctx, 1, big.NewInt(testvalues.TransferAmount), nil)
+	s.Require().GreaterOrEqual(latestEpoch(), gloasForkEpoch)
+}
+
 func (s *ProofAPITestSuite) FilteredRecvPacketToCosmosTest(ctx context.Context, numOfTransfers int, transferAmount *big.Int, recvFilter []uint64) {
 	s.Require().GreaterOrEqual(numOfTransfers, len(recvFilter))
 	s.Require().Greater(numOfTransfers, 0)
@@ -1213,12 +1317,12 @@ func (s *ProofAPITestSuite) Test_UpdateClientToCosmos() {
 				return false, err
 			}
 
-			finalizedBlock, err := strconv.ParseInt(resp.Data.FinalizedHeader.Execution.BlockNumber, 10, 64)
+			finalizedBlock, err := eth.RPCClient.HeaderByHash(ctx, ethcommon.HexToHash(*resp.Data.FinalizedHeader.ExecutionBlockHash))
 			if err != nil {
 				return false, err
 			}
 
-			code, err := eth.RPCClient.CodeAt(ctx, ics26Address, big.NewInt(finalizedBlock))
+			code, err := eth.RPCClient.CodeAt(ctx, ics26Address, finalizedBlock.Number)
 			if err != nil || len(code) == 0 {
 				// Code not found at the finalized block number
 				return false, nil

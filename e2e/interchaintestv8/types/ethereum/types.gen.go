@@ -67,6 +67,8 @@ type ForkParameters struct {
 	GenesisForkVersion string `json:"genesis_fork_version"`
 	// The genesis slot
 	GenesisSlot uint64 `json:"genesis_slot"`
+	// The gloas fork
+	Gloas *Fork `json:"gloas,omitempty"`
 }
 
 // The altair fork
@@ -81,7 +83,9 @@ type ForkParameters struct {
 //
 // # The electra fork
 //
-// The fulu fork
+// # The fulu fork
+//
+// The gloas fork
 type Fork struct {
 	// The epoch at which this fork is activated
 	Epoch uint64 `json:"epoch"`
@@ -121,6 +125,9 @@ type Header struct {
 	ActiveSyncCommittee ActiveSyncCommittee `json:"active_sync_committee"`
 	// The consensus update
 	ConsensusUpdate LightClientUpdate `json:"consensus_update"`
+	// The RLP encoded execution block header of the finalized header (untrusted). Required from
+	// Gloas onwards, where light client data only commits to the block hash.
+	FinalizedExecutionHeader *string `json:"finalized_execution_header"`
 	// Trusted slot to verify the new update against
 	TrustedSlot uint64 `json:"trusted_slot"`
 }
@@ -169,12 +176,18 @@ type LightClientUpdate struct {
 //
 // # The header of a light client
 //
+// Data created before Gloas carries `execution`. Data created from Gloas onwards only
+// carries `execution_block_hash`, including headers of pre-Gloas blocks referenced by that
+// data.
+//
 // Finalized header corresponding to `attested_header.state_root`
 type LightClientHeader struct {
 	// The beacon block header
 	Beacon BeaconBlockHeader `json:"beacon"`
-	// The execution payload header
-	Execution ExecutionPayloadHeader `json:"execution"`
+	// The execution payload header (removed in Gloas)
+	Execution *ExecutionPayloadHeader `json:"execution"`
+	// The hash of the execution block (new in Gloas)
+	ExecutionBlockHash *string `json:"execution_block_hash"`
 	// The execution branch
 	ExecutionBranch []string `json:"execution_branch"`
 }
@@ -193,8 +206,6 @@ type BeaconBlockHeader struct {
 	StateRoot string `json:"state_root"`
 }
 
-// The execution payload header
-//
 // Header to track the execution block
 type ExecutionPayloadHeader struct {
 	// Block base fee per gas
