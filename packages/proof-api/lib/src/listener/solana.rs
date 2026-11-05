@@ -123,7 +123,7 @@ impl ChainListenerService<SolanaEureka> for ChainListener {
                     solana_client::rpc_config::RpcTransactionConfig {
                         encoding: Some(UiTransactionEncoding::Json),
                         commitment: Some(CommitmentConfig::confirmed()),
-                        max_supported_transaction_version: Some(0),
+                        max_supported_transaction_version: Some(1),
                     },
                 )
                 .map_err(|e| anyhow::anyhow!("Failed to fetch Solana transaction: {e}"))
@@ -158,7 +158,7 @@ impl ChainListenerService<SolanaEureka> for ChainListener {
                     slot,
                     solana_client::rpc_config::RpcBlockConfig {
                         encoding: Some(UiTransactionEncoding::Base64),
-                        max_supported_transaction_version: Some(0),
+                        max_supported_transaction_version: Some(1),
                         rewards: Some(false),
                         commitment: Some(CommitmentConfig::confirmed()),
                         transaction_details: Some(
