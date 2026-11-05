@@ -82,7 +82,9 @@ pub fn verify_header<V: BlsVerify>(
         &bls_verifier,
     )?;
 
-    // check whether the execution data of the finalized header can be trusted
+    // The consensus specs stop at the execution block hash, but this client also needs the state
+    // root and timestamp of that block. This rejects updates whose execution data can't be trusted
+    // when verifying them. `update_consensus_state` reads the same data when storing the update.
     header.finalized_execution()?;
 
     // check whether at least 2/3 of the sync committee signed
