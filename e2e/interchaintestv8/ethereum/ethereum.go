@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"time"
 
+	goethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
@@ -69,6 +70,11 @@ func (e *Ethereum) GetBlockTime(ctx context.Context) (int64, error) {
 // Once the transaction is mined, the receipt is returned.
 func (e *Ethereum) BroadcastTx(ctx context.Context, userKey *ecdsa.PrivateKey, gasLimit uint64, address *ethcommon.Address, txBz []byte) (*ethtypes.Receipt, error) {
 	txOpts, err := e.GetTransactOpts(userKey)
+	if err != nil {
+		return nil, err
+	}
+
+	gasLimit, err = e.gasLimitForFork(ctx, txOpts.From, address, txBz, gasLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -159,6 +165,23 @@ func (e Ethereum) forgeScript(timeout time.Duration, deployer *ecdsa.PrivateKey,
 	}
 
 	return stdoutBuf.Bytes(), nil
+}
+
+// gasLimitForFork returns the gas limit to use for a transaction. Limits chosen by callers don't
+// account for the cost of state creation from Gloas onwards, so the node's estimate is used instead.
+// Transactions that can't be estimated keep the given limit so that they can still revert on-chain.
+func (e *Ethereum) gasLimitForFork(ctx context.Context, from ethcommon.Address, to *ethcommon.Address, data []byte, gasLimit uint64) (uint64, error) {
+	isGloas, err := e.isGloasActive()
+	if err != nil || !isGloas {
+		return gasLimit, err
+	}
+
+	estimate, err := e.RPCClient.EstimateGas(ctx, goethereum.CallMsg{From: from, To: to, Data: data})
+	if err != nil {
+		return gasLimit, nil //nolint:nilerr
+	}
+
+	return estimate + estimate/5, nil
 }
 
 // isGloasActive returns whether the chain has reached the Gloas fork. Chains without a beacon node
