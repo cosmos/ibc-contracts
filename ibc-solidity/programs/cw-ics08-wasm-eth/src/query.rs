@@ -221,7 +221,7 @@ mod tests {
 
         let mut env = mock_env();
         env.block.time = Timestamp::from_seconds(
-            client_state.compute_timestamp_at_slot(header.consensus_update.signature_slot) + 1000,
+            client_state.compute_timestamp_at_slot(header.consensus_update.signature_slot()) + 1000,
         );
 
         verify_client_message(

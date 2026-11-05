@@ -3,11 +3,8 @@
 //! This module implements the `BeaconApiClient` to interact with the Ethereum Beacon API.
 
 use ethereum_types::consensus::{
-    beacon_block::BeaconBlock,
-    bootstrap::LightClientBootstrap,
-    genesis::Genesis,
-    light_client_header::{LightClientFinalityUpdate, LightClientUpdate},
-    spec::Spec,
+    beacon_block::BeaconBlock, bootstrap::LightClientBootstrap, genesis::Genesis,
+    light_client_header::LightClientUpdate, spec::Spec,
 };
 use reqwest::{Client, StatusCode};
 use serde::de::DeserializeOwned;
@@ -96,7 +93,7 @@ impl BeaconApiClient {
     /// Returns an error if the request fails or the response is not successful deserialized
     pub async fn finality_update(
         &self,
-    ) -> Result<Response<LightClientFinalityUpdate, Version>, BeaconApiClientError> {
+    ) -> Result<Response<LightClientUpdate, Version>, BeaconApiClientError> {
         self.get_json(LIGHT_CLIENT_FINALITY_UPDATE_PATH).await
     }
 

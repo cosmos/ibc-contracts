@@ -10,7 +10,7 @@ use super::{light_client_header::LightClientHeader, sync_committee::SyncCommitte
 
 /// The light client bootstrap
 #[serde_as]
-#[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Debug, Default)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Debug)]
 #[allow(clippy::module_name_repetitions)]
 pub struct LightClientBootstrap {
     /// The light client header

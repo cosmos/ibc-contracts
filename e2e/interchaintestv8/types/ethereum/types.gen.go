@@ -125,8 +125,8 @@ type Header struct {
 	ActiveSyncCommittee ActiveSyncCommittee `json:"active_sync_committee"`
 	// The consensus update
 	ConsensusUpdate LightClientUpdate `json:"consensus_update"`
-	// The RLP encoded execution block header of the finalized header (untrusted). Required from
-	// Gloas onwards, where light client data only commits to the block hash.
+	// The RLP encoded execution block header of the finalized header (untrusted). Required by
+	// Gloas light client data, which only commits to the block hash.
 	FinalizedExecutionHeader *string `json:"finalized_execution_header"`
 	// Trusted slot to verify the new update against
 	TrustedSlot uint64 `json:"trusted_slot"`
@@ -154,7 +154,14 @@ type SyncCommittee struct {
 
 // The consensus update
 //
-// A light client update
+// # A light client update in the format of the fork of its attested header
+//
+// # An update with a Gloas attested header
+//
+// A light client update, generic over the format of its headers and its fixed length
+// branches. Finality updates have the same format without the next sync committee.
+//
+// An update with a Fulu attested header
 type LightClientUpdate struct {
 	// Header attested to by the sync committee
 	AttestedHeader LightClientHeader `json:"attested_header"`
@@ -174,22 +181,22 @@ type LightClientUpdate struct {
 
 // Header attested to by the sync committee
 //
-// # The header of a light client
-//
-// Data created before Gloas carries `execution`. Data created from Gloas onwards only
-// carries `execution_block_hash`, including headers of pre-Gloas blocks referenced by that
-// data.
+// # The header of a light client in Gloas light client data
 //
 // Finalized header corresponding to `attested_header.state_root`
+//
+// The header of a light client in Fulu light client data
 type LightClientHeader struct {
 	// The beacon block header
 	Beacon BeaconBlockHeader `json:"beacon"`
-	// The execution payload header (removed in Gloas)
-	Execution *ExecutionPayloadHeader `json:"execution"`
-	// The hash of the execution block (new in Gloas)
-	ExecutionBlockHash *string `json:"execution_block_hash"`
+	// The hash of the execution block
+	ExecutionBlockHash *string `json:"execution_block_hash,omitempty"`
+	// The execution branch, normalized to the Gloas depth for headers of pre-Gloas blocks
+	//
 	// The execution branch
 	ExecutionBranch []string `json:"execution_branch"`
+	// The execution payload header
+	Execution *ExecutionPayloadHeader `json:"execution,omitempty"`
 }
 
 // The beacon block header
@@ -206,6 +213,8 @@ type BeaconBlockHeader struct {
 	StateRoot string `json:"state_root"`
 }
 
+// The execution payload header
+//
 // Header to track the execution block
 type ExecutionPayloadHeader struct {
 	// Block base fee per gas

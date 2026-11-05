@@ -3,30 +3,64 @@
 //! This module defines types related to beacon's light client functionality.
 
 use alloy_primitives::{Address, Bloom, Bytes, B256, U256};
-use schemars::JsonSchema;
+use schemars::{gen::SchemaGenerator, schema::Schema, JsonSchema};
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DisplayFromStr};
 use tree_hash_derive::TreeHash;
 
-use super::sync_committee::{SyncAggregate, SyncCommittee};
+use super::{
+    merkle::{
+        floorlog2, EXECUTION_BLOCK_HASH_GINDEX_GLOAS, EXECUTION_PAYLOAD_GINDEX,
+        FINALIZED_ROOT_GINDEX_ELECTRA, FINALIZED_ROOT_GINDEX_GLOAS,
+        NEXT_SYNC_COMMITTEE_GINDEX_ELECTRA, NEXT_SYNC_COMMITTEE_GINDEX_GLOAS,
+    },
+    sync_committee::{SyncAggregate, SyncCommittee},
+};
 
-/// A light client update
-#[serde_as]
-#[derive(Serialize, Deserialize, JsonSchema, PartialEq, Eq, Clone, Debug, Default)]
+/// A light client update in the format of the fork of its attested header
+#[derive(Serialize, Deserialize, JsonSchema, PartialEq, Eq, Clone, Debug)]
+#[serde(untagged)]
+#[allow(clippy::module_name_repetitions, clippy::large_enum_variant)]
+pub enum LightClientUpdate {
+    /// An update with a Gloas attested header
+    Gloas(LightClientUpdateGloas),
+    /// An update with a Fulu attested header
+    Fulu(LightClientUpdateFulu),
+}
+
+/// A light client update with a Gloas attested header. Its finalized header can be from an earlier
+/// fork, which is why the header doesn't determine the gindex of its execution branch.
 #[allow(clippy::module_name_repetitions)]
-pub struct LightClientUpdate {
+pub type LightClientUpdateGloas = GenericLightClientUpdate<
+    LightClientHeaderGloas,
+    MerkleBranch<[B256; floorlog2(NEXT_SYNC_COMMITTEE_GINDEX_GLOAS)]>,
+    MerkleBranch<[B256; floorlog2(FINALIZED_ROOT_GINDEX_GLOAS)]>,
+>;
+
+/// A light client update with a Fulu attested header
+#[allow(clippy::module_name_repetitions)]
+pub type LightClientUpdateFulu = GenericLightClientUpdate<
+    LightClientHeaderFulu,
+    MerkleBranch<[B256; floorlog2(NEXT_SYNC_COMMITTEE_GINDEX_ELECTRA)]>,
+    MerkleBranch<[B256; floorlog2(FINALIZED_ROOT_GINDEX_ELECTRA)]>,
+>;
+
+/// A light client update, generic over the format of its headers and its fixed length branches.
+/// Finality updates have the same format without the next sync committee.
+#[serde_as]
+#[derive(Serialize, Deserialize, JsonSchema, PartialEq, Eq, Clone, Debug)]
+#[allow(clippy::module_name_repetitions)]
+pub struct GenericLightClientUpdate<H, NextSyncCommitteeBranch, FinalityBranch> {
     /// Header attested to by the sync committee
-    pub attested_header: LightClientHeader,
+    pub attested_header: H,
     /// Next sync committee corresponding to `attested_header.state_root`
     pub next_sync_committee: Option<SyncCommittee>,
     /// The branch of the next sync committee
-    #[schemars(with = "Vec<String>")]
-    pub next_sync_committee_branch: Option<Vec<B256>>,
+    pub next_sync_committee_branch: Option<NextSyncCommitteeBranch>,
     /// Finalized header corresponding to `attested_header.state_root`
-    pub finalized_header: LightClientHeader,
+    pub finalized_header: H,
     /// Branch of the finalized header
-    #[schemars(with = "Vec<String>")]
-    pub finality_branch: Vec<B256>,
+    pub finality_branch: FinalityBranch,
     /// Sync committee aggregate signature
     pub sync_aggregate: SyncAggregate,
     /// Slot at which the aggregate signature was created (untrusted)
@@ -35,71 +69,142 @@ pub struct LightClientUpdate {
     pub signature_slot: u64,
 }
 
-/// A light client finality update
-#[serde_as]
-#[derive(Serialize, Deserialize, JsonSchema, PartialEq, Eq, Clone, Debug, Default)]
-#[allow(clippy::module_name_repetitions)]
-pub struct LightClientFinalityUpdate {
-    /// Header attested to by the sync committee
-    pub attested_header: LightClientHeader,
-    /// Finalized header corresponding to `attested_header.state_root`
-    pub finalized_header: LightClientHeader,
-    /// Branch of the finalized header
-    #[schemars(with = "Vec<String>")]
-    pub finality_branch: Vec<B256>,
-    /// Sync committee aggregate signature
-    pub sync_aggregate: SyncAggregate,
-    /// Slot at which the aggregate signature was created (untrusted)
-    #[serde_as(as = "DisplayFromStr")]
-    #[schemars(with = "String")]
-    pub signature_slot: u64,
+/// A merkle branch of a fixed length, which is enforced when decoding it
+#[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Debug, Default)]
+#[serde(transparent)]
+pub struct MerkleBranch<T>(pub T);
+
+impl<T> JsonSchema for MerkleBranch<T> {
+    fn schema_name() -> String {
+        "MerkleBranch".to_string()
+    }
+
+    fn json_schema(generator: &mut SchemaGenerator) -> Schema {
+        <Vec<String>>::json_schema(generator)
+    }
 }
 
-// Light Client Finality Update to Light Client Update conversion
-impl From<LightClientFinalityUpdate> for LightClientUpdate {
-    fn from(finality_update: LightClientFinalityUpdate) -> Self {
-        Self {
-            attested_header: finality_update.attested_header,
-            next_sync_committee: None,
-            next_sync_committee_branch: None,
-            finalized_header: finality_update.finalized_header,
-            finality_branch: finality_update.finality_branch,
-            sync_aggregate: finality_update.sync_aggregate,
-            signature_slot: finality_update.signature_slot,
+impl LightClientUpdate {
+    /// Returns the beacon block header attested to by the sync committee
+    #[must_use]
+    pub const fn attested_beacon(&self) -> &BeaconBlockHeader {
+        match self {
+            Self::Gloas(update) => &update.attested_header.beacon,
+            Self::Fulu(update) => &update.attested_header.beacon,
+        }
+    }
+
+    /// Returns the finalized beacon block header
+    #[must_use]
+    pub const fn finalized_beacon(&self) -> &BeaconBlockHeader {
+        match self {
+            Self::Gloas(update) => &update.finalized_header.beacon,
+            Self::Fulu(update) => &update.finalized_header.beacon,
+        }
+    }
+
+    /// Returns the hash of the execution block the attested header commits to
+    #[must_use]
+    pub const fn attested_block_hash(&self) -> B256 {
+        match self {
+            Self::Gloas(update) => update.attested_header.execution_block_hash,
+            Self::Fulu(update) => update.attested_header.execution.block_hash,
+        }
+    }
+
+    /// Returns the next sync committee, if the update contains it
+    #[must_use]
+    pub const fn next_sync_committee(&self) -> Option<&SyncCommittee> {
+        match self {
+            Self::Gloas(update) => update.next_sync_committee.as_ref(),
+            Self::Fulu(update) => update.next_sync_committee.as_ref(),
+        }
+    }
+
+    /// Returns whether the update contains a branch for the next sync committee
+    #[must_use]
+    pub const fn has_next_sync_committee_branch(&self) -> bool {
+        match self {
+            Self::Gloas(update) => update.next_sync_committee_branch.is_some(),
+            Self::Fulu(update) => update.next_sync_committee_branch.is_some(),
+        }
+    }
+
+    /// Returns the sync committee aggregate signature
+    #[must_use]
+    pub const fn sync_aggregate(&self) -> &SyncAggregate {
+        match self {
+            Self::Gloas(update) => &update.sync_aggregate,
+            Self::Fulu(update) => &update.sync_aggregate,
+        }
+    }
+
+    /// Returns the slot at which the aggregate signature was created (untrusted)
+    #[must_use]
+    pub const fn signature_slot(&self) -> u64 {
+        match self {
+            Self::Gloas(update) => update.signature_slot,
+            Self::Fulu(update) => update.signature_slot,
         }
     }
 }
 
-/// The header of a light client
-///
-/// Data created before Gloas carries `execution`. Data created from Gloas onwards only carries
-/// `execution_block_hash`, including headers of pre-Gloas blocks referenced by that data.
-#[derive(Serialize, Deserialize, JsonSchema, PartialEq, Eq, Clone, Debug, Default)]
-#[allow(clippy::module_name_repetitions)]
-pub struct LightClientHeader {
-    /// The beacon block header
-    pub beacon: BeaconBlockHeader,
-    /// The execution payload header (removed in Gloas)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub execution: Option<ExecutionPayloadHeader>,
-    /// The hash of the execution block (new in Gloas)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<String>")]
-    pub execution_block_hash: Option<B256>,
-    /// The execution branch
-    #[schemars(with = "Vec<String>")]
-    pub execution_branch: Vec<B256>,
+/// The header of a light client, in the format of the light client data that contains it
+#[derive(Serialize, Deserialize, JsonSchema, PartialEq, Eq, Clone, Debug)]
+#[serde(untagged)]
+#[allow(clippy::module_name_repetitions, clippy::large_enum_variant)]
+pub enum LightClientHeader {
+    /// A header in Gloas light client data
+    Gloas(LightClientHeaderGloas),
+    /// A header in Fulu light client data
+    Fulu(LightClientHeaderFulu),
 }
 
 impl LightClientHeader {
-    /// Returns the hash of the execution block this header commits to, regardless of its format.
+    /// Returns the beacon block header
     #[must_use]
-    pub fn block_hash(&self) -> Option<B256> {
-        self.execution
-            .as_ref()
-            .map(|execution| execution.block_hash)
-            .or(self.execution_block_hash)
+    pub const fn beacon(&self) -> &BeaconBlockHeader {
+        match self {
+            Self::Gloas(header) => &header.beacon,
+            Self::Fulu(header) => &header.beacon,
+        }
     }
+
+    /// Returns the hash of the execution block this header commits to
+    #[must_use]
+    pub const fn block_hash(&self) -> B256 {
+        match self {
+            Self::Gloas(header) => header.execution_block_hash,
+            Self::Fulu(header) => header.execution.block_hash,
+        }
+    }
+}
+
+/// The header of a light client in Gloas light client data
+#[derive(Serialize, Deserialize, JsonSchema, PartialEq, Eq, Clone, Debug, Default)]
+#[allow(clippy::module_name_repetitions)]
+pub struct LightClientHeaderGloas {
+    /// The beacon block header
+    pub beacon: BeaconBlockHeader,
+    /// The hash of the execution block
+    #[schemars(with = "String")]
+    pub execution_block_hash: B256,
+    /// The execution branch, normalized to the Gloas depth for headers of pre-Gloas blocks
+    #[schemars(with = "Vec<String>")]
+    pub execution_branch: [B256; floorlog2(EXECUTION_BLOCK_HASH_GINDEX_GLOAS)],
+}
+
+/// The header of a light client in Fulu light client data
+#[derive(Serialize, Deserialize, JsonSchema, PartialEq, Eq, Clone, Debug, Default)]
+#[allow(clippy::module_name_repetitions)]
+pub struct LightClientHeaderFulu {
+    /// The beacon block header
+    pub beacon: BeaconBlockHeader,
+    /// The execution payload header
+    pub execution: ExecutionPayloadHeader,
+    /// The execution branch
+    #[schemars(with = "Vec<String>")]
+    pub execution_branch: [B256; floorlog2(EXECUTION_PAYLOAD_GINDEX)],
 }
 
 /// The beacon block header

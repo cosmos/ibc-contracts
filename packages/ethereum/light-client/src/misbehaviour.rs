@@ -43,23 +43,18 @@ pub fn verify_misbehaviour<V: BlsVerify>(
 
     // There is no point to check for misbehaviour when the headers are not for the same height
     let (slot_1, slot_2) = (
-        update_1.attested_header.beacon.slot,
-        update_2.attested_header.beacon.slot,
+        update_1.attested_beacon().slot,
+        update_2.attested_beacon().slot,
     );
     ensure!(
         slot_1 == slot_2,
         EthereumIBCError::MisbehaviourSlotMismatch(slot_1, slot_2)
     );
 
-    let invalid_format = EthereumIBCError::InvalidLightClientHeaderFormat { slot: slot_1 };
-    let block_hash_1 = update_1
-        .attested_header
-        .block_hash()
-        .ok_or_else(|| invalid_format.clone())?;
-    let block_hash_2 = update_2
-        .attested_header
-        .block_hash()
-        .ok_or(invalid_format)?;
+    let (block_hash_1, block_hash_2) = (
+        update_1.attested_block_hash(),
+        update_2.attested_block_hash(),
+    );
     ensure!(
         block_hash_1 != block_hash_2,
         EthereumIBCError::MisbehaviourExecutionBlockHashesMatch(block_hash_1)

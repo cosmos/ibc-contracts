@@ -146,7 +146,7 @@ pub mod v1_2_0 {
         for header_bz in client_msgs {
             let header: Header = serde_json::from_slice(&header_bz).unwrap();
             env.block.time = Timestamp::from_seconds(
-                client_state.compute_timestamp_at_slot(header.consensus_update.signature_slot)
+                client_state.compute_timestamp_at_slot(header.consensus_update.signature_slot())
                     + 1000,
             );
 
@@ -168,7 +168,7 @@ pub mod v1_2_0 {
             assert_eq!(1, update_state_result.heights.len());
             assert_eq!(0, update_state_result.heights[0].revision_number);
             assert_eq!(
-                header.consensus_update.finalized_header.beacon.slot,
+                header.consensus_update.finalized_beacon().slot,
                 update_state_result.heights[0].revision_height
             );
         }
@@ -187,7 +187,7 @@ pub mod v1_2_0 {
         for header_bz in client_msgs {
             let header: Header = serde_json::from_slice(&header_bz).unwrap();
             env.block.time = Timestamp::from_seconds(
-                client_state.compute_timestamp_at_slot(header.consensus_update.signature_slot)
+                client_state.compute_timestamp_at_slot(header.consensus_update.signature_slot())
                     + 1000,
             );
 
@@ -209,7 +209,7 @@ pub mod v1_2_0 {
             assert_eq!(1, update_state_result.heights.len());
             assert_eq!(0, update_state_result.heights[0].revision_number);
             assert_eq!(
-                header.consensus_update.finalized_header.beacon.slot,
+                header.consensus_update.finalized_beacon().slot,
                 update_state_result.heights[0].revision_height
             );
         }

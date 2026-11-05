@@ -19,8 +19,7 @@ use ethereum_light_client::{
     header::{ActiveSyncCommittee, Header},
 };
 use ethereum_types::consensus::{
-    light_client_header::{LightClientFinalityUpdate, LightClientHeader, LightClientUpdate},
-    sync_committee::SyncCommittee,
+    light_client_header::LightClientUpdate, sync_committee::SyncCommittee,
 };
 use ibc_eureka_solidity_types::ics26::{router::routerInstance, ICS26_IBC_STORAGE_SLOT};
 use ibc_eureka_utils::rpc::TendermintRpcExt;
@@ -135,13 +134,13 @@ where
     async fn get_light_client_updates(
         &self,
         client_state: &ClientState,
-        finality_update: LightClientFinalityUpdate,
+        finality_update: &LightClientUpdate,
     ) -> Result<Vec<LightClientUpdate>> {
         let trusted_period =
             client_state.compute_sync_committee_period_at_slot(client_state.latest_slot);
 
         let target_period = client_state
-            .compute_sync_committee_period_at_slot(finality_update.finalized_header.beacon.slot);
+            .compute_sync_committee_period_at_slot(finality_update.finalized_beacon().slot);
 
         tracing::debug!(
             "Getting light client updates from period {} to {}",
@@ -157,14 +156,14 @@ where
             .collect::<Vec<_>>())
     }
 
-    /// Returns the number of the execution block a light client header commits to.
-    async fn execution_block_number(&self, header: &LightClientHeader) -> Result<u64> {
-        let block_hash = header.block_hash().ok_or_else(|| {
-            anyhow::anyhow!(
-                "Light client header at slot {} has no execution block",
-                header.beacon.slot
-            )
-        })?;
+    /// Returns the number of the finalized execution block of a light client update.
+    async fn finalized_execution_block_number(&self, update: &LightClientUpdate) -> Result<u64> {
+        let block_hash = match update {
+            LightClientUpdate::Gloas(update) => update.finalized_header.execution_block_hash,
+            LightClientUpdate::Fulu(update) => {
+                return Ok(update.finalized_header.execution.block_number)
+            }
+        };
         Ok(self
             .eth_client
             .get_block_by_hash(block_hash)
@@ -179,11 +178,13 @@ where
         &self,
         update: &LightClientUpdate,
     ) -> Result<Option<alloy::primitives::Bytes>> {
-        let Some(block_hash) = update.finalized_header.execution_block_hash else {
+        let LightClientUpdate::Gloas(update) = update else {
             return Ok(None);
         };
         Ok(Some(
-            self.eth_client.get_block_header_rlp(block_hash).await?,
+            self.eth_client
+                .get_block_header_rlp(update.finalized_header.execution_block_hash)
+                .await?,
         ))
     }
 
@@ -201,7 +202,7 @@ where
 
                 let finality_update = self.beacon_api_client.finality_update().await?.data;
                 let finalized_block_number = self
-                    .execution_block_number(&finality_update.finalized_header)
+                    .finalized_execution_block_number(&finality_update)
                     .await?;
                 if finalized_block_number < target_block_number {
                     tracing::info!(
@@ -232,7 +233,7 @@ where
         let mut headers = vec![];
 
         let light_client_updates = self
-            .get_light_client_updates(ethereum_client_state, finality_update.clone())
+            .get_light_client_updates(ethereum_client_state, &finality_update)
             .await?;
 
         let mut latest_trusted_slot = ethereum_client_state.latest_slot;
@@ -246,9 +247,9 @@ where
         for update in light_client_updates {
             let update_sync_committee = std::mem::replace(
                 &mut signing_sync_committee,
-                update.next_sync_committee.clone(),
+                update.next_sync_committee().cloned(),
             );
-            let update_finalized_slot = update.finalized_header.beacon.slot;
+            let update_finalized_slot = update.finalized_beacon().slot;
 
             tracing::debug!(
                 "Processing light client update for finalized slot {} with trusted slot {}",
@@ -303,22 +304,21 @@ where
 
         // If the latest header is earlier than the finality update, we need to add a header for the finality update.
         if headers.last().is_none_or(|last_header| {
-            last_header.consensus_update.finalized_header.beacon.slot
-                < finality_update.finalized_header.beacon.slot
+            last_header.consensus_update.finalized_beacon().slot
+                < finality_update.finalized_beacon().slot
         }) {
-            let finality_update_finalized_slot = finality_update.finalized_header.beacon.slot;
+            let finality_update_finalized_slot = finality_update.finalized_beacon().slot;
             let finality_update_sync_committee = self
-                .get_sync_commitee_for_finalized_slot(finality_update.attested_header.beacon.slot)
+                .get_sync_commitee_for_finalized_slot(finality_update.attested_beacon().slot)
                 .await?;
             let active_sync_committee =
                 ActiveSyncCommittee::Current(finality_update_sync_committee);
 
-            let consensus_update = finality_update.into();
             let finalized_execution_header =
-                self.finalized_execution_header(&consensus_update).await?;
+                self.finalized_execution_header(&finality_update).await?;
             let header = Header {
                 active_sync_committee,
-                consensus_update,
+                consensus_update: finality_update,
                 trusted_slot: latest_trusted_slot,
                 finalized_execution_header,
             };
@@ -467,7 +467,7 @@ where
         let proof_slot = headers
             .last()
             .map_or(ethereum_client_state.latest_slot, |h| {
-                h.consensus_update.finalized_header.beacon.slot
+                h.consensus_update.finalized_beacon().slot
             });
 
         cosmos::inject_ethereum_proofs(
@@ -513,7 +513,7 @@ where
         if let Some(last_header) = headers.last() {
             self.wait_for_cosmos_chain_to_catch_up(
                 &ethereum_client_state,
-                last_header.consensus_update.signature_slot,
+                last_header.consensus_update.signature_slot(),
             )
             .await?;
         }
@@ -578,10 +578,7 @@ where
             .await?
             .data;
 
-        let execution_block_hash = bootstrap
-            .header
-            .block_hash()
-            .ok_or_else(|| anyhow::anyhow!("Light client bootstrap has no execution block"))?;
+        let execution_block_hash = bootstrap.header.block_hash();
         if Some(execution_block_hash) != beacon_block.body.execution_block_hash() {
             anyhow::bail!("Light client bootstrap execution block does not match the beacon block");
         }
@@ -602,7 +599,7 @@ where
             seconds_per_slot: spec.slot_duration_ms / 1000,
             slots_per_epoch: spec.slots_per_epoch,
             epochs_per_sync_committee_period: spec.epochs_per_sync_committee_period,
-            latest_slot: bootstrap.header.beacon.slot,
+            latest_slot: bootstrap.header.beacon().slot,
             is_frozen: false,
             ibc_commitment_slot: U256::from_be_slice(&ICS26_IBC_STORAGE_SLOT),
             ibc_contract_address: *self.ics26_router.address(),
@@ -630,7 +627,8 @@ where
             .pop()
             .ok_or_else(|| anyhow::anyhow!("No light client updates found for the latest period"))?
             .data
-            .next_sync_committee
+            .next_sync_committee()
+            .cloned()
             .ok_or_else(|| {
                 anyhow::anyhow!("No next sync committee found in the light client update")
             })?;
@@ -666,7 +664,7 @@ where
         let ethereum_client_state = self.ethereum_client_state(dst_client_id.clone()).await?;
         let finality_update = self.beacon_api_client.finality_update().await?;
         let latest_finalized_block_number = self
-            .execution_block_number(&finality_update.data.finalized_header)
+            .finalized_execution_block_number(&finality_update.data)
             .await?;
 
         if latest_finalized_block_number <= ethereum_client_state.latest_execution_block_number {
@@ -710,7 +708,7 @@ where
         if let Some(last_header) = headers.last() {
             self.wait_for_cosmos_chain_to_catch_up(
                 &ethereum_client_state,
-                last_header.consensus_update.signature_slot,
+                last_header.consensus_update.signature_slot(),
             )
             .await?;
         }
@@ -718,7 +716,7 @@ where
         let proof_slot = headers
             .last()
             .map_or(ethereum_client_state.latest_slot, |h| {
-                h.consensus_update.finalized_header.beacon.slot
+                h.consensus_update.finalized_beacon().slot
             });
         let initial_period = ethereum_client_state
             .compute_sync_committee_period_at_slot(ethereum_client_state.latest_slot);

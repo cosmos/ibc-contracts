@@ -2,8 +2,8 @@
 
 //! This module defines types related to the Header we use for the Ethereum light client
 
-use alloy_primitives::{keccak256, Bytes, B256};
-use alloy_rlp::{Decodable, Rlp};
+use alloy_primitives::{aliases::B64, keccak256, Address, Bloom, Bytes, B256, U256};
+use alloy_rlp::RlpDecodable;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -24,7 +24,8 @@ pub struct Header {
     // The client **must** have a consensus state for the provided slot
     pub trusted_slot: u64,
     /// The RLP encoded execution block header of the finalized header (untrusted).
-    /// Required from Gloas onwards, where light client data only commits to the block hash.
+    /// Required by Gloas light client data, which only commits to the block hash.
+    // TODO: Make this required once mainnet has forked to Gloas (#1252)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<String>")]
     pub finalized_execution_header: Option<Bytes>,
@@ -48,20 +49,18 @@ impl Header {
     /// # Errors
     /// Returns an error if the execution data is missing or doesn't match the finalized header.
     pub fn finalized_execution(&self) -> Result<FinalizedExecution, EthereumIBCError> {
-        let finalized_header = &self.consensus_update.finalized_header;
-        if let Some(execution) = &finalized_header.execution {
-            return Ok(FinalizedExecution {
-                state_root: execution.state_root,
-                block_number: execution.block_number,
-                timestamp: execution.timestamp,
-            });
-        }
+        let expected = match &self.consensus_update {
+            LightClientUpdate::Fulu(update) => {
+                let execution = &update.finalized_header.execution;
+                return Ok(FinalizedExecution {
+                    state_root: execution.state_root,
+                    block_number: execution.block_number,
+                    timestamp: execution.timestamp,
+                });
+            }
+            LightClientUpdate::Gloas(update) => update.finalized_header.execution_block_hash,
+        };
 
-        let expected = finalized_header.execution_block_hash.ok_or(
-            EthereumIBCError::InvalidLightClientHeaderFormat {
-                slot: finalized_header.beacon.slot,
-            },
-        )?;
         let execution_header = self
             .finalized_execution_header
             .as_ref()
@@ -72,40 +71,46 @@ impl Header {
             EthereumIBCError::FinalizedExecutionHeaderMismatch { expected, found }
         );
 
-        decode_execution_header(execution_header)
-            .map_err(|e| EthereumIBCError::InvalidFinalizedExecutionHeader(e.to_string()))
+        let header = alloy_rlp::decode_exact::<ExecutionBlockHeader>(execution_header)
+            .map_err(|e| EthereumIBCError::InvalidFinalizedExecutionHeader(e.to_string()))?;
+
+        Ok(FinalizedExecution {
+            state_root: header.state_root,
+            block_number: header.number,
+            timestamp: header.timestamp,
+        })
     }
 }
 
-/// Decodes the fields we need from an RLP encoded execution block header. These leading fields
-/// have kept their positions through all forks, new fields are only appended to the header.
-fn decode_execution_header(header: &[u8]) -> alloy_rlp::Result<FinalizedExecution> {
-    fn next<T: Decodable>(fields: &mut Rlp<'_>) -> alloy_rlp::Result<T> {
-        fields.get_next()?.ok_or(alloy_rlp::Error::InputTooShort)
-    }
-
-    let mut fields = Rlp::new(header)?;
-    // parent_hash, ommers_hash, beneficiary
-    for _ in 0..3 {
-        next::<Bytes>(&mut fields)?;
-    }
-    let state_root = next(&mut fields)?;
-    // transactions_root, receipts_root, logs_bloom, difficulty
-    for _ in 0..4 {
-        next::<Bytes>(&mut fields)?;
-    }
-    let block_number = next(&mut fields)?;
-    // gas_limit, gas_used
-    for _ in 0..2 {
-        next::<Bytes>(&mut fields)?;
-    }
-    let timestamp = next(&mut fields)?;
-
-    Ok(FinalizedExecution {
-        state_root,
-        block_number,
-        timestamp,
-    })
+/// An execution block header as of the Amsterdam fork, in the order of its RLP encoding.
+/// A later fork that adds fields needs them added here.
+#[derive(RlpDecodable)]
+#[rlp(trailing)]
+#[allow(dead_code)]
+struct ExecutionBlockHeader {
+    parent_hash: B256,
+    ommers_hash: B256,
+    beneficiary: Address,
+    state_root: B256,
+    transactions_root: B256,
+    receipts_root: B256,
+    logs_bloom: Bloom,
+    difficulty: U256,
+    number: u64,
+    gas_limit: u64,
+    gas_used: u64,
+    timestamp: u64,
+    extra_data: Bytes,
+    mix_hash: B256,
+    nonce: B64,
+    base_fee_per_gas: Option<u64>,
+    withdrawals_root: Option<B256>,
+    blob_gas_used: Option<u64>,
+    excess_blob_gas: Option<u64>,
+    parent_beacon_block_root: Option<B256>,
+    requests_hash: Option<B256>,
+    block_access_list_hash: Option<B256>,
+    slot_number: Option<u64>,
 }
 
 /// The active sync committee
@@ -121,8 +126,10 @@ pub enum ActiveSyncCommittee {
 mod test {
     use alloy_primitives::{b256, hex};
     use ethereum_types::consensus::light_client_header::{
-        ExecutionPayloadHeader, LightClientHeader,
+        ExecutionPayloadHeader, LightClientHeaderFulu, LightClientHeaderGloas,
+        LightClientUpdateFulu, LightClientUpdateGloas, MerkleBranch,
     };
+    use ethereum_types::consensus::sync_committee::SyncAggregate;
 
     use super::*;
 
@@ -134,13 +141,18 @@ mod test {
     fn gloas_header(execution_block_hash: B256, execution_header: Option<&str>) -> Header {
         Header {
             active_sync_committee: ActiveSyncCommittee::Current(SyncCommittee::default()),
-            consensus_update: LightClientUpdate {
-                finalized_header: LightClientHeader {
-                    execution_block_hash: Some(execution_block_hash),
+            consensus_update: LightClientUpdate::Gloas(LightClientUpdateGloas {
+                attested_header: LightClientHeaderGloas::default(),
+                next_sync_committee: None,
+                next_sync_committee_branch: None,
+                finalized_header: LightClientHeaderGloas {
+                    execution_block_hash,
                     ..Default::default()
                 },
-                ..Default::default()
-            },
+                finality_branch: MerkleBranch::default(),
+                sync_aggregate: SyncAggregate::default(),
+                signature_slot: 0,
+            }),
             trusted_slot: 0,
             finalized_execution_header: execution_header
                 .map(|header| hex::decode(header).unwrap().into()),
@@ -165,15 +177,25 @@ mod test {
 
     #[test]
     fn test_finalized_execution_from_execution_payload_header() {
-        let mut header = gloas_header(B256::default(), None);
-        header.consensus_update.finalized_header = LightClientHeader {
-            execution: Some(ExecutionPayloadHeader {
-                state_root: EXECUTION_BLOCK_HASH,
-                block_number: 1,
-                timestamp: 2,
-                ..Default::default()
+        let header = Header {
+            consensus_update: LightClientUpdate::Fulu(LightClientUpdateFulu {
+                attested_header: LightClientHeaderFulu::default(),
+                next_sync_committee: None,
+                next_sync_committee_branch: None,
+                finalized_header: LightClientHeaderFulu {
+                    execution: ExecutionPayloadHeader {
+                        state_root: EXECUTION_BLOCK_HASH,
+                        block_number: 1,
+                        timestamp: 2,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                finality_branch: MerkleBranch::default(),
+                sync_aggregate: SyncAggregate::default(),
+                signature_slot: 0,
             }),
-            ..Default::default()
+            ..gloas_header(B256::default(), None)
         };
 
         assert_eq!(

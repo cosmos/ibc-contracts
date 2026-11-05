@@ -4,7 +4,7 @@
 
 use alloy_primitives::B256;
 use ethereum_types::consensus::{
-    light_client_header::LightClientHeader,
+    light_client_header::{BeaconBlockHeader, LightClientHeaderFulu, LightClientHeaderGloas},
     merkle::{
         floorlog2, CURRENT_SYNC_COMMITTEE_GINDEX_ELECTRA, CURRENT_SYNC_COMMITTEE_GINDEX_GLOAS,
         EXECUTION_BLOCK_HASH_GINDEX_DENEB, EXECUTION_BLOCK_HASH_GINDEX_GLOAS,
@@ -31,11 +31,10 @@ pub fn finalized_root_gindex_at_slot(
     let epoch = client_state.compute_epoch_at_slot(slot);
     client_state.verify_supported_fork_at_epoch(epoch)?;
 
-    if epoch >= client_state.fork_parameters.gloas.epoch {
-        return Ok(FINALIZED_ROOT_GINDEX_GLOAS);
-    }
-
-    Ok(FINALIZED_ROOT_GINDEX_ELECTRA)
+    Ok(match epoch {
+        _ if epoch >= client_state.fork_parameters.gloas.epoch => FINALIZED_ROOT_GINDEX_GLOAS,
+        _ => FINALIZED_ROOT_GINDEX_ELECTRA,
+    })
 }
 
 // See spec: https://github.com/ethereum/consensus-specs/blob/master/specs/gloas/light-client/sync-protocol.md#modified-current_sync_committee_gindex_at_slot
@@ -49,11 +48,12 @@ pub fn current_sync_committee_gindex_at_slot(
     let epoch = client_state.compute_epoch_at_slot(slot);
     client_state.verify_supported_fork_at_epoch(epoch)?;
 
-    if epoch >= client_state.fork_parameters.gloas.epoch {
-        return Ok(CURRENT_SYNC_COMMITTEE_GINDEX_GLOAS);
-    }
-
-    Ok(CURRENT_SYNC_COMMITTEE_GINDEX_ELECTRA)
+    Ok(match epoch {
+        _ if epoch >= client_state.fork_parameters.gloas.epoch => {
+            CURRENT_SYNC_COMMITTEE_GINDEX_GLOAS
+        }
+        _ => CURRENT_SYNC_COMMITTEE_GINDEX_ELECTRA,
+    })
 }
 
 // See spec: https://github.com/ethereum/consensus-specs/blob/master/specs/gloas/light-client/sync-protocol.md#modified-next_sync_committee_gindex_at_slot
@@ -67,69 +67,83 @@ pub fn next_sync_committee_gindex_at_slot(
     let epoch = client_state.compute_epoch_at_slot(slot);
     client_state.verify_supported_fork_at_epoch(epoch)?;
 
-    if epoch >= client_state.fork_parameters.gloas.epoch {
-        return Ok(NEXT_SYNC_COMMITTEE_GINDEX_GLOAS);
+    Ok(match epoch {
+        _ if epoch >= client_state.fork_parameters.gloas.epoch => NEXT_SYNC_COMMITTEE_GINDEX_GLOAS,
+        _ => NEXT_SYNC_COMMITTEE_GINDEX_ELECTRA,
+    })
+}
+
+/// A light client header that can be validated against the fork at its slot.
+pub trait ValidatableLightClientHeader {
+    /// Returns the beacon block header.
+    fn beacon(&self) -> &BeaconBlockHeader;
+
+    /// Validates the header, which is known to be from a supported fork at `epoch`.
+    /// # Errors
+    /// Returns an error if the header cannot be validated.
+    fn validate(&self, client_state: &ClientState, epoch: u64) -> Result<(), EthereumIBCError>;
+}
+
+impl ValidatableLightClientHeader for LightClientHeaderFulu {
+    fn beacon(&self) -> &BeaconBlockHeader {
+        &self.beacon
     }
 
-    Ok(NEXT_SYNC_COMMITTEE_GINDEX_ELECTRA)
+    fn validate(&self, client_state: &ClientState, epoch: u64) -> Result<(), EthereumIBCError> {
+        ensure!(
+            epoch < client_state.fork_parameters.gloas.epoch,
+            EthereumIBCError::InvalidLightClientHeaderFormat {
+                slot: self.beacon.slot,
+            }
+        );
+
+        validate_merkle_branch(
+            self.execution.tree_hash_root(),
+            self.execution_branch.to_vec(),
+            floorlog2(EXECUTION_PAYLOAD_GINDEX),
+            get_subtree_index(EXECUTION_PAYLOAD_GINDEX),
+            self.beacon.body_root,
+        )
+    }
+}
+
+impl ValidatableLightClientHeader for LightClientHeaderGloas {
+    fn beacon(&self) -> &BeaconBlockHeader {
+        &self.beacon
+    }
+
+    fn validate(&self, client_state: &ClientState, epoch: u64) -> Result<(), EthereumIBCError> {
+        // A pre-Gloas block proves its block hash through the execution payload, in a branch
+        // normalized to the Gloas depth
+        let gindex = match epoch {
+            _ if epoch >= client_state.fork_parameters.gloas.epoch => {
+                EXECUTION_BLOCK_HASH_GINDEX_GLOAS
+            }
+            _ => EXECUTION_BLOCK_HASH_GINDEX_DENEB,
+        };
+
+        is_valid_normalized_merkle_branch(
+            self.execution_block_hash,
+            &self.execution_branch,
+            gindex,
+            self.beacon.body_root,
+        )
+    }
 }
 
 // See spec: https://github.com/ethereum/consensus-specs/blob/master/specs/gloas/light-client/sync-protocol.md#modified-is_valid_light_client_header
-/// Validates a light client header in either of the formats below:
-/// - The full execution payload header, used by pre-Gloas blocks in pre-Gloas light client data.
-/// - The execution block hash, used by all blocks in Gloas light client data. A pre-Gloas block
-///   proves its block hash through the execution payload, in a branch normalized to the Gloas depth.
-///
+/// Validates a light client header.
 /// # Errors
 /// Returns an error if the header cannot be validated.
-pub fn is_valid_light_client_header(
+pub fn is_valid_light_client_header<H: ValidatableLightClientHeader>(
     client_state: &ClientState,
-    header: &LightClientHeader,
+    header: &H,
 ) -> Result<(), EthereumIBCError> {
-    let epoch = client_state.compute_epoch_at_slot(header.beacon.slot);
+    let epoch = client_state.compute_epoch_at_slot(header.beacon().slot);
 
     client_state.verify_supported_fork_at_epoch(epoch)?;
 
-    let is_gloas = epoch >= client_state.fork_parameters.gloas.epoch;
-    let ensure_branch_length = |depth: usize| {
-        ensure!(
-            header.execution_branch.len() == depth,
-            EthereumIBCError::InvalidMerkleBranchLength {
-                expected: depth,
-                found: header.execution_branch.len(),
-            }
-        );
-        Ok(())
-    };
-
-    match (&header.execution, header.execution_block_hash) {
-        (Some(execution), None) if !is_gloas => {
-            ensure_branch_length(floorlog2(EXECUTION_PAYLOAD_GINDEX))?;
-            validate_merkle_branch(
-                execution.tree_hash_root(),
-                header.execution_branch.clone(),
-                floorlog2(EXECUTION_PAYLOAD_GINDEX),
-                get_subtree_index(EXECUTION_PAYLOAD_GINDEX),
-                header.beacon.body_root,
-            )
-        }
-        (None, Some(block_hash)) => {
-            ensure_branch_length(floorlog2(EXECUTION_BLOCK_HASH_GINDEX_GLOAS))?;
-            is_valid_normalized_merkle_branch(
-                block_hash,
-                &header.execution_branch,
-                if is_gloas {
-                    EXECUTION_BLOCK_HASH_GINDEX_GLOAS
-                } else {
-                    EXECUTION_BLOCK_HASH_GINDEX_DENEB
-                },
-                header.beacon.body_root,
-            )
-        }
-        _ => Err(EthereumIBCError::InvalidLightClientHeaderFormat {
-            slot: header.beacon.slot,
-        }),
-    }
+    header.validate(client_state, epoch)
 }
 
 // See spec: <https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/light-client/sync-protocol.md#get_subtree_index>
@@ -168,7 +182,7 @@ mod test {
     use alloy_primitives::{hex::FromHex, B256};
     use ethereum_types::consensus::{
         fork::{Fork, ForkParameters},
-        light_client_header::{ExecutionPayloadHeader, LightClientHeader},
+        light_client_header::{LightClientHeader, LightClientHeaderFulu, LightClientHeaderGloas},
     };
 
     use crate::{
@@ -197,7 +211,7 @@ mod test {
         }
     }
 
-    fn header(json: &str) -> LightClientHeader {
+    fn header(json: &str) -> LightClientHeaderGloas {
         serde_json::from_str(json).unwrap()
     }
 
@@ -226,47 +240,34 @@ mod test {
     }
 
     #[test]
-    fn test_execution_payload_header_is_rejected_at_gloas() {
-        let mut gloas_header = header(ATTESTED_GLOAS_HEADER);
-        gloas_header.execution_block_hash = None;
-        gloas_header.execution = Some(ExecutionPayloadHeader::default());
+    fn test_header_format_is_picked_when_decoding() {
+        let gloas: LightClientHeader = serde_json::from_str(ATTESTED_GLOAS_HEADER).unwrap();
+        assert!(matches!(gloas, LightClientHeader::Gloas(_)));
+
+        let fulu = serde_json::to_string(&LightClientHeaderFulu::default()).unwrap();
+        let fulu: LightClientHeader = serde_json::from_str(&fulu).unwrap();
+        assert!(matches!(fulu, LightClientHeader::Fulu(_)));
+    }
+
+    #[test]
+    fn test_fulu_format_header_is_rejected_at_gloas() {
+        let fulu_header = LightClientHeaderFulu {
+            beacon: header(ATTESTED_GLOAS_HEADER).beacon,
+            ..Default::default()
+        };
 
         assert_eq!(
-            is_valid_light_client_header(&client_state(), &gloas_header),
+            is_valid_light_client_header(&client_state(), &fulu_header),
             Err(EthereumIBCError::InvalidLightClientHeaderFormat { slot: 32 })
         );
     }
 
     #[test]
-    fn test_header_with_both_or_no_execution_data_is_rejected() {
-        let mut both = header(FINALIZED_FULU_HEADER);
-        both.execution = Some(ExecutionPayloadHeader::default());
-        assert_eq!(
-            is_valid_light_client_header(&client_state(), &both),
-            Err(EthereumIBCError::InvalidLightClientHeaderFormat { slot: 16 })
-        );
+    fn test_execution_branch_with_invalid_length_is_rejected_when_decoding() {
+        let mut json: serde_json::Value = serde_json::from_str(ATTESTED_GLOAS_HEADER).unwrap();
+        json["execution_branch"].as_array_mut().unwrap().pop();
 
-        let mut neither = header(FINALIZED_FULU_HEADER);
-        neither.execution_block_hash = None;
-        assert_eq!(
-            is_valid_light_client_header(&client_state(), &neither),
-            Err(EthereumIBCError::InvalidLightClientHeaderFormat { slot: 16 })
-        );
-    }
-
-    #[test]
-    fn test_execution_branch_with_invalid_length_is_rejected() {
-        for len in [9, 12] {
-            let mut gloas_header = header(ATTESTED_GLOAS_HEADER);
-            gloas_header.execution_branch.resize(len, B256::default());
-            assert_eq!(
-                is_valid_light_client_header(&client_state(), &gloas_header),
-                Err(EthereumIBCError::InvalidMerkleBranchLength {
-                    expected: 11,
-                    found: len
-                })
-            );
-        }
+        assert!(serde_json::from_value::<LightClientHeaderGloas>(json).is_err());
     }
 
     #[test]
