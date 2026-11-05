@@ -115,6 +115,18 @@ func (e Ethereum) forgeScript(timeout time.Duration, deployer *ecdsa.PrivateKey,
 		"--non-interactive", "-vvvv", solidityContract,
 	}
 	cmdArgs = append(cmdArgs, args...)
+
+	isGloas, err := e.isGloasActive()
+	if err != nil {
+		return nil, err
+	}
+	if isGloas {
+		// Forge simulates transactions with the gas rules of its configured EVM version, but state
+		// creation costs around 7 times more from Gloas onwards. This can't be set before Gloas
+		// since the resulting gas limits are above the transaction gas limit cap of Fulu.
+		cmdArgs = append(cmdArgs, "--gas-estimate-multiplier", "1000")
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
@@ -147,6 +159,25 @@ func (e Ethereum) forgeScript(timeout time.Duration, deployer *ecdsa.PrivateKey,
 	}
 
 	return stdoutBuf.Bytes(), nil
+}
+
+// isGloasActive returns whether the chain has reached the Gloas fork. Chains without a beacon node
+// never reach it.
+func (e Ethereum) isGloasActive() (bool, error) {
+	if e.BeaconAPIClient == nil {
+		return false, nil
+	}
+
+	spec, err := e.BeaconAPIClient.GetSpec()
+	if err != nil {
+		return false, err
+	}
+	header, err := e.BeaconAPIClient.GetHeader("head")
+	if err != nil {
+		return false, err
+	}
+
+	return uint64(header.Header.Message.Slot)/spec.SlotsPerEpoch >= spec.GloasForkEpoch, nil
 }
 
 func (e Ethereum) CreateUser() (*ecdsa.PrivateKey, error) {
