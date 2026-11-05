@@ -111,6 +111,10 @@ type kurtosisParticipant struct {
 	ValidatorCount uint64 `json:"validator_count"`
 	// Whether to act as a supernode for the network
 	Supernode bool `json:"supernode"`
+	// A list of optional extra params that will be passed to the CL client container
+	CLExtraParams []string `json:"cl_extra_params,omitempty"`
+	// A list of optional extra params that will be passed to the validator client container
+	VCExtraParams []string `json:"vc_extra_params,omitempty"`
 }
 
 type kurtosisNetworkConfigParams struct {
@@ -136,6 +140,11 @@ func SpinUpKurtosisPoS(ctx context.Context) (EthKurtosisChain, error) {
 		// 500ms to publish a block. Signing the previous head leaves the sync aggregates empty.
 		KurtosisConfig.NetworkParams.SlotDuration = 3000
 		KurtosisConfig.NetworkParams.SecondsPerSlot = 3
+		// The package only sets the slot duration in the chain config, which leaves the deprecated
+		// SECONDS_PER_SLOT at its default. The relayer of earlier client versions still reads it.
+		secondsPerSlotParams := []string{"--params.SECONDS_PER_SLOT=3"}
+		KurtosisConfig.Participants[0].CLExtraParams = secondsPerSlotParams
+		KurtosisConfig.Participants[0].VCExtraParams = secondsPerSlotParams
 	}
 
 	faucet, err := crypto.ToECDSA(ethcommon.FromHex(faucetPrivateKey))

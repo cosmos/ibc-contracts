@@ -240,7 +240,14 @@ where
             ethereum_client_state.compute_sync_committee_period_at_slot(latest_trusted_slot);
         tracing::debug!("Latest trusted sync committee period: {}", latest_period);
 
+        // Beacon nodes don't reliably keep the bootstrap of older blocks, but each update already
+        // contains the sync committee that signs the update of the following period.
+        let mut signing_sync_committee = None;
         for update in light_client_updates {
+            let update_sync_committee = std::mem::replace(
+                &mut signing_sync_committee,
+                update.next_sync_committee.clone(),
+            );
             let update_finalized_slot = update.finalized_header.beacon.slot;
 
             tracing::debug!(
@@ -267,9 +274,13 @@ where
                 continue;
             }
 
-            let previous_next_sync_committee = self
-                .get_sync_commitee_for_finalized_slot(update_finalized_slot)
-                .await?;
+            let previous_next_sync_committee = match update_sync_committee {
+                Some(sync_committee) => sync_committee,
+                None => {
+                    self.get_sync_commitee_for_finalized_slot(update_finalized_slot)
+                        .await?
+                }
+            };
 
             let active_sync_committee = ActiveSyncCommittee::Next(previous_next_sync_committee);
             let finalized_execution_header = self.finalized_execution_header(&update).await?;

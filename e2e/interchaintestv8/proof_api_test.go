@@ -22,6 +22,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	ethcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -864,9 +865,9 @@ func (s *ProofAPITestSuite) Test_10_FilteredRecvPacketToCosmos() {
 }
 
 // Test_Gloas_Fork upgrades a live light client through the Gloas fork in the same way as on mainnet.
-// The client is created on Fulu with the latest release, which doesn't know about Gloas. Packets
-// must keep being relayed after the client is migrated to the local version before the fork, and
-// after the chain has forked.
+// The client is created on Fulu with the latest release, which doesn't know about Gloas and is
+// served by the backwards compatible proof API module. Packets must keep being relayed after the
+// client is migrated to the local version before the fork, and after the chain has forked.
 func (s *ProofAPITestSuite) Test_Gloas_Fork() {
 	if os.Getenv(testvalues.EnvKeyEthTestnetType) != testvalues.EthTestnetTypePoS {
 		s.T().Skip("Test is only relevant for PoS networks")
@@ -930,9 +931,10 @@ func (s *ProofAPITestSuite) Test_Gloas_Fork() {
 
 		forkParameters := clientState.ForkParameters
 		forkParameters.Gloas = &ethereumtypes.Fork{
-			Version: ethcommon.Bytes2Hex(spec.GloasForkVersion[:]),
+			Version: hexutil.Encode(spec.GloasForkVersion[:]),
 			Epoch:   spec.GloasForkEpoch,
 		}
+		s.wasmFixtureGenerator.AddFixtureStep("update_fork_parameters", forkParameters)
 		migrateMsg, err := json.Marshal(ethereumtypes.NewUpdateForkParametersMigrateMsg(forkParameters))
 		s.Require().NoError(err)
 		s.PushMigrateWasmClientProposal(ctx, simd, s.SimdRelayerSubmitter, testvalues.FirstWasmClientID, checksum, migrateMsg)
