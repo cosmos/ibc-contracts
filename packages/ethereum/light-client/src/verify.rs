@@ -82,6 +82,9 @@ pub fn verify_header<V: BlsVerify>(
         &bls_verifier,
     )?;
 
+    // check whether the execution data of the finalized header can be trusted
+    header.finalized_execution()?;
+
     // check whether at least 2/3 of the sync committee signed
     ensure!(
         header
@@ -253,7 +256,7 @@ pub fn validate_light_client_update<V: BlsVerify>(
         finalized_root_gindex_at_slot(client_state, update.attested_header.beacon.slot)?;
     is_valid_normalized_merkle_branch(
         finalized_root,
-        &normalize_merkle_branch(&update.finality_branch, finalized_root_gindex),
+        &normalize_merkle_branch(&update.finality_branch, finalized_root_gindex)?,
         finalized_root_gindex,
         update.attested_header.beacon.state_root,
     )
@@ -292,7 +295,7 @@ pub fn validate_light_client_update<V: BlsVerify>(
             &normalize_merkle_branch(
                 update.next_sync_committee_branch.as_ref().unwrap(),
                 next_sync_committee_gindex,
-            ),
+            )?,
             next_sync_committee_gindex,
             update.attested_header.beacon.state_root,
         )
@@ -418,7 +421,7 @@ mod test {
         verify_header(
             &consensus_state,
             &client_state,
-            header.consensus_update.attested_header.execution.timestamp + 1000,
+            client_state.compute_timestamp_at_slot(header.consensus_update.signature_slot) + 1000,
             &header,
             bls_verifier,
         )

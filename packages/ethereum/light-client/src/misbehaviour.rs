@@ -51,13 +51,18 @@ pub fn verify_misbehaviour<V: BlsVerify>(
         EthereumIBCError::MisbehaviourSlotMismatch(slot_1, slot_2)
     );
 
-    let (state_root_1, state_root_2) = (
-        update_1.attested_header.execution.state_root,
-        update_2.attested_header.execution.state_root,
-    );
+    let invalid_format = EthereumIBCError::InvalidLightClientHeaderFormat { slot: slot_1 };
+    let block_hash_1 = update_1
+        .attested_header
+        .block_hash()
+        .ok_or_else(|| invalid_format.clone())?;
+    let block_hash_2 = update_2
+        .attested_header
+        .block_hash()
+        .ok_or(invalid_format)?;
     ensure!(
-        state_root_1 != state_root_2,
-        EthereumIBCError::MisbehaviourStorageRootsMatch(state_root_1)
+        block_hash_1 != block_hash_2,
+        EthereumIBCError::MisbehaviourExecutionBlockHashesMatch(block_hash_1)
     );
 
     let current_slot = client_state

@@ -205,6 +205,10 @@ mod tests {
                         version: FixedBytes([0; 4]),
                         epoch: 0,
                     },
+                    gloas: Fork {
+                        version: FixedBytes([0; 4]),
+                        epoch: 0,
+                    },
                 },
                 seconds_per_slot: 10,
                 slots_per_epoch: 8,
@@ -305,7 +309,7 @@ mod tests {
                 Height, InstantiateMsg, MerklePath, MigrateMsg, Migration, QueryMsg, SudoMsg,
                 UpdateStateMsg, UpdateStateResult, VerifyClientMessageMsg, VerifyMembershipMsg,
             },
-            state::HOST_CLIENT_STATE_KEY,
+            state::{self, HOST_CLIENT_STATE_KEY},
             test::helpers::mk_deps,
             ContractError,
         };
@@ -362,7 +366,8 @@ mod tests {
             for header_bz in client_msgs {
                 let header: Header = serde_json::from_slice(&header_bz).unwrap();
                 env.block.time = Timestamp::from_seconds(
-                    header.consensus_update.attested_header.execution.timestamp + 1000,
+                    client_state.compute_timestamp_at_slot(header.consensus_update.signature_slot)
+                        + 1000,
                 );
 
                 let query_verify_client_msg =
@@ -506,7 +511,8 @@ mod tests {
                 let header_manipulated = serde_json::to_vec(&header).unwrap();
 
                 env.block.time = Timestamp::from_seconds(
-                    header.consensus_update.attested_header.execution.timestamp + 1000,
+                    client_state.compute_timestamp_at_slot(header.consensus_update.signature_slot)
+                        + 1000,
                 );
 
                 let query_verify_client_msg =
@@ -613,7 +619,8 @@ mod tests {
                 let header_manipulated = serde_json::to_vec(&header).unwrap();
 
                 env.block.time = Timestamp::from_seconds(
-                    header.consensus_update.attested_header.execution.timestamp + 1000,
+                    client_state.compute_timestamp_at_slot(header.consensus_update.signature_slot)
+                        + 1000,
                 );
 
                 let query_verify_client_msg =
@@ -683,7 +690,8 @@ mod tests {
             for header_bz in client_msgs {
                 let header: Header = serde_json::from_slice(&header_bz).unwrap();
                 env.block.time = Timestamp::from_seconds(
-                    header.consensus_update.attested_header.execution.timestamp + 1000,
+                    client_state.compute_timestamp_at_slot(header.consensus_update.signature_slot)
+                        + 1000,
                 );
 
                 let query_verify_client_msg =
@@ -808,6 +816,10 @@ mod tests {
                         version: FixedBytes([0; 4]),
                         epoch: 0,
                     },
+                    gloas: Fork {
+                        version: FixedBytes([0; 4]),
+                        epoch: 0,
+                    },
                 },
                 sync_committee_size: 512,
                 seconds_per_slot: 10,
@@ -920,6 +932,10 @@ mod tests {
                         version: FixedBytes([0; 4]),
                         epoch: 0,
                     },
+                    gloas: Fork {
+                        version: FixedBytes([0; 4]),
+                        epoch: 0,
+                    },
                 },
                 sync_committee_size: 512,
                 seconds_per_slot: 10,
@@ -980,6 +996,10 @@ mod tests {
                         version: FixedBytes([0; 4]),
                         epoch: 0,
                     },
+                    gloas: Fork {
+                        version: FixedBytes([0; 4]),
+                        epoch: 0,
+                    },
                 }),
             };
 
@@ -1008,6 +1028,74 @@ mod tests {
                 client_state.fork_parameters.electra.epoch
             );
             assert_eq!(eth_client_state.fork_parameters.electra.epoch, 5000);
+        }
+
+        /// A client state stored by an earlier version of this contract has no gloas fork. It must
+        /// keep working until the fork parameters are migrated, and be migratable.
+        #[test]
+        fn test_migrate_with_fork_parameters_from_state_without_gloas() {
+            let mut deps = mk_deps();
+            let creator = deps.api.addr_make("creator");
+            let info = message_info(&creator, &coins(1, "uatom"));
+
+            let fixture: StepsFixture =
+                fixtures::load("Test_ICS20TransferERC20TokenfromEthereumToCosmosAndBack");
+            let initial_state: InitialState = fixture.get_data_at_step(0);
+
+            let mut stored_client_state =
+                serde_json::to_value(&initial_state.client_state).unwrap();
+            stored_client_state["fork_parameters"]
+                .as_object_mut()
+                .unwrap()
+                .remove("gloas");
+
+            instantiate(
+                deps.as_mut(),
+                mock_env(),
+                info,
+                InstantiateMsg {
+                    client_state: serde_json::to_vec(&stored_client_state).unwrap().into(),
+                    consensus_state: serde_json::to_vec(&initial_state.consensus_state)
+                        .unwrap()
+                        .into(),
+                    checksum: b"checksum".into(),
+                },
+            )
+            .unwrap();
+
+            // Upgrading only the code keeps the client readable, and gloas isn't scheduled
+            migrate(
+                deps.as_mut(),
+                mock_env(),
+                MigrateMsg {
+                    migration: Migration::CodeOnly,
+                },
+            )
+            .unwrap();
+            let eth_client_state = state::get_eth_client_state(&deps.storage).unwrap();
+            assert_eq!(eth_client_state.fork_parameters.gloas, Fork::far_future());
+
+            // The migration schedules the fork and keeps the rest of the client state
+            let mut fork_parameters = initial_state.client_state.fork_parameters.clone();
+            fork_parameters.gloas = Fork {
+                version: FixedBytes([7, 0, 0, 0]),
+                epoch: 1000,
+            };
+            migrate(
+                deps.as_mut(),
+                mock_env(),
+                MigrateMsg {
+                    migration: Migration::UpdateForkParameters(fork_parameters.clone()),
+                },
+            )
+            .unwrap();
+            assert_eq!(
+                state::get_eth_client_state(&deps.storage).unwrap(),
+                EthClientState {
+                    fork_parameters,
+                    ..initial_state.client_state
+                }
+            );
         }
     }
 }

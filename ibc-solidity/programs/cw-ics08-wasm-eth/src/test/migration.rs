@@ -145,7 +145,8 @@ pub mod v1_2_0 {
         for header_bz in client_msgs {
             let header: Header = serde_json::from_slice(&header_bz).unwrap();
             env.block.time = Timestamp::from_seconds(
-                header.consensus_update.attested_header.execution.timestamp + 1000,
+                client_state.compute_timestamp_at_slot(header.consensus_update.signature_slot)
+                    + 1000,
             );
 
             let query_verify_client_msg =
@@ -185,7 +186,8 @@ pub mod v1_2_0 {
         for header_bz in client_msgs {
             let header: Header = serde_json::from_slice(&header_bz).unwrap();
             env.block.time = Timestamp::from_seconds(
-                header.consensus_update.attested_header.execution.timestamp + 1000,
+                client_state.compute_timestamp_at_slot(header.consensus_update.signature_slot)
+                    + 1000,
             );
 
             let query_verify_client_msg =

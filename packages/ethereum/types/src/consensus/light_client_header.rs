@@ -8,13 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DisplayFromStr};
 use tree_hash_derive::TreeHash;
 
-use super::{
-    merkle::{
-        floorlog2, EXECUTION_PAYLOAD_GINDEX, FINALIZED_ROOT_GINDEX_ELECTRA,
-        NEXT_SYNC_COMMITTEE_GINDEX_ELECTRA,
-    },
-    sync_committee::{SyncAggregate, SyncCommittee},
-};
+use super::sync_committee::{SyncAggregate, SyncCommittee};
 
 /// A light client update
 #[serde_as]
@@ -27,12 +21,12 @@ pub struct LightClientUpdate {
     pub next_sync_committee: Option<SyncCommittee>,
     /// The branch of the next sync committee
     #[schemars(with = "Vec<String>")]
-    pub next_sync_committee_branch: Option<[B256; floorlog2(NEXT_SYNC_COMMITTEE_GINDEX_ELECTRA)]>,
+    pub next_sync_committee_branch: Option<Vec<B256>>,
     /// Finalized header corresponding to `attested_header.state_root`
     pub finalized_header: LightClientHeader,
     /// Branch of the finalized header
     #[schemars(with = "Vec<String>")]
-    pub finality_branch: [B256; floorlog2(FINALIZED_ROOT_GINDEX_ELECTRA)],
+    pub finality_branch: Vec<B256>,
     /// Sync committee aggregate signature
     pub sync_aggregate: SyncAggregate,
     /// Slot at which the aggregate signature was created (untrusted)
@@ -52,7 +46,7 @@ pub struct LightClientFinalityUpdate {
     pub finalized_header: LightClientHeader,
     /// Branch of the finalized header
     #[schemars(with = "Vec<String>")]
-    pub finality_branch: [B256; floorlog2(FINALIZED_ROOT_GINDEX_ELECTRA)],
+    pub finality_branch: Vec<B256>,
     /// Sync committee aggregate signature
     pub sync_aggregate: SyncAggregate,
     /// Slot at which the aggregate signature was created (untrusted)
@@ -77,16 +71,35 @@ impl From<LightClientFinalityUpdate> for LightClientUpdate {
 }
 
 /// The header of a light client
-#[derive(Serialize, Deserialize, JsonSchema, PartialEq, Eq, Clone, Debug, Default, TreeHash)]
+///
+/// Data created before Gloas carries `execution`. Data created from Gloas onwards only carries
+/// `execution_block_hash`, including headers of pre-Gloas blocks referenced by that data.
+#[derive(Serialize, Deserialize, JsonSchema, PartialEq, Eq, Clone, Debug, Default)]
 #[allow(clippy::module_name_repetitions)]
 pub struct LightClientHeader {
     /// The beacon block header
     pub beacon: BeaconBlockHeader,
-    /// The execution payload header
-    pub execution: ExecutionPayloadHeader,
+    /// The execution payload header (removed in Gloas)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub execution: Option<ExecutionPayloadHeader>,
+    /// The hash of the execution block (new in Gloas)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<String>")]
+    pub execution_block_hash: Option<B256>,
     /// The execution branch
     #[schemars(with = "Vec<String>")]
-    pub execution_branch: [B256; floorlog2(EXECUTION_PAYLOAD_GINDEX)],
+    pub execution_branch: Vec<B256>,
+}
+
+impl LightClientHeader {
+    /// Returns the hash of the execution block this header commits to, regardless of its format.
+    #[must_use]
+    pub fn block_hash(&self) -> Option<B256> {
+        self.execution
+            .as_ref()
+            .map(|execution| execution.block_hash)
+            .or(self.execution_block_hash)
+    }
 }
 
 /// The beacon block header

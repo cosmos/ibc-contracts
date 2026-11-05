@@ -38,6 +38,8 @@ pub fn update_consensus_state(
     let update_finalized_period =
         current_client_state.compute_sync_committee_period_at_slot(update_finalized_slot);
 
+    let finalized_execution = header.finalized_execution()?;
+
     let mut new_consensus_state = current_consensus_state.clone();
 
     if let Some(next_sync_committee) = current_consensus_state.next_sync_committee {
@@ -62,21 +64,13 @@ pub fn update_consensus_state(
     }
 
     new_consensus_state.slot = update_finalized_slot;
-    new_consensus_state.state_root = header
-        .consensus_update
-        .finalized_header
-        .execution
-        .state_root;
-    new_consensus_state.timestamp = header.consensus_update.finalized_header.execution.timestamp;
+    new_consensus_state.state_root = finalized_execution.state_root;
+    new_consensus_state.timestamp = finalized_execution.timestamp;
 
     let new_client_state =
         (update_finalized_slot > current_consensus_state.slot).then_some(ClientState {
             latest_slot: update_finalized_slot,
-            latest_execution_block_number: header
-                .consensus_update
-                .finalized_header
-                .execution
-                .block_number,
+            latest_execution_block_number: finalized_execution.block_number,
             ..current_client_state
         });
     Ok((update_finalized_slot, new_consensus_state, new_client_state))
