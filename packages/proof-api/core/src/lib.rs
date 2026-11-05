@@ -16,6 +16,20 @@ pub mod api {
     tonic::include_proto!("proofapi");
     pub(crate) const FILE_DESCRIPTOR_SET: &[u8] =
         tonic::include_file_descriptor_set!("proofapi_descriptor");
+
+    impl From<proof_api_lib::utils::solana_attested::AttestationUpdateClientResult>
+        for SolanaUpdateClient
+    {
+        fn from(
+            result: proof_api_lib::utils::solana_attested::AttestationUpdateClientResult,
+        ) -> Self {
+            Self {
+                assembly_tx: result.assembly_tx,
+                target_height: result.target_height,
+                ..Default::default()
+            }
+        }
+    }
 }
 pub mod builder;
 pub mod config;

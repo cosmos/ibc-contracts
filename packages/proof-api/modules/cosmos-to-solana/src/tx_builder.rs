@@ -8,21 +8,16 @@ mod client;
 mod packets;
 mod transaction;
 
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc};
 
 use anchor_lang::prelude::*;
 use anyhow::{Context, Result};
 use ibc_client_tendermint::types::Header as TmHeader;
-use ibc_proto_eureka::ibc::core::{
-    channel::v2::{MsgAcknowledgement, MsgRecvPacket},
-    client::v1::Height,
-};
 use ibc_proto_eureka::ibc::lightclients::tendermint::v1::Fraction;
 use proof_api_lib::utils::solana::convert_client_state_to_sol;
 use proof_api_lib::{
-    aggregator::{Aggregator, Config as AggregatorConfig},
     events::{
-        solana::solana_timeout_packet_to_tm_timeout, EurekaEventWithHeight, SolanaEurekaEvent,
+        solana::solana_timeout_packet_to_tm_timeout, EurekaEventWithHeight,
         SolanaEurekaEventWithHeight,
     },
     utils::{
@@ -30,11 +25,9 @@ use proof_api_lib::{
             self as cosmos_utils, tm_create_client_params, tm_update_client_params,
             TmCreateClientParams, TmUpdateClientParams,
         },
-        solana::{
-            self as solana_utils, convert_consensus_state, ibc_to_solana_ack_packet,
-            ibc_to_solana_recv_packet, target_events_to_timeout_msgs,
-        },
-        solana_attested, wait_for_condition,
+        solana::{convert_consensus_state, max_timeout_timestamp, target_events_to_timeout_msgs},
+        solana_attested::SolanaAttestationTxBuilder,
+        RelayEventsParams,
     },
 };
 use solana_client::rpc_client::RpcClient;
@@ -50,25 +43,6 @@ use solana_ibc_sdk::ics07_tendermint::{
 use solana_ibc_sdk::ics26_router::types::Delivery;
 use solana_ibc_sdk::pda::ics07_tendermint::{header_chunk_pda, sig_verify_pda};
 
-/// Parameters for relaying events between Cosmos and Solana
-pub struct RelayParams {
-    /// Events from the source chain (Cosmos)
-    pub src_events: Vec<EurekaEventWithHeight>,
-    /// Events from the destination chain (Solana)
-    pub dest_events: Vec<SolanaEurekaEventWithHeight>,
-    /// Client ID on the source chain
-    pub src_client_id: String,
-    /// Client ID on the destination chain
-    pub dst_client_id: String,
-    /// Packet sequences from the source chain
-    pub src_packet_seqs: Vec<u64>,
-    /// Packet sequences from the destination chain
-    pub dst_packet_seqs: Vec<u64>,
-    /// For timeout packets, the current height from the source chain where
-    /// non-membership needs to be proven. Required when processing timeouts.
-    pub timeout_relay_height: Option<u64>,
-}
-
 /// Maximum accounts that fit in a Solana transaction without ALT
 const MAX_ACCOUNTS_WITHOUT_ALT: usize = 20;
 
@@ -78,7 +52,7 @@ const NANOS_PER_SECOND: u64 = 1_000_000_000;
 /// The `TxBuilder` produces Solana transactions based on events from Cosmos SDK.
 ///
 /// This builder handles ICS07 Tendermint light client transactions.
-/// For attestation mode, use `AttestedTxBuilder` which wraps this builder.
+/// For attestation mode, use `SolanaAttestedTxBuilder` which wraps this builder.
 pub struct TxBuilder {
     /// The HTTP client for Cosmos chain.
     pub src_tm_client: tendermint_rpc::HttpClient,
@@ -343,19 +317,22 @@ impl TxBuilder {
     ///
     /// # Errors
     /// Returns an error if proof generation or transaction building fails.
-    pub async fn relay_events_chunked(&self, params: RelayParams) -> Result<Vec<SolanaPacketTxs>> {
+    pub async fn relay_events_chunked(
+        &self,
+        params: RelayEventsParams<SolanaEurekaEventWithHeight>,
+    ) -> Result<Vec<SolanaPacketTxs>> {
         self.relay_events_chunked_internal(params, None).await
     }
 
     /// Internal relay implementation with optional proof height override
     async fn relay_events_chunked_internal(
         &self,
-        params: RelayParams,
+        params: RelayEventsParams<SolanaEurekaEventWithHeight>,
         proof_height_override: Option<u64>,
     ) -> Result<Vec<SolanaPacketTxs>> {
-        let RelayParams {
+        let RelayEventsParams {
             src_events,
-            dest_events,
+            target_events,
             src_client_id,
             dst_client_id,
             src_packet_seqs,
@@ -392,7 +369,7 @@ impl TxBuilder {
             .map_err(|e| anyhow::anyhow!("Failed to get Solana slot: {e}"))?;
 
         let timeout_msgs = target_events_to_timeout_msgs(
-            dest_events,
+            target_events,
             &src_client_id,
             &dst_client_id,
             &dst_packet_seqs,
@@ -431,35 +408,7 @@ impl TxBuilder {
             Self::update_timeout_proof_chunks(timeout_with_chunks, tm_msg);
         }
 
-        let mut packet_txs = Vec::new();
-
-        for recv_msg in recv_msgs {
-            let r = ibc_to_solana_recv_packet(recv_msg)?;
-            packet_txs.push(self.build_recv_packet_chunked(
-                &r.msg,
-                &r.payload_chunks,
-                &r.proof_chunks,
-            )?);
-        }
-
-        for ack_msg in ack_msgs {
-            let a = ibc_to_solana_ack_packet(ack_msg)?;
-            packet_txs.push(self.build_ack_packet_chunked(
-                &a.msg,
-                &a.payload_chunks,
-                &a.proof_chunks,
-            )?);
-        }
-
-        for t in timeout_msgs_with_chunks {
-            packet_txs.push(self.build_timeout_packet_chunked(
-                &t.msg,
-                &t.payload_chunks,
-                &t.proof_chunks,
-            )?);
-        }
-
-        Ok(packet_txs)
+        self.build_packet_transactions(recv_msgs, ack_msgs, timeout_msgs_with_chunks)
     }
 
     /// Build relay transactions with optional update client (auto-generated when needed)
@@ -468,13 +417,13 @@ impl TxBuilder {
     /// Returns an error if update client generation or relay building fails.
     pub async fn relay_events_with_update(
         &self,
-        params: RelayParams,
+        params: RelayEventsParams<SolanaEurekaEventWithHeight>,
     ) -> Result<(Vec<SolanaPacketTxs>, Option<api::SolanaUpdateClient>)> {
         let solana_ics07_program_id = self.resolve_client_program_id(&params.dst_client_id)?;
         let client_state = self.cosmos_client_state(solana_ics07_program_id)?;
         let current_height = client_state.latest_height.revision_height;
 
-        let max_timeout_ts = Self::max_timeout_timestamp(&params.dest_events);
+        let max_timeout_ts = max_timeout_timestamp(&params.target_events);
         let consensus_ts = max_timeout_ts.and_then(|_| {
             self.get_consensus_state_timestamp_secs(current_height, solana_ics07_program_id)
                 .ok()
@@ -503,16 +452,6 @@ impl TxBuilder {
     }
 
     // Relay helper functions
-    fn max_timeout_timestamp(dest_events: &[SolanaEurekaEventWithHeight]) -> Option<u64> {
-        dest_events
-            .iter()
-            .filter_map(|e| match &e.event {
-                SolanaEurekaEvent::SendPacket(event) => Some(event.timeout_timestamp),
-                SolanaEurekaEvent::WriteAcknowledgement(_) => None,
-            })
-            .max()
-    }
-
     fn get_consensus_state_timestamp_secs(
         &self,
         height: u64,
@@ -643,276 +582,5 @@ impl TxBuilder {
             numerator,
             denominator,
         })
-    }
-}
-
-/// Transaction builder for attested relay from Cosmos to Solana.
-///
-/// Uses attestor signatures for state verification instead of Tendermint proofs.
-pub struct AttestedTxBuilder {
-    aggregator: Aggregator,
-    tx_builder: TxBuilder,
-}
-
-impl AttestedTxBuilder {
-    /// Create a new [`AttestedTxBuilder`] instance.
-    ///
-    /// # Errors
-    /// Returns an error if the aggregator cannot be created from the config.
-    pub async fn new(aggregator_config: AggregatorConfig, tx_builder: TxBuilder) -> Result<Self> {
-        let aggregator = Aggregator::from_config(aggregator_config).await?;
-        Ok(Self {
-            aggregator,
-            tx_builder,
-        })
-    }
-
-    /// Get the inner `TxBuilder` reference.
-    #[must_use]
-    pub const fn tx_builder(&self) -> &TxBuilder {
-        &self.tx_builder
-    }
-
-    /// Relay events from Cosmos to Solana using attestations.
-    ///
-    /// Returns packet transactions and an `update_client` transaction to create the consensus state.
-    ///
-    /// # Errors
-    /// Returns an error if attestation retrieval or transaction building fails.
-    #[allow(clippy::too_many_lines)]
-    pub async fn relay_events(
-        &self,
-        params: RelayParams,
-    ) -> Result<(Vec<SolanaPacketTxs>, Option<api::SolanaUpdateClient>)> {
-        tracing::info!(
-            "Building attested relay transaction for {} source events, {} target events",
-            params.src_events.len(),
-            params.dest_events.len()
-        );
-
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)?
-            .as_secs();
-
-        let (mut recv_msgs, mut ack_msgs) = cosmos_utils::src_events_to_recv_and_ack_msgs(
-            params.src_events.clone(),
-            &params.src_client_id,
-            &params.dst_client_id,
-            &params.src_packet_seqs,
-            &params.dst_packet_seqs,
-            "",
-            now,
-        );
-
-        // Get Solana slot for timeout packet handling
-        let slot = self
-            .tx_builder
-            .target_solana_client
-            .get_slot_with_commitment(CommitmentConfig::finalized())
-            .map_err(|e| anyhow::anyhow!("Failed to get Solana slot: {e}"))?;
-
-        // Extract max timeout timestamp before consuming dest_events
-        let max_timeout_ts = TxBuilder::max_timeout_timestamp(&params.dest_events);
-
-        // Build timeout messages from destination events
-        let mut timeout_msgs = solana_utils::target_events_to_timeout_msgs(
-            params.dest_events,
-            &params.src_client_id,
-            &params.dst_client_id,
-            &params.dst_packet_seqs,
-            slot,
-            now,
-        );
-
-        if recv_msgs.is_empty() && ack_msgs.is_empty() && timeout_msgs.is_empty() {
-            tracing::info!("No packets to relay");
-            return Ok((vec![], None));
-        }
-
-        // Resolve light client program ID for the destination client
-        let light_client_program_id = self
-            .tx_builder
-            .resolve_client_program_id(&params.dst_client_id)?;
-
-        // Get current attestation client state to check if update is needed
-        let client_state = self
-            .tx_builder
-            .attestation_client_state(light_client_program_id)?;
-        let current_height = client_state.latest_height;
-
-        let max_height = params
-            .src_events
-            .iter()
-            .map(|e| e.height)
-            .max()
-            .unwrap_or(0);
-        let required_height = max_height.saturating_add(1);
-
-        // Check if height update is needed for proofs
-        let needs_height_update = current_height < required_height;
-
-        // Check if timestamp update is needed for timeouts
-        let consensus_ts = max_timeout_ts.and_then(|_| {
-            self.tx_builder
-                .attestation_consensus_state_timestamp_secs(current_height, light_client_program_id)
-                .ok()
-        });
-
-        let needs_timestamp_update = matches!(
-            (consensus_ts, max_timeout_ts),
-            (Some(cs_ts), Some(timeout_ts)) if cs_ts < timeout_ts
-        );
-
-        if needs_timestamp_update {
-            tracing::info!(
-                "Client update needed for timeout: consensus_ts={:?} < timeout_ts={:?}",
-                consensus_ts,
-                max_timeout_ts
-            );
-        }
-
-        let needs_update = needs_height_update || needs_timestamp_update;
-
-        // For timeouts, use the source chain height (where non-membership is proven).
-        // This ensures the consensus state timestamp is past the packet's timeout.
-        let proof_height = if needs_update {
-            let min_height = required_height.max(current_height.saturating_add(1));
-            let target = params
-                .timeout_relay_height
-                .map_or(min_height, |h| h.max(min_height));
-
-            tracing::info!(
-                "Attestation client at height {}, waiting for aggregator to finalize height {} \
-                 (needs_height: {}, needs_timestamp: {})",
-                current_height,
-                target,
-                needs_height_update,
-                needs_timestamp_update
-            );
-
-            wait_for_condition(Duration::from_mins(15), Duration::from_secs(1), || async {
-                let finalized_height = self.aggregator.get_latest_height().await?;
-                Ok(finalized_height >= target)
-            })
-            .await
-            .context("Timeout waiting for aggregator to finalize height")?;
-
-            tracing::info!("Aggregator has finalized height {}", target);
-            target
-        } else {
-            current_height
-        };
-
-        let min_sigs = client_state.min_required_sigs as usize;
-        tracing::info!("Attestation client requires {} signatures", min_sigs);
-
-        let target_height = Height {
-            revision_number: 0,
-            revision_height: proof_height,
-        };
-
-        solana_attested::inject_solana_attestor_proofs(
-            &self.aggregator,
-            &mut recv_msgs,
-            &mut ack_msgs,
-            &mut timeout_msgs,
-            &target_height,
-            min_sigs,
-        )
-        .await?;
-
-        // Build update_client transaction only if needed
-        let update_client = if needs_update {
-            let result = solana_attested::build_attestation_update_client_tx(
-                &self.aggregator,
-                &self.tx_builder,
-                &params.dst_client_id,
-                proof_height,
-            )
-            .await?;
-            Some(api::SolanaUpdateClient {
-                chunk_txs: vec![],
-                alt_create_tx: vec![],
-                alt_extend_txs: vec![],
-                assembly_tx: result.assembly_tx,
-                target_height: result.target_height,
-                cleanup_tx: vec![],
-            })
-        } else {
-            tracing::info!(
-                "Client already at sufficient height {}, skipping update",
-                current_height
-            );
-            None
-        };
-
-        let packets = self.build_packet_transactions(recv_msgs, ack_msgs, timeout_msgs)?;
-
-        Ok((packets, update_client))
-    }
-
-    /// Update the attestation light client to the latest height.
-    ///
-    /// # Errors
-    /// Returns an error if fetching attestations or building transactions fails.
-    pub async fn update_client(&self, dst_client_id: &str) -> Result<api::SolanaUpdateClient> {
-        let result = solana_attested::update_attestation_client_tx(
-            &self.aggregator,
-            &self.tx_builder,
-            dst_client_id,
-        )
-        .await?;
-        Ok(api::SolanaUpdateClient {
-            chunk_txs: vec![],
-            alt_create_tx: vec![],
-            alt_extend_txs: vec![],
-            assembly_tx: result.assembly_tx,
-            target_height: result.target_height,
-            cleanup_tx: vec![],
-        })
-    }
-
-    fn build_packet_transactions(
-        &self,
-        recv_msgs: Vec<MsgRecvPacket>,
-        ack_msgs: Vec<MsgAcknowledgement>,
-        timeout_msgs: Vec<solana_utils::TimeoutPacketWithChunks>,
-    ) -> Result<Vec<SolanaPacketTxs>> {
-        let mut results = Vec::new();
-
-        for msg in recv_msgs {
-            let recv_with_chunks = solana_utils::ibc_to_solana_recv_packet(msg)?;
-            let packet_txs = self.tx_builder.build_recv_packet_chunked(
-                &recv_with_chunks.msg,
-                &recv_with_chunks.payload_chunks,
-                &recv_with_chunks.proof_chunks,
-            )?;
-            results.push(packet_txs);
-        }
-
-        for msg in ack_msgs {
-            let ack_with_chunks = solana_utils::ibc_to_solana_ack_packet(msg)?;
-            let packet_txs = self.tx_builder.build_ack_packet_chunked(
-                &ack_with_chunks.msg,
-                &ack_with_chunks.payload_chunks,
-                &ack_with_chunks.proof_chunks,
-            )?;
-            results.push(packet_txs);
-        }
-
-        for timeout in timeout_msgs {
-            tracing::info!(
-                "Building timeout packet for sequence {}",
-                timeout.msg.packet.sequence
-            );
-            let packet_txs = self.tx_builder.build_timeout_packet_chunked(
-                &timeout.msg,
-                &timeout.payload_chunks,
-                &timeout.proof_chunks,
-            )?;
-            results.push(packet_txs);
-        }
-
-        Ok(results)
     }
 }
