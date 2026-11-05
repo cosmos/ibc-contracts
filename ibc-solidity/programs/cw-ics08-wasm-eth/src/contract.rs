@@ -461,13 +461,12 @@ mod tests {
                     ClientMessage::decode(msg.client_message.clone().unwrap().value.as_slice())
                         .unwrap()
                 })
-                .map(|msg| msg.data)
-                .collect::<Vec<_>>();
+                .map(|msg| msg.data);
 
             let mut env = mock_env();
 
             // Only the first update crosses into the period of the next sync committee
-            for header_bz in client_msgs.into_iter().take(1) {
+            for header_bz in client_msgs.take(1) {
                 let mut header: Header = serde_json::from_slice(&header_bz).unwrap();
 
                 let sync_committee = header.active_sync_committee;
@@ -558,13 +557,12 @@ mod tests {
                     ClientMessage::decode(msg.client_message.clone().unwrap().value.as_slice())
                         .unwrap()
                 })
-                .map(|msg| msg.data)
-                .collect::<Vec<_>>();
+                .map(|msg| msg.data);
 
             let mut env = mock_env();
 
             // Only the first update crosses into the period of the next sync committee
-            for header_bz in client_msgs.into_iter().take(1) {
+            for header_bz in client_msgs.take(1) {
                 let mut header: Header = serde_json::from_slice(&header_bz).unwrap();
 
                 let sync_committee = header.active_sync_committee;
