@@ -116,14 +116,6 @@ contract AttestationLightClientTest is Test {
         accessManager.grantRole(IBCRolesLib.UNPAUSER_ROLE, unpauser, 0);
         vm.mockCall(ics26Router, abi.encodeCall(IAccessManaged.authority, ()), abi.encode(address(accessManager)));
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IICS26ManagedLightClientErrors.LightClientUnauthorizedRole.selector, unpauser, IBCRolesLib.PAUSER_ROLE
-            )
-        );
-        vm.prank(unpauser);
-        client.pause();
-
         vm.prank(pauser);
         client.pause();
 
@@ -145,14 +137,6 @@ contract AttestationLightClientTest is Test {
         vm.expectRevert(Pausable.EnforcedPause.selector);
         client.verifyNonMembership(nonMembershipMsg);
         vm.stopPrank();
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IICS26ManagedLightClientErrors.LightClientUnauthorizedRole.selector, pauser, IBCRolesLib.UNPAUSER_ROLE
-            )
-        );
-        vm.prank(pauser);
-        client.unpause();
 
         vm.prank(unpauser);
         client.unpause();

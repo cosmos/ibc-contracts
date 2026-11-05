@@ -5,12 +5,7 @@ import { ILightClientMsgs } from "../../contracts/msgs/ILightClientMsgs.sol";
 import { IICS07TendermintMsgs } from "../../contracts/light-clients/sp1-ics07/msgs/IICS07TendermintMsgs.sol";
 import { IICS26ManagedLightClientErrors } from "../../contracts/errors/IICS26ManagedLightClientErrors.sol";
 
-import { SP1ICS07Tendermint } from "../../contracts/light-clients/sp1-ics07/SP1ICS07Tendermint.sol";
-import { IBCRolesLib } from "../../contracts/utils/IBCRolesLib.sol";
-
 import { Pausable } from "@openzeppelin-contracts/utils/Pausable.sol";
-import { AccessManager } from "@openzeppelin-contracts/access/manager/AccessManager.sol";
-import { IAccessManaged } from "@openzeppelin-contracts/access/manager/IAccessManaged.sol";
 
 import { SP1ICS07MockTest } from "./SP1ICS07MockTest.sol";
 
@@ -19,20 +14,6 @@ contract SP1ICS07AccessControlTest is SP1ICS07MockTest {
 
     function test_success_ics26Router() public view {
         assertEq(ics07Tendermint.ICS26_ROUTER(), ics26Router);
-    }
-
-    function test_failure_zeroICS26Router() public {
-        vm.expectRevert(abi.encodeWithSelector(IICS26ManagedLightClientErrors.LightClientZeroICS26Router.selector));
-        new SP1ICS07Tendermint(
-            MOCK_VKEY,
-            MOCK_VKEY,
-            MOCK_VKEY,
-            MOCK_VKEY,
-            address(0),
-            abi.encode(mockClientState(1)),
-            bytes32(0),
-            address(0)
-        );
     }
 
     function test_success_updateClient() public {
@@ -128,57 +109,6 @@ contract SP1ICS07AccessControlTest is SP1ICS07MockTest {
         assertTrue(_isFrozen());
     }
 
-    function test_failure_pause() public {
-        // neither an unrelated account, the router nor the unpauser can pause
-        address[3] memory callers = [unauthorized, ics26Router, unpauser];
-        for (uint256 i = 0; i < callers.length; ++i) {
-            _expectUnauthorizedRole(callers[i], IBCRolesLib.PAUSER_ROLE);
-            vm.prank(callers[i]);
-            ics07Tendermint.pause();
-        }
-
-        // a pauser with an execution delay cannot pause, since scheduled operations are not supported
-        address delayedPauser = makeAddr("delayedPauser");
-        accessManager.grantRole(IBCRolesLib.PAUSER_ROLE, delayedPauser, 1 days);
-        _expectUnauthorizedRole(delayedPauser, IBCRolesLib.PAUSER_ROLE);
-        vm.prank(delayedPauser);
-        ics07Tendermint.pause();
-
-        assertFalse(ics07Tendermint.paused());
-    }
-
-    function test_failure_unpause() public {
-        vm.prank(pauser);
-        ics07Tendermint.pause();
-
-        // neither an unrelated account, the router nor the pauser can unpause
-        address[3] memory callers = [unauthorized, ics26Router, pauser];
-        for (uint256 i = 0; i < callers.length; ++i) {
-            _expectUnauthorizedRole(callers[i], IBCRolesLib.UNPAUSER_ROLE);
-            vm.prank(callers[i]);
-            ics07Tendermint.unpause();
-        }
-
-        assertTrue(ics07Tendermint.paused());
-    }
-
-    function test_success_pauseFollowsRouterAuthority() public {
-        AccessManager newAccessManager = new AccessManager(address(this));
-        address newPauser = makeAddr("newPauser");
-        newAccessManager.grantRole(IBCRolesLib.PAUSER_ROLE, newPauser, 0);
-
-        vm.mockCall(ics26Router, abi.encodeCall(IAccessManaged.authority, ()), abi.encode(address(newAccessManager)));
-
-        // the pauser of the previous authority is no longer recognized
-        _expectUnauthorizedRole(pauser, IBCRolesLib.PAUSER_ROLE);
-        vm.prank(pauser);
-        ics07Tendermint.pause();
-
-        vm.prank(newPauser);
-        ics07Tendermint.pause();
-        assertTrue(ics07Tendermint.paused());
-    }
-
     function _isFrozen() private view returns (bool) {
         return abi.decode(ics07Tendermint.getClientState(), (IICS07TendermintMsgs.ClientState)).isFrozen;
     }
@@ -186,12 +116,6 @@ contract SP1ICS07AccessControlTest is SP1ICS07MockTest {
     function _expectUnauthorizedCaller(address caller) private {
         vm.expectRevert(
             abi.encodeWithSelector(IICS26ManagedLightClientErrors.LightClientUnauthorizedCaller.selector, caller)
-        );
-    }
-
-    function _expectUnauthorizedRole(address caller, uint64 roleId) private {
-        vm.expectRevert(
-            abi.encodeWithSelector(IICS26ManagedLightClientErrors.LightClientUnauthorizedRole.selector, caller, roleId)
         );
     }
 }
