@@ -22,7 +22,7 @@ The send value is the average of 50 separate transactions, including the more ex
 
 | Operation | Groth16 gas | Plonk gas | Groth16 calldata | Plonk calldata |
 | --- | ---: | ---: | ---: | ---: |
-| Send ERC20 (50-transaction average) | 164,852 | 164,852 | 516 | 516 |
+| Send ERC20 (50-transaction average) | 164,791 | 164,791 | 516 | 516 |
 | Acknowledge ERC20 end-to-end | 444,271 | 511,429 | 3,748 | 4,356 |
 | Receive returning ERC20 end-to-end | 551,236 | 618,426 | 3,652 | 4,260 |
 | Receive new Cosmos token end-to-end | 1,124,080 | 1,191,054 | 3,652 | 4,260 |
