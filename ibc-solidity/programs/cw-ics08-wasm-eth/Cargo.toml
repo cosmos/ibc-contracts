@@ -13,7 +13,7 @@ ethereum-light-client = { path = "../../../packages/ethereum/light-client", defa
 ethereum-types        = { path = "../../../packages/ethereum/types", default-features = false }
 
 ibc-proto        = { version = "0.51", default-features = false }
-alloy-primitives = { version = "1.5", default-features = false }
+alloy-primitives = { version = "1.7", default-features = false }
 
 cosmwasm-std    = { version = "2.2", default-features = false }
 cosmwasm-schema = { version = "2.2", default-features = false }

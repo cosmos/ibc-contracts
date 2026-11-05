@@ -33,7 +33,7 @@ ibc-client-tendermint-types = { version = "0.57", default-features = false }
 ibc-primitives              = { version = "0.57", default-features = false }
 ibc-proto                   = { version = "0.51", default-features = false }
 tendermint-light-client-verifier = { version = "0.40", default-features = false }
-alloy-sol-types        = { version = "1.0", default-features = false }
+alloy-sol-types        = { version = "1.7", default-features = false }
 
 tendermint-light-client-membership        = { path = "../../../packages/tendermint-light-client/membership", default-features = false }
 tendermint-light-client-misbehaviour      = { path = "../../../packages/tendermint-light-client/misbehaviour", default-features = false }

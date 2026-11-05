@@ -155,19 +155,19 @@ ibc-core-commitment-types   = { version = "0.57", default-features = false }
 
 ibc-primitives              = { version = "0.57", default-features = false }
 
-alloy                  = { version = "2.0", default-features = false }
-alloy-contract         = { version = "2.0", default-features = false }
-alloy-sol-types        = { version = "1.5", default-features = false }
-alloy-primitives       = { version = "1.5", default-features = false }
-alloy-serde            = { version = "2.0", default-features = false }
-alloy-network          = { version = "2.0", default-features = false }
-alloy-signer-local     = { version = "2.0", default-features = false }
-alloy-signer           = { version = "2.0", default-features = false }
+alloy                  = { version = "2.5", default-features = false }
+alloy-contract         = { version = "2.5", default-features = false }
+alloy-sol-types        = { version = "1.7", default-features = false }
+alloy-primitives       = { version = "1.7", default-features = false }
+alloy-serde            = { version = "2.5", default-features = false }
+alloy-network          = { version = "2.5", default-features = false }
+alloy-signer-local     = { version = "2.5", default-features = false }
+alloy-signer           = { version = "2.5", default-features = false }
 alloy-rlp              = { version = "0.3", default-features = false }
-alloy-rpc-client       = { version = "2.0", default-features = false }
-alloy-provider         = { version = "2.0", default-features = false }
-alloy-transport        = { version = "2.0", default-features = false }
-alloy-rpc-types-eth    = { version = "2.0", default-features = false }
+alloy-rpc-client       = { version = "2.5", default-features = false }
+alloy-provider         = { version = "2.5", default-features = false }
+alloy-transport        = { version = "2.5", default-features = false }
+alloy-rpc-types-eth    = { version = "2.5", default-features = false }
 
 sp1-sdk  = { version = "6.9", default-features = false }
 sp1-cuda = { version = "6.9", default-features = false }
