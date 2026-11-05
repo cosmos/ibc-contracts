@@ -18,5 +18,6 @@ pub struct LightClientBootstrap {
     /// The current sync committee
     pub current_sync_committee: SyncCommittee,
     /// The branch of the current sync committee
+    // TODO: Assert the length of this branch once mainnet has forked to Gloas (#1252)
     pub current_sync_committee_branch: Vec<B256>,
 }

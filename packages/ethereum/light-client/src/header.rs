@@ -8,7 +8,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use ethereum_types::consensus::{
-    light_client_header::LightClientUpdate, sync_committee::SyncCommittee,
+    light_client_header::{LightClientHeader, LightClientUpdate},
+    sync_committee::SyncCommittee,
 };
 
 use crate::error::EthereumIBCError;
@@ -49,16 +50,15 @@ impl Header {
     /// # Errors
     /// Returns an error if the execution data is missing or doesn't match the finalized header.
     pub fn finalized_execution(&self) -> Result<FinalizedExecution, EthereumIBCError> {
-        let expected = match &self.consensus_update {
-            LightClientUpdate::Fulu(update) => {
-                let execution = &update.finalized_header.execution;
+        let expected = match self.consensus_update.finalized_header() {
+            LightClientHeader::Fulu(header) => {
                 return Ok(FinalizedExecution {
-                    state_root: execution.state_root,
-                    block_number: execution.block_number,
-                    timestamp: execution.timestamp,
+                    state_root: header.execution.state_root,
+                    block_number: header.execution.block_number,
+                    timestamp: header.execution.timestamp,
                 });
             }
-            LightClientUpdate::Gloas(update) => update.finalized_header.execution_block_hash,
+            LightClientHeader::Gloas(header) => header.execution_block_hash,
         };
 
         let execution_header = self
@@ -125,11 +125,13 @@ pub enum ActiveSyncCommittee {
 #[cfg(test)]
 mod test {
     use alloy_primitives::{b256, hex};
-    use ethereum_types::consensus::light_client_header::{
-        ExecutionPayloadHeader, LightClientHeaderFulu, LightClientHeaderGloas,
-        LightClientUpdateFulu, LightClientUpdateGloas, MerkleBranch,
+    use ethereum_types::consensus::{
+        light_client_header::{
+            ExecutionPayloadHeader, GenericLightClientUpdate, LightClientHeaderFulu,
+            LightClientHeaderGloas,
+        },
+        sync_committee::SyncAggregate,
     };
-    use ethereum_types::consensus::sync_committee::SyncAggregate;
 
     use super::*;
 
@@ -138,21 +140,29 @@ mod test {
     const EXECUTION_BLOCK_HASH: B256 =
         b256!("1d00d753e3964751cefe1cae2d81ad8af9b59a4868df2db5ea243346e67a6038");
 
+    fn update<const N: usize, const F: usize>(
+        finalized_header: LightClientHeader,
+    ) -> GenericLightClientUpdate<N, F> {
+        GenericLightClientUpdate {
+            attested_header: finalized_header.clone(),
+            next_sync_committee: None,
+            next_sync_committee_branch: None,
+            finalized_header,
+            finality_branch: [B256::default(); F],
+            sync_aggregate: SyncAggregate::default(),
+            signature_slot: 0,
+        }
+    }
+
     fn gloas_header(execution_block_hash: B256, execution_header: Option<&str>) -> Header {
         Header {
             active_sync_committee: ActiveSyncCommittee::Current(SyncCommittee::default()),
-            consensus_update: LightClientUpdate::Gloas(LightClientUpdateGloas {
-                attested_header: LightClientHeaderGloas::default(),
-                next_sync_committee: None,
-                next_sync_committee_branch: None,
-                finalized_header: LightClientHeaderGloas {
+            consensus_update: LightClientUpdate::Gloas(update(LightClientHeader::Gloas(
+                LightClientHeaderGloas {
                     execution_block_hash,
                     ..Default::default()
                 },
-                finality_branch: MerkleBranch::default(),
-                sync_aggregate: SyncAggregate::default(),
-                signature_slot: 0,
-            }),
+            ))),
             trusted_slot: 0,
             finalized_execution_header: execution_header
                 .map(|header| hex::decode(header).unwrap().into()),
@@ -178,11 +188,8 @@ mod test {
     #[test]
     fn test_finalized_execution_from_execution_payload_header() {
         let header = Header {
-            consensus_update: LightClientUpdate::Fulu(LightClientUpdateFulu {
-                attested_header: LightClientHeaderFulu::default(),
-                next_sync_committee: None,
-                next_sync_committee_branch: None,
-                finalized_header: LightClientHeaderFulu {
+            consensus_update: LightClientUpdate::Fulu(update(LightClientHeader::Fulu(
+                LightClientHeaderFulu {
                     execution: ExecutionPayloadHeader {
                         state_root: EXECUTION_BLOCK_HASH,
                         block_number: 1,
@@ -191,10 +198,7 @@ mod test {
                     },
                     ..Default::default()
                 },
-                finality_branch: MerkleBranch::default(),
-                sync_aggregate: SyncAggregate::default(),
-                signature_slot: 0,
-            }),
+            ))),
             ..gloas_header(B256::default(), None)
         };
 

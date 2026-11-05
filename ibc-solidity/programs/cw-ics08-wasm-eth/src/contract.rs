@@ -390,7 +390,7 @@ mod tests {
                 assert_eq!(1, update_state_result.heights.len());
                 assert_eq!(0, update_state_result.heights[0].revision_number);
                 assert_eq!(
-                    header.consensus_update.finalized_beacon().slot,
+                    header.consensus_update.finalized_header().beacon().slot,
                     update_state_result.heights[0].revision_height
                 );
             }
@@ -717,7 +717,7 @@ mod tests {
                 assert_eq!(1, update_state_result.heights.len());
                 assert_eq!(0, update_state_result.heights[0].revision_number);
                 assert_eq!(
-                    header.consensus_update.finalized_beacon().slot,
+                    header.consensus_update.finalized_header().beacon().slot,
                     update_state_result.heights[0].revision_height
                 );
             }
@@ -1052,7 +1052,7 @@ mod tests {
             let fork_parameters: ForkParameters = fixture.get_data_at_step(2);
             let gloas_fork_epoch = fork_parameters.gloas.epoch;
             // The client was created by a release that doesn't know about Gloas
-            assert_eq!(client_state.fork_parameters.gloas, Fork::far_future());
+            assert_eq!(client_state.fork_parameters.gloas, Fork::default());
             assert!(
                 client_state.compute_epoch_at_slot(client_state.latest_slot) < gloas_fork_epoch
             );
@@ -1071,10 +1071,6 @@ mod tests {
             )
             .unwrap();
 
-            let is_gloas_update = |header_bz: &[u8]| {
-                let header: serde_json::Value = serde_json::from_slice(header_bz).unwrap();
-                !header["consensus_update"]["attested_header"]["execution_block_hash"].is_null()
-            };
             let env_at_update = |header_bz: &[u8]| {
                 let header: serde_json::Value = serde_json::from_slice(header_bz).unwrap();
                 let signature_slot = header["consensus_update"]["signature_slot"]
@@ -1127,42 +1123,29 @@ mod tests {
             }
 
             // The relayer of the release that created the client doesn't set the trusted slot
-            let (client_msgs, _) = relayer_messages(1);
-            assert_ne!(client_msgs.len(), 0);
-            for header_bz in client_msgs {
-                let mut header: serde_json::Value = serde_json::from_slice(&header_bz).unwrap();
+            let (fulu_client_msgs, _) = relayer_messages(1);
+            assert_ne!(fulu_client_msgs.len(), 0);
+            let with_trusted_slot = |header_bz: &[u8], trusted_slot: u64| {
+                let mut header: serde_json::Value = serde_json::from_slice(header_bz).unwrap();
                 assert!(header["trusted_slot"].is_null());
-                let latest_slot = state::get_eth_client_state(&deps.storage)
-                    .unwrap()
-                    .latest_slot;
-                header["trusted_slot"] = latest_slot.into();
-                update_client!(serde_json::to_vec(&header).unwrap());
-            }
+                header["trusted_slot"] = trusted_slot.into();
+                serde_json::to_vec(&header).unwrap()
+            };
 
-            // The rest of the Fulu updates keep working without knowing about Gloas
-            let (client_msgs, recv_msg) = relayer_messages(3);
-            let (fulu_msgs, gloas_msgs): (Vec<_>, Vec<_>) = client_msgs
-                .into_iter()
-                .partition(|header_bz| !is_gloas_update(header_bz));
-            assert_ne!(fulu_msgs.len(), 0);
-            assert_ne!(gloas_msgs.len(), 0);
-            for header_bz in fulu_msgs {
-                update_client!(header_bz);
-            }
-
-            // Gloas updates are rejected until the fork is scheduled
+            // Updates are rejected until the fork parameters are migrated
+            let first_header_bz = with_trusted_slot(&fulu_client_msgs[0], client_state.latest_slot);
             let err = query(
                 deps.as_ref(),
-                env_at_update(&gloas_msgs[0]),
+                env_at_update(&first_header_bz),
                 QueryMsg::VerifyClientMessage(VerifyClientMessageMsg {
-                    client_message: Binary::from(gloas_msgs[0].clone()),
+                    client_message: Binary::from(first_header_bz),
                 }),
             )
             .unwrap_err();
             assert!(matches!(
                 err,
                 ContractError::VerifyClientMessageFailed(
-                    EthereumIBCError::InvalidNormalizedMerkleBranch { .. }
+                    EthereumIBCError::InvalidLightClientHeaderFormat { .. }
                 )
             ));
 
@@ -1175,9 +1158,22 @@ mod tests {
             )
             .unwrap();
 
+            // The client keeps being updated on Fulu
+            for header_bz in fulu_client_msgs {
+                let latest_slot = state::get_eth_client_state(&deps.storage)
+                    .unwrap()
+                    .latest_slot;
+                update_client!(with_trusted_slot(&header_bz, latest_slot));
+            }
+            let fulu_latest_slot = state::get_eth_client_state(&deps.storage)
+                .unwrap()
+                .latest_slot;
+            assert!(client_state.compute_epoch_at_slot(fulu_latest_slot) < gloas_fork_epoch);
+
             // The client is updated across the fork
-            let last_header: Header = serde_json::from_slice(gloas_msgs.last().unwrap()).unwrap();
-            for header_bz in gloas_msgs {
+            let (client_msgs, recv_msg) = relayer_messages(3);
+            let last_header: Header = serde_json::from_slice(client_msgs.last().unwrap()).unwrap();
+            for header_bz in client_msgs {
                 update_client!(header_bz);
             }
 
@@ -1212,8 +1208,8 @@ mod tests {
             .unwrap();
         }
 
-        /// A client state stored by an earlier version of this contract has no gloas fork. It must
-        /// keep working until the fork parameters are migrated, and be migratable.
+        /// A client state stored by an earlier version of this contract has no gloas fork, and must
+        /// be migratable.
         #[test]
         fn test_migrate_with_fork_parameters_from_state_without_gloas() {
             let mut deps = mk_deps();
@@ -1244,18 +1240,6 @@ mod tests {
                 },
             )
             .unwrap();
-
-            // Upgrading only the code keeps the client readable, and gloas isn't scheduled
-            migrate(
-                deps.as_mut(),
-                mock_env(),
-                MigrateMsg {
-                    migration: Migration::CodeOnly,
-                },
-            )
-            .unwrap();
-            let eth_client_state = state::get_eth_client_state(&deps.storage).unwrap();
-            assert_eq!(eth_client_state.fork_parameters.gloas, Fork::far_future());
 
             // The migration schedules the fork and keeps the rest of the client state
             let mut fork_parameters = initial_state.client_state.fork_parameters.clone();

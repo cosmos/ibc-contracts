@@ -36,7 +36,7 @@ pub fn update_consensus_state(
     let store_slot = current_consensus_state.slot;
     let store_period = current_client_state.compute_sync_committee_period_at_slot(store_slot);
 
-    let update_finalized_slot = header.consensus_update.finalized_beacon().slot;
+    let update_finalized_slot = header.consensus_update.finalized_header().beacon().slot;
     let update_finalized_period =
         current_client_state.compute_sync_committee_period_at_slot(update_finalized_slot);
 

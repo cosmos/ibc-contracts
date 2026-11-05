@@ -43,9 +43,11 @@ pub struct Body {
     /// The sync aggregate of the beacon block
     pub sync_aggregate: SyncAggregate,
     /// The execution payload for the beacon block (removed in Gloas)
+    // TODO: Remove this field once mainnet has forked to Gloas (#1252)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub execution_payload: Option<ExecutionPayload>,
     /// The signed execution payload bid for the beacon block (new in Gloas)
+    // TODO: Remove the optionality once mainnet has forked to Gloas (#1252)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub signed_execution_payload_bid: Option<SignedExecutionPayloadBid>,
     // Values not represented in this type:

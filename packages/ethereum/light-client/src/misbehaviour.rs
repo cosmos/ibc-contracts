@@ -43,8 +43,8 @@ pub fn verify_misbehaviour<V: BlsVerify>(
 
     // There is no point to check for misbehaviour when the headers are not for the same height
     let (slot_1, slot_2) = (
-        update_1.attested_beacon().slot,
-        update_2.attested_beacon().slot,
+        update_1.attested_header().beacon().slot,
+        update_2.attested_header().beacon().slot,
     );
     ensure!(
         slot_1 == slot_2,
@@ -52,8 +52,8 @@ pub fn verify_misbehaviour<V: BlsVerify>(
     );
 
     let (block_hash_1, block_hash_2) = (
-        update_1.attested_block_hash(),
-        update_2.attested_block_hash(),
+        update_1.attested_header().block_hash(),
+        update_2.attested_header().block_hash(),
     );
     ensure!(
         block_hash_1 != block_hash_2,

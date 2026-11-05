@@ -158,8 +158,7 @@ type SyncCommittee struct {
 //
 // # An update with a Gloas attested header
 //
-// A light client update, generic over the format of its headers and its fixed length
-// branches. Finality updates have the same format without the next sync committee.
+// # A light client update with branches of the given depths
 //
 // An update with a Fulu attested header
 type LightClientUpdate struct {
@@ -181,9 +180,15 @@ type LightClientUpdate struct {
 
 // Header attested to by the sync committee
 //
-// # The header of a light client in Gloas light client data
+// # The header of a light client, in the format of the light client data that contains it
 //
 // Finalized header corresponding to `attested_header.state_root`
+//
+// # A header in Gloas light client data
+//
+// # The header of a light client in Gloas light client data
+//
+// # A header in Fulu light client data
 //
 // The header of a light client in Fulu light client data
 type LightClientHeader struct {

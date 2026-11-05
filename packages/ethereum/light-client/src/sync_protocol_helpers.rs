@@ -4,7 +4,7 @@
 
 use alloy_primitives::B256;
 use ethereum_types::consensus::{
-    light_client_header::{BeaconBlockHeader, LightClientHeaderFulu, LightClientHeaderGloas},
+    light_client_header::LightClientHeader,
     merkle::{
         floorlog2, CURRENT_SYNC_COMMITTEE_GINDEX_ELECTRA, CURRENT_SYNC_COMMITTEE_GINDEX_GLOAS,
         EXECUTION_BLOCK_HASH_GINDEX_DENEB, EXECUTION_BLOCK_HASH_GINDEX_GLOAS,
@@ -73,77 +73,44 @@ pub fn next_sync_committee_gindex_at_slot(
     })
 }
 
-/// A light client header that can be validated against the fork at its slot.
-pub trait ValidatableLightClientHeader {
-    /// Returns the beacon block header.
-    fn beacon(&self) -> &BeaconBlockHeader;
-
-    /// Validates the header, which is known to be from a supported fork at `epoch`.
-    /// # Errors
-    /// Returns an error if the header cannot be validated.
-    fn validate(&self, client_state: &ClientState, epoch: u64) -> Result<(), EthereumIBCError>;
-}
-
-impl ValidatableLightClientHeader for LightClientHeaderFulu {
-    fn beacon(&self) -> &BeaconBlockHeader {
-        &self.beacon
-    }
-
-    fn validate(&self, client_state: &ClientState, epoch: u64) -> Result<(), EthereumIBCError> {
-        ensure!(
-            epoch < client_state.fork_parameters.gloas.epoch,
-            EthereumIBCError::InvalidLightClientHeaderFormat {
-                slot: self.beacon.slot,
-            }
-        );
-
-        validate_merkle_branch(
-            self.execution.tree_hash_root(),
-            self.execution_branch.to_vec(),
-            floorlog2(EXECUTION_PAYLOAD_GINDEX),
-            get_subtree_index(EXECUTION_PAYLOAD_GINDEX),
-            self.beacon.body_root,
-        )
-    }
-}
-
-impl ValidatableLightClientHeader for LightClientHeaderGloas {
-    fn beacon(&self) -> &BeaconBlockHeader {
-        &self.beacon
-    }
-
-    fn validate(&self, client_state: &ClientState, epoch: u64) -> Result<(), EthereumIBCError> {
-        // A pre-Gloas block proves its block hash through the execution payload, in a branch
-        // normalized to the Gloas depth
-        let gindex = match epoch {
-            _ if epoch >= client_state.fork_parameters.gloas.epoch => {
-                EXECUTION_BLOCK_HASH_GINDEX_GLOAS
-            }
-            _ => EXECUTION_BLOCK_HASH_GINDEX_DENEB,
-        };
-
-        is_valid_normalized_merkle_branch(
-            self.execution_block_hash,
-            &self.execution_branch,
-            gindex,
-            self.beacon.body_root,
-        )
-    }
-}
-
 // See spec: https://github.com/ethereum/consensus-specs/blob/master/specs/gloas/light-client/sync-protocol.md#modified-is_valid_light_client_header
 /// Validates a light client header.
 /// # Errors
 /// Returns an error if the header cannot be validated.
-pub fn is_valid_light_client_header<H: ValidatableLightClientHeader>(
+pub fn is_valid_light_client_header(
     client_state: &ClientState,
-    header: &H,
+    header: &LightClientHeader,
 ) -> Result<(), EthereumIBCError> {
     let epoch = client_state.compute_epoch_at_slot(header.beacon().slot);
 
     client_state.verify_supported_fork_at_epoch(epoch)?;
 
-    header.validate(client_state, epoch)
+    let is_gloas = epoch >= client_state.fork_parameters.gloas.epoch;
+    match header {
+        LightClientHeader::Gloas(header) => is_valid_normalized_merkle_branch(
+            header.execution_block_hash,
+            &header.execution_branch,
+            // A pre-Gloas block proves its block hash through the execution payload, in a branch
+            // normalized to the Gloas depth
+            match epoch {
+                _ if is_gloas => EXECUTION_BLOCK_HASH_GINDEX_GLOAS,
+                _ => EXECUTION_BLOCK_HASH_GINDEX_DENEB,
+            },
+            header.beacon.body_root,
+        ),
+        LightClientHeader::Fulu(_) if is_gloas => {
+            Err(EthereumIBCError::InvalidLightClientHeaderFormat {
+                slot: header.beacon().slot,
+            })
+        }
+        LightClientHeader::Fulu(header) => validate_merkle_branch(
+            header.execution.tree_hash_root(),
+            header.execution_branch.to_vec(),
+            floorlog2(EXECUTION_PAYLOAD_GINDEX),
+            get_subtree_index(EXECUTION_PAYLOAD_GINDEX),
+            header.beacon.body_root,
+        ),
+    }
 }
 
 // See spec: <https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/light-client/sync-protocol.md#get_subtree_index>
@@ -211,7 +178,7 @@ mod test {
         }
     }
 
-    fn header(json: &str) -> LightClientHeaderGloas {
+    fn header(json: &str) -> LightClientHeader {
         serde_json::from_str(json).unwrap()
     }
 
@@ -232,7 +199,7 @@ mod test {
         ));
 
         // The Gloas header is not a valid Fulu header if Gloas is not scheduled (i.e. not migrated)
-        client_state.fork_parameters.gloas = Fork::far_future();
+        client_state.fork_parameters.gloas.epoch = u64::MAX;
         assert!(matches!(
             is_valid_light_client_header(&client_state, &header(ATTESTED_GLOAS_HEADER)),
             Err(EthereumIBCError::InvalidNormalizedMerkleBranch { .. })
@@ -251,10 +218,10 @@ mod test {
 
     #[test]
     fn test_fulu_format_header_is_rejected_at_gloas() {
-        let fulu_header = LightClientHeaderFulu {
-            beacon: header(ATTESTED_GLOAS_HEADER).beacon,
+        let fulu_header = LightClientHeader::Fulu(LightClientHeaderFulu {
+            beacon: header(ATTESTED_GLOAS_HEADER).beacon().clone(),
             ..Default::default()
-        };
+        });
 
         assert_eq!(
             is_valid_light_client_header(&client_state(), &fulu_header),
