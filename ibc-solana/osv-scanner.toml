@@ -51,14 +51,6 @@ id = "GO-2026-5746"
 reason = "Ignored because no fixed release exists for github.com/docker/docker or github.com/moby/moby (only for the moby/moby/v2 daemon module), and interchaintest still requires both at v28.5.2. Not exploitable here: the bug is in the Docker daemon (container archive endpoint), and e2e only uses the Docker client and API types."
 
 [[IgnoredVulns]]
-id = "GO-2020-0036"
-reason = "Ignored because no fixed release exists under the github.com/go-yaml/yaml import path (the fix shipped as gopkg.in/yaml.v2, which cannot replace it), and the kurtosis enclaves client still imports it. Only used by the e2e tests, which parse YAML they generate themselves."
-
-[[IgnoredVulns]]
-id = "GO-2021-0061"
-reason = "Ignored because no fixed release exists under the github.com/go-yaml/yaml import path (the fix shipped as gopkg.in/yaml.v2, which cannot replace it), and the kurtosis enclaves client still imports it. Only used by the e2e tests, which parse YAML they generate themselves."
-
-[[IgnoredVulns]]
 id = "GO-2026-4479"
 reason = "Ignored because no fixed pion/dtls/v2 release exists (the fix is only in v3), and go-ethereum p2p/nat still requires it through pion/stun/v2. Not exploitable here: e2e only uses the go-ethereum RPC clients, which never open a DTLS connection."
 
