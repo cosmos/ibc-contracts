@@ -620,11 +620,16 @@ pub async fn inject_ethereum_proofs<P: Provider + Clone>(
         .beacon_block(&format!("{proof_slot:?}"))
         .await?;
 
-    let proof_block_number = current_beacon_block
+    let proof_block_hash = current_beacon_block
         .message
         .body
-        .execution_payload
-        .block_number;
+        .execution_block_hash()
+        .ok_or_else(|| anyhow::anyhow!("Beacon block {proof_slot} has no execution block"))?;
+    let proof_block_number = eth_client
+        .get_block_by_hash(proof_block_hash)
+        .await?
+        .header
+        .number;
 
     let proof_slot_height = Height {
         revision_number: 0,

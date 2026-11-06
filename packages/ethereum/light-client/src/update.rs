@@ -2,6 +2,8 @@
 
 //! This module provides [`update_consensus_state`] function to update the consensus state
 
+use ethereum_types::consensus::sync_committee::SyncCommittee;
+
 use crate::{
     client_state::ClientState, consensus_state::ConsensusState, error::EthereumIBCError,
     header::Header,
@@ -34,9 +36,11 @@ pub fn update_consensus_state(
     let store_slot = current_consensus_state.slot;
     let store_period = current_client_state.compute_sync_committee_period_at_slot(store_slot);
 
-    let update_finalized_slot = header.consensus_update.finalized_header.beacon.slot;
+    let update_finalized_slot = header.consensus_update.finalized_header().beacon().slot;
     let update_finalized_period =
         current_client_state.compute_sync_committee_period_at_slot(update_finalized_slot);
+
+    let finalized_execution = header.finalized_execution()?;
 
     let mut new_consensus_state = current_consensus_state.clone();
 
@@ -46,8 +50,8 @@ pub fn update_consensus_state(
             new_consensus_state.current_sync_committee = next_sync_committee;
             new_consensus_state.next_sync_committee = header
                 .consensus_update
-                .next_sync_committee
-                .map(|c| c.to_summarized_sync_committee());
+                .next_sync_committee()
+                .map(SyncCommittee::to_summarized_sync_committee);
         }
     } else {
         // if the finalized period is greater, we have to have a next sync committee
@@ -57,26 +61,18 @@ pub fn update_consensus_state(
         );
         new_consensus_state.next_sync_committee = header
             .consensus_update
-            .next_sync_committee
-            .map(|c| c.to_summarized_sync_committee());
+            .next_sync_committee()
+            .map(SyncCommittee::to_summarized_sync_committee);
     }
 
     new_consensus_state.slot = update_finalized_slot;
-    new_consensus_state.state_root = header
-        .consensus_update
-        .finalized_header
-        .execution
-        .state_root;
-    new_consensus_state.timestamp = header.consensus_update.finalized_header.execution.timestamp;
+    new_consensus_state.state_root = finalized_execution.state_root;
+    new_consensus_state.timestamp = finalized_execution.timestamp;
 
     let new_client_state =
         (update_finalized_slot > current_consensus_state.slot).then_some(ClientState {
             latest_slot: update_finalized_slot,
-            latest_execution_block_number: header
-                .consensus_update
-                .finalized_header
-                .execution
-                .block_number,
+            latest_execution_block_number: finalized_execution.block_number,
             ..current_client_state
         });
     Ok((update_finalized_slot, new_consensus_state, new_client_state))

@@ -12,6 +12,7 @@ import (
 	"math/big"
 	"os"
 	"os/exec"
+	"strconv"
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -26,6 +27,13 @@ import (
 )
 
 const forgeScriptTimeout = 5 * time.Minute
+
+// gloasGasLimitMultiplier scales gas limits on Gloas chains, where state creation costs around 7
+// times more than the limits and simulations in the tests account for. It only applies once Gloas
+// is active, since the scaled limits are above the transaction gas limit cap of Fulu. Limits are
+// scaled rather than estimated because simulations of relay transactions can revert when their
+// proofs are newer than the latest block, even though the transactions succeed once sent.
+const gloasGasLimitMultiplier = 10
 
 type Ethereum struct {
 	ChainID         *big.Int
@@ -73,6 +81,14 @@ func (e *Ethereum) BroadcastTx(ctx context.Context, userKey *ecdsa.PrivateKey, g
 		return nil, err
 	}
 
+	isGloas, err := e.isGloasActive()
+	if err != nil {
+		return nil, err
+	}
+	if isGloas {
+		gasLimit *= gloasGasLimitMultiplier
+	}
+
 	tx := ethtypes.NewTx(&ethtypes.LegacyTx{
 		Nonce:    txOpts.Nonce.Uint64(),
 		To:       address,
@@ -98,7 +114,7 @@ func (e *Ethereum) BroadcastTx(ctx context.Context, userKey *ecdsa.PrivateKey, g
 	}
 
 	if receipt != nil && receipt.Status != ethtypes.ReceiptStatusSuccessful {
-		return nil, fmt.Errorf("eth transaction was broadcasted, but failed on-chain with status %d", receipt.Status)
+		return nil, fmt.Errorf("eth transaction was broadcasted, but failed on-chain with status %d (gas used %d of %d)", receipt.Status, receipt.GasUsed, gasLimit)
 	}
 
 	return receipt, nil
@@ -115,6 +131,16 @@ func (e Ethereum) forgeScript(timeout time.Duration, deployer *ecdsa.PrivateKey,
 		"--non-interactive", "-vvvv", solidityContract,
 	}
 	cmdArgs = append(cmdArgs, args...)
+
+	isGloas, err := e.isGloasActive()
+	if err != nil {
+		return nil, err
+	}
+	if isGloas {
+		// Forge simulates transactions with the gas rules of its configured EVM version
+		cmdArgs = append(cmdArgs, "--gas-estimate-multiplier", strconv.Itoa(gloasGasLimitMultiplier*100))
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
@@ -147,6 +173,25 @@ func (e Ethereum) forgeScript(timeout time.Duration, deployer *ecdsa.PrivateKey,
 	}
 
 	return stdoutBuf.Bytes(), nil
+}
+
+// isGloasActive returns whether the chain has reached the Gloas fork. Chains without a beacon node
+// never reach it.
+func (e Ethereum) isGloasActive() (bool, error) {
+	if e.BeaconAPIClient == nil {
+		return false, nil
+	}
+
+	spec, err := e.BeaconAPIClient.GetSpec()
+	if err != nil {
+		return false, err
+	}
+	header, err := e.BeaconAPIClient.GetHeader("head")
+	if err != nil {
+		return false, err
+	}
+
+	return uint64(header.Header.Message.Slot)/spec.SlotsPerEpoch >= spec.GloasForkEpoch, nil
 }
 
 func (e Ethereum) CreateUser() (*ecdsa.PrivateKey, error) {

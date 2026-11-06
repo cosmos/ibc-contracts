@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-pub mod v1_2_0 {
+pub mod v1_3_0 {
     use std::marker::PhantomData;
 
     use alloy_primitives::B256;
@@ -10,25 +10,31 @@ pub mod v1_2_0 {
             message_info, mock_dependencies, mock_env, MockApi, MockQuerier,
             MockQuerierCustomHandlerResult, MockStorage,
         },
-        Binary, OwnedDeps, SystemResult, Timestamp,
+        Binary, Env, OwnedDeps, SystemResult, Timestamp,
     };
     use ethereum_light_client::{
         header::Header,
         test_utils::{
             bls_verifier::{aggreagate, fast_aggregate_verify},
-            fixtures::{self, InitialState, StepsFixture},
+            fixtures::{self, get_packet_paths, RelayerMessages, StepsFixture},
         },
     };
-    use ethereum_light_client_v1_2_0::test_utils::fixtures::RelayerMessages;
-    use ethereum_types::consensus::bls::{BlsPublicKey, BlsSignature};
+    use ethereum_light_client_v1_3_0::{
+        client_state::ClientState as ClientStateV1_3, header::Header as HeaderV1_3,
+        test_utils::fixtures::RelayerMessages as RelayerMessagesV1_3,
+    };
+    use ethereum_types::consensus::{
+        bls::{BlsPublicKey, BlsSignature},
+        fork::ForkParameters,
+    };
     use prost::Message;
 
-    use cw_ics08_wasm_eth_v1_2_0::{
-        contract as contract_v1_2, custom_query::EthereumCustomQuery, msg as msg_v1_2,
+    use cw_ics08_wasm_eth_v1_3_0::{
+        contract as contract_v1_3, custom_query::EthereumCustomQuery, msg as msg_v1_3,
     };
     use ibc_proto::ibc::lightclients::wasm::v1::ClientMessage;
 
-    use crate::{contract, msg, test::helpers::mk_deps};
+    use crate::{contract, msg, state, test::helpers::mk_deps};
 
     pub fn custom_query_handler(query: &EthereumCustomQuery) -> MockQuerierCustomHandlerResult {
         match query {
@@ -67,7 +73,7 @@ pub mod v1_2_0 {
         }
     }
 
-    pub fn mk_deps_v1_2(
+    pub fn mk_deps_v1_3(
     ) -> OwnedDeps<MockStorage, MockApi, MockQuerier<EthereumCustomQuery>, EthereumCustomQuery>
     {
         let deps = mock_dependencies();
@@ -81,134 +87,190 @@ pub mod v1_2_0 {
         }
     }
 
+    fn env_at_signature_slot(client_state: &ClientStateV1_3, signature_slot: u64) -> Env {
+        let mut env = mock_env();
+        env.block.time =
+            Timestamp::from_seconds(client_state.compute_timestamp_at_slot(signature_slot) + 1000);
+        env
+    }
+
     #[test]
-    fn test_migrate_from_v1_2_0() {
-        // Initialize v1_2_0
-        let mut deps = mk_deps_v1_2();
+    fn test_migrate_from_v1_3_0_and_update_across_gloas_fork_at_period_boundary() {
+        migrate_from_v1_3_0_and_update_across_gloas_fork("Test_Gloas_Fork_PeriodBoundary");
+    }
+
+    #[test]
+    fn test_migrate_from_v1_3_0_and_update_across_gloas_fork_mid_period() {
+        let updates_finalizing_before_fork =
+            migrate_from_v1_3_0_and_update_across_gloas_fork("Test_Gloas_Fork_MidPeriod");
+        assert_ne!(updates_finalizing_before_fork, 0);
+    }
+
+    /// This test runs through the e2e test scenario defined in the interchaintest:
+    /// `GloasForkTest`. A client running v1.3.0 on Fulu is given the Gloas fork parameters before
+    /// the fork by the migration, and is then updated across the fork.
+    /// Returns the number of updates that attest a Gloas block and finalize a block before the fork.
+    #[allow(clippy::too_many_lines)]
+    fn migrate_from_v1_3_0_and_update_across_gloas_fork(fixture_name: &str) -> usize {
+        let mut deps = mk_deps_v1_3();
 
         let creator = deps.api.addr_make("creator");
         let info = message_info(&creator, &coins(1, "uatom"));
 
-        let fixture: StepsFixture =
-            fixtures::load("Test_ICS20TransferNativeCosmosCoinsToEthereumAndBack");
+        let fixture: StepsFixture = fixtures::load(fixture_name);
 
-        let initial_state: InitialState = fixture.get_data_at_step(0);
-
-        let client_state = initial_state.client_state;
-
-        let consensus_state = initial_state.consensus_state;
-
-        let client_state_bz: Vec<u8> = serde_json::to_vec(&client_state).unwrap();
-        // compatibility with v1_2_0 requires storage_root to be present
-        let mut consensus_state_value = serde_json::to_value(&consensus_state).unwrap();
-        consensus_state_value.as_object_mut().unwrap().insert(
-            "storage_root".to_string(),
-            serde_json::to_value(consensus_state.state_root).unwrap(),
-        );
-
-        let consensus_state_bz: Vec<u8> = serde_json::to_vec(&consensus_state_value).unwrap();
-
-        let msg = msg_v1_2::InstantiateMsg {
-            client_state: Binary::from(client_state_bz),
-            consensus_state: Binary::from(consensus_state_bz),
-            checksum: b"checksum".into(),
-        };
-
-        contract_v1_2::instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-
-        let mut new_deps = mk_deps();
-        new_deps.storage = deps.storage;
-
-        // Migrate to current version
-        contract::migrate(
-            new_deps.as_mut(),
+        // Initialize v1.3.0
+        let initial_state: serde_json::Value = fixture.get_data_at_step(0);
+        let client_state_v1_3: ClientStateV1_3 =
+            serde_json::from_value(initial_state["client_state"].clone()).unwrap();
+        // v1.3.0 requires storage_root to be present, which the fixture doesn't record
+        let mut consensus_state = initial_state["consensus_state"].clone();
+        consensus_state["storage_root"] = consensus_state["state_root"].clone();
+        contract_v1_3::instantiate(
+            deps.as_mut(),
             mock_env(),
-            msg::MigrateMsg {
-                migration: msg::Migration::CodeOnly,
+            info,
+            msg_v1_3::InstantiateMsg {
+                client_state: serde_json::to_vec(&client_state_v1_3).unwrap().into(),
+                consensus_state: serde_json::to_vec(&consensus_state).unwrap().into(),
+                checksum: b"checksum".into(),
             },
         )
         .unwrap();
 
-        // Update the client state once
-        let relayer_messages: RelayerMessages = fixture.get_data_at_step(1);
-        let (update_client_msgs, _, _) = relayer_messages.get_sdk_msgs();
-        let client_msgs = update_client_msgs
-            .iter()
-            .map(|msg| {
-                ClientMessage::decode(msg.client_message.clone().unwrap().value.as_slice()).unwrap()
-            })
-            .map(|msg| msg.data)
-            .collect::<Vec<_>>();
+        // Update the client with v1.3.0 on Fulu
+        let relayer_messages: RelayerMessagesV1_3 = fixture.get_data_at_step(1);
+        let (update_client_msgs, ..) = relayer_messages.get_sdk_msgs();
+        assert_ne!(update_client_msgs.len(), 0);
+        for msg in update_client_msgs {
+            let header_bz = ClientMessage::decode(msg.client_message.unwrap().value.as_slice())
+                .unwrap()
+                .data;
+            let header: HeaderV1_3 = serde_json::from_slice(&header_bz).unwrap();
+            let env =
+                env_at_signature_slot(&client_state_v1_3, header.consensus_update.signature_slot);
 
-        let mut env = mock_env();
-
-        for header_bz in client_msgs {
-            let header: Header = serde_json::from_slice(&header_bz).unwrap();
-            env.block.time = Timestamp::from_seconds(
-                header.consensus_update.attested_header.execution.timestamp + 1000,
-            );
-
-            let query_verify_client_msg =
-                msg::QueryMsg::VerifyClientMessage(msg::VerifyClientMessageMsg {
+            contract_v1_3::query(
+                deps.as_ref(),
+                env.clone(),
+                msg_v1_3::QueryMsg::VerifyClientMessage(msg_v1_3::VerifyClientMessageMsg {
                     client_message: Binary::from(header_bz.clone()),
-                });
-            contract::query(new_deps.as_ref(), env.clone(), query_verify_client_msg).unwrap();
-
-            // Update state
-            let sudo_update_state_msg = msg::SudoMsg::UpdateState(msg::UpdateStateMsg {
-                client_message: Binary::from(header_bz),
-            });
-            let update_res =
-                contract::sudo(new_deps.as_mut(), env.clone(), sudo_update_state_msg).unwrap();
-            let update_state_result: msg::UpdateStateResult =
-                serde_json::from_slice(&update_res.data.unwrap())
-                    .expect("update state result should be deserializable");
-            assert_eq!(1, update_state_result.heights.len());
-            assert_eq!(0, update_state_result.heights[0].revision_number);
-            assert_eq!(
-                header.consensus_update.finalized_header.beacon.slot,
-                update_state_result.heights[0].revision_height
-            );
+                }),
+            )
+            .unwrap();
+            contract_v1_3::sudo(
+                deps.as_mut(),
+                env,
+                msg_v1_3::SudoMsg::UpdateState(msg_v1_3::UpdateStateMsg {
+                    client_message: Binary::from(header_bz),
+                }),
+            )
+            .unwrap();
         }
 
-        // Update the client state once again
-        let relayer_messages: RelayerMessages = fixture.get_data_at_step(2);
-        let (update_client_msgs, _, _) = relayer_messages.get_sdk_msgs();
-        let client_msgs = update_client_msgs
-            .iter()
-            .map(|msg| {
-                ClientMessage::decode(msg.client_message.clone().unwrap().value.as_slice()).unwrap()
-            })
-            .map(|msg| msg.data)
-            .collect::<Vec<_>>();
+        let mut new_deps = mk_deps();
+        new_deps.storage = deps.storage;
 
-        for header_bz in client_msgs {
+        // Migrate to the current version with the Gloas fork parameters. The state of v1.3.0 doesn't
+        // have the Gloas fork.
+        let fork_parameters: ForkParameters = fixture.get_data_at_step(2);
+        let gloas_fork_epoch = fork_parameters.gloas.epoch;
+        contract::migrate(
+            new_deps.as_mut(),
+            mock_env(),
+            msg::MigrateMsg {
+                migration: msg::Migration::UpdateForkParameters(fork_parameters.clone()),
+            },
+        )
+        .unwrap();
+
+        let client_state = state::get_eth_client_state(&new_deps.storage).unwrap();
+        assert_eq!(client_state.fork_parameters, fork_parameters);
+        assert!(client_state.compute_epoch_at_slot(client_state.latest_slot) < gloas_fork_epoch);
+
+        // Update the client across the fork
+        let relayer_messages: RelayerMessages = fixture.get_data_at_step(3);
+        let (update_client_msgs, recv_msgs, _, _) = relayer_messages.get_sdk_msgs();
+        assert_ne!(update_client_msgs.len(), 0);
+        // One packet sent before the fork and one sent after it
+        assert_eq!(2, recv_msgs.len());
+
+        let mut updates_finalizing_before_fork = 0;
+        let mut last_header = None;
+        for msg in update_client_msgs {
+            let header_bz = ClientMessage::decode(msg.client_message.unwrap().value.as_slice())
+                .unwrap()
+                .data;
             let header: Header = serde_json::from_slice(&header_bz).unwrap();
+            let update = &header.consensus_update;
+            if client_state.compute_epoch_at_slot(update.attested_header().beacon().slot)
+                >= gloas_fork_epoch
+                && client_state.compute_epoch_at_slot(update.finalized_header().beacon().slot)
+                    < gloas_fork_epoch
+            {
+                updates_finalizing_before_fork += 1;
+            }
+            let mut env = mock_env();
             env.block.time = Timestamp::from_seconds(
-                header.consensus_update.attested_header.execution.timestamp + 1000,
+                client_state.compute_timestamp_at_slot(header.consensus_update.signature_slot())
+                    + 1000,
             );
 
-            let query_verify_client_msg =
+            contract::query(
+                new_deps.as_ref(),
+                env.clone(),
                 msg::QueryMsg::VerifyClientMessage(msg::VerifyClientMessageMsg {
                     client_message: Binary::from(header_bz.clone()),
-                });
-            contract::query(new_deps.as_ref(), env.clone(), query_verify_client_msg).unwrap();
-
-            // Update state
-            let sudo_update_state_msg = msg::SudoMsg::UpdateState(msg::UpdateStateMsg {
-                client_message: Binary::from(header_bz),
-            });
-            let update_res =
-                contract::sudo(new_deps.as_mut(), env.clone(), sudo_update_state_msg).unwrap();
-            let update_state_result: msg::UpdateStateResult =
-                serde_json::from_slice(&update_res.data.unwrap())
-                    .expect("update state result should be deserializable");
-            assert_eq!(1, update_state_result.heights.len());
-            assert_eq!(0, update_state_result.heights[0].revision_number);
-            assert_eq!(
-                header.consensus_update.finalized_header.beacon.slot,
-                update_state_result.heights[0].revision_height
-            );
+                }),
+            )
+            .unwrap();
+            contract::sudo(
+                new_deps.as_mut(),
+                env,
+                msg::SudoMsg::UpdateState(msg::UpdateStateMsg {
+                    client_message: Binary::from(header_bz),
+                }),
+            )
+            .unwrap();
+            last_header = Some(header);
         }
+
+        let stored_client_state = state::get_eth_client_state(&new_deps.storage).unwrap();
+        assert!(
+            client_state.compute_epoch_at_slot(stored_client_state.latest_slot) >= gloas_fork_epoch
+        );
+        assert_eq!(
+            stored_client_state.latest_execution_block_number,
+            last_header
+                .unwrap()
+                .finalized_execution()
+                .unwrap()
+                .block_number
+        );
+
+        // Verify the packets against the execution state of the Gloas consensus state
+        for recv_msg in recv_msgs {
+            let (path, value, _) = get_packet_paths(recv_msg.packet.unwrap());
+            contract::sudo(
+                new_deps.as_mut(),
+                mock_env(),
+                msg::SudoMsg::VerifyMembership(msg::VerifyMembershipMsg {
+                    height: msg::Height {
+                        revision_number: 0,
+                        revision_height: recv_msg.proof_height.unwrap().revision_height,
+                    },
+                    delay_time_period: 0,
+                    delay_block_period: 0,
+                    proof: Binary::from(recv_msg.proof_commitment),
+                    merkle_path: msg::MerklePath {
+                        key_path: vec![Binary::from(path)],
+                    },
+                    value: Binary::from(value),
+                }),
+            )
+            .unwrap();
+        }
+
+        updates_finalizing_before_fork
     }
 }

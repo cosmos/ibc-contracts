@@ -7,7 +7,6 @@ import (
 	"crypto/ecdsa"
 	"encoding/json"
 	"fmt"
-	"math"
 	"os"
 	"time"
 
@@ -28,9 +27,6 @@ import (
 const (
 	// ethereumPackageId is the package ID used by Kurtosis to find the Ethereum package we use for the testnet
 	ethereumPackageId = "github.com/ethpandaops/ethereum-package@5795b77e65235ad223d4d3b413b2739190bf60cc"
-
-	// farFutureEpoch is the epoch the package uses for a fork that is never scheduled
-	farFutureEpoch uint64 = math.MaxUint64
 
 	faucetPrivateKey = "0x04b9f63ecf84210c5366c66d68fa1f5da1fa4f634fad6dfc86178e4d79ff9e59"
 )
@@ -56,11 +52,9 @@ var (
 		},
 		// We can change the preset dynamically before spinning up the testnet
 		NetworkParams: kurtosisNetworkConfigParams{
-			Preset:        "minimal",
-			FuluForkEpoch: 1,
-			// The package schedules BPO1 and BPO2 at genesis by default, which it rejects when Fulu is not at genesis
-			BPO1Epoch: 1,
-			BPO2Epoch: farFutureEpoch,
+			Preset:         "minimal",
+			FuluForkEpoch:  0,
+			GloasForkEpoch: 1,
 		},
 		WaitForFinalization: true,
 		AdditionalServices:  []string{},
@@ -117,6 +111,10 @@ type kurtosisParticipant struct {
 	ValidatorCount uint64 `json:"validator_count"`
 	// Whether to act as a supernode for the network
 	Supernode bool `json:"supernode"`
+	// A list of optional extra params that will be passed to the CL client container
+	CLExtraParams []string `json:"cl_extra_params,omitempty"`
+	// A list of optional extra params that will be passed to the validator client container
+	VCExtraParams []string `json:"vc_extra_params,omitempty"`
 }
 
 type kurtosisNetworkConfigParams struct {
@@ -128,10 +126,8 @@ type kurtosisNetworkConfigParams struct {
 	SlotDuration uint64 `json:"slot_duration_ms,omitempty"`
 	// Fulu fork epoch
 	FuluForkEpoch uint64 `json:"fulu_fork_epoch"`
-	// BPO1 fork epoch
-	BPO1Epoch uint64 `json:"bpo_1_epoch"`
-	// BPO2 fork epoch
-	BPO2Epoch uint64 `json:"bpo_2_epoch"`
+	// Gloas fork epoch
+	GloasForkEpoch uint64 `json:"gloas_fork_epoch"`
 }
 
 // SpinUpKurtosisPoS spins up a kurtosis enclave with Etheruem PoS testnet using github.com/ethpandaops/ethereum-package
@@ -139,9 +135,16 @@ func SpinUpKurtosisPoS(ctx context.Context) (EthKurtosisChain, error) {
 	// Load dynamic configurations
 	KurtosisConfig.NetworkParams.Preset = GetKurtosisPreset()
 	if KurtosisConfig.NetworkParams.Preset == testvalues.EnvValueEthereumPosPreset_Minimal {
-		// Speed up slots to 2 seconds for minimal preset
-		KurtosisConfig.NetworkParams.SlotDuration = 2000
-		KurtosisConfig.NetworkParams.SecondsPerSlot = 2
+		// Speed up slots to 3 seconds for minimal preset. Going lower breaks light client data at
+		// Gloas, because validators must sign the head at 25% of the slot and lodestar takes around
+		// 500ms to publish a block. Signing the previous head leaves the sync aggregates empty.
+		KurtosisConfig.NetworkParams.SlotDuration = 3000
+		KurtosisConfig.NetworkParams.SecondsPerSlot = 3
+		// The package only sets the slot duration in the chain config, which leaves the deprecated
+		// SECONDS_PER_SLOT at its default. The relayer of earlier client versions still reads it.
+		secondsPerSlotParams := []string{"--params.SECONDS_PER_SLOT=3"}
+		KurtosisConfig.Participants[0].CLExtraParams = secondsPerSlotParams
+		KurtosisConfig.Participants[0].VCExtraParams = secondsPerSlotParams
 	}
 
 	faucet, err := crypto.ToECDSA(ethcommon.FromHex(faucetPrivateKey))

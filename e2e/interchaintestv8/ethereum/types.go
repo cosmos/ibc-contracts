@@ -28,6 +28,8 @@ type Spec struct {
 	DenebForkEpoch       uint64         `json:"DENEB_FORK_EPOCH"`
 	ElectraForkVersion   phase0.Version `json:"ELECTRA_FORK_VERSION"`
 	ElectraForkEpoch     uint64         `json:"ELECTRA_FORK_EPOCH"`
+	GloasForkVersion     phase0.Version `json:"GLOAS_FORK_VERSION"`
+	GloasForkEpoch       uint64         `json:"GLOAS_FORK_EPOCH"`
 }
 
 type Bootstrap struct {

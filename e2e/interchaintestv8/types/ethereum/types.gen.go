@@ -67,6 +67,8 @@ type ForkParameters struct {
 	GenesisForkVersion string `json:"genesis_fork_version"`
 	// The genesis slot
 	GenesisSlot uint64 `json:"genesis_slot"`
+	// The gloas fork
+	Gloas *Fork `json:"gloas,omitempty"`
 }
 
 // The altair fork
@@ -81,7 +83,9 @@ type ForkParameters struct {
 //
 // # The electra fork
 //
-// The fulu fork
+// # The fulu fork
+//
+// The gloas fork
 type Fork struct {
 	// The epoch at which this fork is activated
 	Epoch uint64 `json:"epoch"`
@@ -121,6 +125,9 @@ type Header struct {
 	ActiveSyncCommittee ActiveSyncCommittee `json:"active_sync_committee"`
 	// The consensus update
 	ConsensusUpdate LightClientUpdate `json:"consensus_update"`
+	// The RLP encoded execution block header of the finalized header (untrusted). Required by
+	// Gloas light client data, which only commits to the block hash.
+	FinalizedExecutionHeader *string `json:"finalized_execution_header"`
 	// Trusted slot to verify the new update against
 	TrustedSlot uint64 `json:"trusted_slot"`
 }
@@ -147,7 +154,13 @@ type SyncCommittee struct {
 
 // The consensus update
 //
-// A light client update
+// # A light client update in the format of the fork of its attested header
+//
+// # An update with a Gloas attested header
+//
+// # A light client update with branches of the given depths
+//
+// An update with a Fulu attested header
 type LightClientUpdate struct {
 	// Header attested to by the sync committee
 	AttestedHeader LightClientHeader `json:"attested_header"`
@@ -167,16 +180,28 @@ type LightClientUpdate struct {
 
 // Header attested to by the sync committee
 //
-// # The header of a light client
+// # The header of a light client, in the format of the light client data that contains it
 //
 // Finalized header corresponding to `attested_header.state_root`
+//
+// # A header in Gloas light client data
+//
+// # The header of a light client in Gloas light client data
+//
+// # A header in Fulu light client data
+//
+// The header of a light client in Fulu light client data
 type LightClientHeader struct {
 	// The beacon block header
 	Beacon BeaconBlockHeader `json:"beacon"`
-	// The execution payload header
-	Execution ExecutionPayloadHeader `json:"execution"`
+	// The hash of the execution block
+	ExecutionBlockHash *string `json:"execution_block_hash,omitempty"`
+	// The execution branch, normalized to the Gloas depth for headers of pre-Gloas blocks
+	//
 	// The execution branch
 	ExecutionBranch []string `json:"execution_branch"`
+	// The execution payload header
+	Execution *ExecutionPayloadHeader `json:"execution,omitempty"`
 }
 
 // The beacon block header

@@ -165,6 +165,7 @@ mod tests {
             test::helpers::mk_deps,
         };
 
+        #[allow(clippy::too_many_lines)]
         #[test]
         fn test_instantiate() {
             let mut deps = mk_deps();
@@ -202,6 +203,10 @@ mod tests {
                         epoch: 0,
                     },
                     fulu: Fork {
+                        version: FixedBytes([0; 4]),
+                        epoch: 0,
+                    },
+                    gloas: Fork {
                         version: FixedBytes([0; 4]),
                         epoch: 0,
                     },
@@ -291,6 +296,7 @@ mod tests {
         };
         use ethereum_types::consensus::{
             fork::{Fork, ForkParameters},
+            light_client_header::LightClientUpdate,
             sync_committee::SummarizedSyncCommittee,
         };
         use ibc_proto::{
@@ -346,7 +352,7 @@ mod tests {
             // Verify client message
             let relayer_messages: RelayerMessages = fixture.get_data_at_step(1);
             let (update_client_msgs, recv_msgs, _, _) = relayer_messages.get_sdk_msgs();
-            assert_eq!(1, update_client_msgs.len()); // just to make sure
+            assert_ne!(0, update_client_msgs.len()); // just to make sure
             assert_eq!(1, recv_msgs.len()); // just to make sure
             let client_msgs = update_client_msgs
                 .iter()
@@ -362,7 +368,9 @@ mod tests {
             for header_bz in client_msgs {
                 let header: Header = serde_json::from_slice(&header_bz).unwrap();
                 env.block.time = Timestamp::from_seconds(
-                    header.consensus_update.attested_header.execution.timestamp + 1000,
+                    client_state
+                        .compute_timestamp_at_slot(header.consensus_update.signature_slot())
+                        + 1000,
                 );
 
                 let query_verify_client_msg =
@@ -382,7 +390,7 @@ mod tests {
                 assert_eq!(1, update_state_result.heights.len());
                 assert_eq!(0, update_state_result.heights[0].revision_number);
                 assert_eq!(
-                    header.consensus_update.finalized_header.beacon.slot,
+                    header.consensus_update.finalized_header().beacon().slot,
                     update_state_result.heights[0].revision_height
                 );
             }
@@ -447,7 +455,7 @@ mod tests {
             // Verify client message
             let relayer_messages: RelayerMessages = fixture.get_data_at_step(1);
             let (update_client_msgs, recv_msgs, _, _) = relayer_messages.get_sdk_msgs();
-            assert_eq!(1, update_client_msgs.len()); // just to make sure
+            assert_ne!(0, update_client_msgs.len()); // just to make sure
             assert_eq!(1, recv_msgs.len()); // just to make sure
             let client_msgs = update_client_msgs
                 .iter()
@@ -455,12 +463,12 @@ mod tests {
                     ClientMessage::decode(msg.client_message.clone().unwrap().value.as_slice())
                         .unwrap()
                 })
-                .map(|msg| msg.data)
-                .collect::<Vec<_>>();
+                .map(|msg| msg.data);
 
             let mut env = mock_env();
 
-            for header_bz in client_msgs {
+            // Only the first update crosses into the period of the next sync committee
+            for header_bz in client_msgs.take(1) {
                 let mut header: Header = serde_json::from_slice(&header_bz).unwrap();
 
                 let sync_committee = header.active_sync_committee;
@@ -487,11 +495,11 @@ mod tests {
                     let mut bits = vec![0xFF; 48];
                     bits[0] = 0b0000_0010;
 
-                    header.consensus_update.sync_aggregate.sync_committee_bits = bits.into();
-                    header
-                        .consensus_update
-                        .sync_aggregate
-                        .sync_committee_signature = FixedBytes([
+                    let LightClientUpdate::Gloas(update) = &mut header.consensus_update else {
+                        panic!("the fixture should be from a Gloas chain");
+                    };
+                    update.sync_aggregate.sync_committee_bits = bits.into();
+                    update.sync_aggregate.sync_committee_signature = FixedBytes([
                         141, 213, 40, 198, 216, 4, 232, 6, 81, 233, 68, 218, 77, 6, 86, 182, 237,
                         151, 157, 194, 232, 232, 2, 229, 197, 81, 72, 102, 47, 198, 140, 250, 207,
                         60, 148, 124, 180, 228, 54, 236, 83, 56, 107, 245, 42, 98, 160, 150, 1,
@@ -506,7 +514,9 @@ mod tests {
                 let header_manipulated = serde_json::to_vec(&header).unwrap();
 
                 env.block.time = Timestamp::from_seconds(
-                    header.consensus_update.attested_header.execution.timestamp + 1000,
+                    client_state
+                        .compute_timestamp_at_slot(header.consensus_update.signature_slot())
+                        + 1000,
                 );
 
                 let query_verify_client_msg =
@@ -542,7 +552,7 @@ mod tests {
             // Verify client message
             let relayer_messages: RelayerMessages = fixture.get_data_at_step(1);
             let (update_client_msgs, recv_msgs, _, _) = relayer_messages.get_sdk_msgs();
-            assert_eq!(1, update_client_msgs.len()); // just to make sure
+            assert_ne!(0, update_client_msgs.len()); // just to make sure
             assert_eq!(1, recv_msgs.len()); // just to make sure
             let client_msgs = update_client_msgs
                 .iter()
@@ -550,12 +560,12 @@ mod tests {
                     ClientMessage::decode(msg.client_message.clone().unwrap().value.as_slice())
                         .unwrap()
                 })
-                .map(|msg| msg.data)
-                .collect::<Vec<_>>();
+                .map(|msg| msg.data);
 
             let mut env = mock_env();
 
-            for header_bz in client_msgs {
+            // Only the first update crosses into the period of the next sync committee
+            for header_bz in client_msgs.take(1) {
                 let mut header: Header = serde_json::from_slice(&header_bz).unwrap();
 
                 let sync_committee = header.active_sync_committee;
@@ -582,11 +592,11 @@ mod tests {
                     let mut bits = vec![0xFF; 48];
                     bits[0] = 0b0000_0010;
 
-                    header.consensus_update.sync_aggregate.sync_committee_bits = bits.into();
-                    header
-                        .consensus_update
-                        .sync_aggregate
-                        .sync_committee_signature = FixedBytes([
+                    let LightClientUpdate::Gloas(update) = &mut header.consensus_update else {
+                        panic!("the fixture should be from a Gloas chain");
+                    };
+                    update.sync_aggregate.sync_committee_bits = bits.into();
+                    update.sync_aggregate.sync_committee_signature = FixedBytes([
                         141, 213, 40, 198, 216, 4, 232, 6, 81, 233, 68, 218, 77, 6, 86, 182, 237,
                         151, 157, 194, 232, 232, 2, 229, 197, 81, 72, 102, 47, 198, 140, 250, 207,
                         60, 148, 124, 180, 228, 54, 236, 83, 56, 107, 245, 42, 98, 160, 150, 1,
@@ -613,7 +623,9 @@ mod tests {
                 let header_manipulated = serde_json::to_vec(&header).unwrap();
 
                 env.block.time = Timestamp::from_seconds(
-                    header.consensus_update.attested_header.execution.timestamp + 1000,
+                    client_state
+                        .compute_timestamp_at_slot(header.consensus_update.signature_slot())
+                        + 1000,
                 );
 
                 let query_verify_client_msg =
@@ -683,7 +695,9 @@ mod tests {
             for header_bz in client_msgs {
                 let header: Header = serde_json::from_slice(&header_bz).unwrap();
                 env.block.time = Timestamp::from_seconds(
-                    header.consensus_update.attested_header.execution.timestamp + 1000,
+                    client_state
+                        .compute_timestamp_at_slot(header.consensus_update.signature_slot())
+                        + 1000,
                 );
 
                 let query_verify_client_msg =
@@ -703,7 +717,7 @@ mod tests {
                 assert_eq!(1, update_state_result.heights.len());
                 assert_eq!(0, update_state_result.heights[0].revision_number);
                 assert_eq!(
-                    header.consensus_update.finalized_header.beacon.slot,
+                    header.consensus_update.finalized_header().beacon().slot,
                     update_state_result.heights[0].revision_height
                 );
             }
@@ -805,6 +819,10 @@ mod tests {
                         epoch: 0,
                     },
                     fulu: Fork {
+                        version: FixedBytes([0; 4]),
+                        epoch: 0,
+                    },
+                    gloas: Fork {
                         version: FixedBytes([0; 4]),
                         epoch: 0,
                     },
@@ -920,6 +938,10 @@ mod tests {
                         version: FixedBytes([0; 4]),
                         epoch: 0,
                     },
+                    gloas: Fork {
+                        version: FixedBytes([0; 4]),
+                        epoch: 0,
+                    },
                 },
                 sync_committee_size: 512,
                 seconds_per_slot: 10,
@@ -977,6 +999,10 @@ mod tests {
                         epoch: 5000,
                     },
                     fulu: Fork {
+                        version: FixedBytes([0; 4]),
+                        epoch: 0,
+                    },
+                    gloas: Fork {
                         version: FixedBytes([0; 4]),
                         epoch: 0,
                     },

@@ -12,6 +12,13 @@ type MigrateMsg struct {
 	Migration any `json:"migration"`
 }
 
+// NewUpdateForkParametersMigrateMsg returns the migration message that updates the fork parameters
+func NewUpdateForkParametersMigrateMsg(forkParameters ForkParameters) MigrateMsg {
+	return MigrateMsg{
+		Migration: map[string]ForkParameters{"update_fork_parameters": forkParameters},
+	}
+}
+
 func (h BeaconBlockHeader) GetSlot() uint64 {
 	slot, err := strconv.ParseUint(h.Slot, 0, 0)
 	if err != nil {

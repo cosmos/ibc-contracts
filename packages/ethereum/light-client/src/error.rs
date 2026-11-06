@@ -35,6 +35,21 @@ pub enum EthereumIBCError {
     #[error("unsupported fork version, must be electra or later")]
     MustBeElectraOrLater,
 
+    #[error("light client header at slot {slot} has an invalid format for its fork")]
+    InvalidLightClientHeaderFormat { slot: u64 },
+
+    #[error("invalid merkle branch length, expected {expected} but found {found}")]
+    InvalidMerkleBranchLength { expected: usize, found: usize },
+
+    #[error("execution block header of the finalized header is required but missing")]
+    MissingFinalizedExecutionHeader,
+
+    #[error("execution block header hash mismatch, expected {expected} but found {found}")]
+    FinalizedExecutionHeaderMismatch { expected: B256, found: B256 },
+
+    #[error("invalid execution block header: {0}")]
+    InvalidFinalizedExecutionHeader(String),
+
     #[error(transparent)]
     InvalidMerkleBranch(#[from] Box<InvalidMerkleBranch>), // boxed to decrease enum size
 
@@ -174,8 +189,8 @@ pub enum EthereumIBCError {
     #[error("conflicting updates are for different slots: {0} != {1}")]
     MisbehaviourSlotMismatch(u64, u64),
 
-    #[error("storage roots are not conflicting: {0} == {0}")]
-    MisbehaviourStorageRootsMatch(B256),
+    #[error("execution block hashes are not conflicting: {0} == {0}")]
+    MisbehaviourExecutionBlockHashesMatch(B256),
 
     #[error(
         "update must be against a previous consensus state: \

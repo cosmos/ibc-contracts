@@ -25,8 +25,8 @@ thiserror       = { version = "2.0", default-features = false }
 hex             = { version = "0.4", default-features = false }
 
 # test/dev-dependencies: previous released versions, used for migration tests.
-cw-ics08-wasm-eth-v1_2_0     = { package = "cw-ics08-wasm-eth", git = "https://github.com/cosmos/ibc-contracts", tag = "cw-ics08-wasm-eth-v1.2.0", default-features = false }
-ethereum-light-client-v1_2_0 = { package = "ethereum-light-client", git = "https://github.com/cosmos/ibc-contracts", tag = "cw-ics08-wasm-eth-v1.2.0", default-features = false }
+cw-ics08-wasm-eth-v1_3_0     = { package = "cw-ics08-wasm-eth", git = "https://github.com/cosmos/ibc-contracts", tag = "cw-ics08-wasm-eth-v1.3.0", default-features = false }
+ethereum-light-client-v1_3_0 = { package = "ethereum-light-client", git = "https://github.com/cosmos/ibc-contracts", tag = "cw-ics08-wasm-eth-v1.3.0", default-features = false }
 
 [patch.crates-io]
 # TODO: remove on publish of verifier with &self in verify method
@@ -71,5 +71,5 @@ hex = { workspace = true }
 
 [dev-dependencies]
 ethereum-light-client = { workspace = true, features = ["test-utils"] }
-cw-ics08-wasm-eth-v1_2_0 = { workspace = true }
-ethereum-light-client-v1_2_0 = { workspace = true, features = ["test-utils"] }
+cw-ics08-wasm-eth-v1_3_0 = { workspace = true }
+ethereum-light-client-v1_3_0 = { workspace = true, features = ["test-utils"] }
