@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 // solhint-disable gas-custom-errors,gas-calldata-parameters
 
 import { Test } from "forge-std/Test.sol";
+import { ERC1967Utils } from "@openzeppelin-contracts/proxy/ERC1967/ERC1967Utils.sol";
 
 import { IICS02ClientMsgs } from "../../../contracts/msgs/IICS02ClientMsgs.sol";
 import { IICS26RouterMsgs } from "../../../contracts/msgs/IICS26RouterMsgs.sol";
@@ -48,6 +49,8 @@ contract QBFTSimSuite is Test, SimWorldState {
         MODE = mode;
         IBC_ROUTER = makeAddr("sim-ibc-router");
         _createAccount(IBC_ROUTER, 1, keccak256("sim-ibc-router-code"), 0);
+        // A real router is an ERC-1967 proxy, so its storage trie is never empty.
+        _setStorage(IBC_ROUTER, ERC1967Utils.IMPLEMENTATION_SLOT, bytes32(uint256(keccak256("sim-ibc-router-impl"))), 0);
         _chain.push();
         _chain[0].timestamp = uint64(vm.getBlockTimestamp());
         _chain[0].stateRoot = stateRootAt(0);

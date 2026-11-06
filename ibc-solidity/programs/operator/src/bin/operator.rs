@@ -18,7 +18,7 @@ use sp1_sdk::utils::setup_logger;
 async fn main() -> anyhow::Result<()> {
     setup_logger();
 
-    if dotenv::dotenv().is_err() {
+    if dotenvy::dotenv().is_err() {
         tracing::warn!("No .env file found");
     }
 

@@ -43,7 +43,8 @@ runs:
     - name: Download build artifacts
       uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
       with:
-        name: e2e-build-artifacts
+        pattern: e2e-build-artifacts-*
+        merge-multiple: true
         path: e2e-artifacts/
 
     - name: Cache Solana
@@ -89,7 +90,7 @@ runs:
         max_attempts: 3
         retry_wait_seconds: 5
         command: |
-          curl -fsSL -o /tmp/kurtosis-cli.deb https://github.com/kurtosis-tech/kurtosis-cli-release-artifacts/releases/download/1.20.0/kurtosis-cli_1.20.0_linux_amd64.deb
+          curl -fsSL -o /tmp/kurtosis-cli.deb https://github.com/kurtosis-tech/kurtosis-cli-release-artifacts/releases/download/1.22.2/kurtosis-cli_1.22.2_linux_amd64.deb
           sudo apt install -y /tmp/kurtosis-cli.deb
 
     - name: Start Kurtosis

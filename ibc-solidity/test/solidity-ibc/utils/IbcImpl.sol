@@ -35,8 +35,19 @@ import { IBCMulticall } from "../../../contracts/utils/IBCMulticall.sol";
 import { DeployAccessManagerWithRoles } from "../../../scripts/deployments/DeployAccessManagerWithRoles.sol";
 import { AccessManager } from "@openzeppelin-contracts/access/manager/AccessManager.sol";
 import { IBCRolesLib } from "../../../contracts/utils/IBCRolesLib.sol";
+import { IBCIdentifiers } from "../../../contracts/utils/IBCIdentifiers.sol";
+import { Strings } from "@openzeppelin-contracts/utils/Strings.sol";
 
 contract IbcImpl is Test, DeployAccessManagerWithRoles {
+    /// @notice The proxies of an IBC stack
+    struct Contracts {
+        AccessManager accessManager;
+        ICS26Router ics26Router;
+        ICS20Transfer ics20Transfer;
+        ICS27GMP ics27Gmp;
+        IBCMulticall ibcMulticall;
+    }
+
     AccessManager public immutable accessManager;
     ICS26Router public immutable ics26Router;
     ICS20Transfer public immutable ics20Transfer;
@@ -44,11 +55,26 @@ contract IbcImpl is Test, DeployAccessManagerWithRoles {
     RelayerHelper public immutable relayerHelper;
     IBCMulticall public immutable ibcMulticall;
 
+    /// @notice The first client added, which the helpers send from unless told otherwise
+    string public defaultClientId;
+
     mapping(string clientId => ILightClientDriver driver) private _drivers;
 
     TestHelper private _th = new TestHelper();
 
     constructor(address permit2) {
+        Contracts memory contracts = _deploy(permit2);
+        accessManager = contracts.accessManager;
+        ics26Router = contracts.ics26Router;
+        ics20Transfer = contracts.ics20Transfer;
+        ics27Gmp = contracts.ics27Gmp;
+        ibcMulticall = contracts.ibcMulticall;
+        relayerHelper = new RelayerHelper(address(contracts.ics26Router));
+    }
+
+    /// @notice Deploys a fresh IBC stack administered by the deployer, where anyone can relay
+    /// @dev Called from the constructor, so an override must not rely on its own state
+    function _deploy(address permit2) internal virtual returns (Contracts memory contracts) {
         // ============ Step 1: Deploy the logic contracts ==============
         address escrowLogic = address(new Escrow());
         address ibcERC20Logic = address(new IBCERC20());
@@ -59,49 +85,49 @@ contract IbcImpl is Test, DeployAccessManagerWithRoles {
         IBCMulticall ibcMulticallLogic = new IBCMulticall();
 
         // ============== Step 2: Deploy ERC1967 Proxies ==============
-        accessManager = new AccessManager(msg.sender);
+        AccessManager manager = new AccessManager(msg.sender);
 
-        ERC1967Proxy routerProxy = new ERC1967Proxy(
-            address(ics26RouterLogic), abi.encodeCall(ICS26Router.initialize, (address(accessManager)))
-        );
+        ERC1967Proxy routerProxy =
+            new ERC1967Proxy(address(ics26RouterLogic), abi.encodeCall(ICS26Router.initialize, (address(manager))));
 
         ERC1967Proxy transferProxy = new ERC1967Proxy(
             address(ics20TransferLogic),
             abi.encodeCall(
-                ICS20Transfer.initialize,
-                (address(routerProxy), escrowLogic, ibcERC20Logic, permit2, address(accessManager))
+                ICS20Transfer.initialize, (address(routerProxy), escrowLogic, ibcERC20Logic, permit2, address(manager))
             )
         );
 
         ERC1967Proxy gmpProxy = new ERC1967Proxy(
             address(ics27GmpLogic),
-            abi.encodeCall(
-                ICS27GMP.initialize, (address(routerProxy), address(ics27AccountLogic), address(accessManager))
-            )
+            abi.encodeCall(ICS27GMP.initialize, (address(routerProxy), address(ics27AccountLogic), address(manager)))
         );
 
-        ERC1967Proxy multicallProxy = new ERC1967Proxy(
-            address(ibcMulticallLogic), abi.encodeCall(IBCMulticall.initialize, (address(accessManager)))
-        );
+        ERC1967Proxy multicallProxy =
+            new ERC1967Proxy(address(ibcMulticallLogic), abi.encodeCall(IBCMulticall.initialize, (address(manager))));
 
-        ics26Router = ICS26Router(address(routerProxy));
-        ics20Transfer = ICS20Transfer(address(transferProxy));
-        ics27Gmp = ICS27GMP(address(gmpProxy));
-        relayerHelper = new RelayerHelper(address(ics26Router));
-        ibcMulticall = IBCMulticall(address(multicallProxy));
+        contracts = Contracts({
+            accessManager: manager,
+            ics26Router: ICS26Router(address(routerProxy)),
+            ics20Transfer: ICS20Transfer(address(transferProxy)),
+            ics27Gmp: ICS27GMP(address(gmpProxy)),
+            ibcMulticall: IBCMulticall(address(multicallProxy))
+        });
 
         // ============== Step 3: Wire up the contracts ==============
         vm.startPrank(msg.sender);
-        accessManagerSetTargetRoles(
-            accessManager, address(routerProxy), address(transferProxy), address(gmpProxy), true
-        );
-        accessManagerSetMulticallRoles(accessManager, address(multicallProxy), true);
-        accessManager.grantRole(IBCRolesLib.ID_CUSTOMIZER_ROLE, msg.sender, 0);
-        accessManager.grantRole(IBCRolesLib.ERC20_CUSTOMIZER_ROLE, msg.sender, 0);
+        accessManagerSetTargetRoles(manager, address(routerProxy), address(transferProxy), address(gmpProxy), true);
+        accessManagerSetMulticallRoles(manager, address(multicallProxy), true);
+        manager.grantRole(IBCRolesLib.ID_CUSTOMIZER_ROLE, msg.sender, 0);
+        manager.grantRole(IBCRolesLib.ERC20_CUSTOMIZER_ROLE, msg.sender, 0);
 
-        ics26Router.addIBCApp(ICS20Lib.DEFAULT_PORT_ID, address(ics20Transfer));
-        ics26Router.addIBCApp(ICS27Lib.DEFAULT_PORT_ID, address(ics27Gmp));
+        contracts.ics26Router.addIBCApp(ICS20Lib.DEFAULT_PORT_ID, address(transferProxy));
+        contracts.ics26Router.addIBCApp(ICS27Lib.DEFAULT_PORT_ID, address(gmpProxy));
         vm.stopPrank();
+    }
+
+    /// @notice The identifier the router assigns to the next client, so a counterparty can register it in advance
+    function nextClientId() external view returns (string memory) {
+        return string.concat(IBCIdentifiers.CLIENT_ID_PREFIX, Strings.toString(ics26Router.getNextClientSeq()));
     }
 
     /// @notice Adds a client backed by the light client of `driver`, which also proves the relayed packets
@@ -118,6 +144,9 @@ contract IbcImpl is Test, DeployAccessManagerWithRoles {
             IICS02ClientMsgs.CounterpartyInfo(counterpartyId, driver.merklePrefix()), address(driver.lightClient())
         );
         _drivers[clientId] = driver;
+        if (bytes(defaultClientId).length == 0) {
+            defaultClientId = clientId;
+        }
     }
 
     function sendTransferAsUser(
@@ -129,8 +158,7 @@ contract IbcImpl is Test, DeployAccessManagerWithRoles {
         external
         returns (IICS26RouterMsgs.Packet memory)
     {
-        return
-            sendTransferAsUser(token, sender, receiver, amount, _th.DEFAULT_TIMEOUT_TIMESTAMP(), _th.FIRST_CLIENT_ID());
+        return sendTransferAsUser(token, sender, receiver, amount, _th.DEFAULT_TIMEOUT_TIMESTAMP(), defaultClientId);
     }
 
     function sendTransferAsUser(
@@ -143,7 +171,7 @@ contract IbcImpl is Test, DeployAccessManagerWithRoles {
         external
         returns (IICS26RouterMsgs.Packet memory)
     {
-        return sendTransferAsUser(token, sender, receiver, amount, timeoutTimestamp, _th.FIRST_CLIENT_ID());
+        return sendTransferAsUser(token, sender, receiver, amount, timeoutTimestamp, defaultClientId);
     }
 
     function sendTransferAsUser(
@@ -200,7 +228,7 @@ contract IbcImpl is Test, DeployAccessManagerWithRoles {
         public
         returns (IICS26RouterMsgs.Packet memory)
     {
-        return sendTransferAsUser(token, sender, receiver, _th.FIRST_CLIENT_ID(), permit, signature);
+        return sendTransferAsUser(token, sender, receiver, defaultClientId, permit, signature);
     }
 
     function sendTransferAsUser(
@@ -243,7 +271,7 @@ contract IbcImpl is Test, DeployAccessManagerWithRoles {
         external
         returns (IICS26RouterMsgs.Packet memory)
     {
-        return sendGmpAsUser(sender, receiver, payload, "", "", _th.DEFAULT_TIMEOUT_TIMESTAMP(), _th.FIRST_CLIENT_ID());
+        return sendGmpAsUser(sender, receiver, payload, "", "", _th.DEFAULT_TIMEOUT_TIMESTAMP(), defaultClientId);
     }
 
     function sendGmpAsUser(
@@ -255,8 +283,7 @@ contract IbcImpl is Test, DeployAccessManagerWithRoles {
         external
         returns (IICS26RouterMsgs.Packet memory)
     {
-        return
-            sendGmpAsUser(sender, receiver, payload, salt, "", _th.DEFAULT_TIMEOUT_TIMESTAMP(), _th.FIRST_CLIENT_ID());
+        return sendGmpAsUser(sender, receiver, payload, salt, "", _th.DEFAULT_TIMEOUT_TIMESTAMP(), defaultClientId);
     }
 
     function sendGmpAsUser(
@@ -269,8 +296,7 @@ contract IbcImpl is Test, DeployAccessManagerWithRoles {
         external
         returns (IICS26RouterMsgs.Packet memory)
     {
-        return
-            sendGmpAsUser(sender, receiver, payload, salt, memo, _th.DEFAULT_TIMEOUT_TIMESTAMP(), _th.FIRST_CLIENT_ID());
+        return sendGmpAsUser(sender, receiver, payload, salt, memo, _th.DEFAULT_TIMEOUT_TIMESTAMP(), defaultClientId);
     }
 
     function sendGmpAsUser(
@@ -284,7 +310,7 @@ contract IbcImpl is Test, DeployAccessManagerWithRoles {
         public
         returns (IICS26RouterMsgs.Packet memory)
     {
-        return sendGmpAsUser(sender, receiver, payload, salt, memo, timeoutTimestamp, _th.FIRST_CLIENT_ID());
+        return sendGmpAsUser(sender, receiver, payload, salt, memo, timeoutTimestamp, defaultClientId);
     }
 
     function sendGmpAsUser(

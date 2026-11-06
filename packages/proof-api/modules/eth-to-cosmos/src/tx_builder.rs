@@ -531,7 +531,7 @@ where
             genesis_time: genesis.genesis_time,
             genesis_slot: spec.genesis_slot,
             fork_parameters: spec.to_fork_parameters(),
-            seconds_per_slot: spec.seconds_per_slot,
+            seconds_per_slot: spec.slot_duration_ms / 1000,
             slots_per_epoch: spec.slots_per_epoch,
             epochs_per_sync_committee_period: spec.epochs_per_sync_committee_period,
             latest_slot: bootstrap.header.beacon.slot,

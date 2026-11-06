@@ -12,9 +12,9 @@ use super::fork::{Fork, ForkParameters, Version};
 #[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Debug, Default)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub struct Spec {
-    /// The number of seconds per slot.
+    /// The slot duration in milliseconds.
     #[serde_as(as = "DisplayFromStr")]
-    pub seconds_per_slot: u64,
+    pub slot_duration_ms: u64,
     /// The number of slots per epoch.
     #[serde_as(as = "DisplayFromStr")]
     pub slots_per_epoch: u64,

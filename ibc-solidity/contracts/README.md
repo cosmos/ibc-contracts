@@ -2,6 +2,8 @@
 
 This directory implements the IBC v2 protocol stack in Solidity. Most entrypoints are upgradeable and deploy per-client/per-user components through beacons so packet handling, tokenization, and message execution can be upgraded independently.
 
+Documentation for IBC solidity lives in [cosmos/ibc](https://github.com/cosmos/ibc/tree/main/docs/ibc/06-ibc-solidity-contracts) and is published at [ibcprotocol.dev](https://ibcprotocol.dev/docs/ibc/06-ibc-solidity-contracts/01-overview). Any new contracts or alterations should be documented in that repo.
+
 All contracts are compiled for the **Cancun** EVM (`evm_version = "cancun"` in `foundry.toml`) and several of them depend on EIP-1153 transient storage at runtime: `ICS26Router`, `ICS20Transfer`, and `ICS27GMP` use `ReentrancyGuardTransient`, and the SP1 Tendermint and Besu light clients cache verified proof data in transient slots. Deploy only to chains with Cancun enabled; on older chains these calls revert with an invalid opcode.
 
 ## Core applications

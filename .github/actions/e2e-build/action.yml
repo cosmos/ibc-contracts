@@ -6,6 +6,9 @@ inputs:
   github_token:
     description: A Github PAT
     required: true
+  component:
+    description: Which artifacts to build, `rust` (SP1 programs, proof-api, operator) or `solana` (Solana programs)
+    required: true
 
 runs:
   using: composite
@@ -14,6 +17,7 @@ runs:
       uses: ./.github/actions/foundry-setup
 
     - name: Cache SP1 Toolchain
+      if: inputs.component == 'rust'
       id: cache-sp1-toolchain
       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
@@ -23,7 +27,7 @@ runs:
         key: ${{ runner.os }}-sp1-toolchain-${{ env.SP1_VERSION }}
 
     - name: Install SP1 toolchain
-      if: steps.cache-sp1-toolchain.outputs.cache-hit != 'true'
+      if: inputs.component == 'rust' && steps.cache-sp1-toolchain.outputs.cache-hit != 'true'
       uses: nick-invision/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
       with:
         timeout_minutes: 10
@@ -34,6 +38,7 @@ runs:
           ~/.sp1/bin/sp1up --version ${{ env.SP1_VERSION }} --token ${{ inputs.github_token }}
 
     - name: Cache SP1 Programs
+      if: inputs.component == 'rust'
       id: cache-sp1-programs
       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
@@ -41,15 +46,16 @@ runs:
         key: ${{ runner.os }}-sp1-programs-${{ hashFiles('ibc-solidity/programs/sp1-programs/**', 'Cargo.lock') }}
 
     - name: Install just
-      if: steps.cache-sp1-programs.outputs.cache-hit != 'true'
+      if: inputs.component == 'rust' && steps.cache-sp1-programs.outputs.cache-hit != 'true'
       uses: extractions/setup-just@dd310ad5a97d8e7b41793f8ef055398d51ad4de6 # v2.0.0
 
     - name: Build SP1 Programs
-      if: steps.cache-sp1-programs.outputs.cache-hit != 'true'
+      if: inputs.component == 'rust' && steps.cache-sp1-programs.outputs.cache-hit != 'true'
       shell: bash
       run: just solidity::build-sp1-programs
 
     - name: Cache Proof API
+      if: inputs.component == 'rust'
       id: cache-proof-api
       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
@@ -57,13 +63,14 @@ runs:
         key: ${{ runner.os }}-proof-api-${{ hashFiles('programs/proof-api/**', 'packages/**', 'ibc-solana/packages/solana-ibc-constants/**', 'ibc-solana/packages/solana-ibc-types/**', 'ibc-solidity/abi/bytecode/**', 'Cargo.lock') }}
 
     - name: Install proof API
-      if: steps.cache-proof-api.outputs.cache-hit != 'true'
+      if: inputs.component == 'rust' && steps.cache-proof-api.outputs.cache-hit != 'true'
       uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # v1.0.3
       with:
         command: install
         args: --bin proof-api --path programs/proof-api --locked
 
     - name: Cache Operator
+      if: inputs.component == 'rust'
       id: cache-operator
       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
@@ -71,13 +78,14 @@ runs:
         key: ${{ runner.os }}-operator-${{ hashFiles('ibc-solidity/programs/operator/**', 'packages/**', 'Cargo.lock') }}
 
     - name: Install operator
-      if: steps.cache-operator.outputs.cache-hit != 'true'
+      if: inputs.component == 'rust' && steps.cache-operator.outputs.cache-hit != 'true'
       uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # v1.0.3
       with:
         command: install
         args: --bin operator --path ibc-solidity/programs/operator --locked
 
     - name: Cache Solana Programs
+      if: inputs.component == 'solana'
       id: cache-solana
       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
@@ -90,35 +98,42 @@ runs:
         key: ${{ runner.os }}-solana-${{ env.SOLANA_VERSION }}-${{ env.ANCHOR_VERSION }}-${{ hashFiles('ibc-solana/**', 'packages/tendermint-light-client/**', 'packages/constrained_types/**', 'proto/**', 'ibc-solidity/abi/IFTOwnable.json', 'ibc-solidity/contracts/light-clients/attestation/msgs/**', 'ibc-solidity/contracts/msgs/**', 'scripts/build-solana-test-instance.sh', 'solana-keypairs/localnet/**', 'justfile') }}
 
     - name: Setup Solana and Anchor
-      if: steps.cache-solana.outputs.cache-hit != 'true'
+      if: inputs.component == 'solana' && steps.cache-solana.outputs.cache-hit != 'true'
       uses: solana-developers/github-actions/setup-all@860d4e7d3afc9f180f3c5016593a1e86e77eede4 # v0.2.5
       with:
         anchor_version: ${{ env.ANCHOR_VERSION }}
         solana_version: ${{ env.SOLANA_VERSION }}
 
     - name: Install just for Solana build
-      if: steps.cache-solana.outputs.cache-hit != 'true'
+      if: inputs.component == 'solana' && steps.cache-solana.outputs.cache-hit != 'true'
       uses: extractions/setup-just@dd310ad5a97d8e7b41793f8ef055398d51ad4de6 # v2.0.0
 
     - name: Build Solana Programs
-      if: steps.cache-solana.outputs.cache-hit != 'true'
+      if: inputs.component == 'solana' && steps.cache-solana.outputs.cache-hit != 'true'
       shell: bash
       run: just solana::build-solana-programs
 
     - name: Package artifacts
       shell: bash
+      env:
+        COMPONENT: ${{ inputs.component }}
       run: |
-        mkdir -p e2e-artifacts/bin
-        mkdir -p e2e-artifacts/sp1-programs
-        mkdir -p e2e-artifacts/solana-programs
-        cp ~/.cargo/bin/proof-api e2e-artifacts/bin/
-        cp ~/.cargo/bin/operator e2e-artifacts/bin/
-        cp -r ibc-solidity/programs/sp1-programs/target/elf-compilation/riscv64im-succinct-zkvm-elf/release/* e2e-artifacts/sp1-programs/
-        cp -r ibc-solana/target/deploy/* e2e-artifacts/solana-programs/
+        if [[ "$COMPONENT" == 'rust' ]]; then
+          mkdir -p e2e-artifacts/bin e2e-artifacts/sp1-programs
+          cp ~/.cargo/bin/proof-api e2e-artifacts/bin/
+          cp ~/.cargo/bin/operator e2e-artifacts/bin/
+          cp -r ibc-solidity/programs/sp1-programs/target/elf-compilation/riscv64im-succinct-zkvm-elf/release/* e2e-artifacts/sp1-programs/
+        elif [[ "$COMPONENT" == 'solana' ]]; then
+          mkdir -p e2e-artifacts/solana-programs
+          cp -r ibc-solana/target/deploy/* e2e-artifacts/solana-programs/
+        else
+          echo "::error::e2e-build: component must be 'rust' or 'solana', got '$COMPONENT'"
+          exit 1
+        fi
 
     - name: Upload artifacts
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
-        name: e2e-build-artifacts
+        name: e2e-build-artifacts-${{ inputs.component }}
         path: e2e-artifacts/
         retention-days: 1

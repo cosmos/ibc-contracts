@@ -76,7 +76,7 @@ lint-cw:
 	cd programs/cw-ics08-wasm-eth && cargo fmt --all -- --check
 	cd programs/cw-ics08-wasm-eth && cargo clippy --all-targets --locked -- -D warnings
 
-shadowfork := if env("ETH_RPC_URL", "") == "" { "--no-match-path test/shadowfork/*" } else { "" }
+shadowfork := if env("ETH_RPC_URL", "") == "" { "--no-match-path 'test/shadowfork/*'" } else { "" }
 
 # Run all the foundry tests
 [group('test')]
