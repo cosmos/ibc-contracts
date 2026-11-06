@@ -1,0 +1,1508 @@
+// SPDX-License-Identifier: Apache-2.0
+
+package main
+
+import (
+	"context"
+	"crypto/ecdsa"
+	"crypto/sha256"
+	"fmt"
+	"math/big"
+	"os"
+	"path/filepath"
+	"slices"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/suite"
+
+	goethereum "github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	ethcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	ethtypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/rpc"
+
+	transfertypes "github.com/cosmos/ibc-go/v11/modules/apps/transfer/types"
+
+	"github.com/cosmos/interchaintest/v11/testutil"
+
+	"github.com/cosmos/ibc-contracts/packages/go-abigen/besulightclient"
+	"github.com/cosmos/ibc-contracts/packages/go-abigen/besumsgs"
+	"github.com/cosmos/ibc-contracts/packages/go-abigen/ibcerc20"
+	"github.com/cosmos/ibc-contracts/packages/go-abigen/ics20transfer"
+	"github.com/cosmos/ibc-contracts/packages/go-abigen/ics26router"
+
+	"github.com/cosmos/ibc-contracts/e2e/v8/chainconfig"
+	"github.com/cosmos/ibc-contracts/e2e/v8/e2esuite"
+	"github.com/cosmos/ibc-contracts/e2e/v8/ethereum"
+	"github.com/cosmos/ibc-contracts/e2e/v8/proofapi"
+	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
+	e2etypes "github.com/cosmos/ibc-contracts/e2e/v8/types"
+	"github.com/cosmos/ibc-contracts/e2e/v8/types/erc20"
+	proofapitypes "github.com/cosmos/ibc-contracts/e2e/v8/types/proofapi"
+)
+
+const (
+	besuToBesuChainBID = 1338
+
+	besuToBesuClientOnA = "besu-chain-b"
+	besuToBesuClientOnB = "besu-chain-a"
+
+	besuToBesuDefaultTrustLevel = "2/3"
+)
+
+var besuToBesuChainBIPs = [5]string{"10.43.0.2", "10.43.0.3", "10.43.0.4", "10.43.0.5", "10.43.0.6"}
+
+type besuToBesuChainState struct {
+	network           chainconfig.BesuChain
+	eth               ethereum.Ethereum
+	contractAddresses ethereum.DeployedContracts
+	ics26             *ics26router.Contract
+	ics20             *ics20transfer.Contract
+	erc20             *erc20.Contract
+	deployer          *ecdsa.PrivateKey
+	user              *ecdsa.PrivateKey
+	relayerSubmitter  *ecdsa.PrivateKey
+	clientAddress     ethcommon.Address
+}
+
+type BesuToBesuTestSuite struct {
+	suite.Suite
+
+	consensus            string
+	cwd                  string
+	relayerConfigPath    string
+	relayerProcess       *os.Process
+	relayerClient        proofapitypes.ProofApiServiceClient
+	besuFixtureGenerator *e2etypes.BesuFixtureGenerator
+
+	chainA besuToBesuChainState
+	chainB besuToBesuChainState
+}
+
+func TestWithBesuToBesuTestSuite(t *testing.T) {
+	suite.Run(t, new(BesuToBesuTestSuite))
+}
+
+// SetupSuite starts two Besu networks running consensus, deploys Eureka on both, and connects them through the relayer.
+// Every test calls it, so each test runs against its own networks.
+func (s *BesuToBesuTestSuite) SetupSuite(ctx context.Context, consensus string) {
+	s.consensus = consensus
+	// The cleanup runs after testify restores the parent T, so it checks this test's T.
+	t := s.T()
+	t.Cleanup(func() {
+		ctx := context.Background()
+
+		if t.Failed() {
+			_ = s.chainA.network.DumpLogs(ctx)
+			_ = s.chainB.network.DumpLogs(ctx)
+		}
+
+		if s.relayerProcess != nil {
+			_ = s.relayerProcess.Kill()
+		}
+		if s.relayerConfigPath != "" {
+			_ = os.Remove(s.relayerConfigPath)
+		}
+
+		s.chainB.network.Destroy(ctx)
+		s.chainA.network.Destroy(ctx)
+
+		if s.cwd != "" {
+			_ = os.Chdir(s.cwd)
+		}
+
+		s.relayerProcess, s.relayerConfigPath = nil, ""
+		s.chainA, s.chainB = besuToBesuChainState{}, besuToBesuChainState{}
+	})
+
+	if os.Getenv(testvalues.EnvKeyRustLog) == "" {
+		os.Setenv(testvalues.EnvKeyRustLog, testvalues.EnvValueRustLog_Info)
+	}
+
+	var err error
+	s.cwd, err = os.Getwd()
+	s.Require().NoError(err)
+	s.Require().NoError(os.Chdir("../.."))
+
+	s.chainA = s.spinUpChain(ctx, chainconfig.DefaultBesuParams(consensus))
+
+	s.chainB = s.spinUpChain(ctx, chainconfig.BesuParams{
+		Consensus:    consensus,
+		ChainID:      besuToBesuChainBID,
+		Subnet:       "10.43.0.0/16",
+		Gateway:      "10.43.0.1",
+		ValidatorIPs: besuToBesuChainBIPs,
+	})
+	s.Require().NoError(s.chainA.network.WaitForTransactionHandling(ctx))
+
+	s.besuFixtureGenerator = e2etypes.NewBesuFixtureGenerator()
+
+	s.createUsers(&s.chainA)
+	s.createUsers(&s.chainB)
+
+	s.deployContracts(&s.chainA)
+	s.deployContracts(&s.chainB)
+
+	s.startRelayer()
+	s.connectRelayer()
+
+	s.chainA.clientAddress = s.createAndRegisterBesuClient(&s.chainB, &s.chainA, besuToBesuClientOnA, besuToBesuClientOnB, besuToBesuDefaultTrustLevel)
+	s.chainB.clientAddress = s.createAndRegisterBesuClient(&s.chainA, &s.chainB, besuToBesuClientOnB, besuToBesuClientOnA, besuToBesuDefaultTrustLevel)
+}
+
+func (s *BesuToBesuTestSuite) Test_Deploy_QBFT() {
+	s.DeployTest(testvalues.BesuConsensusQBFT)
+}
+
+func (s *BesuToBesuTestSuite) Test_Deploy_IBFT2() {
+	s.DeployTest(testvalues.BesuConsensusIBFT2)
+}
+
+func (s *BesuToBesuTestSuite) DeployTest(consensus string) {
+	s.SetupSuite(context.Background(), consensus)
+
+	s.Require().True(s.Run("Verify ICS26 on Chain A", func() {
+		transferOnA, err := s.chainA.ics26.GetIBCApp(nil, transfertypes.PortID)
+		s.Require().NoError(err)
+		s.Require().Equal(strings.ToLower(s.chainA.contractAddresses.Ics20Transfer), strings.ToLower(transferOnA.Hex()))
+	}))
+
+	s.Require().True(s.Run("Verify ICS26 on Chain B", func() {
+		transferOnB, err := s.chainB.ics26.GetIBCApp(nil, transfertypes.PortID)
+		s.Require().NoError(err)
+		s.Require().Equal(strings.ToLower(s.chainB.contractAddresses.Ics20Transfer), strings.ToLower(transferOnB.Hex()))
+	}))
+
+	s.Require().True(s.Run("Verify Besu client on Chain A", func() {
+		clientOnA, err := s.chainA.ics26.GetClient(nil, besuToBesuClientOnA)
+		s.Require().NoError(err)
+		s.Require().Equal(s.chainA.clientAddress, clientOnA)
+
+		counterparty, err := s.chainA.ics26.GetCounterparty(nil, besuToBesuClientOnA)
+		s.Require().NoError(err)
+		s.Require().Equal(besuToBesuClientOnB, counterparty.ClientId)
+	}))
+
+	s.Require().True(s.Run("Verify Besu client on Chain B", func() {
+		clientOnB, err := s.chainB.ics26.GetClient(nil, besuToBesuClientOnB)
+		s.Require().NoError(err)
+		s.Require().Equal(s.chainB.clientAddress, clientOnB)
+
+		counterparty, err := s.chainB.ics26.GetCounterparty(nil, besuToBesuClientOnB)
+		s.Require().NoError(err)
+		s.Require().Equal(besuToBesuClientOnA, counterparty.ClientId)
+	}))
+
+	s.Require().True(s.Run("Verify Proof API Info A->B", func() {
+		info := s.waitForRelayerInfo(s.chainA.eth.ChainID.String(), s.chainB.eth.ChainID.String())
+		s.Require().Equal(s.chainA.eth.ChainID.String(), info.SourceChain.ChainId)
+		s.Require().Equal(s.chainB.eth.ChainID.String(), info.TargetChain.ChainId)
+	}))
+
+	s.Require().True(s.Run("Verify Proof API Info B->A", func() {
+		info := s.waitForRelayerInfo(s.chainB.eth.ChainID.String(), s.chainA.eth.ChainID.String())
+		s.Require().Equal(s.chainB.eth.ChainID.String(), info.SourceChain.ChainId)
+		s.Require().Equal(s.chainA.eth.ChainID.String(), info.TargetChain.ChainId)
+	}))
+}
+
+func (s *BesuToBesuTestSuite) Test_ICS20TransferERC20FromChainAToChainB_QBFT() {
+	s.ICS20TransferERC20FromChainAToChainBTest(testvalues.BesuConsensusQBFT, 1)
+}
+
+func (s *BesuToBesuTestSuite) Test_ICS20TransferERC20FromChainAToChainB_IBFT2() {
+	s.ICS20TransferERC20FromChainAToChainBTest(testvalues.BesuConsensusIBFT2, 1)
+}
+
+func (s *BesuToBesuTestSuite) Test_5_ICS20TransferERC20FromChainAToChainB_QBFT() {
+	s.ICS20TransferERC20FromChainAToChainBTest(testvalues.BesuConsensusQBFT, 5)
+}
+
+func (s *BesuToBesuTestSuite) Test_5_ICS20TransferERC20FromChainAToChainB_IBFT2() {
+	s.ICS20TransferERC20FromChainAToChainBTest(testvalues.BesuConsensusIBFT2, 5)
+}
+
+// ICS20TransferERC20FromChainAToChainBTest sends numOfTransfers transfers from Chain A in one tx, then relays the
+// packets to Chain B and the acknowledgements back to Chain A, each in one batch. Only the first packet in each batch
+// carries the router account proof; the rest verify against the light client's cached storage root.
+func (s *BesuToBesuTestSuite) ICS20TransferERC20FromChainAToChainBTest(consensus string, numOfTransfers int) {
+	ctx := context.Background()
+	s.SetupSuite(ctx, consensus)
+
+	transferAmount := big.NewInt(testvalues.TransferAmount)
+	totalTransferAmount := new(big.Int).Mul(transferAmount, big.NewInt(int64(numOfTransfers)))
+	userAddressA := crypto.PubkeyToAddress(s.chainA.user.PublicKey)
+	userAddressB := crypto.PubkeyToAddress(s.chainB.user.PublicKey)
+	ics20AddressA := ethcommon.HexToAddress(s.chainA.contractAddresses.Ics20Transfer)
+	ics26AddressA := ethcommon.HexToAddress(s.chainA.contractAddresses.Ics26Router)
+	multicallAddressA := ethcommon.HexToAddress(s.chainA.contractAddresses.IbcMulticall)
+	multicallAddressB := ethcommon.HexToAddress(s.chainB.contractAddresses.IbcMulticall)
+	erc20AddressA := ethcommon.HexToAddress(s.chainA.contractAddresses.Erc20)
+
+	var (
+		initialUserBalanceA *big.Int
+		sendReceipt         *ethtypes.Receipt
+		sendPackets         []ics26router.IICS26RouterMsgsPacket
+		recvReceipt         *ethtypes.Receipt
+		ibcERC20OnB         *ibcerc20.Contract
+		ackReceipt          *ethtypes.Receipt
+	)
+
+	s.Require().True(s.Run("Fund user on Chain A", func() {
+		fundTx, err := s.chainA.erc20.Transfer(s.mustTransactOpts(&s.chainA, s.chainA.eth.Faucet), userAddressA, testvalues.StartingERC20Balance)
+		s.Require().NoError(err)
+
+		fundReceipt, err := s.chainA.eth.GetTxReciept(ctx, fundTx.Hash())
+		s.Require().NoError(err)
+		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, fundReceipt.Status)
+
+		initialUserBalanceA, err = s.chainA.erc20.BalanceOf(nil, userAddressA)
+		s.Require().NoError(err)
+	}))
+
+	s.Require().True(s.Run("Approve ICS20 on Chain A", func() {
+		approveTx, err := s.chainA.erc20.Approve(s.mustTransactOpts(&s.chainA, s.chainA.user), ics20AddressA, totalTransferAmount)
+		s.Require().NoError(err)
+
+		approveReceipt, err := s.chainA.eth.GetTxReciept(ctx, approveTx.Hash())
+		s.Require().NoError(err)
+		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, approveReceipt.Status)
+	}))
+
+	s.Require().True(s.Run(fmt.Sprintf("Send %d transfers from Chain A to Chain B", numOfTransfers), func() {
+		timeout := uint64(time.Now().Add(30 * time.Minute).Unix())
+		sendReceipt = s.sendTransfers(ctx, ics20transfer.IICS20TransferMsgsSendTransferMsg{
+			Denom:            erc20AddressA,
+			Amount:           transferAmount,
+			Receiver:         strings.ToLower(userAddressB.Hex()),
+			TimeoutTimestamp: timeout,
+			SourceClient:     besuToBesuClientOnA,
+			DestPort:         transfertypes.PortID,
+			Memo:             "",
+		}, numOfTransfers)
+
+		for _, sendEvent := range e2esuite.GetEvmEvents(sendReceipt, s.chainA.ics26.ParseSendPacket) {
+			sendPackets = append(sendPackets, sendEvent.Packet)
+		}
+		s.Require().Len(sendPackets, numOfTransfers)
+	}))
+
+	s.Require().True(s.Run("Verify balances on Chain A after send", func() {
+		escrowAddress, err := s.chainA.ics20.GetEscrow(nil, besuToBesuClientOnA)
+		s.Require().NoError(err)
+
+		escrowBalance, err := s.chainA.erc20.BalanceOf(nil, escrowAddress)
+		s.Require().NoError(err)
+		s.Require().Equal(0, totalTransferAmount.Cmp(escrowBalance))
+
+		userBalanceA, err := s.chainA.erc20.BalanceOf(nil, userAddressA)
+		s.Require().NoError(err)
+		expectedBalanceA := new(big.Int).Sub(new(big.Int).Set(initialUserBalanceA), totalTransferAmount)
+		s.Require().Equal(0, expectedBalanceA.Cmp(userBalanceA))
+	}))
+
+	s.Require().True(s.Run("Relay packets to Chain B", func() {
+		var relayTx []byte
+		s.Require().True(s.Run("Retrieve relay tx", func() {
+			relayAB, err := s.relayerClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
+				SrcChain:    s.chainA.eth.ChainID.String(),
+				DstChain:    s.chainB.eth.ChainID.String(),
+				SourceTxIds: [][]byte{sendReceipt.TxHash.Bytes()},
+				SrcClientId: besuToBesuClientOnA,
+				DstClientId: besuToBesuClientOnB,
+			})
+			s.Require().NoError(err)
+			s.Require().NotEmpty(relayAB.Tx)
+			s.Require().Equal(strings.ToLower(s.chainB.contractAddresses.IbcMulticall), strings.ToLower(relayAB.Address))
+			s.requireAccountProofOnlyOnFirstPacketCall(relayAB.Tx, numOfTransfers)
+			relayTx = relayAB.Tx
+		}))
+
+		s.Require().True(s.Run("Broadcast relay tx on Chain B", func() {
+			var err error
+			recvReceipt, err = s.chainB.eth.BroadcastTx(ctx, s.chainB.relayerSubmitter, 15_000_000, &multicallAddressB, relayTx)
+			s.Require().NoError(err)
+			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, recvReceipt.Status)
+			s.T().Logf("Multicall recv %d packets gas used: %d", numOfTransfers, recvReceipt.GasUsed)
+
+			writeAckEvents := e2esuite.GetEvmEvents(recvReceipt, s.chainB.ics26.ParseWriteAcknowledgement)
+			s.Require().Len(writeAckEvents, numOfTransfers)
+			for i, writeAckEvent := range writeAckEvents {
+				s.Require().Equal(sendPackets[i], writeAckEvent.Packet)
+			}
+
+			ibcDenomOnB := fmt.Sprintf(
+				"%s/%s/%s",
+				writeAckEvents[0].Packet.Payloads[0].DestPort,
+				writeAckEvents[0].Packet.DestClient,
+				strings.ToLower(erc20AddressA.Hex()),
+			)
+			ibcERC20AddressOnB, err := s.chainB.ics20.IbcERC20Contract(nil, ibcDenomOnB)
+			s.Require().NoError(err)
+			ibcERC20OnB, err = ibcerc20.NewContract(ibcERC20AddressOnB, s.chainB.eth.RPCClient)
+			s.Require().NoError(err)
+		}))
+	}))
+
+	s.Require().True(s.Run("Verify balances on Chain B after receive", func() {
+		userBalanceB, err := ibcERC20OnB.BalanceOf(nil, userAddressB)
+		s.Require().NoError(err)
+		s.Require().Equal(0, totalTransferAmount.Cmp(userBalanceB))
+	}))
+
+	s.Require().True(s.Run("Relay acknowledgements to Chain A", func() {
+		var relayTx []byte
+		s.Require().True(s.Run("Retrieve acknowledgement relay tx", func() {
+			ackRelay, err := s.relayerClient.RelayByTx(context.Background(), &proofapitypes.RelayByTxRequest{
+				SrcChain:    s.chainB.eth.ChainID.String(),
+				DstChain:    s.chainA.eth.ChainID.String(),
+				SourceTxIds: [][]byte{recvReceipt.TxHash.Bytes()},
+				SrcClientId: besuToBesuClientOnB,
+				DstClientId: besuToBesuClientOnA,
+			})
+			s.Require().NoError(err)
+			s.Require().NotEmpty(ackRelay.Tx)
+			s.Require().Equal(strings.ToLower(s.chainA.contractAddresses.IbcMulticall), strings.ToLower(ackRelay.Address))
+			s.requireAccountProofOnlyOnFirstPacketCall(ackRelay.Tx, numOfTransfers)
+			relayTx = ackRelay.Tx
+		}))
+
+		s.Require().True(s.Run("Broadcast acknowledgement relay tx on Chain A", func() {
+			var err error
+			ackReceipt, err = s.chainA.eth.BroadcastTx(ctx, s.chainA.relayerSubmitter, 15_000_000, &multicallAddressA, relayTx)
+			s.Require().NoError(err)
+			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, ackReceipt.Status)
+			s.T().Logf("Multicall ack %d packets gas used: %d", numOfTransfers, ackReceipt.GasUsed)
+
+			ackEvents := e2esuite.GetEvmEvents(ackReceipt, s.chainA.ics26.ParseAckPacket)
+			s.Require().Len(ackEvents, numOfTransfers)
+			for i, ackEvent := range ackEvents {
+				s.Require().Equal(sendPackets[i], ackEvent.Packet)
+			}
+		}))
+	}))
+
+	if s.besuFixtureGenerator.Enabled {
+		s.Require().True(s.Run(fmt.Sprintf("Generate %s fixture", s.consensus), func() {
+			sendHeight := sendReceipt.BlockNumber.Uint64()
+			s.Require().Greater(sendHeight, uint64(2))
+			s.Require().Greater(ackReceipt.BlockNumber.Uint64(), sendHeight)
+			s.Require().NoError(s.besuFixtureGenerator.GenerateAndSaveFixture(ctx, e2etypes.GenerateBesuFixtureParams{
+				Consensus:               s.consensus,
+				SourceChain:             &s.chainA.eth,
+				RouterAddress:           ics26AddressA,
+				Packet:                  sendPackets[0],
+				InitialTrustedHeight:    sendHeight - 2,
+				AdjacentUpdateHeight:    sendHeight - 1,
+				NonAdjacentUpdateHeight: sendHeight,
+				SyntheticSourceHeight:   ackReceipt.BlockNumber.Uint64(),
+				TrustingPeriod:          uint64(testvalues.DefaultTrustPeriod),
+				MaxClockDrift:           uint64(testvalues.DefaultBesuMaxClockDrift),
+			}))
+		}))
+	}
+}
+
+func (s *BesuToBesuTestSuite) Test_TimeoutICS20TransferERC20FromChainAToChainB_QBFT() {
+	s.TimeoutICS20TransferERC20FromChainAToChainBTest(testvalues.BesuConsensusQBFT, 1)
+}
+
+func (s *BesuToBesuTestSuite) Test_TimeoutICS20TransferERC20FromChainAToChainB_IBFT2() {
+	s.TimeoutICS20TransferERC20FromChainAToChainBTest(testvalues.BesuConsensusIBFT2, 1)
+}
+
+func (s *BesuToBesuTestSuite) Test_5_TimeoutICS20TransferERC20FromChainAToChainB_QBFT() {
+	s.TimeoutICS20TransferERC20FromChainAToChainBTest(testvalues.BesuConsensusQBFT, 5)
+}
+
+func (s *BesuToBesuTestSuite) Test_5_TimeoutICS20TransferERC20FromChainAToChainB_IBFT2() {
+	s.TimeoutICS20TransferERC20FromChainAToChainBTest(testvalues.BesuConsensusIBFT2, 5)
+}
+
+// TimeoutICS20TransferERC20FromChainAToChainBTest sends a transfer with a short timeout from Chain A, followed by
+// numOfTimeouts more in one tx. The first is received on Chain B before it times out, so relaying its timeout must
+// fail. The rest are never received, so their timeouts are relayed back to Chain A in one batch and refund the sender.
+// Only the first timeout in the batch carries the router account proof; the rest verify against the light client's
+// cached storage root.
+func (s *BesuToBesuTestSuite) TimeoutICS20TransferERC20FromChainAToChainBTest(consensus string, numOfTimeouts int) {
+	ctx := context.Background()
+	s.SetupSuite(ctx, consensus)
+
+	transferAmount := big.NewInt(testvalues.TransferAmount)
+	timeoutAmount := new(big.Int).Mul(transferAmount, big.NewInt(int64(numOfTimeouts)))
+	totalTransferAmount := new(big.Int).Add(transferAmount, timeoutAmount)
+	userAddressA := crypto.PubkeyToAddress(s.chainA.user.PublicKey)
+	userAddressB := crypto.PubkeyToAddress(s.chainB.user.PublicKey)
+	ics20AddressA := ethcommon.HexToAddress(s.chainA.contractAddresses.Ics20Transfer)
+	multicallAddressA := ethcommon.HexToAddress(s.chainA.contractAddresses.IbcMulticall)
+	multicallAddressB := ethcommon.HexToAddress(s.chainB.contractAddresses.IbcMulticall)
+	erc20AddressA := ethcommon.HexToAddress(s.chainA.contractAddresses.Erc20)
+
+	var (
+		initialUserBalanceA   *big.Int
+		initialEscrowBalanceA *big.Int
+		escrowAddressA        ethcommon.Address
+		receivedSendTxHash    []byte
+		sendTxHash            []byte
+		sendPackets           []ics26router.IICS26RouterMsgsPacket
+		packetTimeout         uint64
+	)
+
+	s.Require().True(s.Run("Fund user on Chain A", func() {
+		fundTx, err := s.chainA.erc20.Transfer(s.mustTransactOpts(&s.chainA, s.chainA.eth.Faucet), userAddressA, totalTransferAmount)
+		s.Require().NoError(err)
+
+		fundReceipt, err := s.chainA.eth.GetTxReciept(ctx, fundTx.Hash())
+		s.Require().NoError(err)
+		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, fundReceipt.Status)
+
+		initialUserBalanceA, err = s.chainA.erc20.BalanceOf(nil, userAddressA)
+		s.Require().NoError(err)
+		escrowAddressA, err = s.chainA.ics20.GetEscrow(nil, besuToBesuClientOnA)
+		s.Require().NoError(err)
+		initialEscrowBalanceA, err = s.chainA.erc20.BalanceOf(nil, escrowAddressA)
+		s.Require().NoError(err)
+	}))
+
+	s.Require().True(s.Run("Approve ICS20 on Chain A", func() {
+		approveTx, err := s.chainA.erc20.Approve(s.mustTransactOpts(&s.chainA, s.chainA.user), ics20AddressA, totalTransferAmount)
+		s.Require().NoError(err)
+
+		approveReceipt, err := s.chainA.eth.GetTxReciept(ctx, approveTx.Hash())
+		s.Require().NoError(err)
+		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, approveReceipt.Status)
+	}))
+
+	s.Require().True(s.Run("Send transfers with short timeout from Chain A", func() {
+		chainATime, err := s.chainA.eth.GetBlockTime(ctx)
+		s.Require().NoError(err)
+		chainBTime, err := s.chainB.eth.GetBlockTime(ctx)
+		s.Require().NoError(err)
+		// Leaves enough time to receive the first packet on Chain B before it times out.
+		packetTimeout = uint64(max(chainATime, chainBTime)) + 30
+
+		msg := ics20transfer.IICS20TransferMsgsSendTransferMsg{
+			Denom:            erc20AddressA,
+			Amount:           transferAmount,
+			Receiver:         strings.ToLower(userAddressB.Hex()),
+			TimeoutTimestamp: packetTimeout,
+			SourceClient:     besuToBesuClientOnA,
+			DestPort:         transfertypes.PortID,
+			Memo:             "",
+		}
+
+		receivedSendTx, err := s.chainA.ics20.SendTransfer(s.mustTransactOpts(&s.chainA, s.chainA.user), msg)
+		s.Require().NoError(err)
+		receivedSendReceipt, err := s.chainA.eth.GetTxReciept(ctx, receivedSendTx.Hash())
+		s.Require().NoError(err)
+		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receivedSendReceipt.Status)
+		receivedSendTxHash = receivedSendTx.Hash().Bytes()
+
+		sendReceipt := s.sendTransfers(ctx, msg, numOfTimeouts)
+		sendTxHash = sendReceipt.TxHash.Bytes()
+
+		for _, sendEvent := range e2esuite.GetEvmEvents(sendReceipt, s.chainA.ics26.ParseSendPacket) {
+			sendPackets = append(sendPackets, sendEvent.Packet)
+		}
+		s.Require().Len(sendPackets, numOfTimeouts)
+	}))
+
+	s.Require().True(s.Run("Verify balances on Chain A after send", func() {
+		userBalanceA, err := s.chainA.erc20.BalanceOf(nil, userAddressA)
+		s.Require().NoError(err)
+		expectedUserBalanceA := new(big.Int).Sub(new(big.Int).Set(initialUserBalanceA), totalTransferAmount)
+		s.Require().Equal(0, expectedUserBalanceA.Cmp(userBalanceA))
+
+		escrowAddressA, err = s.chainA.ics20.GetEscrow(nil, besuToBesuClientOnA)
+		s.Require().NoError(err)
+		s.Require().NotEqual(ethcommon.Address{}, escrowAddressA)
+		escrowBalanceA, err := s.chainA.erc20.BalanceOf(nil, escrowAddressA)
+		s.Require().NoError(err)
+		expectedEscrowBalanceA := new(big.Int).Add(new(big.Int).Set(initialEscrowBalanceA), totalTransferAmount)
+		s.Require().Equal(0, expectedEscrowBalanceA.Cmp(escrowBalanceA))
+	}))
+
+	s.Require().True(s.Run("Relay first packet to Chain B before timeout", func() {
+		relayAB, err := s.relayerClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+			SrcChain:    s.chainA.eth.ChainID.String(),
+			DstChain:    s.chainB.eth.ChainID.String(),
+			SourceTxIds: [][]byte{receivedSendTxHash},
+			SrcClientId: besuToBesuClientOnA,
+			DstClientId: besuToBesuClientOnB,
+		})
+		s.Require().NoError(err)
+		s.Require().NotEmpty(relayAB.Tx)
+
+		recvReceipt, err := s.chainB.eth.BroadcastTx(ctx, s.chainB.relayerSubmitter, 15_000_000, &multicallAddressB, relayAB.Tx)
+		s.Require().NoError(err)
+		_, err = e2esuite.GetEvmEvent(recvReceipt, s.chainB.ics26.ParseWriteAcknowledgement)
+		s.Require().NoError(err)
+	}))
+
+	s.Require().True(s.Run("Wait for timeout on Chain B", func() {
+		s.Require().NoError(e2esuite.WaitForBlockTime(ctx, s.T(), &s.chainB.eth, packetTimeout))
+	}))
+
+	s.Require().True(s.Run("Relaying timeout of received packet should fail", func() {
+		_, err := s.relayerClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+			SrcChain:     s.chainB.eth.ChainID.String(),
+			DstChain:     s.chainA.eth.ChainID.String(),
+			TimeoutTxIds: [][]byte{receivedSendTxHash},
+			SrcClientId:  besuToBesuClientOnB,
+			DstClientId:  besuToBesuClientOnA,
+		})
+		// The proof API drops timeout calls whose packet receipt exists on Chain B, leaving nothing to relay.
+		s.Require().Error(err)
+	}))
+
+	s.Require().True(s.Run("Relay timeouts to Chain A", func() {
+		var timeoutRelayTx []byte
+		s.Require().True(s.Run("Retrieve timeout relay tx", func() {
+			timeoutRelay, err := s.relayerClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+				SrcChain:     s.chainB.eth.ChainID.String(),
+				DstChain:     s.chainA.eth.ChainID.String(),
+				TimeoutTxIds: [][]byte{sendTxHash},
+				SrcClientId:  besuToBesuClientOnB,
+				DstClientId:  besuToBesuClientOnA,
+			})
+			s.Require().NoError(err)
+			s.Require().NotEmpty(timeoutRelay.Tx)
+			s.Require().Equal(strings.ToLower(s.chainA.contractAddresses.IbcMulticall), strings.ToLower(timeoutRelay.Address))
+			s.requireAccountProofOnlyOnFirstPacketCall(timeoutRelay.Tx, numOfTimeouts)
+			timeoutRelayTx = timeoutRelay.Tx
+		}))
+
+		s.Require().True(s.Run("Broadcast timeout relay tx on Chain A", func() {
+			timeoutReceipt, err := s.chainA.eth.BroadcastTx(ctx, s.chainA.relayerSubmitter, 15_000_000, &multicallAddressA, timeoutRelayTx)
+			s.Require().NoError(err)
+			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, timeoutReceipt.Status)
+			s.T().Logf("Multicall timeout %d packets gas used: %d", numOfTimeouts, timeoutReceipt.GasUsed)
+
+			timeoutEvents := e2esuite.GetEvmEvents(timeoutReceipt, s.chainA.ics26.ParseTimeoutPacket)
+			s.Require().Len(timeoutEvents, numOfTimeouts)
+			for i, timeoutEvent := range timeoutEvents {
+				s.Require().Equal(sendPackets[i], timeoutEvent.Packet)
+			}
+		}))
+	}))
+
+	s.Require().True(s.Run("Verify only timed out tokens refunded on Chain A", func() {
+		userBalanceA, err := s.chainA.erc20.BalanceOf(nil, userAddressA)
+		s.Require().NoError(err)
+		expectedUserBalanceA := new(big.Int).Sub(new(big.Int).Set(initialUserBalanceA), transferAmount)
+		s.Require().Equal(0, expectedUserBalanceA.Cmp(userBalanceA))
+
+		escrowBalanceA, err := s.chainA.erc20.BalanceOf(nil, escrowAddressA)
+		s.Require().NoError(err)
+		expectedEscrowBalanceA := new(big.Int).Add(new(big.Int).Set(initialEscrowBalanceA), transferAmount)
+		s.Require().Equal(0, expectedEscrowBalanceA.Cmp(escrowBalanceA))
+	}))
+}
+
+func (s *BesuToBesuTestSuite) Test_ErrorAckICS20TransferERC20FromChainAToChainB_QBFT() {
+	s.ErrorAckICS20TransferERC20FromChainAToChainBTest(testvalues.BesuConsensusQBFT)
+}
+
+func (s *BesuToBesuTestSuite) Test_ErrorAckICS20TransferERC20FromChainAToChainB_IBFT2() {
+	s.ErrorAckICS20TransferERC20FromChainAToChainBTest(testvalues.BesuConsensusIBFT2)
+}
+
+// ErrorAckICS20TransferERC20FromChainAToChainBTest sends a transfer to a receiver that is not a hex address, so
+// ICS20 on Chain B fails to receive it and ICS26 writes the universal error acknowledgement. Relaying that
+// acknowledgement back to Chain A refunds the sender.
+func (s *BesuToBesuTestSuite) ErrorAckICS20TransferERC20FromChainAToChainBTest(consensus string) {
+	ctx := context.Background()
+	s.SetupSuite(ctx, consensus)
+
+	transferAmount := big.NewInt(testvalues.TransferAmount)
+	userAddressA := crypto.PubkeyToAddress(s.chainA.user.PublicKey)
+	ics20AddressA := ethcommon.HexToAddress(s.chainA.contractAddresses.Ics20Transfer)
+	multicallAddressA := ethcommon.HexToAddress(s.chainA.contractAddresses.IbcMulticall)
+	multicallAddressB := ethcommon.HexToAddress(s.chainB.contractAddresses.IbcMulticall)
+	erc20AddressA := ethcommon.HexToAddress(s.chainA.contractAddresses.Erc20)
+	universalErrorAck := sha256.Sum256([]byte("UNIVERSAL_ERROR_ACKNOWLEDGEMENT"))
+
+	var (
+		initialUserBalanceA   *big.Int
+		initialEscrowBalanceA *big.Int
+		escrowAddressA        ethcommon.Address
+		sendTxHash            []byte
+		sendPacket            ics26router.IICS26RouterMsgsPacket
+		recvReceipt           *ethtypes.Receipt
+	)
+
+	s.Require().True(s.Run("Fund user on Chain A", func() {
+		fundTx, err := s.chainA.erc20.Transfer(s.mustTransactOpts(&s.chainA, s.chainA.eth.Faucet), userAddressA, transferAmount)
+		s.Require().NoError(err)
+
+		fundReceipt, err := s.chainA.eth.GetTxReciept(ctx, fundTx.Hash())
+		s.Require().NoError(err)
+		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, fundReceipt.Status)
+
+		initialUserBalanceA, err = s.chainA.erc20.BalanceOf(nil, userAddressA)
+		s.Require().NoError(err)
+		escrowAddressA, err = s.chainA.ics20.GetEscrow(nil, besuToBesuClientOnA)
+		s.Require().NoError(err)
+		initialEscrowBalanceA, err = s.chainA.erc20.BalanceOf(nil, escrowAddressA)
+		s.Require().NoError(err)
+	}))
+
+	s.Require().True(s.Run("Approve ICS20 on Chain A", func() {
+		approveTx, err := s.chainA.erc20.Approve(s.mustTransactOpts(&s.chainA, s.chainA.user), ics20AddressA, transferAmount)
+		s.Require().NoError(err)
+
+		approveReceipt, err := s.chainA.eth.GetTxReciept(ctx, approveTx.Hash())
+		s.Require().NoError(err)
+		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, approveReceipt.Status)
+	}))
+
+	s.Require().True(s.Run("Send transfer to invalid receiver from Chain A", func() {
+		timeout := uint64(time.Now().Add(30 * time.Minute).Unix())
+		sendTx, err := s.chainA.ics20.SendTransfer(s.mustTransactOpts(&s.chainA, s.chainA.user), ics20transfer.IICS20TransferMsgsSendTransferMsg{
+			Denom:            erc20AddressA,
+			Amount:           transferAmount,
+			Receiver:         "invalid-receiver",
+			TimeoutTimestamp: timeout,
+			SourceClient:     besuToBesuClientOnA,
+			DestPort:         transfertypes.PortID,
+			Memo:             "",
+		})
+		s.Require().NoError(err)
+
+		sendReceipt, err := s.chainA.eth.GetTxReciept(ctx, sendTx.Hash())
+		s.Require().NoError(err)
+		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, sendReceipt.Status)
+		sendTxHash = sendTx.Hash().Bytes()
+
+		sendEvent, err := e2esuite.GetEvmEvent(sendReceipt, s.chainA.ics26.ParseSendPacket)
+		s.Require().NoError(err)
+		sendPacket = sendEvent.Packet
+	}))
+
+	s.Require().True(s.Run("Verify balances on Chain A after send", func() {
+		userBalanceA, err := s.chainA.erc20.BalanceOf(nil, userAddressA)
+		s.Require().NoError(err)
+		expectedUserBalanceA := new(big.Int).Sub(new(big.Int).Set(initialUserBalanceA), transferAmount)
+		s.Require().Equal(0, expectedUserBalanceA.Cmp(userBalanceA))
+
+		escrowAddressA, err = s.chainA.ics20.GetEscrow(nil, besuToBesuClientOnA)
+		s.Require().NoError(err)
+		s.Require().NotEqual(ethcommon.Address{}, escrowAddressA)
+		escrowBalanceA, err := s.chainA.erc20.BalanceOf(nil, escrowAddressA)
+		s.Require().NoError(err)
+		expectedEscrowBalanceA := new(big.Int).Add(new(big.Int).Set(initialEscrowBalanceA), transferAmount)
+		s.Require().Equal(0, expectedEscrowBalanceA.Cmp(escrowBalanceA))
+	}))
+
+	s.Require().True(s.Run("Relay packet to Chain B", func() {
+		var relayTx []byte
+		s.Require().True(s.Run("Retrieve relay tx", func() {
+			relayAB, err := s.relayerClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+				SrcChain:    s.chainA.eth.ChainID.String(),
+				DstChain:    s.chainB.eth.ChainID.String(),
+				SourceTxIds: [][]byte{sendTxHash},
+				SrcClientId: besuToBesuClientOnA,
+				DstClientId: besuToBesuClientOnB,
+			})
+			s.Require().NoError(err)
+			s.Require().NotEmpty(relayAB.Tx)
+			s.Require().Equal(strings.ToLower(s.chainB.contractAddresses.IbcMulticall), strings.ToLower(relayAB.Address))
+			relayTx = relayAB.Tx
+		}))
+
+		s.Require().True(s.Run("Broadcast relay tx on Chain B", func() {
+			var err error
+			recvReceipt, err = s.chainB.eth.BroadcastTx(ctx, s.chainB.relayerSubmitter, 15_000_000, &multicallAddressB, relayTx)
+			s.Require().NoError(err)
+			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, recvReceipt.Status)
+
+			_, err = e2esuite.GetEvmEvent(recvReceipt, s.chainB.ics26.ParseIBCAppRecvPacketCallbackError)
+			s.Require().NoError(err)
+
+			writeAckEvent, err := e2esuite.GetEvmEvent(recvReceipt, s.chainB.ics26.ParseWriteAcknowledgement)
+			s.Require().NoError(err)
+			s.Require().Equal(sendPacket, writeAckEvent.Packet)
+			s.Require().Equal([][]byte{universalErrorAck[:]}, writeAckEvent.Acknowledgements)
+		}))
+	}))
+
+	s.Require().True(s.Run("Relay error acknowledgement to Chain A", func() {
+		var relayTx []byte
+		s.Require().True(s.Run("Retrieve acknowledgement relay tx", func() {
+			ackRelay, err := s.relayerClient.RelayByTx(ctx, &proofapitypes.RelayByTxRequest{
+				SrcChain:    s.chainB.eth.ChainID.String(),
+				DstChain:    s.chainA.eth.ChainID.String(),
+				SourceTxIds: [][]byte{recvReceipt.TxHash.Bytes()},
+				SrcClientId: besuToBesuClientOnB,
+				DstClientId: besuToBesuClientOnA,
+			})
+			s.Require().NoError(err)
+			s.Require().NotEmpty(ackRelay.Tx)
+			s.Require().Equal(strings.ToLower(s.chainA.contractAddresses.IbcMulticall), strings.ToLower(ackRelay.Address))
+			relayTx = ackRelay.Tx
+		}))
+
+		s.Require().True(s.Run("Broadcast acknowledgement relay tx on Chain A", func() {
+			ackReceipt, err := s.chainA.eth.BroadcastTx(ctx, s.chainA.relayerSubmitter, 15_000_000, &multicallAddressA, relayTx)
+			s.Require().NoError(err)
+			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, ackReceipt.Status)
+
+			ackEvent, err := e2esuite.GetEvmEvent(ackReceipt, s.chainA.ics26.ParseAckPacket)
+			s.Require().NoError(err)
+			s.Require().Equal(sendPacket, ackEvent.Packet)
+			s.Require().Equal(universalErrorAck[:], ackEvent.Acknowledgement)
+		}))
+	}))
+
+	s.Require().True(s.Run("Verify tokens refunded on Chain A", func() {
+		userBalanceA, err := s.chainA.erc20.BalanceOf(nil, userAddressA)
+		s.Require().NoError(err)
+		s.Require().Equal(0, initialUserBalanceA.Cmp(userBalanceA))
+
+		escrowBalanceA, err := s.chainA.erc20.BalanceOf(nil, escrowAddressA)
+		s.Require().NoError(err)
+		s.Require().Equal(0, initialEscrowBalanceA.Cmp(escrowBalanceA))
+	}))
+}
+
+func (s *BesuToBesuTestSuite) Test_DoubleSignFreezesClient_QBFT() {
+	s.DoubleSignFreezesClientTest(testvalues.BesuConsensusQBFT)
+}
+
+func (s *BesuToBesuTestSuite) Test_DoubleSignFreezesClient_IBFT2() {
+	s.DoubleSignFreezesClientTest(testvalues.BesuConsensusIBFT2)
+}
+
+// DoubleSignFreezesClientTest freezes a dedicated client on Chain B so the shared clients stay usable.
+func (s *BesuToBesuTestSuite) DoubleSignFreezesClientTest(consensus string) {
+	ctx := context.Background()
+	s.SetupSuite(ctx, consensus)
+
+	const doubleSignClientID = "besu-double-sign"
+	var (
+		client        *besulightclient.Contract
+		trustedHeight uint64
+		height        uint64
+		trustedHash   [32]byte
+		updateMsg     []byte
+	)
+
+	s.Require().True(s.Run("Create dedicated client on Chain B", func() {
+		client = s.createDedicatedBesuClient(doubleSignClientID, besuToBesuDefaultTrustLevel)
+		trustedHeight = s.besuClientState(client).LatestHeight.RevisionHeight
+		height = trustedHeight + 1
+	}))
+
+	s.Require().True(s.Run("Update the client to the next height", func() {
+		s.waitForBlock(ctx, &s.chainA, height)
+		honestUpdate, err := e2etypes.BuildBesuUpdate(ctx, &s.chainA.eth, s.consensus, trustedHeight, height)
+		s.Require().NoError(err)
+		s.requireUpdateResult(s.updateClient(ctx, doubleSignClientID, honestUpdate), 0) // Update
+
+		trustedHash, err = client.GetConsensusStateHash(nil, height)
+		s.Require().NoError(err)
+	}))
+
+	s.Require().True(s.Run("Build conflicting header at the stored height", func() {
+		var err error
+		updateMsg, err = e2etypes.BuildBesuDoubleSignUpdate(ctx, &s.chainA.eth, s.consensus, trustedHeight, height)
+		s.Require().NoError(err)
+	}))
+
+	s.Require().True(s.Run("Submit double sign and freeze the client", func() {
+		receipt := s.updateClient(ctx, doubleSignClientID, updateMsg)
+		s.requireUpdateResult(receipt, 1) // Misbehaviour
+
+		doubleSignEvent, err := e2esuite.GetEvmEvent(receipt, client.ParseDoubleSign)
+		s.Require().NoError(err)
+		s.Require().Equal(height, doubleSignEvent.RevisionHeight)
+		s.Require().Equal(trustedHash, doubleSignEvent.ConsensusStateHash1)
+		s.Require().NotEqual(trustedHash, doubleSignEvent.ConsensusStateHash2)
+
+		s.Require().True(s.besuClientState(client).IsFrozen)
+		storedHash, err := client.GetConsensusStateHash(nil, height)
+		s.Require().NoError(err)
+		s.Require().Equal(trustedHash, storedHash)
+	}))
+
+	s.Require().True(s.Run("Frozen client rejects further updates", func() {
+		s.requireICS26Revert(ctx, s.besuClientErr("FrozenClientState"), "updateClient", doubleSignClientID, updateMsg)
+	}))
+}
+
+func (s *BesuToBesuTestSuite) Test_ConflictingConsensusStatesTimeNonMonotonicityFreezesClient_QBFT() {
+	s.ConflictingConsensusStatesTimeNonMonotonicityFreezesClientTest(testvalues.BesuConsensusQBFT)
+}
+
+func (s *BesuToBesuTestSuite) Test_ConflictingConsensusStatesTimeNonMonotonicityFreezesClient_IBFT2() {
+	s.ConflictingConsensusStatesTimeNonMonotonicityFreezesClientTest(testvalues.BesuConsensusIBFT2)
+}
+
+// ConflictingConsensusStatesTimeNonMonotonicityFreezesClientTest stores two consensus states whose timestamps do not
+// increase with height on a dedicated client on Chain B, then submits them as misbehaviour. Each update is only
+// checked against its own trusted height, so both updates are accepted.
+func (s *BesuToBesuTestSuite) ConflictingConsensusStatesTimeNonMonotonicityFreezesClientTest(consensus string) {
+	ctx := context.Background()
+	s.SetupSuite(ctx, consensus)
+
+	const timeMisbehaviourClientID = "besu-time-non-monotonicity"
+	var (
+		client          *besulightclient.Contract
+		trustedHeight   uint64
+		height1         uint64
+		height2         uint64
+		timestamp       uint64
+		misbehaviourMsg []byte
+	)
+
+	s.Require().True(s.Run("Create dedicated client on Chain B", func() {
+		client = s.createDedicatedBesuClient(timeMisbehaviourClientID, besuToBesuDefaultTrustLevel)
+		trustedHeight = s.besuClientState(client).LatestHeight.RevisionHeight
+		height1, height2 = trustedHeight+1, trustedHeight+2
+	}))
+
+	s.Require().True(s.Run("Store consensus states with non-monotonic timestamps", func() {
+		s.waitForBlock(ctx, &s.chainA, height2)
+
+		state2, err := e2etypes.FetchBesuConsensusState(ctx, &s.chainA.eth, s.consensus, height2)
+		s.Require().NoError(err)
+		timestamp = state2.Timestamp
+
+		honestUpdate, err := e2etypes.BuildBesuUpdate(ctx, &s.chainA.eth, s.consensus, trustedHeight, height2)
+		s.Require().NoError(err)
+		s.requireUpdateResult(s.updateClient(ctx, timeMisbehaviourClientID, honestUpdate), 0) // Update
+
+		// Height1 is re-sealed with the timestamp of height2.
+		forgedUpdate, err := e2etypes.BuildBesuTimestampUpdate(ctx, &s.chainA.eth, s.consensus, trustedHeight, height1, timestamp)
+		s.Require().NoError(err)
+		s.requireUpdateResult(s.updateClient(ctx, timeMisbehaviourClientID, forgedUpdate), 0) // Update
+
+		state1, err := e2etypes.FetchBesuConsensusState(ctx, &s.chainA.eth, s.consensus, height1)
+		s.Require().NoError(err)
+		state1.Timestamp = timestamp
+
+		// The light client expects abi.encode(MsgSubmitMisbehaviour) wrapping
+		// abi.encode(MsgConflictingConsensusStatesMisbehaviour), both without the function selector.
+		bindings := besumsgs.NewBindings()
+		misbehaviourMsg = bindings.PackSubmitMisbehaviour(besumsgs.IBesuLightClientMsgsMsgSubmitMisbehaviour{
+			MisbehaviourType: 0, // ConflictingConsensusStates
+			Misbehaviour: bindings.PackConflictingConsensusStatesMisbehaviour(
+				besumsgs.IBesuLightClientMsgsMsgConflictingConsensusStatesMisbehaviour{
+					Height1:                 besumsgs.IICS02ClientMsgsHeight{RevisionHeight: height1},
+					Height2:                 besumsgs.IICS02ClientMsgsHeight{RevisionHeight: height2},
+					ConsensusStatePreimage1: state1,
+					ConsensusStatePreimage2: state2,
+				},
+			)[4:],
+		})[4:]
+		s.Require().False(s.besuClientState(client).IsFrozen)
+	}))
+
+	s.Require().True(s.Run("Submit misbehaviour and freeze the client", func() {
+		tx, err := s.chainB.ics26.SubmitMisbehaviour(
+			s.mustTransactOpts(&s.chainB, s.chainB.relayerSubmitter), timeMisbehaviourClientID, misbehaviourMsg,
+		)
+		s.Require().NoError(err)
+		receipt, err := s.chainB.eth.GetTxReciept(ctx, tx.Hash())
+		s.Require().NoError(err)
+		s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
+
+		submittedEvent, err := e2esuite.GetEvmEvent(receipt, s.chainB.ics26.ParseICS02MisbehaviourSubmitted)
+		s.Require().NoError(err)
+		s.Require().Equal(timeMisbehaviourClientID, submittedEvent.ClientId)
+
+		timeEvent, err := e2esuite.GetEvmEvent(receipt, client.ParseTimeNonMonotonicity)
+		s.Require().NoError(err)
+		s.Require().Equal(height2, timeEvent.Height2)
+		s.Require().Equal(height1, timeEvent.Height1)
+		s.Require().Equal(timestamp, timeEvent.Timestamp2)
+		s.Require().Equal(timestamp, timeEvent.Timestamp1)
+
+		s.Require().True(s.besuClientState(client).IsFrozen)
+	}))
+
+	s.Require().True(s.Run("Frozen client rejects further misbehaviour", func() {
+		s.requireICS26Revert(ctx, s.besuClientErr("FrozenClientState"), "submitMisbehaviour", timeMisbehaviourClientID, misbehaviourMsg)
+	}))
+}
+
+func (s *BesuToBesuTestSuite) Test_ConflictingHeadersDoubleSignMisbehaviourIsPermissionless_QBFT() {
+	s.ConflictingHeadersDoubleSignMisbehaviourIsPermissionlessTest(testvalues.BesuConsensusQBFT)
+}
+
+func (s *BesuToBesuTestSuite) Test_ConflictingHeadersDoubleSignMisbehaviourIsPermissionless_IBFT2() {
+	s.ConflictingHeadersDoubleSignMisbehaviourIsPermissionlessTest(testvalues.BesuConsensusIBFT2)
+}
+
+// ConflictingHeadersDoubleSignMisbehaviourIsPermissionlessTest submits two conflicting headers at the same height to
+// a dedicated client on Chain B through the router's permissionless submitMisbehaviour, from an account without any
+// role. Neither header is stored.
+func (s *BesuToBesuTestSuite) ConflictingHeadersDoubleSignMisbehaviourIsPermissionlessTest(consensus string) {
+	ctx := context.Background()
+	s.SetupSuite(ctx, consensus)
+
+	const clientID = "besu-headers-double-sign"
+	var (
+		client          *besulightclient.Contract
+		height          uint64
+		honestUpdate    []byte
+		misbehaviourMsg []byte
+	)
+
+	s.Require().True(s.Run("Build conflicting headers at the same height", func() {
+		client = s.createDedicatedBesuClient(clientID, besuToBesuDefaultTrustLevel)
+		trustedHeight := s.besuClientState(client).LatestHeight.RevisionHeight
+		height = trustedHeight + 1
+		s.waitForBlock(ctx, &s.chainA, height)
+
+		var err error
+		honestUpdate, err = e2etypes.BuildBesuUpdate(ctx, &s.chainA.eth, s.consensus, trustedHeight, height)
+		s.Require().NoError(err)
+		conflictingUpdate, err := e2etypes.BuildBesuDoubleSignUpdate(ctx, &s.chainA.eth, s.consensus, trustedHeight, height)
+		s.Require().NoError(err)
+		misbehaviourMsg = s.conflictingHeadersMisbehaviourMsg(honestUpdate, conflictingUpdate)
+	}))
+
+	s.Require().True(s.Run("Only the router can call the client", func() {
+		clientAddress, err := s.chainB.ics26.GetClient(nil, clientID)
+		s.Require().NoError(err)
+		unauthorizedErr := s.besuClientErr("LightClientUnauthorizedCaller", crypto.PubkeyToAddress(s.chainB.user.PublicKey))
+		for _, calldata := range [][]byte{
+			s.besuClientCalldata("updateClient", honestUpdate),
+			s.besuClientCalldata("misbehaviour", misbehaviourMsg),
+		} {
+			s.requireCallRevert(ctx, s.chainB.user, clientAddress, calldata, unauthorizedErr)
+		}
+	}))
+
+	s.Require().True(s.Run("Account without role submits misbehaviour and freezes the client", func() {
+		receipt := s.submitBesuMisbehaviour(ctx, clientID, misbehaviourMsg)
+
+		doubleSignEvent, err := e2esuite.GetEvmEvent(receipt, client.ParseDoubleSign)
+		s.Require().NoError(err)
+		s.Require().Equal(height, doubleSignEvent.RevisionHeight)
+		s.Require().NotEqual(doubleSignEvent.ConsensusStateHash1, doubleSignEvent.ConsensusStateHash2)
+
+		s.Require().True(s.besuClientState(client).IsFrozen)
+		_, err = client.GetConsensusStateHash(nil, height)
+		s.Require().Error(err)
+	}))
+
+	s.Require().True(s.Run("Frozen client rejects further misbehaviour", func() {
+		s.requireICS26Revert(ctx, s.besuClientErr("FrozenClientState"), "submitMisbehaviour", clientID, misbehaviourMsg)
+	}))
+}
+
+func (s *BesuToBesuTestSuite) Test_ConflictingHeadersTimeNonMonotonicityMisbehaviourIsPermissionless_QBFT() {
+	s.ConflictingHeadersTimeNonMonotonicityMisbehaviourIsPermissionlessTest(testvalues.BesuConsensusQBFT)
+}
+
+func (s *BesuToBesuTestSuite) Test_ConflictingHeadersTimeNonMonotonicityMisbehaviourIsPermissionless_IBFT2() {
+	s.ConflictingHeadersTimeNonMonotonicityMisbehaviourIsPermissionlessTest(testvalues.BesuConsensusIBFT2)
+}
+
+// ConflictingHeadersTimeNonMonotonicityMisbehaviourIsPermissionlessTest submits two headers whose timestamps do not
+// increase with height to a dedicated client on Chain B through the router's permissionless submitMisbehaviour, from
+// an account without any role. Neither header is stored.
+func (s *BesuToBesuTestSuite) ConflictingHeadersTimeNonMonotonicityMisbehaviourIsPermissionlessTest(consensus string) {
+	ctx := context.Background()
+	s.SetupSuite(ctx, consensus)
+
+	const clientID = "besu-headers-time-non-monotonicity"
+	var (
+		client           *besulightclient.Contract
+		height1, height2 uint64
+		timestamp        uint64
+		misbehaviourMsg  []byte
+	)
+
+	s.Require().True(s.Run("Build headers with non-monotonic timestamps", func() {
+		client = s.createDedicatedBesuClient(clientID, besuToBesuDefaultTrustLevel)
+		trustedHeight := s.besuClientState(client).LatestHeight.RevisionHeight
+		height1, height2 = trustedHeight+1, trustedHeight+2
+		s.waitForBlock(ctx, &s.chainA, height2)
+
+		state2, err := e2etypes.FetchBesuConsensusState(ctx, &s.chainA.eth, s.consensus, height2)
+		s.Require().NoError(err)
+		timestamp = state2.Timestamp
+
+		honestUpdate, err := e2etypes.BuildBesuUpdate(ctx, &s.chainA.eth, s.consensus, trustedHeight, height2)
+		s.Require().NoError(err)
+		// Height1 is re-sealed with the timestamp of height2.
+		forgedUpdate, err := e2etypes.BuildBesuTimestampUpdate(ctx, &s.chainA.eth, s.consensus, trustedHeight, height1, timestamp)
+		s.Require().NoError(err)
+		misbehaviourMsg = s.conflictingHeadersMisbehaviourMsg(honestUpdate, forgedUpdate)
+	}))
+
+	s.Require().True(s.Run("Account without role submits misbehaviour and freezes the client", func() {
+		receipt := s.submitBesuMisbehaviour(ctx, clientID, misbehaviourMsg)
+
+		timeEvent, err := e2esuite.GetEvmEvent(receipt, client.ParseTimeNonMonotonicity)
+		s.Require().NoError(err)
+		s.Require().Equal(height2, timeEvent.Height2)
+		s.Require().Equal(height1, timeEvent.Height1)
+		s.Require().Equal(timestamp, timeEvent.Timestamp2)
+		s.Require().Equal(timestamp, timeEvent.Timestamp1)
+
+		s.Require().True(s.besuClientState(client).IsFrozen)
+	}))
+}
+
+func (s *BesuToBesuTestSuite) Test_ValidatorSetChanges_QBFT() {
+	s.ValidatorSetChangesTest(testvalues.BesuConsensusQBFT)
+}
+
+func (s *BesuToBesuTestSuite) Test_ValidatorSetChanges_IBFT2() {
+	s.ValidatorSetChangesTest(testvalues.BesuConsensusIBFT2)
+}
+
+// ValidatorSetChangesTest removes a Chain A validator and then votes in a new one through live validator votes, while a
+// dedicated client on Chain B at the default 2/3 trust level follows the chain. Besu seals each block with exactly
+// ceil(2n / 3) commit seals: 2 of the 3 validators left after the removal, and 3 of the 4 after the addition, one of
+// which can be the new validator. The light client caps the trusted overlap requirement at floor(2n / 3), raised to
+// more than a third, so 2 of the 4 or 3 trusted validators are enough and neither change stalls the client.
+func (s *BesuToBesuTestSuite) ValidatorSetChangesTest(consensus string) {
+	ctx := context.Background()
+	s.SetupSuite(ctx, consensus)
+
+	const (
+		removedValidator = "validator4"
+		addedValidator   = "validator5"
+		clientID         = "besu-validator-change"
+	)
+	var (
+		client              *besulightclient.Contract
+		initialValidators   []ethcommon.Address
+		remainingValidators []ethcommon.Address
+		newValidator        ethcommon.Address
+		removalHeight       uint64
+		additionHeight      uint64
+	)
+
+	s.Require().True(s.Run("Create dedicated client on Chain B", func() {
+		client = s.createDedicatedBesuClient(clientID, besuToBesuDefaultTrustLevel)
+		trustedHeight := s.besuClientState(client).LatestHeight.RevisionHeight
+
+		initialState, err := e2etypes.FetchBesuConsensusState(ctx, &s.chainA.eth, s.consensus, trustedHeight)
+		s.Require().NoError(err)
+		initialValidators = initialState.Validators
+		s.Require().Len(initialValidators, 4)
+	}))
+
+	s.Require().True(s.Run("Remove a validator from Chain A", func() {
+		var err error
+		removalHeight, err = s.chainA.network.RemoveValidator(ctx, removedValidator)
+		s.Require().NoError(err)
+
+		state, err := e2etypes.FetchBesuConsensusState(ctx, &s.chainA.eth, s.consensus, removalHeight)
+		s.Require().NoError(err)
+		remainingValidators = state.Validators
+		s.Require().Len(remainingValidators, 3)
+		s.Require().Subset(initialValidators, remainingValidators)
+	}))
+
+	s.Require().True(s.Run("Client follows the removal", func() {
+		trustedHeight := s.besuClientState(client).LatestHeight.RevisionHeight
+		updateMsg, err := e2etypes.BuildBesuUpdate(ctx, &s.chainA.eth, s.consensus, trustedHeight, removalHeight)
+		s.Require().NoError(err)
+		s.requireUpdateResult(s.updateClient(ctx, clientID, updateMsg), 0) // Update
+		s.Require().Equal(removalHeight, s.besuClientState(client).LatestHeight.RevisionHeight)
+	}))
+
+	s.Require().True(s.Run("Add a new validator to Chain A", func() {
+		var err error
+		additionHeight, err = s.chainA.network.AddValidator(ctx, addedValidator)
+		s.Require().NoError(err)
+
+		state, err := e2etypes.FetchBesuConsensusState(ctx, &s.chainA.eth, s.consensus, additionHeight)
+		s.Require().NoError(err)
+		s.Require().Len(state.Validators, 4)
+		s.Require().Subset(state.Validators, remainingValidators)
+		for _, validator := range state.Validators {
+			if !slices.Contains(remainingValidators, validator) {
+				newValidator = validator
+			}
+		}
+		s.Require().NotContains(initialValidators, newValidator)
+	}))
+
+	s.Require().True(s.Run("Client follows a header signed by the new validator", func() {
+		height := s.waitForChainAHeader(ctx, additionHeight, func(signers []ethcommon.Address) bool {
+			return slices.Contains(signers, newValidator)
+		})
+		updateMsg, err := e2etypes.BuildBesuUpdate(ctx, &s.chainA.eth, s.consensus, removalHeight, height)
+		s.Require().NoError(err)
+		s.requireUpdateResult(s.updateClient(ctx, clientID, updateMsg), 0) // Update
+		s.Require().Equal(height, s.besuClientState(client).LatestHeight.RevisionHeight)
+	}))
+}
+
+// waitForChainAHeader returns the first Chain A height from start whose commit seal signers satisfy match.
+func (s *BesuToBesuTestSuite) waitForChainAHeader(ctx context.Context, start uint64, match func([]ethcommon.Address) bool) uint64 {
+	height := start
+	s.Require().NoError(testutil.WaitForCondition(2*time.Minute, time.Second, func() (bool, error) {
+		latest, err := s.chainA.eth.RPCClient.BlockNumber(ctx)
+		if err != nil {
+			return false, err
+		}
+		for ; height <= latest; height++ {
+			signers, err := e2etypes.FetchBesuCommitSealSigners(ctx, &s.chainA.eth, s.consensus, height)
+			if err != nil {
+				return false, err
+			}
+			if match(signers) {
+				return true, nil
+			}
+		}
+		return false, nil
+	}))
+	return height
+}
+
+// createDedicatedBesuClient registers a Chain A client on Chain B that the relayer does not use.
+func (s *BesuToBesuTestSuite) createDedicatedBesuClient(clientID, trustLevel string) *besulightclient.Contract {
+	clientAddress := s.createAndRegisterBesuClient(&s.chainA, &s.chainB, clientID, besuToBesuClientOnA, trustLevel)
+	client, err := besulightclient.NewContract(clientAddress, s.chainB.eth.RPCClient)
+	s.Require().NoError(err)
+	s.Require().False(s.besuClientState(client).IsFrozen)
+	return client
+}
+
+func (s *BesuToBesuTestSuite) waitForBlock(ctx context.Context, chain *besuToBesuChainState, height uint64) {
+	s.Require().NoError(testutil.WaitForCondition(time.Minute, time.Second, func() (bool, error) {
+		latest, err := chain.eth.RPCClient.BlockNumber(ctx)
+		return latest >= height, err
+	}))
+}
+
+// updateClient submits updateMsg to clientID on Chain B through ICS26 and returns the successful receipt.
+func (s *BesuToBesuTestSuite) updateClient(ctx context.Context, clientID string, updateMsg []byte) *ethtypes.Receipt {
+	tx, err := s.chainB.ics26.UpdateClient(s.mustTransactOpts(&s.chainB, s.chainB.relayerSubmitter), clientID, updateMsg)
+	s.Require().NoError(err)
+	receipt, err := s.chainB.eth.GetTxReciept(ctx, tx.Hash())
+	s.Require().NoError(err)
+	s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
+	return receipt
+}
+
+// requireUpdateResult asserts the ILightClientMsgs.UpdateResult emitted in receipt.
+func (s *BesuToBesuTestSuite) requireUpdateResult(receipt *ethtypes.Receipt, result uint8) {
+	updatedEvent, err := e2esuite.GetEvmEvent(receipt, s.chainB.ics26.ParseICS02ClientUpdated)
+	s.Require().NoError(err)
+	s.Require().Equal(result, updatedEvent.Result)
+}
+
+// requireICS26Revert asserts that calling the ICS26 method on Chain B reverts with errData.
+func (s *BesuToBesuTestSuite) requireICS26Revert(ctx context.Context, errData []byte, method string, args ...any) {
+	ics26ABI, err := ics26router.ContractMetaData.GetAbi()
+	s.Require().NoError(err)
+	calldata, err := ics26ABI.Pack(method, args...)
+	s.Require().NoError(err)
+
+	ics26Address := ethcommon.HexToAddress(s.chainB.contractAddresses.Ics26Router)
+	s.requireCallRevert(ctx, s.chainB.relayerSubmitter, ics26Address, calldata, errData)
+}
+
+// requireAccountProofOnlyOnFirstPacketCall asserts that the relay multicall has numOfPackets packet calls and that
+// only the first one carries the router account proof, so the rest verify against the cached storage root.
+func (s *BesuToBesuTestSuite) requireAccountProofOnlyOnFirstPacketCall(relayTx []byte, numOfPackets int) {
+	ics26ABI, err := ics26router.ContractMetaData.GetAbi()
+	s.Require().NoError(err)
+	calls, err := ethereum.UnpackIBCMulticall(relayTx)
+	s.Require().NoError(err)
+
+	var proofs [][]byte
+	for _, call := range calls {
+		method, err := ics26ABI.MethodById(call[:4])
+		s.Require().NoError(err)
+		if method.Name == "updateClient" {
+			continue
+		}
+
+		args, err := method.Inputs.Unpack(call[4:])
+		s.Require().NoError(err)
+		switch method.Name {
+		case "recvPacket":
+			msg := abi.ConvertType(args[0], new(ics26router.IICS26RouterMsgsMsgRecvPacket)).(*ics26router.IICS26RouterMsgsMsgRecvPacket)
+			proofs = append(proofs, msg.ProofCommitment)
+		case "ackPacket":
+			msg := abi.ConvertType(args[0], new(ics26router.IICS26RouterMsgsMsgAckPacket)).(*ics26router.IICS26RouterMsgsMsgAckPacket)
+			proofs = append(proofs, msg.ProofAcked)
+		case "timeoutPacket":
+			msg := abi.ConvertType(args[0], new(ics26router.IICS26RouterMsgsMsgTimeoutPacket)).(*ics26router.IICS26RouterMsgsMsgTimeoutPacket)
+			proofs = append(proofs, msg.ProofTimeout)
+		default:
+			s.FailNow("unexpected relay call", method.Name)
+		}
+	}
+	s.Require().Len(proofs, numOfPackets)
+
+	bindings := besumsgs.NewBindings()
+	for i, proof := range proofs {
+		membershipProof, err := bindings.UnpackMembershipProof(proof)
+		s.Require().NoError(err)
+		if i == 0 {
+			s.Require().NotEmpty(membershipProof.AccountProofNodes)
+		} else {
+			s.Require().Empty(membershipProof.AccountProofNodes)
+		}
+	}
+}
+
+// requireCallRevert asserts that calling to with calldata from the key's address on Chain B reverts with errData.
+func (s *BesuToBesuTestSuite) requireCallRevert(ctx context.Context, from *ecdsa.PrivateKey, to ethcommon.Address, calldata, errData []byte) {
+	_, err := s.chainB.eth.RPCClient.CallContract(ctx, goethereum.CallMsg{
+		From: crypto.PubkeyToAddress(from.PublicKey),
+		To:   &to,
+		Data: calldata,
+	}, nil)
+	var dataErr rpc.DataError
+	s.Require().ErrorAs(err, &dataErr)
+	s.Require().Equal(hexutil.Encode(errData), dataErr.ErrorData())
+}
+
+// besuClientErr returns the revert data of the Besu light client custom error name with args.
+func (s *BesuToBesuTestSuite) besuClientErr(name string, args ...any) []byte {
+	clientABI, err := besulightclient.ContractMetaData.GetAbi()
+	s.Require().NoError(err)
+	customErr, ok := clientABI.Errors[name]
+	s.Require().True(ok, "unknown error %s", name)
+	argsData, err := customErr.Inputs.Pack(args...)
+	s.Require().NoError(err)
+	return append(customErr.ID.Bytes()[:4], argsData...)
+}
+
+// besuClientCalldata packs a call to a Besu light client method.
+func (s *BesuToBesuTestSuite) besuClientCalldata(method string, args ...any) []byte {
+	clientABI, err := besulightclient.ContractMetaData.GetAbi()
+	s.Require().NoError(err)
+	calldata, err := clientABI.Pack(method, args...)
+	s.Require().NoError(err)
+	return calldata
+}
+
+// conflictingHeadersMisbehaviourMsg wraps two abi-encoded MsgUpdateClient payloads into
+// abi.encode(MsgSubmitMisbehaviour) of type ConflictingHeaders, without function selectors.
+func (s *BesuToBesuTestSuite) conflictingHeadersMisbehaviourMsg(update1, update2 []byte) []byte {
+	bindings := besumsgs.NewBindings()
+	msg1, err := bindings.UnpackUpdateClient(update1)
+	s.Require().NoError(err)
+	msg2, err := bindings.UnpackUpdateClient(update2)
+	s.Require().NoError(err)
+
+	return bindings.PackSubmitMisbehaviour(besumsgs.IBesuLightClientMsgsMsgSubmitMisbehaviour{
+		MisbehaviourType: 1, // ConflictingHeaders
+		Misbehaviour: bindings.PackConflictingHeadersMisbehaviour(besumsgs.IBesuLightClientMsgsMsgConflictingHeadersMisbehaviour{
+			Update1: msg1,
+			Update2: msg2,
+		})[4:],
+	})[4:]
+}
+
+// submitBesuMisbehaviour submits misbehaviour through Chain B's router from Chain B's user, which holds no role.
+func (s *BesuToBesuTestSuite) submitBesuMisbehaviour(ctx context.Context, clientID string, misbehaviourMsg []byte) *ethtypes.Receipt {
+	tx, err := s.chainB.ics26.SubmitMisbehaviour(s.mustTransactOpts(&s.chainB, s.chainB.user), clientID, misbehaviourMsg)
+	s.Require().NoError(err)
+	receipt, err := s.chainB.eth.GetTxReciept(ctx, tx.Hash())
+	s.Require().NoError(err)
+	s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
+	return receipt
+}
+
+func (s *BesuToBesuTestSuite) besuClientState(client *besulightclient.Contract) besumsgs.IBesuLightClientMsgsClientState {
+	clientStateBz, err := client.GetClientState(nil)
+	s.Require().NoError(err)
+	clientState, err := besumsgs.NewBindings().UnpackClientState(clientStateBz)
+	s.Require().NoError(err)
+	return clientState
+}
+
+func (s *BesuToBesuTestSuite) spinUpChain(ctx context.Context, params chainconfig.BesuParams) besuToBesuChainState {
+	network, err := chainconfig.SpinUpBesu(ctx, params)
+	s.Require().NoError(err)
+
+	ethChain, err := ethereum.NewEthereum(ctx, network.RPC, nil, network.Faucet)
+	s.Require().NoError(err)
+
+	return besuToBesuChainState{
+		network: network,
+		eth:     ethChain,
+	}
+}
+
+func (s *BesuToBesuTestSuite) createUsers(chain *besuToBesuChainState) {
+	var err error
+	chain.deployer, err = chain.eth.CreateAndFundUser()
+	s.Require().NoError(err)
+	chain.user, err = chain.eth.CreateAndFundUser()
+	s.Require().NoError(err)
+	chain.relayerSubmitter, err = chain.eth.CreateAndFundUser()
+	s.Require().NoError(err)
+}
+
+func (s *BesuToBesuTestSuite) deployContracts(chain *besuToBesuChainState) {
+	os.Setenv(testvalues.EnvKeyEthRPC, chain.eth.RPC)
+
+	stdout, err := chain.eth.ForgeScript(chain.deployer, testvalues.E2EDeployScriptPath, "--slow")
+	s.Require().NoError(err)
+
+	chain.contractAddresses, err = ethereum.GetEthContractsFromDeployOutput(string(stdout))
+	s.Require().NoError(err)
+
+	chain.ics26, err = ics26router.NewContract(ethcommon.HexToAddress(chain.contractAddresses.Ics26Router), chain.eth.RPCClient)
+	s.Require().NoError(err)
+	chain.ics20, err = ics20transfer.NewContract(ethcommon.HexToAddress(chain.contractAddresses.Ics20Transfer), chain.eth.RPCClient)
+	s.Require().NoError(err)
+	chain.erc20, err = erc20.NewContract(ethcommon.HexToAddress(chain.contractAddresses.Erc20), chain.eth.RPCClient)
+	s.Require().NoError(err)
+}
+
+func (s *BesuToBesuTestSuite) startRelayer() {
+	config := proofapi.NewConfigBuilder().
+		BesuToEth(proofapi.BesuToEthParams{
+			SrcChainID:      s.chainA.eth.ChainID.String(),
+			DstChainID:      s.chainB.eth.ChainID.String(),
+			SrcRPC:          s.chainA.eth.RPC,
+			DstRPC:          s.chainB.eth.RPC,
+			SrcICS26:        s.chainA.contractAddresses.Ics26Router,
+			DstICS26:        s.chainB.contractAddresses.Ics26Router,
+			DstIBCMulticall: s.chainB.contractAddresses.IbcMulticall,
+			ConsensusType:   s.consensus,
+		}).
+		BesuToEth(proofapi.BesuToEthParams{
+			SrcChainID:      s.chainB.eth.ChainID.String(),
+			DstChainID:      s.chainA.eth.ChainID.String(),
+			SrcRPC:          s.chainB.eth.RPC,
+			DstRPC:          s.chainA.eth.RPC,
+			SrcICS26:        s.chainB.contractAddresses.Ics26Router,
+			DstICS26:        s.chainA.contractAddresses.Ics26Router,
+			DstIBCMulticall: s.chainA.contractAddresses.IbcMulticall,
+			ConsensusType:   s.consensus,
+		}).
+		Build()
+
+	s.relayerConfigPath = filepath.Join(os.TempDir(), fmt.Sprintf("besu-to-besu-relayer-%d.json", time.Now().UnixNano()))
+	s.Require().NoError(config.GenerateConfigFile(s.relayerConfigPath))
+
+	var err error
+	s.relayerProcess, err = proofapi.StartProofAPI(s.relayerConfigPath)
+	s.Require().NoError(err)
+}
+
+func (s *BesuToBesuTestSuite) connectRelayer() {
+	var err error
+	s.relayerClient, err = proofapi.GetGRPCClient(proofapi.DefaultProofAPIGRPCAddress())
+	s.Require().NoError(err)
+
+	infoAB := s.waitForRelayerInfo(s.chainA.eth.ChainID.String(), s.chainB.eth.ChainID.String())
+	s.Require().Equal(s.chainA.eth.ChainID.String(), infoAB.SourceChain.ChainId)
+	s.Require().Equal(s.chainB.eth.ChainID.String(), infoAB.TargetChain.ChainId)
+
+	infoBA := s.waitForRelayerInfo(s.chainB.eth.ChainID.String(), s.chainA.eth.ChainID.String())
+	s.Require().Equal(s.chainB.eth.ChainID.String(), infoBA.SourceChain.ChainId)
+	s.Require().Equal(s.chainA.eth.ChainID.String(), infoBA.TargetChain.ChainId)
+}
+
+func (s *BesuToBesuTestSuite) waitForRelayerInfo(srcChainID, dstChainID string) *proofapitypes.InfoResponse {
+	var (
+		info *proofapitypes.InfoResponse
+		err  error
+	)
+
+	for range 20 {
+		info, err = s.relayerClient.Info(context.Background(), &proofapitypes.InfoRequest{
+			SrcChain: srcChainID,
+			DstChain: dstChainID,
+		})
+		if err == nil {
+			return info
+		}
+		time.Sleep(time.Second)
+	}
+
+	s.Require().NoError(err)
+	return info
+}
+
+func (s *BesuToBesuTestSuite) createAndRegisterBesuClient(
+	srcChain *besuToBesuChainState,
+	dstChain *besuToBesuChainState,
+	dstClientID string,
+	counterpartyClientID string,
+	trustLevel string,
+) ethcommon.Address {
+	resp, err := s.relayerClient.CreateClient(context.Background(), &proofapitypes.CreateClientRequest{
+		SrcChain: srcChain.eth.ChainID.String(),
+		DstChain: dstChain.eth.ChainID.String(),
+		Parameters: map[string]string{
+			testvalues.ParameterKey_TrustingPeriod: strconv.Itoa(testvalues.DefaultTrustPeriod),
+			testvalues.ParameterKey_MaxClockDrift:  strconv.Itoa(testvalues.DefaultBesuMaxClockDrift),
+			testvalues.ParameterKey_TrustLevel:     trustLevel,
+		},
+	})
+	s.Require().NoError(err)
+	s.Require().NotEmpty(resp.Tx)
+
+	createClientReceipt, err := dstChain.eth.BroadcastTx(context.Background(), dstChain.relayerSubmitter, 15_000_000, nil, resp.Tx)
+	s.Require().NoError(err)
+	s.Require().Equal(ethtypes.ReceiptStatusSuccessful, createClientReceipt.Status)
+	s.Require().NotEqual(ethcommon.Address{}, createClientReceipt.ContractAddress)
+
+	// The Besu light client proves paths of the form [counterpartyRouter, ibcStoreSlot, commitmentPath].
+	srcRouter := ethcommon.HexToAddress(srcChain.contractAddresses.Ics26Router)
+	ibcStoreSlot := ethcommon.HexToHash(testvalues.IbcCommitmentSlotHex)
+	counterpartyInfo := ics26router.IICS02ClientMsgsCounterpartyInfo{
+		ClientId:     counterpartyClientID,
+		MerklePrefix: [][]byte{srcRouter.Bytes(), ibcStoreSlot.Bytes(), []byte("")},
+	}
+	addClientTx, err := dstChain.ics26.AddClient(
+		s.mustTransactOpts(dstChain, dstChain.deployer),
+		dstClientID,
+		counterpartyInfo,
+		createClientReceipt.ContractAddress,
+	)
+	s.Require().NoError(err)
+
+	addClientReceipt, err := dstChain.eth.GetTxReciept(context.Background(), addClientTx.Hash())
+	s.Require().NoError(err)
+	s.Require().Equal(ethtypes.ReceiptStatusSuccessful, addClientReceipt.Status)
+
+	addClientEvent, err := e2esuite.GetEvmEvent(addClientReceipt, dstChain.ics26.ParseICS02ClientAdded)
+	s.Require().NoError(err)
+	s.Require().Equal(dstClientID, addClientEvent.ClientId)
+	s.Require().Equal(createClientReceipt.ContractAddress, addClientEvent.Client)
+
+	registeredClient, err := dstChain.ics26.GetClient(nil, dstClientID)
+	s.Require().NoError(err)
+	s.Require().Equal(createClientReceipt.ContractAddress, registeredClient)
+
+	return createClientReceipt.ContractAddress
+}
+
+// sendTransfers sends numOfTransfers copies of msg from the Chain A user in one ICS20 multicall tx.
+func (s *BesuToBesuTestSuite) sendTransfers(ctx context.Context, msg ics20transfer.IICS20TransferMsgsSendTransferMsg, numOfTransfers int) *ethtypes.Receipt {
+	ics20ABI, err := ics20transfer.ContractMetaData.GetAbi()
+	s.Require().NoError(err)
+	sendTransferCall, err := ics20ABI.Pack("sendTransfer", msg)
+	s.Require().NoError(err)
+
+	tx, err := s.chainA.ics20.Multicall(s.mustTransactOpts(&s.chainA, s.chainA.user), slices.Repeat([][]byte{sendTransferCall}, numOfTransfers))
+	s.Require().NoError(err)
+	receipt, err := s.chainA.eth.GetTxReciept(ctx, tx.Hash())
+	s.Require().NoError(err)
+	s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
+	s.T().Logf("Multicall send %d transfers gas used: %d", numOfTransfers, receipt.GasUsed)
+	return receipt
+}
+
+func (s *BesuToBesuTestSuite) mustTransactOpts(chain *besuToBesuChainState, key *ecdsa.PrivateKey) *bind.TransactOpts {
+	txOpts, err := chain.eth.GetTransactOpts(key)
+	s.Require().NoError(err)
+	return txOpts
+}

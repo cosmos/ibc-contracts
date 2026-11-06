@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	test_cpi_proxy "github.com/cosmos/solidity-ibc-eureka/e2e/interchaintestv8/solana/go-anchor/testcpiproxy"
-	test_gmp_app "github.com/cosmos/solidity-ibc-eureka/e2e/interchaintestv8/solana/go-anchor/testgmpapp"
-	test_ibc_app "github.com/cosmos/solidity-ibc-eureka/e2e/interchaintestv8/solana/go-anchor/testibcapp"
+	test_cpi_proxy "github.com/cosmos/ibc-contracts/e2e/interchaintestv8/solana/go-anchor/testcpiproxy"
+	test_gmp_app "github.com/cosmos/ibc-contracts/e2e/interchaintestv8/solana/go-anchor/testgmpapp"
+	test_ibc_app "github.com/cosmos/ibc-contracts/e2e/interchaintestv8/solana/go-anchor/testibcapp"
 	bin "github.com/gagliardetto/binary"
 	"github.com/stretchr/testify/suite"
 
@@ -34,19 +34,19 @@ import (
 	ibcexported "github.com/cosmos/ibc-go/v11/modules/core/exported"
 	tmclient "github.com/cosmos/ibc-go/v11/modules/light-clients/07-tendermint"
 
-	access_manager "github.com/cosmos/solidity-ibc-eureka/packages/go-anchor/accessmanager"
-	ics07_tendermint_patches "github.com/cosmos/solidity-ibc-eureka/packages/go-anchor/ics07_tendermint_patches"
-	ics07_tendermint "github.com/cosmos/solidity-ibc-eureka/packages/go-anchor/ics07tendermint"
-	ics26_router "github.com/cosmos/solidity-ibc-eureka/packages/go-anchor/ics26router"
-	ics27_gmp "github.com/cosmos/solidity-ibc-eureka/packages/go-anchor/ics27gmp"
-	ift "github.com/cosmos/solidity-ibc-eureka/packages/go-anchor/ift"
+	access_manager "github.com/cosmos/ibc-contracts/packages/go-anchor/accessmanager"
+	ics07_tendermint_patches "github.com/cosmos/ibc-contracts/packages/go-anchor/ics07_tendermint_patches"
+	ics07_tendermint "github.com/cosmos/ibc-contracts/packages/go-anchor/ics07tendermint"
+	ics26_router "github.com/cosmos/ibc-contracts/packages/go-anchor/ics26router"
+	ics27_gmp "github.com/cosmos/ibc-contracts/packages/go-anchor/ics27gmp"
+	ift "github.com/cosmos/ibc-contracts/packages/go-anchor/ift"
 
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/attestor"
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/e2esuite"
-	proofapi "github.com/srdtrk/solidity-ibc-eureka/e2e/v8/proofapi"
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/solana"
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/testvalues"
-	proofapitypes "github.com/srdtrk/solidity-ibc-eureka/e2e/v8/types/proofapi"
+	"github.com/cosmos/ibc-contracts/e2e/v8/attestor"
+	"github.com/cosmos/ibc-contracts/e2e/v8/e2esuite"
+	proofapi "github.com/cosmos/ibc-contracts/e2e/v8/proofapi"
+	"github.com/cosmos/ibc-contracts/e2e/v8/solana"
+	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
+	proofapitypes "github.com/cosmos/ibc-contracts/e2e/v8/types/proofapi"
 )
 
 const (

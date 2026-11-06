@@ -123,6 +123,7 @@ pub async fn run(args: UpdateClientCmd) -> anyhow::Result<()> {
             proof_data.public_values.to_vec(),
         ),
     };
+    drop(uc_prover);
 
     let fixture = SP1ICS07UpdateClientFixture {
         genesis,

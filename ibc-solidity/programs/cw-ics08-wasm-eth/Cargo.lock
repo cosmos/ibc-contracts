@@ -780,14 +780,14 @@ dependencies = [
 [[package]]
 name = "cw-ics08-wasm-eth"
 version = "1.2.0"
-source = "git+https://github.com/cosmos/solidity-ibc-eureka?tag=cw-ics08-wasm-eth-v1.2.0#57cb581aaa8839a479147c0713df4c012e64c260"
+source = "git+https://github.com/cosmos/ibc-contracts?tag=cw-ics08-wasm-eth-v1.2.0#57cb581aaa8839a479147c0713df4c012e64c260"
 dependencies = [
  "alloy-primitives 0.8.26",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw2",
- "ethereum-light-client 0.1.0 (git+https://github.com/cosmos/solidity-ibc-eureka?tag=cw-ics08-wasm-eth-v1.2.0)",
- "ethereum-types 0.1.0 (git+https://github.com/cosmos/solidity-ibc-eureka?tag=cw-ics08-wasm-eth-v1.2.0)",
+ "ethereum-light-client 0.1.0 (git+https://github.com/cosmos/ibc-contracts?tag=cw-ics08-wasm-eth-v1.2.0)",
+ "ethereum-types 0.1.0 (git+https://github.com/cosmos/ibc-contracts?tag=cw-ics08-wasm-eth-v1.2.0)",
  "hex",
  "ibc-proto 0.51.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "prost",
@@ -806,7 +806,7 @@ dependencies = [
  "cw-ics08-wasm-eth 1.2.0",
  "cw2",
  "ethereum-light-client 0.1.0",
- "ethereum-light-client 0.1.0 (git+https://github.com/cosmos/solidity-ibc-eureka?tag=cw-ics08-wasm-eth-v1.2.0)",
+ "ethereum-light-client 0.1.0 (git+https://github.com/cosmos/ibc-contracts?tag=cw-ics08-wasm-eth-v1.2.0)",
  "ethereum-types 0.1.0",
  "hex",
  "ibc-proto 0.51.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1156,14 +1156,14 @@ dependencies = [
 [[package]]
 name = "ethereum-light-client"
 version = "0.1.0"
-source = "git+https://github.com/cosmos/solidity-ibc-eureka?tag=cw-ics08-wasm-eth-v1.2.0#57cb581aaa8839a479147c0713df4c012e64c260"
+source = "git+https://github.com/cosmos/ibc-contracts?tag=cw-ics08-wasm-eth-v1.2.0#57cb581aaa8839a479147c0713df4c012e64c260"
 dependencies = [
  "alloy-primitives 0.8.26",
  "alloy-rlp",
- "ethereum-trie-db 0.1.0 (git+https://github.com/cosmos/solidity-ibc-eureka?tag=cw-ics08-wasm-eth-v1.2.0)",
- "ethereum-types 0.1.0 (git+https://github.com/cosmos/solidity-ibc-eureka?tag=cw-ics08-wasm-eth-v1.2.0)",
+ "ethereum-trie-db 0.1.0 (git+https://github.com/cosmos/ibc-contracts?tag=cw-ics08-wasm-eth-v1.2.0)",
+ "ethereum-types 0.1.0 (git+https://github.com/cosmos/ibc-contracts?tag=cw-ics08-wasm-eth-v1.2.0)",
  "hex",
- "ibc-eureka-solidity-types 0.1.0 (git+https://github.com/cosmos/solidity-ibc-eureka?tag=cw-ics08-wasm-eth-v1.2.0)",
+ "ibc-eureka-solidity-types 0.1.0 (git+https://github.com/cosmos/ibc-contracts?tag=cw-ics08-wasm-eth-v1.2.0)",
  "ibc-proto 0.51.1 (git+https://github.com/srdtrk/ibc-proto-rs?rev=7074fb20c3a654e945e5ca46627c5a971d785e04)",
  "milagro_bls",
  "prost",
@@ -1172,7 +1172,7 @@ dependencies = [
  "serde_json",
  "sha2 0.10.9",
  "thiserror 2.0.19",
- "tree_hash 0.1.0 (git+https://github.com/cosmos/solidity-ibc-eureka?tag=cw-ics08-wasm-eth-v1.2.0)",
+ "tree_hash 0.1.0 (git+https://github.com/cosmos/ibc-contracts?tag=cw-ics08-wasm-eth-v1.2.0)",
 ]
 
 [[package]]
@@ -1195,7 +1195,7 @@ dependencies = [
 [[package]]
 name = "ethereum-trie-db"
 version = "0.1.0"
-source = "git+https://github.com/cosmos/solidity-ibc-eureka?tag=cw-ics08-wasm-eth-v1.2.0#57cb581aaa8839a479147c0713df4c012e64c260"
+source = "git+https://github.com/cosmos/ibc-contracts?tag=cw-ics08-wasm-eth-v1.2.0#57cb581aaa8839a479147c0713df4c012e64c260"
 dependencies = [
  "alloy-primitives 0.8.26",
  "hash-db",
@@ -1225,13 +1225,13 @@ dependencies = [
 [[package]]
 name = "ethereum-types"
 version = "0.1.0"
-source = "git+https://github.com/cosmos/solidity-ibc-eureka?tag=cw-ics08-wasm-eth-v1.2.0#57cb581aaa8839a479147c0713df4c012e64c260"
+source = "git+https://github.com/cosmos/ibc-contracts?tag=cw-ics08-wasm-eth-v1.2.0#57cb581aaa8839a479147c0713df4c012e64c260"
 dependencies = [
  "alloy-primitives 0.8.26",
  "schemars",
  "serde",
  "serde_with",
- "tree_hash 0.1.0 (git+https://github.com/cosmos/solidity-ibc-eureka?tag=cw-ics08-wasm-eth-v1.2.0)",
+ "tree_hash 0.1.0 (git+https://github.com/cosmos/ibc-contracts?tag=cw-ics08-wasm-eth-v1.2.0)",
  "tree_hash_derive 0.9.1",
 ]
 
@@ -1714,7 +1714,7 @@ dependencies = [
 [[package]]
 name = "ibc-eureka-solidity-types"
 version = "0.1.0"
-source = "git+https://github.com/cosmos/solidity-ibc-eureka?tag=cw-ics08-wasm-eth-v1.2.0#57cb581aaa8839a479147c0713df4c012e64c260"
+source = "git+https://github.com/cosmos/ibc-contracts?tag=cw-ics08-wasm-eth-v1.2.0#57cb581aaa8839a479147c0713df4c012e64c260"
 dependencies = [
  "alloy-primitives 0.8.26",
  "alloy-sol-types 0.8.26",
@@ -2869,7 +2869,7 @@ dependencies = [
 [[package]]
 name = "tree_hash"
 version = "0.1.0"
-source = "git+https://github.com/cosmos/solidity-ibc-eureka?tag=cw-ics08-wasm-eth-v1.2.0#57cb581aaa8839a479147c0713df4c012e64c260"
+source = "git+https://github.com/cosmos/ibc-contracts?tag=cw-ics08-wasm-eth-v1.2.0#57cb581aaa8839a479147c0713df4c012e64c260"
 dependencies = [
  "alloy-primitives 0.8.26",
  "sha2 0.10.9",

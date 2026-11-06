@@ -11,9 +11,11 @@ import { IICS02ClientMsgs } from "../../../contracts/msgs/IICS02ClientMsgs.sol";
 import { IICS26RouterMsgs } from "../../../contracts/msgs/IICS26RouterMsgs.sol";
 import { IICS20TransferMsgs } from "../../../contracts/msgs/IICS20TransferMsgs.sol";
 import { IICS27GMPMsgs } from "../../../contracts/msgs/IICS27GMPMsgs.sol";
+import { IIBCMulticallMsgs } from "../../../contracts/msgs/IIBCMulticallMsgs.sol";
 
 import { IERC20 } from "@openzeppelin-contracts/token/ERC20/IERC20.sol";
-import { IICS26Router } from "../../../contracts/interfaces/IICS26Router.sol";
+import { IICS26Router, IICS26RouterAccessControlled } from "../../../contracts/interfaces/IICS26Router.sol";
+import { IICS02ClientAccessControlled } from "../../../contracts/interfaces/IICS02Client.sol";
 import { ISignatureTransfer } from "@uniswap/permit2/src/interfaces/ISignatureTransfer.sol";
 
 import { ICS26Router } from "../../../contracts/ICS26Router.sol";
@@ -24,27 +26,55 @@ import { ICS27Lib } from "../../../contracts/utils/ICS27Lib.sol";
 import { ICS27GMP } from "../../../contracts/ICS27GMP.sol";
 import { ICS27Account } from "../../../contracts/utils/ICS27Account.sol";
 import { TestHelper } from "./TestHelper.sol";
-import { SolidityLightClient } from "../utils/SolidityLightClient.sol";
+import { ILightClientDriver } from "../integration/drivers/ILightClientDriver.sol";
 import { ICS20Lib } from "../../../contracts/utils/ICS20Lib.sol";
 import { ERC1967Proxy } from "@openzeppelin-contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import { ICS24Host } from "../../../contracts/utils/ICS24Host.sol";
 import { RelayerHelper } from "../../../contracts/utils/RelayerHelper.sol";
+import { IBCMulticall } from "../../../contracts/utils/IBCMulticall.sol";
 import { DeployAccessManagerWithRoles } from "../../../scripts/deployments/DeployAccessManagerWithRoles.sol";
 import { AccessManager } from "@openzeppelin-contracts/access/manager/AccessManager.sol";
 import { IBCRolesLib } from "../../../contracts/utils/IBCRolesLib.sol";
+import { IBCIdentifiers } from "../../../contracts/utils/IBCIdentifiers.sol";
+import { Strings } from "@openzeppelin-contracts/utils/Strings.sol";
 
 contract IbcImpl is Test, DeployAccessManagerWithRoles {
+    /// @notice The proxies of an IBC stack
+    struct Contracts {
+        AccessManager accessManager;
+        ICS26Router ics26Router;
+        ICS20Transfer ics20Transfer;
+        ICS27GMP ics27Gmp;
+        IBCMulticall ibcMulticall;
+    }
+
     AccessManager public immutable accessManager;
     ICS26Router public immutable ics26Router;
     ICS20Transfer public immutable ics20Transfer;
     ICS27GMP public immutable ics27Gmp;
     RelayerHelper public immutable relayerHelper;
+    IBCMulticall public immutable ibcMulticall;
 
-    mapping(string counterpartyId => IbcImpl ibcImpl) public counterpartyImpls;
+    /// @notice The first client added, which the helpers send from unless told otherwise
+    string public defaultClientId;
+
+    mapping(string clientId => ILightClientDriver driver) private _drivers;
 
     TestHelper private _th = new TestHelper();
 
     constructor(address permit2) {
+        Contracts memory contracts = _deploy(permit2);
+        accessManager = contracts.accessManager;
+        ics26Router = contracts.ics26Router;
+        ics20Transfer = contracts.ics20Transfer;
+        ics27Gmp = contracts.ics27Gmp;
+        ibcMulticall = contracts.ibcMulticall;
+        relayerHelper = new RelayerHelper(address(contracts.ics26Router));
+    }
+
+    /// @notice Deploys a fresh IBC stack administered by the deployer, where anyone can relay
+    /// @dev Called from the constructor, so an override must not rely on its own state
+    function _deploy(address permit2) internal virtual returns (Contracts memory contracts) {
         // ============ Step 1: Deploy the logic contracts ==============
         address escrowLogic = address(new Escrow());
         address ibcERC20Logic = address(new IBCERC20());
@@ -52,60 +82,71 @@ contract IbcImpl is Test, DeployAccessManagerWithRoles {
         ICS26Router ics26RouterLogic = new ICS26Router();
         ICS20Transfer ics20TransferLogic = new ICS20Transfer();
         ICS27GMP ics27GmpLogic = new ICS27GMP();
+        IBCMulticall ibcMulticallLogic = new IBCMulticall();
 
         // ============== Step 2: Deploy ERC1967 Proxies ==============
-        accessManager = new AccessManager(msg.sender);
+        AccessManager manager = new AccessManager(msg.sender);
 
-        ERC1967Proxy routerProxy = new ERC1967Proxy(
-            address(ics26RouterLogic), abi.encodeCall(ICS26Router.initialize, (address(accessManager)))
-        );
+        ERC1967Proxy routerProxy =
+            new ERC1967Proxy(address(ics26RouterLogic), abi.encodeCall(ICS26Router.initialize, (address(manager))));
 
         ERC1967Proxy transferProxy = new ERC1967Proxy(
             address(ics20TransferLogic),
             abi.encodeCall(
-                ICS20Transfer.initialize,
-                (address(routerProxy), escrowLogic, ibcERC20Logic, permit2, address(accessManager))
+                ICS20Transfer.initialize, (address(routerProxy), escrowLogic, ibcERC20Logic, permit2, address(manager))
             )
         );
 
         ERC1967Proxy gmpProxy = new ERC1967Proxy(
             address(ics27GmpLogic),
-            abi.encodeCall(
-                ICS27GMP.initialize, (address(routerProxy), address(ics27AccountLogic), address(accessManager))
-            )
+            abi.encodeCall(ICS27GMP.initialize, (address(routerProxy), address(ics27AccountLogic), address(manager)))
         );
 
-        ics26Router = ICS26Router(address(routerProxy));
-        ics20Transfer = ICS20Transfer(address(transferProxy));
-        ics27Gmp = ICS27GMP(address(gmpProxy));
-        relayerHelper = new RelayerHelper(address(ics26Router));
+        ERC1967Proxy multicallProxy =
+            new ERC1967Proxy(address(ibcMulticallLogic), abi.encodeCall(IBCMulticall.initialize, (address(manager))));
+
+        contracts = Contracts({
+            accessManager: manager,
+            ics26Router: ICS26Router(address(routerProxy)),
+            ics20Transfer: ICS20Transfer(address(transferProxy)),
+            ics27Gmp: ICS27GMP(address(gmpProxy)),
+            ibcMulticall: IBCMulticall(address(multicallProxy))
+        });
 
         // ============== Step 3: Wire up the contracts ==============
         vm.startPrank(msg.sender);
-        accessManagerSetTargetRoles(
-            accessManager, address(routerProxy), address(transferProxy), address(gmpProxy), true
-        );
-        accessManager.grantRole(IBCRolesLib.ID_CUSTOMIZER_ROLE, msg.sender, 0);
-        accessManager.grantRole(IBCRolesLib.ERC20_CUSTOMIZER_ROLE, msg.sender, 0);
+        accessManagerSetTargetRoles(manager, address(routerProxy), address(transferProxy), address(gmpProxy), true);
+        accessManagerSetMulticallRoles(manager, address(multicallProxy), true);
+        manager.grantRole(IBCRolesLib.ID_CUSTOMIZER_ROLE, msg.sender, 0);
+        manager.grantRole(IBCRolesLib.ERC20_CUSTOMIZER_ROLE, msg.sender, 0);
 
-        ics26Router.addIBCApp(ICS20Lib.DEFAULT_PORT_ID, address(ics20Transfer));
-        ics26Router.addIBCApp(ICS27Lib.DEFAULT_PORT_ID, address(ics27Gmp));
+        contracts.ics26Router.addIBCApp(ICS20Lib.DEFAULT_PORT_ID, address(transferProxy));
+        contracts.ics26Router.addIBCApp(ICS27Lib.DEFAULT_PORT_ID, address(gmpProxy));
         vm.stopPrank();
     }
 
-    /// @notice Adds a counterparty implementation by creating a solidity light client
-    /// @param counterparty The counterparty implementation
-    /// @param counterpartyId The counterparty identifier
-    function addCounterpartyImpl(IbcImpl counterparty, string calldata counterpartyId) public returns (string memory) {
-        ICS26Router counterpartyIcs26 = counterparty.ics26Router();
-        SolidityLightClient lightClient = new SolidityLightClient(counterpartyIcs26);
+    /// @notice The identifier the router assigns to the next client, so a counterparty can register it in advance
+    function nextClientId() external view returns (string memory) {
+        return string.concat(IBCIdentifiers.CLIENT_ID_PREFIX, Strings.toString(ics26Router.getNextClientSeq()));
+    }
 
-        // Set the light client as the counterparty for the current implementation
-        counterpartyImpls[counterpartyId] = counterparty;
-
-        return ics26Router.addClient(
-            IICS02ClientMsgs.CounterpartyInfo(counterpartyId, _th.EMPTY_MERKLE_PREFIX()), address(lightClient)
+    /// @notice Adds a client backed by the light client of `driver`, which also proves the relayed packets
+    /// @param counterpartyId The counterparty client identifier
+    /// @param driver The driver of the light client tracking the counterparty
+    function addClient(
+        string calldata counterpartyId,
+        ILightClientDriver driver
+    )
+        public
+        returns (string memory clientId)
+    {
+        clientId = ics26Router.addClient(
+            IICS02ClientMsgs.CounterpartyInfo(counterpartyId, driver.merklePrefix()), address(driver.lightClient())
         );
+        _drivers[clientId] = driver;
+        if (bytes(defaultClientId).length == 0) {
+            defaultClientId = clientId;
+        }
     }
 
     function sendTransferAsUser(
@@ -117,8 +158,7 @@ contract IbcImpl is Test, DeployAccessManagerWithRoles {
         external
         returns (IICS26RouterMsgs.Packet memory)
     {
-        return
-            sendTransferAsUser(token, sender, receiver, amount, _th.DEFAULT_TIMEOUT_TIMESTAMP(), _th.FIRST_CLIENT_ID());
+        return sendTransferAsUser(token, sender, receiver, amount, _th.DEFAULT_TIMEOUT_TIMESTAMP(), defaultClientId);
     }
 
     function sendTransferAsUser(
@@ -131,7 +171,7 @@ contract IbcImpl is Test, DeployAccessManagerWithRoles {
         external
         returns (IICS26RouterMsgs.Packet memory)
     {
-        return sendTransferAsUser(token, sender, receiver, amount, timeoutTimestamp, _th.FIRST_CLIENT_ID());
+        return sendTransferAsUser(token, sender, receiver, amount, timeoutTimestamp, defaultClientId);
     }
 
     function sendTransferAsUser(
@@ -188,7 +228,7 @@ contract IbcImpl is Test, DeployAccessManagerWithRoles {
         public
         returns (IICS26RouterMsgs.Packet memory)
     {
-        return sendTransferAsUser(token, sender, receiver, _th.FIRST_CLIENT_ID(), permit, signature);
+        return sendTransferAsUser(token, sender, receiver, defaultClientId, permit, signature);
     }
 
     function sendTransferAsUser(
@@ -231,7 +271,7 @@ contract IbcImpl is Test, DeployAccessManagerWithRoles {
         external
         returns (IICS26RouterMsgs.Packet memory)
     {
-        return sendGmpAsUser(sender, receiver, payload, "", "", _th.DEFAULT_TIMEOUT_TIMESTAMP(), _th.FIRST_CLIENT_ID());
+        return sendGmpAsUser(sender, receiver, payload, "", "", _th.DEFAULT_TIMEOUT_TIMESTAMP(), defaultClientId);
     }
 
     function sendGmpAsUser(
@@ -243,8 +283,7 @@ contract IbcImpl is Test, DeployAccessManagerWithRoles {
         external
         returns (IICS26RouterMsgs.Packet memory)
     {
-        return
-            sendGmpAsUser(sender, receiver, payload, salt, "", _th.DEFAULT_TIMEOUT_TIMESTAMP(), _th.FIRST_CLIENT_ID());
+        return sendGmpAsUser(sender, receiver, payload, salt, "", _th.DEFAULT_TIMEOUT_TIMESTAMP(), defaultClientId);
     }
 
     function sendGmpAsUser(
@@ -257,8 +296,7 @@ contract IbcImpl is Test, DeployAccessManagerWithRoles {
         external
         returns (IICS26RouterMsgs.Packet memory)
     {
-        return
-            sendGmpAsUser(sender, receiver, payload, salt, memo, _th.DEFAULT_TIMEOUT_TIMESTAMP(), _th.FIRST_CLIENT_ID());
+        return sendGmpAsUser(sender, receiver, payload, salt, memo, _th.DEFAULT_TIMEOUT_TIMESTAMP(), defaultClientId);
     }
 
     function sendGmpAsUser(
@@ -272,7 +310,7 @@ contract IbcImpl is Test, DeployAccessManagerWithRoles {
         public
         returns (IICS26RouterMsgs.Packet memory)
     {
-        return sendGmpAsUser(sender, receiver, payload, salt, memo, timeoutTimestamp, _th.FIRST_CLIENT_ID());
+        return sendGmpAsUser(sender, receiver, payload, salt, memo, timeoutTimestamp, defaultClientId);
     }
 
     function sendGmpAsUser(
@@ -306,10 +344,9 @@ contract IbcImpl is Test, DeployAccessManagerWithRoles {
     }
 
     function recvPacket(IICS26RouterMsgs.Packet calldata packet) external returns (bytes[] memory acks) {
-        IICS26RouterMsgs.MsgRecvPacket memory msgRecvPacket;
-        msgRecvPacket.packet = packet;
+        IICS26RouterMsgs.MsgRecvPacket memory msgRecvPacket = recvPacketMsg(packet);
         vm.recordLogs();
-        ics26Router.recvPacket(msgRecvPacket);
+        _relay(abi.encodeCall(IICS26RouterAccessControlled.recvPacket, (msgRecvPacket)));
 
         bytes memory ackBz = _th.getValueFromEvent(IICS26Router.WriteAcknowledgement.selector);
         (, acks) = abi.decode(ackBz, (IICS26RouterMsgs.Packet, bytes[]));
@@ -318,24 +355,77 @@ contract IbcImpl is Test, DeployAccessManagerWithRoles {
 
     function ackPacket(IICS26RouterMsgs.Packet calldata packet, bytes[] calldata acks) external {
         require(acks.length == 1, "multiple acks not supported");
-        IICS26RouterMsgs.MsgAckPacket memory msgWriteAck;
-        msgWriteAck.packet = packet;
-        msgWriteAck.acknowledgement = acks[0];
-
-        ics26Router.ackPacket(msgWriteAck);
+        _relay(abi.encodeCall(IICS26RouterAccessControlled.ackPacket, (ackPacketMsg(packet, acks[0]))));
     }
 
     function timeoutPacket(IICS26RouterMsgs.Packet calldata packet) external {
-        IICS26RouterMsgs.MsgTimeoutPacket memory msgTimeoutPacket;
-        msgTimeoutPacket.packet = packet;
+        IICS26RouterMsgs.MsgTimeoutPacket memory msgTimeoutPacket = timeoutPacketMsg(packet);
         vm.recordLogs();
-        ics26Router.timeoutPacket(msgTimeoutPacket);
+        _relay(abi.encodeCall(IICS26RouterAccessControlled.timeoutPacket, (msgTimeoutPacket)));
+    }
+
+    /// @notice Updates the client tracking the packet's source and builds the proven `MsgRecvPacket`
+    function recvPacketMsg(IICS26RouterMsgs.Packet calldata packet)
+        public
+        returns (IICS26RouterMsgs.MsgRecvPacket memory msg_)
+    {
+        msg_.packet = packet;
+        (msg_.proofCommitment, msg_.proofHeight) =
+            _prove(packet.destClient, ICS24Host.packetCommitmentPathCalldata(packet.sourceClient, packet.sequence));
+    }
+
+    /// @notice Updates the client tracking the packet's destination and builds the proven `MsgAckPacket`
+    function ackPacketMsg(
+        IICS26RouterMsgs.Packet calldata packet,
+        bytes calldata ack
+    )
+        public
+        returns (IICS26RouterMsgs.MsgAckPacket memory msg_)
+    {
+        msg_.packet = packet;
+        msg_.acknowledgement = ack;
+        (msg_.proofAcked, msg_.proofHeight) = _prove(
+            packet.sourceClient,
+            ICS24Host.packetAcknowledgementCommitmentPathCalldata(packet.destClient, packet.sequence)
+        );
+    }
+
+    /// @notice Updates the client tracking the packet's destination and builds the proven `MsgTimeoutPacket`
+    function timeoutPacketMsg(IICS26RouterMsgs.Packet calldata packet)
+        public
+        returns (IICS26RouterMsgs.MsgTimeoutPacket memory msg_)
+    {
+        msg_.packet = packet;
+        (msg_.proofTimeout, msg_.proofHeight) = _prove(
+            packet.sourceClient, ICS24Host.packetReceiptCommitmentPathCalldata(packet.destClient, packet.sequence)
+        );
     }
 
     function cheatPacketCommitment(IICS26RouterMsgs.Packet calldata packet) external {
         bytes32 path = ICS24Host.packetCommitmentKeyCalldata(packet.sourceClient, packet.sequence);
         bytes32 value = ICS24Host.packetCommitmentBytes32(packet);
         _cheatCommit(path, value);
+    }
+
+    function _prove(
+        string calldata clientId,
+        bytes memory path
+    )
+        private
+        returns (bytes memory proof, IICS02ClientMsgs.Height memory proofHeight)
+    {
+        bytes memory updateMsg;
+        (updateMsg, proof, proofHeight) = _drivers[clientId].prove(path);
+        if (updateMsg.length != 0) {
+            _relay(abi.encodeCall(IICS02ClientAccessControlled.updateClient, (clientId, updateMsg)));
+        }
+    }
+
+    /// @notice Relays a router call through `ibcMulticall`, reverting with the call's own error if it fails
+    function _relay(bytes memory callData) private {
+        IIBCMulticallMsgs.Call[] memory calls = new IIBCMulticallMsgs.Call[](1);
+        calls[0] = IIBCMulticallMsgs.Call({ target: address(ics26Router), allowFailure: false, callData: callData });
+        ibcMulticall.multicall(calls);
     }
 
     function _cheatCommit(bytes32 path, bytes32 value) private {

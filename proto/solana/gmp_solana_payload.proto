@@ -4,7 +4,7 @@ syntax = "proto3";
 
 package solana;
 
-option go_package = "github.com/cosmos/solidity-ibc-eureka/packages/go-proto/solana";
+option go_package = "github.com/cosmos/ibc-contracts/packages/go-proto/solana";
 
 // `GMPSolanaPayload` represents a Solana instruction for cross-chain execution via GMP
 //

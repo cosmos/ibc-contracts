@@ -67,14 +67,14 @@ The compatibility module must depend on the legacy implementation from the selec
 Use dependency aliases that include the legacy version so imports are explicit:
 
 ```toml
-proof-api-eth-to-cosmos-vX_Y = { package = "proof-api-eth-to-cosmos", git = "https://github.com/cosmos/solidity-ibc-eureka", rev = "<exact-legacy-rev>", default-features = false }
+proof-api-eth-to-cosmos-vX_Y = { package = "proof-api-eth-to-cosmos", git = "https://github.com/cosmos/ibc-contracts", rev = "<exact-legacy-rev>", default-features = false }
 ```
 
 If the target revision predates the current `proof-api` crate layout, import the legacy crate that exposed the equivalent service boundary. The v1.3.0 compatibility module uses the historical relayer crates:
 
 ```toml
-ibc-eureka-relayer-core-v1_3 = { package = "ibc-eureka-relayer-core", git = "https://github.com/cosmos/solidity-ibc-eureka", rev = "035aa5eb171b6608614a9bc4e76e79d61c190e39", default-features = false }
-ibc-eureka-relayer-eth-to-cosmos-v1_3 = { package = "ibc-eureka-relayer-eth-to-cosmos", git = "https://github.com/cosmos/solidity-ibc-eureka", rev = "035aa5eb171b6608614a9bc4e76e79d61c190e39", default-features = false }
+ibc-eureka-relayer-core-v1_3 = { package = "ibc-eureka-relayer-core", git = "https://github.com/cosmos/ibc-contracts", rev = "035aa5eb171b6608614a9bc4e76e79d61c190e39", default-features = false }
+ibc-eureka-relayer-eth-to-cosmos-v1_3 = { package = "ibc-eureka-relayer-eth-to-cosmos", git = "https://github.com/cosmos/ibc-contracts", rev = "035aa5eb171b6608614a9bc4e76e79d61c190e39", default-features = false }
 ```
 
 Avoid floating branches, broad version ranges, or dependencies whose behavior can change without a deliberate compatibility update.

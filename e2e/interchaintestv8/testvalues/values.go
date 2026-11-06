@@ -20,7 +20,7 @@ import (
 
 	"github.com/cosmos/interchaintest/v11/chain/ethereum"
 
-	"github.com/cosmos/solidity-ibc-eureka/packages/go-abigen/ics26router"
+	"github.com/cosmos/ibc-contracts/packages/go-abigen/ics26router"
 )
 
 const (
@@ -58,6 +58,8 @@ const (
 	EnvKeyGenerateWasmFixtures = "GENERATE_WASM_FIXTURES"
 	// EnvKeyGenerateTendermintLightClientFixtures Generate fixtures for the tendermint light client tests if set to true.
 	EnvKeyGenerateTendermintLightClientFixtures = "GENERATE_TENDERMINT_LIGHT_CLIENT_FIXTURES"
+	// EnvKeyGenerateBesuLightClientFixtures Generate fixtures for the Besu light client tests if set to true.
+	EnvKeyGenerateBesuLightClientFixtures = "GENERATE_BESU_LIGHT_CLIENT_FIXTURES"
 	// The log level for the Rust logger.
 	EnvKeyRustLog = "RUST_LOG"
 
@@ -94,6 +96,14 @@ const (
 	// EthTestnetTypePoS uses Kurtosis for full PoS infrastructure with beacon chain
 	EthTestnetTypePoS = "pos"
 
+	// EthTestnetTypeBesuQBFT uses a real 4-validator Besu QBFT network
+	EthTestnetTypeBesuQBFT = "besu-qbft"
+
+	// BesuConsensusQBFT runs Besu networks with QBFT consensus.
+	BesuConsensusQBFT = "qbft"
+	// BesuConsensusIBFT2 runs Besu networks with IBFT 2.0 consensus.
+	BesuConsensusIBFT2 = "ibft2"
+
 	// EthTestnetType_None disables Ethereum chain setup
 	EthTestnetType_None = "none"
 
@@ -109,7 +119,7 @@ const (
 	// Attestor light client (for Cosmos verification on Ethereum)
 	CosmosLcTypeAttestor = "attestor"
 
-	// EnvKeyEthTestnetType The Ethereum testnet type (anvil|pos).
+	// EnvKeyEthTestnetType The Ethereum testnet type (anvil|pos|besu-qbft|none).
 	EnvKeyEthTestnetType = "ETH_TESTNET_TYPE"
 	// EnvKeyEthAnvilCount Number of Anvil chains to create (only when ETH_TESTNET_TYPE=anvil). Defaults to 1.
 	EnvKeyEthAnvilCount = "ETH_ANVIL_COUNT"
@@ -183,20 +193,24 @@ const (
 	// Used as both the E2E deployer (for deterministic contract addresses) and the Anvil faucet.
 	// Address: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
 	E2EDeployerPrivateKeyHex = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-	// DeterministicIFTAddress is the IFT contract address deployed by E2EDeployerPrivateKeyHex at nonce 18.
-	// Nonce 18 is the deployment order of the IFT proxy in E2ETestDeploy.s.sol.
+	// DeterministicIFTAddress is the IFT contract address deployed by E2EDeployerPrivateKeyHex at nonce 20.
+	// Nonce 20 is the deployment order of the IFT proxy in E2ETestDeploy.s.sol.
 	// If the deploy script changes, re-run the test with logging to find the new nonce.
 	// Recompute with: just compute-ift-addresses
-	DeterministicIFTAddress = "0x68B1D87F95878fE05B998F19b66F4baba5De1aed"
+	DeterministicIFTAddress = "0xc6e7DF5E7b4f2A278906862b61205850344D4e7d"
 	// DeterministicICAAddress is the Cosmos ICA address controlled by DeterministicIFTAddress.
-	// Recompute with: just compute-ift-addresses
-	DeterministicICAAddress = "wf1c98z43jf73erjp94y2nde4hpyyugtgvlcc9jwus8s25tpxc703pqfp60zh"
+	// Recompute with: just compute-ift-addresses <E2EDeployerPrivateKeyHex> 20 attestations-0 wf
+	DeterministicICAAddress = "wf1nhvjnhsex0adxgdd5g7yfy7wnj6ezn4zjs652zeddp4drvwyeuuqt7gczu"
 	// EnvKeyIFTICAAddress is the env var for passing ICA address to the deploy script.
 	EnvKeyIFTICAAddress = "IFT_ICA_ADDRESS"
 	// SolanaLedgerDir is the path to the Solana ledger directory.
 	SolanaLedgerDir = "test-ledger"
 	// TendermintLightClientFixturesDir is the directory where the Tendermint light client fixtures are stored.
 	TendermintLightClientFixturesDir = "packages/tendermint-light-client/fixtures/"
+	// BesuBFTFixturesDir is the directory where the Besu BFT light client fixtures are stored.
+	// Relative to the repo root (e2e suites chdir there), and shared with the Foundry suite in
+	// ibc-solidity/test/besu-bft (which resolves it via vm.projectRoot()).
+	BesuBFTFixturesDir = "ibc-solidity/test/besu-bft/fixtures"
 
 	// IbcCommitmentSlotHex is the storage slot in the IBC solidity contract for the IBC commitments.
 	IbcCommitmentSlotHex = ics26router.IbcStoreStorageSlot
@@ -229,8 +243,12 @@ const (
 	ParameterKey_Sp1Verifier = "sp1_verifier"
 	// Zk algorithm parameter key for the proof API's sp1 light client creation.
 	ParameterKey_ZkAlgorithm = "zk_algorithm"
-	// The role manager address parameter key for the proof API's sp1 light client creation.
-	ParameterKey_RoleManager = "role_manager"
+	// Trusting period parameter key for proof API light client creation.
+	ParameterKey_TrustingPeriod = "trusting_period"
+	// Max clock drift parameter key for proof API light client creation.
+	ParameterKey_MaxClockDrift = "max_clock_drift"
+	// Trust level parameter key for the proof API's besu light client creation.
+	ParameterKey_TrustLevel = "trust_level"
 	// Checksum hex parameter key for the proof API's ethereum light client creation.
 	ParameterKey_ChecksumHex = "checksum_hex"
 
@@ -285,6 +303,10 @@ var (
 
 	// DefaultMaxClockDrift is the default maximum clock drift used by ICS07Tendermint (in seconds).
 	DefaultMaxClockDrift = 15
+
+	// DefaultBesuMaxClockDrift is the maximum clock drift used by the Besu light client (in seconds).
+	// It must not exceed the 12 second cap enforced by the Besu light client constructor.
+	DefaultBesuMaxClockDrift = 12
 
 	// MaxUint256 is the maximum value for a uint256.
 	MaxUint256 = uint256.MustFromHex("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")

@@ -1,10 +1,10 @@
-module github.com/srdtrk/solidity-ibc-eureka/tools/compute-ift-addresses
+module github.com/cosmos/ibc-contracts/tools/compute-ift-addresses
 
 go 1.26.5
 
 require (
 	github.com/cosmos/cosmos-sdk v0.55.0
-	github.com/ethereum/go-ethereum v1.17.0
+	github.com/ethereum/go-ethereum v1.17.10
 )
 
 require (

@@ -20,6 +20,7 @@ members = [
     "packages/proof-api/modules/eth-to-cosmos-compat",
     "packages/proof-api/modules/cosmos-to-eth",
     "packages/proof-api/modules/eth-to-eth",
+    "packages/proof-api/modules/besu-to-eth",
     "packages/proof-api/modules/cosmos-to-cosmos",
     "packages/proof-api/modules/solana-to-cosmos",
     "packages/proof-api/modules/cosmos-to-solana",
@@ -49,7 +50,7 @@ resolver = "2"
 version    = "0.1.0"
 edition    = "2021"
 license    = "Apache-2.0"
-repository = "https://github.com/cosmos/solidity-ibc-eureka"
+repository = "https://github.com/cosmos/ibc-contracts"
 keywords   = ["cosmos", "ibc", "sp1", "tendermint", "ethereum", "bridge", "solidity", "eureka"]
 
 [workspace.dependencies]
@@ -60,6 +61,7 @@ proof-api-eth-to-cosmos        = { path = "packages/proof-api/modules/eth-to-cos
 proof-api-eth-to-cosmos-compat = { path = "packages/proof-api/modules/eth-to-cosmos-compat", default-features = false }
 proof-api-cosmos-to-eth        = { path = "packages/proof-api/modules/cosmos-to-eth", default-features = false }
 proof-api-eth-to-eth           = { path = "packages/proof-api/modules/eth-to-eth", default-features = false }
+proof-api-besu-to-eth          = { path = "packages/proof-api/modules/besu-to-eth", default-features = false }
 proof-api-cosmos-to-cosmos     = { path = "packages/proof-api/modules/cosmos-to-cosmos", default-features = false }
 proof-api-solana-to-cosmos     = { path = "packages/proof-api/modules/solana-to-cosmos", default-features = false }
 proof-api-cosmos-to-solana     = { path = "packages/proof-api/modules/cosmos-to-solana", default-features = false }
@@ -122,7 +124,7 @@ futures            = { version = "0.3", default-features = false }
 futures-timer      = { version = "3.0", default-features = false }
 clap               = { version = "4.5", default-features = false, features = ["std"] } # std feature is required for clap
 time               = { version = "0.3", default-features = false }
-dotenv             = { version = "0.15", default-features = false }
+dotenvy            = { version = "0.15", default-features = false }
 thiserror          = { version = "2.0", default-features = false }
 url                = { version = "2.5.7", default-features = false }
 reqwest            = { version = "0.12", default-features = false }
@@ -167,8 +169,8 @@ alloy-provider         = { version = "2.0", default-features = false }
 alloy-transport        = { version = "2.0", default-features = false }
 alloy-rpc-types-eth    = { version = "2.0", default-features = false }
 
-sp1-sdk  = { version = "6.1", default-features = false }
-sp1-cuda = { version = "6.1", default-features = false }
+sp1-sdk  = { version = "6.9", default-features = false }
+sp1-cuda = { version = "6.9", default-features = false }
 
 # NOTE: When updating, use `cargo update -p ed25519-zebra --precise 4.0.3` to avoid pulling in a version that conflicts with cosmwasm-crypto
 cosmwasm-schema = { version = "2.2", default-features = false }
@@ -179,10 +181,10 @@ moka = { version = "0.12", features = ["future"] }
 uuid = { version = "1.18", default-features = false }
 
 # OpenTelemetry
-opentelemetry =         { version = "0.30", default-features = false }
-opentelemetry-otlp =    { version = "0.30", default-features = false }
-opentelemetry_sdk =     { version = "0.30", default-features = false }
-tracing-opentelemetry = { version = "0.31", default-features = false }
+opentelemetry =         { version = "0.33", default-features = false }
+opentelemetry-otlp =    { version = "0.33", default-features = false }
+opentelemetry_sdk =     { version = "0.33", default-features = false }
+tracing-opentelemetry = { version = "0.34", default-features = false }
 
 # The dependencies below are maintained by Sigma Prime (for use in Lighthouse (and the broader Ethereum ecosystem))
 ethereum_ssz        = { version = "0.10", default-features = false }
@@ -205,8 +207,8 @@ smallvec                     = { version = "1.6.1", default-features = false }
 tempfile                     = { version = "3.8.1", default-features = false }
 
 # TODO: Remove these dependencies once ethereum wasm client v1.3.0 backwards compatibility is not needed.
-ibc-eureka-relayer-eth-to-cosmos-v1_3 = { package = "ibc-eureka-relayer-eth-to-cosmos", git = "https://github.com/cosmos/solidity-ibc-eureka", rev = "035aa5eb171b6608614a9bc4e76e79d61c190e39", default-features = false }
-ibc-eureka-relayer-core-v1_3          = { package = "ibc-eureka-relayer-core", git = "https://github.com/cosmos/solidity-ibc-eureka", rev = "035aa5eb171b6608614a9bc4e76e79d61c190e39", default-features = false }
+ibc-eureka-relayer-eth-to-cosmos-v1_3 = { package = "ibc-eureka-relayer-eth-to-cosmos", git = "https://github.com/cosmos/ibc-contracts", rev = "035aa5eb171b6608614a9bc4e76e79d61c190e39", default-features = false }
+ibc-eureka-relayer-core-v1_3          = { package = "ibc-eureka-relayer-core", git = "https://github.com/cosmos/ibc-contracts", rev = "035aa5eb171b6608614a9bc4e76e79d61c190e39", default-features = false }
 
 # Solana dependencies
 solana-client             = { version = "2.0" }

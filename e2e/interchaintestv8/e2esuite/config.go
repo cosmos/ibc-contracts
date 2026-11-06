@@ -12,8 +12,8 @@ import (
 
 	"github.com/cosmos/interchaintest/v11/ibc"
 
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/chainconfig"
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/testvalues"
+	"github.com/cosmos/ibc-contracts/e2e/v8/chainconfig"
+	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
 )
 
 func envInt(key string, defaultVal int) int {
@@ -32,6 +32,10 @@ type ethereumConfig struct {
 // isAnvilBased returns true for testnets using local Anvil chain.
 func (c *ethereumConfig) isAnvilBased() bool {
 	return c.testnetType == testvalues.EthTestnetTypeAnvil
+}
+
+func (c *ethereumConfig) isBesuQBFT() bool {
+	return c.testnetType == testvalues.EthTestnetTypeBesuQBFT
 }
 
 func (c *ethereumConfig) needsPoS() bool {
@@ -61,22 +65,29 @@ func (c *setupConfig) validate() error {
 	ethTestnetType := c.ethereum.testnetType
 	ethLcOnCosmos := c.cosmos.lightClientType
 
-	// Skip validation if no ethereum chain
-	if ethTestnetType == "" || ethTestnetType == testvalues.EthTestnetType_None {
+	switch ethTestnetType {
+	case "", testvalues.EthTestnetType_None:
 		return nil
+	case testvalues.EthTestnetTypeAnvil:
+		if c.ethereum.anvilCount > 1 {
+			return nil
+		}
+		if ethLcOnCosmos == testvalues.EthLCOnCosmosTypeDummyWasm || ethLcOnCosmos == testvalues.EthLCOnCosmosTypeAttestorNative {
+			return nil
+		}
+	case testvalues.EthTestnetTypePoS:
+		if ethLcOnCosmos == testvalues.EthLCOnCosmosTypeFullWasm || ethLcOnCosmos == testvalues.EthLCOnCosmosTypeAttestorNative {
+			return nil
+		}
+	case testvalues.EthTestnetTypeBesuQBFT:
+		if ethLcOnCosmos == testvalues.EthLCOnCosmosTypeAttestorNative {
+			return nil
+		}
+	default:
+		return fmt.Errorf("invalid config: unsupported ETH_TESTNET_TYPE=%s", ethTestnetType)
 	}
 
-	// Anvil cannot use full light client (no beacon chain to verify)
-	if c.ethereum.isAnvilBased() && ethLcOnCosmos == testvalues.EthLCOnCosmosTypeFullWasm {
-		return fmt.Errorf("invalid config: ETH_TESTNET_TYPE=%s cannot use ETH_LC_ON_COSMOS=%s (Anvil doesn't have beacon chain)", ethTestnetType, ethLcOnCosmos)
-	}
-
-	// PoS testnets cannot use dummy light client (requires actual verification)
-	if !c.ethereum.isAnvilBased() && ethLcOnCosmos == testvalues.EthLCOnCosmosTypeDummyWasm {
-		return fmt.Errorf("invalid config: ETH_TESTNET_TYPE=%s cannot use ETH_LC_ON_COSMOS=%s (PoS requires actual verification)", ethTestnetType, ethLcOnCosmos)
-	}
-
-	return nil
+	return fmt.Errorf("invalid config: ETH_TESTNET_TYPE=%s does not support ETH_LC_ON_COSMOS=%s", ethTestnetType, ethLcOnCosmos)
 }
 
 // Result types for parallel chain setup

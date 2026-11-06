@@ -1,0 +1,18 @@
+genesis-file="/opt/besu/genesis.json"
+data-path="/opt/besu/data"
+node-private-key-file="/opt/besu/key"
+data-storage-format="BONSAI"
+bonsai-limit-trie-logs-enabled=false
+rpc-http-enabled=true
+rpc-http-host="0.0.0.0"
+rpc-http-api=["ETH","NET","QBFT","WEB3","DEBUG"]
+host-allowlist=["*"]
+rpc-http-cors-origins=["all"]
+min-gas-price=0
+sync-min-peers=1
+tx-pool="legacy"
+# Peers come only from the static nodes file. Each validator dials only the validators listed before it, so every pair
+# has a single connection. With discovery or two-way dialing, Besu ends up with duplicate connections and its
+# deduplication can close both, which isolates a validator long enough to drop its pending transactions.
+discovery-enabled=false
+static-nodes-file="/opt/besu/static-nodes.json"

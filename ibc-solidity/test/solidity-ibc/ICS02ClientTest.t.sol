@@ -153,4 +153,52 @@ contract ICS02ClientTest is Test {
         vm.prank(unauthorized);
         ics02Client.updateClient(clientIdentifier, updateMsg);
     }
+
+    function test_success_verifyMembership() public {
+        ILightClientMsgs.MsgVerifyMembership memory msg_;
+        msg_.value = "testValue";
+        bytes memory verifyCall = abi.encodeCall(ILightClient.verifyMembership, (msg_));
+        vm.mockCall(lightClient, verifyCall, abi.encode(uint256(42)));
+
+        vm.expectCall(lightClient, verifyCall);
+        vm.prank(relayer);
+        assertEq(ics02Client.verifyMembership(clientIdentifier, msg_), 42);
+    }
+
+    function test_failure_verifyMembership() public {
+        address unauthorized = makeAddr("unauthorized");
+        ILightClientMsgs.MsgVerifyMembership memory msg_;
+
+        vm.expectRevert(abi.encodeWithSelector(IAccessManaged.AccessManagedUnauthorized.selector, unauthorized));
+        vm.prank(unauthorized);
+        ics02Client.verifyMembership(clientIdentifier, msg_);
+
+        vm.expectRevert(abi.encodeWithSelector(IICS02ClientErrors.IBCClientNotFound.selector, "unknown-client"));
+        vm.prank(relayer);
+        ics02Client.verifyMembership("unknown-client", msg_);
+    }
+
+    function test_success_verifyNonMembership() public {
+        ILightClientMsgs.MsgVerifyNonMembership memory msg_;
+        msg_.proof = "testProof";
+        bytes memory verifyCall = abi.encodeCall(ILightClient.verifyNonMembership, (msg_));
+        vm.mockCall(lightClient, verifyCall, abi.encode(uint256(42)));
+
+        vm.expectCall(lightClient, verifyCall);
+        vm.prank(relayer);
+        assertEq(ics02Client.verifyNonMembership(clientIdentifier, msg_), 42);
+    }
+
+    function test_failure_verifyNonMembership() public {
+        address unauthorized = makeAddr("unauthorized");
+        ILightClientMsgs.MsgVerifyNonMembership memory msg_;
+
+        vm.expectRevert(abi.encodeWithSelector(IAccessManaged.AccessManagedUnauthorized.selector, unauthorized));
+        vm.prank(unauthorized);
+        ics02Client.verifyNonMembership(clientIdentifier, msg_);
+
+        vm.expectRevert(abi.encodeWithSelector(IICS02ClientErrors.IBCClientNotFound.selector, "unknown-client"));
+        vm.prank(relayer);
+        ics02Client.verifyNonMembership("unknown-client", msg_);
+    }
 }

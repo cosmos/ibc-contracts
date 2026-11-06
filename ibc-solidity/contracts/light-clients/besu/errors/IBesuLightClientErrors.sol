@@ -1,0 +1,138 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.28;
+
+/// @title Besu Light Client Errors
+/// @notice Error interface for Besu BFT light clients.
+interface IBesuLightClientErrors {
+    /// @notice The revision number must be zero for Besu light client heights.
+    /// @param providedRevisionNumber The non-zero revision number.
+    error InvalidRevisionNumber(uint64 providedRevisionNumber);
+    /// @notice The counterparty ICS26 router address is zero.
+    error InvalidIbcRouter();
+    /// @notice The counterparty router in the proof path does not match the tracked router.
+    /// @param expected The client state's `ibcRouter`.
+    /// @param actual The router address in the proof path.
+    error CounterpartyRouterMismatch(address expected, address actual);
+    /// @notice The storage slot in the proof path is not the `IBCStoreUpgradeable` namespace slot.
+    /// @param expected The `IBCStoreUpgradeable` namespace slot.
+    /// @param actual The storage slot in the proof path.
+    error StorageSlotMismatch(bytes32 expected, bytes32 actual);
+    /// @notice The submitted header has an invalid RLP item count.
+    /// @param itemsLength The decoded header item count.
+    error InvalidHeaderFormat(uint256 itemsLength);
+    /// @notice The submitted `extraData` field has an invalid RLP item count.
+    /// @param itemsLength The decoded `extraData` item count.
+    error InvalidExtraDataFormat(uint256 itemsLength);
+    /// @notice The fifth `extraData` item of the submitted header is not an empty commit seal list.
+    error NonEmptyCommitSealList();
+    /// @notice The submitted header height is zero.
+    error InvalidHeaderHeight();
+    /// @notice The submitted header timestamp is zero.
+    error InvalidHeaderTimestamp();
+    /// @notice The state root is zero or the empty trie root.
+    /// @dev An empty trie root would let any non-membership proof pass without proof nodes.
+    /// @param stateRoot The invalid state root.
+    error InvalidStateRoot(bytes32 stateRoot);
+    /// @notice The storage root is zero or the empty trie root.
+    /// @dev An empty trie root would let any non-membership proof pass without proof nodes.
+    /// @param storageRoot The invalid storage root.
+    error InvalidStorageRoot(bytes32 storageRoot);
+    /// @notice Trusting period must be within `(0, 30 days]`.
+    /// @param trustingPeriod The provided trusting period.
+    error InvalidTrustingPeriod(uint64 trustingPeriod);
+    /// @notice Max clock drift must be at most 12 seconds.
+    /// @param maxClockDrift The provided max clock drift.
+    error InvalidMaxClockDrift(uint64 maxClockDrift);
+    /// @notice Trust level must be within `[1/3, 2/3]` with a non-zero denominator.
+    /// @param numerator The provided numerator.
+    /// @param denominator The provided denominator.
+    error InvalidTrustLevel(uint8 numerator, uint8 denominator);
+    /// @notice The submitted header timestamp is too far in the future.
+    /// @param currentTimestamp The current block timestamp.
+    /// @param headerTimestamp The submitted header timestamp.
+    /// @param maxClockDrift The configured maximum clock drift.
+    error HeaderFromFuture(uint256 currentTimestamp, uint256 headerTimestamp, uint256 maxClockDrift);
+    /// @notice The trusted height must be less than the header height
+    /// @param trustedHeight The submitted trusted height.
+    /// @param headerHeight The submitted header height.
+    error InvalidTrustedHeight(uint64 trustedHeight, uint64 headerHeight);
+    /// @notice No consensus state exists for the requested height.
+    /// @param revisionHeight The requested revision height.
+    error ConsensusStateNotFound(uint64 revisionHeight);
+    /// @notice The trusted consensus state is outside the trusting period.
+    /// @param trustedTimestamp Timestamp of the trusted consensus state.
+    /// @param currentTimestamp The current block timestamp.
+    /// @param trustingPeriod The configured trusting period.
+    error ConsensusStateExpired(uint64 trustedTimestamp, uint256 currentTimestamp, uint64 trustingPeriod);
+    /// @notice The submitted consensus state preimage does not match the expected hash.
+    /// @param expectedHash The expected consensus state hash.
+    /// @param actualHash The hash of the submitted consensus state preimage.
+    error ConsensusStatePreimageMismatch(bytes32 expectedHash, bytes32 actualHash);
+    /// @notice The Besu BFT mix hash is invalid.
+    /// @param actualMixHash The mix hash found in the header.
+    error InvalidMixHash(bytes32 actualMixHash);
+    /// @notice The Besu BFT difficulty is invalid.
+    /// @param actualDifficulty The difficulty found in the header.
+    error InvalidDifficulty(uint256 actualDifficulty);
+    /// @notice The Besu BFT nonce is invalid.
+    /// @param actualNonce The nonce found in the header.
+    error InvalidNonce(bytes actualNonce);
+    /// @notice The ommers hash is invalid.
+    /// @param actualOmmersHash The ommers hash found in the header.
+    error InvalidOmmersHash(bytes32 actualOmmersHash);
+    /// @notice The validator set is empty.
+    error EmptyValidatorSet();
+    /// @notice A validator address is invalid.
+    /// @param validator The invalid validator address.
+    error InvalidValidatorAddress(address validator);
+    /// @notice The validator set is not sorted in ascending order.
+    /// @param index The index of the first unsorted validator.
+    error UnsortedValidatorSet(uint256 index);
+    /// @notice The commit seals are not sorted in strictly ascending order of their recovered signers.
+    /// @param index The index of the first unsorted commit seal signer.
+    error UnsortedCommitSealSigners(uint256 index);
+    /// @notice The update has no commit seals.
+    error EmptyCommitSeals();
+    /// @notice An ECDSA signature has an invalid length.
+    /// @param length The invalid signature length.
+    error InvalidECDSASignatureLength(uint256 length);
+    /// @notice A commit seal did not recover a valid signer.
+    error InvalidCommitSeal();
+    /// @notice The submitted signers do not overlap enough with the trusted validator set.
+    /// @param actual The number of trusted validators that signed.
+    /// @param required The minimum required trusted signer count.
+    error InsufficientTrustedValidatorOverlap(uint256 actual, uint256 required);
+    /// @notice The submitted signers do not meet quorum for the new validator set.
+    /// @param actual The number of new validators that signed.
+    /// @param required The minimum required signer count.
+    error InsufficientValidatorQuorum(uint256 actual, uint256 required);
+    /// @notice A proof path has an invalid length.
+    /// @param expectedLength The expected path length.
+    /// @param actualLength The actual path length.
+    error InvalidPathLength(uint256 expectedLength, uint256 actualLength);
+    /// @notice A proof path element has an invalid length.
+    /// @param expectedLength The expected path element length.
+    /// @param actualLength The actual path element length.
+    error InvalidPathElementLength(uint256 expectedLength, uint256 actualLength);
+    /// @notice A membership value has an invalid length.
+    /// @param expectedLength The expected value length.
+    /// @param actualLength The actual value length.
+    error InvalidValueLength(uint256 expectedLength, uint256 actualLength);
+    /// @notice A proven commitment value does not match the expected value.
+    /// @param expectedValue The expected commitment value.
+    /// @param actualValue The proven commitment value.
+    error InvalidCommitmentValue(bytes32 expectedValue, bytes32 actualValue);
+    /// @notice The client is frozen due to misbehaviour and can no longer be used.
+    error FrozenClientState();
+    /// @notice The submitted exclusion proof is invalid.
+    error InvalidExclusionProof();
+    /// @notice Storage root is not cached for the requested height.
+    /// @param revisionHeight The requested revision height.
+    error StorageRootNotInCache(uint64 revisionHeight);
+    /// @notice The commit seal signer is not in the validator set.
+    /// @param signer The commit seal signer address.
+    error UnknownCommitSealSigner(address signer);
+    /// @notice The submitted misbehaviour evidence does not prove a double sign, time non-monotonicity, a sub-second
+    /// block time, or an invalid validator set change.
+    error NoMisbehaviourDetected();
+}

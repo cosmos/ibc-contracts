@@ -14,9 +14,9 @@ import (
 	icfoundry "github.com/cosmos/interchaintest/v11/chain/ethereum/foundry"
 	"github.com/cosmos/interchaintest/v11/ibc"
 
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/chainconfig"
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/ethereum"
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/testvalues"
+	"github.com/cosmos/ibc-contracts/e2e/v8/chainconfig"
+	"github.com/cosmos/ibc-contracts/e2e/v8/ethereum"
+	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
 )
 
 const (
@@ -82,6 +82,37 @@ func (s *TestSuite) processEthereumPoSResult(ctx context.Context, chain *chainco
 
 	ethChain, err := ethereum.NewEthereum(ctx, chain.RPC, &chain.BeaconApiClient, chain.Faucet)
 	s.Require().NoError(err, "Failed to create Ethereum client")
+	s.Eth.Chains = append(s.Eth.Chains, &ethChain)
+}
+
+func (s *TestSuite) setupEthereumBesuQBFT(ctx context.Context, networkID string) (*chainconfig.BesuChain, error) {
+	params := chainconfig.DefaultBesuParams(testvalues.BesuConsensusQBFT)
+	params.DockerRPCAlias = "besu-qbft-rpc"
+	params.InterchainNetworkID = networkID
+
+	chain, err := chainconfig.SpinUpBesu(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	return &chain, nil
+}
+
+func (s *TestSuite) processEthereumBesuQBFTResult(ctx context.Context, chain *chainconfig.BesuChain) {
+	if chain == nil {
+		return
+	}
+
+	s.T().Cleanup(func() {
+		cleanupCtx := context.Background()
+		if s.T().Failed() {
+			_ = chain.DumpLogs(cleanupCtx)
+		}
+		chain.Destroy(cleanupCtx)
+	})
+
+	ethChain, err := ethereum.NewEthereum(ctx, chain.RPC, nil, chain.Faucet)
+	s.Require().NoError(err, "Failed to create Ethereum client")
+	ethChain.DockerRPC = chain.DockerRPC
 	s.Eth.Chains = append(s.Eth.Chains, &ethChain)
 }
 

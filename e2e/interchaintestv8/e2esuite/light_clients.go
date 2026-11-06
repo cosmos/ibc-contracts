@@ -9,8 +9,8 @@ import (
 	"github.com/cosmos/interchaintest/v11/chain/cosmos"
 	"github.com/cosmos/interchaintest/v11/ibc"
 
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/testvalues"
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/wasm"
+	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
+	"github.com/cosmos/ibc-contracts/e2e/v8/wasm"
 )
 
 // StoreLightClient stores the light client on the given Cosmos chain and returns the hex-encoded checksum of the light client.

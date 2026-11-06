@@ -16,9 +16,10 @@ import (
 	"github.com/cosmos/interchaintest/v11/ibc"
 	"github.com/cosmos/interchaintest/v11/testreporter"
 
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/ethereum"
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/solana"
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/testvalues"
+	"github.com/cosmos/ibc-contracts/e2e/v8/chainconfig"
+	"github.com/cosmos/ibc-contracts/e2e/v8/ethereum"
+	"github.com/cosmos/ibc-contracts/e2e/v8/solana"
+	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
 )
 
 // TestSuite is a suite of tests that require two chains and a relayer
@@ -128,16 +129,25 @@ func (s *TestSuite) setupChainsInParallel(
 		ethPosCh <- ethPosSetupResult{}
 	}
 
+	interchainRes := <-interchainCh
+	s.Require().NoError(interchainRes.err, "Interchain setup failed")
+
+	var ethBesuQBFTChain *chainconfig.BesuChain
+	var ethBesuQBFTErr error
+	if cfg.ethereum.isBesuQBFT() {
+		ethBesuQBFTChain, ethBesuQBFTErr = s.setupEthereumBesuQBFT(ctx, interchainRes.network)
+	}
+
 	solanaRes := <-solanaCh
 	s.Require().NoError(solanaRes.err, "Solana chain setup failed")
 	s.processSolanaResult(solanaRes.chain)
 
-	interchainRes := <-interchainCh
-	s.Require().NoError(interchainRes.err, "Interchain setup failed")
-
 	ethPosRes := <-ethPosCh
 	s.Require().NoError(ethPosRes.err, "Ethereum PoS chain setup failed")
 	s.processEthereumPoSResult(ctx, ethPosRes.chain)
+
+	s.Require().NoError(ethBesuQBFTErr, "Ethereum Besu QBFT chain setup failed")
+	s.processEthereumBesuQBFTResult(ctx, ethBesuQBFTChain)
 
 	return interchainRes.chains, interchainRes.dockerClient, interchainRes.network, interchainRes.logger
 }

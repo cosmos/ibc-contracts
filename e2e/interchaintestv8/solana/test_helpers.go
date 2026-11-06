@@ -17,11 +17,11 @@ import (
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/rpc"
 
-	access_manager "github.com/cosmos/solidity-ibc-eureka/packages/go-anchor/accessmanager"
-	ics07_tendermint "github.com/cosmos/solidity-ibc-eureka/packages/go-anchor/ics07tendermint"
-	ics26_router "github.com/cosmos/solidity-ibc-eureka/packages/go-anchor/ics26router"
+	access_manager "github.com/cosmos/ibc-contracts/packages/go-anchor/accessmanager"
+	ics07_tendermint "github.com/cosmos/ibc-contracts/packages/go-anchor/ics07tendermint"
+	ics26_router "github.com/cosmos/ibc-contracts/packages/go-anchor/ics26router"
 
-	proofapitypes "github.com/srdtrk/solidity-ibc-eureka/e2e/v8/types/proofapi"
+	proofapitypes "github.com/cosmos/ibc-contracts/e2e/v8/types/proofapi"
 )
 
 func (s *Solana) SubmitChunkedRelayPackets(

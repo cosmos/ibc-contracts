@@ -1,0 +1,120 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.28;
+
+import { IICS02ClientMsgs } from "../../../msgs/IICS02ClientMsgs.sol";
+
+/// @title Besu Light Client Messages
+/// @notice Defines shared message and state types for Besu BFT light clients.
+interface IBesuLightClientMsgs {
+    /// @notice Fraction of the trusted validator set that must sign a new header.
+    /// @param numerator Numerator of the fraction.
+    /// @param denominator Denominator of the fraction.
+    struct TrustThreshold {
+        uint8 numerator;
+        uint8 denominator;
+    }
+
+    /// @notice Client state for a Besu BFT light client.
+    /// @param ibcRouter Counterparty ICS26 router address whose storage is proven.
+    /// @param latestHeight Latest trusted Besu height.
+    /// @param trustingPeriod Maximum age in seconds for a trusted consensus state. Must be within `(0, 30 days]`.
+    /// @param maxClockDrift Maximum allowed future drift in seconds for submitted headers. Must be at most 12 seconds.
+    /// @param isFrozen Whether the client has been permanently frozen due to misbehaviour.
+    /// @param trustLevel Minimum fraction of the trusted validator set that must sign a new header.
+    struct ClientState {
+        address ibcRouter;
+        IICS02ClientMsgs.Height latestHeight;
+        uint64 trustingPeriod;
+        uint64 maxClockDrift;
+        bool isFrozen;
+        TrustThreshold trustLevel;
+    }
+
+    /// @notice Trusted consensus state for a Besu height.
+    /// @param timestamp Header timestamp in seconds.
+    /// @param stateRoot Root of the state trie at the given height.
+    /// @param validators Validator set committed in the header.
+    struct ConsensusState {
+        uint64 timestamp;
+        bytes32 stateRoot;
+        address[] validators;
+    }
+
+    /// @notice Update message containing a Besu header, its commit seals, and the trusted consensus state preimage.
+    /// @param headerRlp RLP-encoded Besu block header in its commit seal signing form: the commit seals are removed
+    /// from `extraData`, leaving 4 `extraData` items for IBFT 2.0 or 5 items ending in an empty seal list for QBFT.
+    /// The commit seal digest is `keccak256(headerRlp)`.
+    /// @param commitSeals 65-byte ECDSA commit seals (r||s||v, with 27/28 recovery ids) over `keccak256(headerRlp)`,
+    /// ordered by recovered signer address in strictly ascending order.
+    /// @param trustedHeight Previously trusted height used for weak-subjectivity checks.
+    /// @param consensusStatePreimage Preimage of the trusted consensus state at `trustedHeight`.
+    struct MsgUpdateClient {
+        bytes headerRlp;
+        bytes[] commitSeals;
+        IICS02ClientMsgs.Height trustedHeight;
+        ConsensusState consensusStatePreimage;
+    }
+
+    /// @notice Storage proof against the tracked router account, used for membership and non-membership.
+    /// @param consensusStatePreimage Preimage of the trusted consensus state at `msg_.proofHeight`.
+    /// @param accountProofNodes Ordered, RLP-encoded MPT nodes from the state trie proving the tracked router account.
+    /// @param proofNodes Ordered, RLP-encoded MPT nodes from the router account storage trie.
+    struct MembershipProof {
+        ConsensusState consensusStatePreimage;
+        bytes[] accountProofNodes;
+        bytes[] proofNodes;
+    }
+
+    /// @notice Misbehaviour message containing two conflicting trusted consensus states at different heights.
+    /// @dev Time monotonicity check is done during updateClient, however, it is possible that the check is bypassed if
+    /// a suitable trusted consensus state is provided. This misbehavior message is used to freeze the client by simply
+    /// providing two consensus states that are trusted but have timestamps that are not monotonic. The same evidence
+    /// also freezes the client if the timestamps of the two states increase by less than one second per block, or if
+    /// their validator sets differ by more validators than their height difference. The states only need to match their
+    /// stored hashes; they may be past their trusting period.
+    /// @param height1 Height of the first trusted consensus state.
+    /// @param height2 Height of the second trusted consensus state. Must differ from `height1`; order is irrelevant.
+    /// @param consensusStatePreimage1 Preimage of the first trusted consensus state.
+    /// @param consensusStatePreimage2 Preimage of the second trusted consensus state.
+    struct MsgConflictingConsensusStatesMisbehaviour {
+        IICS02ClientMsgs.Height height1;
+        IICS02ClientMsgs.Height height2;
+        ConsensusState consensusStatePreimage1;
+        ConsensusState consensusStatePreimage2;
+    }
+
+    /// @notice Misbehaviour message containing two validly signed headers that conflict with each other.
+    /// @dev Each header is verified against its own trusted consensus state exactly as in `updateClient`, except that
+    /// the clock drift check is skipped. A header whose timestamp is not greater than its trusted consensus state's
+    /// timestamp proves time non-monotonicity on its own; the other header may then be any valid header, including
+    /// the same one. Otherwise, headers at the same height with different consensus states prove a double sign, and
+    /// headers at different heights where the lower header's timestamp is not less than the higher header's
+    /// timestamp prove time non-monotonicity. The same applies to timestamps that increase by less than one second per
+    /// block and to a validator set change of more validators than the height difference, whether between a header and
+    /// its trusted consensus state or between the two headers. The headers may be in either order and need not be
+    /// stored.
+    /// @param update1 The first header with its trusted consensus state.
+    /// @param update2 The second header with its trusted consensus state.
+    struct MsgConflictingHeadersMisbehaviour {
+        MsgUpdateClient update1;
+        MsgUpdateClient update2;
+    }
+
+    /// @notice The type of misbehaviour evidence in a `MsgSubmitMisbehaviour`.
+    enum MisbehaviourType {
+        /// Two stored consensus states that conflict with each other. The evidence is an
+        /// `abi.encode(MsgConflictingConsensusStatesMisbehaviour)`.
+        ConflictingConsensusStates,
+        /// Two validly signed headers that conflict with each other or with their trusted consensus states. The
+        /// evidence is an `abi.encode(MsgConflictingHeadersMisbehaviour)`.
+        ConflictingHeaders
+    }
+
+    /// @notice Misbehaviour message accepted by `misbehaviour(bytes)`.
+    /// @param misbehaviourType The type of the encoded evidence.
+    /// @param misbehaviour The ABI-encoded evidence message for `misbehaviourType`.
+    struct MsgSubmitMisbehaviour {
+        MisbehaviourType misbehaviourType;
+        bytes misbehaviour;
+    }
+}

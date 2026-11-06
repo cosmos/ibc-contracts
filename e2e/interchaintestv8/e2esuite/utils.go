@@ -3,6 +3,7 @@
 package e2esuite
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/sha256"
@@ -19,6 +20,7 @@ import (
 	"github.com/cosmos/gogoproto/proto"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 
 	errorsmod "cosmossdk.io/errors"
@@ -48,10 +50,13 @@ import (
 	"github.com/cosmos/interchaintest/v11/ibc"
 	"github.com/cosmos/interchaintest/v11/testutil"
 
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/ethereum"
-	ibctesting "github.com/srdtrk/solidity-ibc-eureka/e2e/v8/ibctesting"
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/testvalues"
-	ethereumtypes "github.com/srdtrk/solidity-ibc-eureka/e2e/v8/types/ethereum"
+	"github.com/cosmos/ibc-contracts/packages/go-abigen/ibcmulticall"
+	"github.com/cosmos/ibc-contracts/packages/go-abigen/ics26router"
+
+	"github.com/cosmos/ibc-contracts/e2e/v8/ethereum"
+	ibctesting "github.com/cosmos/ibc-contracts/e2e/v8/ibctesting"
+	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
+	ethereumtypes "github.com/cosmos/ibc-contracts/e2e/v8/types/ethereum"
 )
 
 // broadcastMessages is the shared broadcast path. Pass waitBlocks=0 to skip the post-inclusion wait.
@@ -130,6 +135,19 @@ func GetEvmEvent[T any](receipt *ethtypes.Receipt, parseFn func(log ethtypes.Log
 	}
 
 	return event, err
+}
+
+// GetEvmEvents parses the logs in the given receipt and returns every event that can be parsed
+func GetEvmEvents[T any](receipt *ethtypes.Receipt, parseFn func(log ethtypes.Log) (*T, error)) []T {
+	var events []T
+	for _, l := range receipt.Logs {
+		event, err := parseFn(*l)
+		if err == nil && event != nil {
+			events = append(events, *event)
+		}
+	}
+
+	return events
 }
 
 func (s *TestSuite) GetTransactOpts(key *ecdsa.PrivateKey, chain *ethereum.Ethereum) *bind.TransactOpts {
@@ -486,4 +504,36 @@ func StripHTTPPrefix(endpoint string) string {
 	endpoint = strings.TrimPrefix(endpoint, "https://")
 	endpoint = strings.TrimPrefix(endpoint, "http://")
 	return endpoint
+}
+
+// RequireMulticallRejected requires that the `IBCMulticall` relay tx delivered no packet. Either the batch reverted, or
+// it landed and every packet call in it was rolled back and reported with `CallFailed`. Client updates may succeed.
+func (s *TestSuite) RequireMulticallRejected(multicallAddress ethcommon.Address, relayTx []byte, receipt *ethtypes.Receipt, broadcastErr error) {
+	if broadcastErr != nil {
+		return
+	}
+
+	calls, err := ethereum.UnpackIBCMulticall(relayTx)
+	s.Require().NoError(err)
+	ics26ABI, err := ics26router.ContractMetaData.GetAbi()
+	s.Require().NoError(err)
+	multicall, err := ibcmulticall.NewContractFilterer(multicallAddress, nil)
+	s.Require().NoError(err)
+
+	// The parser only matches the event signature, so skip logs emitted by any other contract
+	failed := make(map[uint64]bool)
+	for _, l := range receipt.Logs {
+		if l.Address != multicallAddress {
+			continue
+		}
+		if event, err := multicall.ParseCallFailed(*l); err == nil {
+			failed[event.Index.Uint64()] = true
+		}
+	}
+	for i, call := range calls {
+		if bytes.Equal(call[:4], ics26ABI.Methods["updateClient"].ID) {
+			continue
+		}
+		s.Require().True(failed[uint64(i)], "packet call %d of the relay was delivered", i)
+	}
 }

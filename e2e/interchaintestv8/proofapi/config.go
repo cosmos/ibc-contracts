@@ -9,10 +9,9 @@ import (
 	"math/rand"
 	"net"
 	"os"
-	"text/template"
 	"time"
 
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/testvalues"
+	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
 )
 
 const (
@@ -21,6 +20,7 @@ const (
 	ModuleEthToCosmos       = "eth_to_cosmos"
 	ModuleEthToCosmosCompat = "eth_to_cosmos_compat"
 	ModuleEthToEth          = "eth_to_eth"
+	ModuleBesuToEth         = "besu_to_eth"
 	ModuleSolanaToCosmos    = "solana_to_cosmos"
 	ModuleCosmosToSolana    = "cosmos_to_solana"
 	ModuleEthToSolana       = "eth_to_solana"
@@ -148,43 +148,19 @@ func NewConfig(modules []ModuleConfig) Config {
 	}
 }
 
-// GenerateConfig creates a config from the template
+// GenerateConfigFile writes the config as JSON.
 func (c *Config) GenerateConfigFile(filePath string) error {
-	tmpl, err := template.ParseFiles("e2e/interchaintestv8/proofapi/config.tmpl")
+	config := *c
+	if config.Modules == nil {
+		config.Modules = []ModuleConfig{}
+	}
+
+	contents, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
 		return err
 	}
 
-	f, err := os.Create(filePath)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	return tmpl.Execute(f, c)
-}
-
-// ToJSON converts a ModuleConfig to JSON string - designed for use in templates
-func (mc ModuleConfig) ToJSON() string {
-	jsonBytes, err := json.MarshalIndent(mc, "", "  ")
-	if err != nil {
-		return fmt.Sprintf("\"Error generating JSON: %s\"", err)
-	}
-	return string(jsonBytes)
-}
-
-// ModulesToJSON converts a slice of ModuleConfig to a JSON string
-func ModulesToJSON(modules []ModuleConfig) (string, error) {
-	if len(modules) == 0 {
-		return "[]", nil
-	}
-
-	jsonBytes, err := json.MarshalIndent(modules, "", "  ")
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal modules to JSON: %w", err)
-	}
-
-	return string(jsonBytes), nil
+	return os.WriteFile(filePath, append(contents, '\n'), 0o600)
 }
 
 // EthToCosmosModuleConfig represents the configuration for eth_to_cosmos module
@@ -239,19 +215,32 @@ func (m SP1Mode) MarshalJSON() ([]byte, error) {
 
 // CosmosToEthModuleConfig represents the configuration for cosmos_to_eth module.
 type CosmosToEthModuleConfig struct {
-	TmRpcUrl     string        `json:"tm_rpc_url"`
-	Ics26Address string        `json:"ics26_address"`
-	EthRpcUrl    string        `json:"eth_rpc_url"`
-	Mode         TxBuilderMode `json:"mode"`
+	TmRpcUrl            string        `json:"tm_rpc_url"`
+	Ics26Address        string        `json:"ics26_address"`
+	IbcMulticallAddress string        `json:"ibc_multicall_address"`
+	EthRpcUrl           string        `json:"eth_rpc_url"`
+	Mode                TxBuilderMode `json:"mode"`
 }
 
 // EthToEthModuleConfig represents the configuration for eth_to_eth module
 type EthToEthModuleConfig struct {
-	SrcRpcUrl       string        `json:"src_rpc_url"`
-	SrcIcs26Address string        `json:"src_ics26_address"`
-	DstRpcUrl       string        `json:"dst_rpc_url"`
-	DstIcs26Address string        `json:"dst_ics26_address"`
-	Mode            TxBuilderMode `json:"mode"`
+	SrcRpcUrl              string        `json:"src_rpc_url"`
+	SrcIcs26Address        string        `json:"src_ics26_address"`
+	DstRpcUrl              string        `json:"dst_rpc_url"`
+	DstIcs26Address        string        `json:"dst_ics26_address"`
+	DstIbcMulticallAddress string        `json:"dst_ibc_multicall_address"`
+	Mode                   TxBuilderMode `json:"mode"`
+}
+
+// BesuToEthModuleConfig represents the configuration for besu_to_eth module.
+type BesuToEthModuleConfig struct {
+	SrcRPCURL       string `json:"src_rpc_url"`
+	SrcICS26Address string `json:"src_ics26_address"`
+	DstRPCURL       string `json:"dst_rpc_url"`
+	DstICS26Address string `json:"dst_ics26_address"`
+	// DstIBCMulticallAddress is the destination multicall that relay transactions are submitted to.
+	DstIBCMulticallAddress string `json:"dst_ibc_multicall_address"`
+	ConsensusType          string `json:"consensus_type"`
 }
 
 // AttestorConfig represents the attestor configuration section
@@ -336,5 +325,6 @@ type SolanaToEthModuleConfig struct {
 	SolanaIcs26ProgramId string        `json:"solana_ics26_program_id"`
 	EthRpcUrl            string        `json:"eth_rpc_url"`
 	Ics26Address         string        `json:"ics26_address"`
+	IbcMulticallAddress  string        `json:"ibc_multicall_address"`
 	Mode                 TxBuilderMode `json:"mode"`
 }

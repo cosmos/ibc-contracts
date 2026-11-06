@@ -7,6 +7,7 @@ import (
 	"crypto/ecdsa"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"time"
 
@@ -20,13 +21,16 @@ import (
 
 	"github.com/cosmos/interchaintest/v11/testutil"
 
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/ethereum"
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/testvalues"
+	"github.com/cosmos/ibc-contracts/e2e/v8/ethereum"
+	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
 )
 
 const (
 	// ethereumPackageId is the package ID used by Kurtosis to find the Ethereum package we use for the testnet
-	ethereumPackageId = "github.com/ethpandaops/ethereum-package@6.0.0"
+	ethereumPackageId = "github.com/ethpandaops/ethereum-package@5795b77e65235ad223d4d3b413b2739190bf60cc"
+
+	// farFutureEpoch is the epoch the package uses for a fork that is never scheduled
+	farFutureEpoch uint64 = math.MaxUint64
 
 	faucetPrivateKey = "0x04b9f63ecf84210c5366c66d68fa1f5da1fa4f634fad6dfc86178e4d79ff9e59"
 )
@@ -37,11 +41,13 @@ var (
 	KurtosisConfig = kurtosisNetworkParams{
 		Participants: []kurtosisParticipant{
 			{
-				CLType:         "lodestar",
-				CLImage:        "chainsafe/lodestar:v1.40.0",
-				ELType:         "geth",
-				ELImage:        "ethereum/client-go:v1.16.8",
-				ELExtraParams:  []string{"--gcmode=archive"},
+				CLType:  "lodestar",
+				CLImage: "chainsafe/lodestar:v1.50.1",
+				ELType:  "geth",
+				ELImage: "ethereum/client-go:v1.17.10",
+				// The package omits --syncmode for archive nodes, and geth's default of snap
+				// sync never completes on this single-node network
+				ELExtraParams:  []string{"--gcmode=archive", "--syncmode=full"},
 				ELLogLevel:     "info",
 				ValidatorCount: 128,
 				// Supernode required for Fulu testing
@@ -52,6 +58,9 @@ var (
 		NetworkParams: kurtosisNetworkConfigParams{
 			Preset:        "minimal",
 			FuluForkEpoch: 1,
+			// The package schedules BPO1 and BPO2 at genesis by default, which it rejects when Fulu is not at genesis
+			BPO1Epoch: 1,
+			BPO2Epoch: farFutureEpoch,
 		},
 		WaitForFinalization: true,
 		AdditionalServices:  []string{},
@@ -119,6 +128,10 @@ type kurtosisNetworkConfigParams struct {
 	SlotDuration uint64 `json:"slot_duration_ms,omitempty"`
 	// Fulu fork epoch
 	FuluForkEpoch uint64 `json:"fulu_fork_epoch"`
+	// BPO1 fork epoch
+	BPO1Epoch uint64 `json:"bpo_1_epoch"`
+	// BPO2 fork epoch
+	BPO2Epoch uint64 `json:"bpo_2_epoch"`
 }
 
 // SpinUpKurtosisPoS spins up a kurtosis enclave with Etheruem PoS testnet using github.com/ethpandaops/ethereum-package

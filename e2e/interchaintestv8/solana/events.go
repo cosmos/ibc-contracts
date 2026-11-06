@@ -15,7 +15,7 @@ import (
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/rpc"
 
-	ics26router "github.com/cosmos/solidity-ibc-eureka/packages/go-anchor/ics26router"
+	ics26router "github.com/cosmos/ibc-contracts/packages/go-anchor/ics26router"
 )
 
 // EventDiscriminator calculates the 8-byte discriminator for an Anchor event.

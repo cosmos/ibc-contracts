@@ -63,7 +63,6 @@ abstract contract RateLimitUpgradeable is IRateLimitErrors, IRateLimit, AccessMa
 
         bytes32 dailyTokenKey = _getDailyTokenKey(token);
         uint256 usage = $._dailyUsage[dailyTokenKey] + amount;
-        // solhint-disable-next-line gas-strict-inequalities
         require(usage <= rateLimit, RateLimitExceeded(rateLimit, usage));
 
         $._dailyUsage[dailyTokenKey] = usage;

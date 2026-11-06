@@ -1,18 +1,19 @@
 {
-  "name": "@cosmos/solidity-ibc-eureka",
+  "name": "@cosmos/ibc-contracts",
   "description": "This is a solidity implementation of ibc-eureka.",
   "version": "1.0.0",
   "license": "Apache-2.0",
   "dependencies": {
-    "@openzeppelin/contracts": "^5.6.1",
-    "@openzeppelin/contracts-upgradeable": "^5.6.1",
+    "@openzeppelin/contracts": "^5.7.0",
+    "@openzeppelin/contracts-upgradeable": "^5.7.0",
     "@uniswap/permit2": "github:Uniswap/permit2#cc56ad0f3439c502c246fc5cfcc3db92bb8b7219"
   },
   "devDependencies": {
     "sp1-contracts": "github:succinctlabs/sp1-contracts#d3629729c3216eb51bd4859d027a8eb729399fa4",
-    "forge-std": "github:foundry-rs/forge-std#v1.15.0",
-    "solhint": "^6.2.1",
-    "quicktype": "^23.2.6"
+    "forge-std": "github:foundry-rs/forge-std#v1.17.0",
+    "prettier": "^3.9.10",
+    "solhint": "^6.2.5",
+    "quicktype": "^26.0.0"
   },
   "keywords": [
     "blockchain",
@@ -25,9 +26,17 @@
   ],
   "private": true,
   "scripts": {
+    "benchmarks:check": "bun benchmarks/generate.ts check",
+    "benchmarks:ci": "bun run lint:benchmarks && bun run test:benchmarks && bun run benchmarks:check",
+    "benchmarks:update": "bun benchmarks/generate.ts update",
+    "lint:benchmarks": "prettier --check 'benchmarks/*.ts'",
     "lint:sol": "forge fmt --check && bun solhint -w 0 '{scripts,contracts,test}/**/*.sol'",
-    "lint:natspec": "bun natspec-smells --include 'contracts/**/*.sol'",
+    "test:benchmarks": "bun test benchmarks",
     "test:coverage": "forge coverage",
     "test:coverage:report": "forge coverage --report lcov && genhtml lcov.info --branch-coverage --output-dir coverage"
+  },
+  "overrides": {
+    "glob": "^14.0.3",
+    "stream-json": "^3.7.0"
   }
 }

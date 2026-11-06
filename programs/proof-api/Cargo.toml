@@ -11,6 +11,7 @@ proof-api-eth-to-cosmos        = { workspace = true, default-features = false }
 proof-api-eth-to-cosmos-compat = { workspace = true, default-features = false }
 proof-api-cosmos-to-eth        = { workspace = true, default-features = false }
 proof-api-eth-to-eth           = { workspace = true, default-features = false }
+proof-api-besu-to-eth          = { workspace = true, default-features = false }
 proof-api-cosmos-to-cosmos     = { workspace = true, default-features = false }
 proof-api-solana-to-cosmos     = { workspace = true, default-features = false }
 proof-api-cosmos-to-solana     = { workspace = true, default-features = false }
@@ -36,6 +37,6 @@ opentelemetry_sdk     = { workspace = true, default-features = true, features = 
 uuid = { workspace = true, default-features = true, features = ["v4", "serde"] }
 
 # OTEL logs bridge for tracing events
-opentelemetry-appender-tracing = "0.30"
+opentelemetry-appender-tracing = "0.33"
 # Bridge `log` crate records into `tracing`
 tracing-log = "0.2"

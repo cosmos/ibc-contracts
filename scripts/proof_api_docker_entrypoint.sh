@@ -3,8 +3,10 @@
 
 set -euxo pipefail
 
-# This script expects an environment variable SP1_PROGRAM_VERSIONS
+# This script expects an environment variable SP1_PROGRAM_VERSIONS.
+# SP1_PROGRAMS_REPO (owner/repo) selects the GitHub repository the releases are downloaded from.
 
+SP1_PROGRAMS_REPO="${SP1_PROGRAMS_REPO:-cosmos/ibc-contracts}"
 PROGRAMS="sp1-ics07-tendermint-membership sp1-ics07-tendermint-update-client sp1-ics07-tendermint-uc-and-membership sp1-ics07-tendermint-misbehaviour"
 
 # Check if the environment variable is set
@@ -18,7 +20,7 @@ else
 
     # Download each program for the current version
     for program in $PROGRAMS; do
-        wget --no-check-certificate https://github.com/cosmos/solidity-ibc-eureka/releases/download/sp1-programs-$version/$program -O $target_dir/$program
+        wget --no-check-certificate https://github.com/$SP1_PROGRAMS_REPO/releases/download/sp1-programs-$version/$program -O $target_dir/$program
     done
   done
 fi

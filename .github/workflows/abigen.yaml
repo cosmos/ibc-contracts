@@ -5,11 +5,18 @@ name: abigen
 permissions: {}
 
 on:
+  merge_group:
+    types: [checks_requested]
   workflow_dispatch:
   pull_request:
     paths:
       - 'ibc-solidity/abi/**'
+      - 'ibc-solidity/solidity.just'
       - 'packages/go-abigen/**'
+      - 'e2e/interchaintestv8/types/**'
+      - 'e2e/interchaintestv8/go.mod'
+      - 'e2e/interchaintestv8/go.sum'
+      - '.github/workflows/abigen.yaml'
       - '**.sol'
       - 'ibc-solidity/bun.lock'
   push:
@@ -17,46 +24,55 @@ on:
       - main
     paths:
       - 'ibc-solidity/abi/**'
+      - 'ibc-solidity/solidity.just'
       - 'packages/go-abigen/**'
+      - 'e2e/interchaintestv8/types/**'
+      - 'e2e/interchaintestv8/go.mod'
+      - 'e2e/interchaintestv8/go.sum'
+      - '.github/workflows/abigen.yaml'
+      - '**.sol'
+      - 'ibc-solidity/bun.lock'
 
 jobs:
   check:
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up environment
         uses: ./.github/actions/foundry-setup
 
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: 1.26.5
 
       - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
 
       - name: Install abigen
-        run: go install github.com/ethereum/go-ethereum/cmd/abigen@be4dc0c4be2fe316dbdd0a73e48421f64978232f # v1.17.2
+        run: go install github.com/ethereum/go-ethereum/cmd/abigen@9621c6ad10934a01b5514886fb6fbd87640b6c05 # v1.17.5
 
-      - name: Run abigen
+      - name: Generate contract artifacts
         run: just solidity::generate-abi
 
-      - name: Check for diffs in go-abigen
+      - name: Check generated contract artifacts
         run: |
-          if ! git diff --quiet HEAD -- packages/go-abigen; then
-            echo "Git diff found in the selected directory. Failing the job."
+          if [ -n "$(git status --short --untracked-files=all -- ibc-solidity/abi packages/go-abigen e2e/interchaintestv8/types/erc20)" ]; then
+            echo "Generated contract artifacts are stale."
+            git status --short --untracked-files=all -- ibc-solidity/abi packages/go-abigen e2e/interchaintestv8/types/erc20
+            git diff --stat -- ibc-solidity/abi packages/go-abigen e2e/interchaintestv8/types/erc20
             exit 1
           else
-            echo "No changes detected in the selected directory."
+            echo "Generated contract artifacts are current."
           fi
 
   golangci:
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: 1.26.5
           cache-dependency-path: packages/go-abigen/go.sum
@@ -68,12 +84,12 @@ jobs:
           working-directory: packages/go-abigen
 
   test:
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: 1.26.5
           cache-dependency-path: packages/go-abigen/go.sum

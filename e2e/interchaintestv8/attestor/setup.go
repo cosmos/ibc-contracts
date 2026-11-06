@@ -14,7 +14,7 @@ import (
 	dockerclient "github.com/moby/moby/client"
 	"github.com/stretchr/testify/require"
 
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/testvalues"
+	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
 )
 
 // TransformLocalhostToDockerHost transforms localhost URLs to use host.docker.internal
@@ -203,6 +203,7 @@ func SetupAttestors(ctx context.Context, t *testing.T, params SetupParams) Setup
 // chainType should be ChainTypeEvm for PoW chains or ChainTypeCosmos for PoS chains.
 func SetupEthAttestors(ctx context.Context, t *testing.T, client *dockerclient.Client, networkID, ethRPC, ics26Address string, chainType ChainType) SetupResult {
 	t.Helper()
+	require.NotEmpty(t, ethRPC, "Ethereum attestors require a Docker-reachable Ethereum RPC URL")
 	return SetupAttestors(ctx, t, SetupParams{
 		NumAttestors:         testvalues.NumAttestors,
 		KeystorePathTemplate: testvalues.AttestorKeystorePathTemplate,

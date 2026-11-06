@@ -19,12 +19,12 @@ on:
 jobs:
   build-08-wasm-eth:
     name: build-08-wasm-eth
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     continue-on-error: true
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install just
         uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
@@ -35,7 +35,7 @@ jobs:
           echo "sha256=$(gunzip -c e2e/interchaintestv8/wasm/cw_ics08_wasm_eth.wasm.gz | sha256sum | awk '{print $1}')" >> "$GITHUB_OUTPUT"
 
       - name: Build optimized WASM binary with Docker
-        run: just build-cw-ics08-wasm-eth
+        run: just solidity::build-cw-ics08-wasm-eth
 
       - name: Verify built binary matches committed binary
         run: |

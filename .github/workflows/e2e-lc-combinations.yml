@@ -33,7 +33,7 @@ env:
   E2E_WASM_LIGHT_CLIENT_TAG: ${{ inputs.wasm-light-client-tag || 'local' }}
   SP1_PROVER: mock
   E2E_PROOF_TYPE: groth16
-  SP1_VERSION: "6.1.0"
+  SP1_VERSION: "6.9.0"
   IBC_ATTESTOR_IMAGE: ghcr.io/cosmos/ibc-attestor:v0.3.0
   SOLANA_VERSION: "2.3.13"
   ANCHOR_VERSION: "0.32.1"
@@ -42,15 +42,20 @@ permissions: {}
 
 jobs:
   build-e2e-programs:
-    runs-on: depot-ubuntu-24.04-4
+    # The Rust (SP1, proof-api, operator) and Solana builds take ~20-30 min each; run them in parallel.
+    strategy:
+      matrix:
+        component: [rust, solana]
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Build E2E artifacts
         uses: ./.github/actions/e2e-build
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          component: ${{ matrix.component }}
 
   e2e-lc-combinations:
     needs: build-e2e-programs
@@ -72,12 +77,12 @@ jobs:
       ETH_LC_ON_COSMOS: ${{ matrix.eth_lc_on_cosmos }}
       COSMOS_LC_ON_ETH: ${{ matrix.cosmos_lc_on_eth }}
 
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: read
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up E2E environment
         uses: ./.github/actions/e2e-setup
         with:

@@ -34,21 +34,21 @@ import (
 
 	"github.com/cosmos/interchaintest/v11/ibc"
 
-	"github.com/cosmos/solidity-ibc-eureka/packages/go-abigen/ibcerc20"
-	"github.com/cosmos/solidity-ibc-eureka/packages/go-abigen/ics20transfer"
-	"github.com/cosmos/solidity-ibc-eureka/packages/go-abigen/ics26router"
-	"github.com/cosmos/solidity-ibc-eureka/packages/go-abigen/sp1ics07tendermint"
+	"github.com/cosmos/ibc-contracts/packages/go-abigen/ibcerc20"
+	"github.com/cosmos/ibc-contracts/packages/go-abigen/ics20transfer"
+	"github.com/cosmos/ibc-contracts/packages/go-abigen/ics26router"
+	"github.com/cosmos/ibc-contracts/packages/go-abigen/sp1ics07tendermint"
 
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/chainconfig"
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/cosmos"
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/e2esuite"
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/ethereum"
-	ibctesting "github.com/srdtrk/solidity-ibc-eureka/e2e/v8/ibctesting"
-	proofapi "github.com/srdtrk/solidity-ibc-eureka/e2e/v8/proofapi"
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/testvalues"
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/types"
-	"github.com/srdtrk/solidity-ibc-eureka/e2e/v8/types/erc20"
-	proofapitypes "github.com/srdtrk/solidity-ibc-eureka/e2e/v8/types/proofapi"
+	"github.com/cosmos/ibc-contracts/e2e/v8/chainconfig"
+	"github.com/cosmos/ibc-contracts/e2e/v8/cosmos"
+	"github.com/cosmos/ibc-contracts/e2e/v8/e2esuite"
+	"github.com/cosmos/ibc-contracts/e2e/v8/ethereum"
+	ibctesting "github.com/cosmos/ibc-contracts/e2e/v8/ibctesting"
+	proofapi "github.com/cosmos/ibc-contracts/e2e/v8/proofapi"
+	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
+	"github.com/cosmos/ibc-contracts/e2e/v8/types"
+	"github.com/cosmos/ibc-contracts/e2e/v8/types/erc20"
+	proofapitypes "github.com/cosmos/ibc-contracts/e2e/v8/types/proofapi"
 )
 
 type MultichainTestSuite struct {
@@ -184,12 +184,13 @@ func (s *MultichainTestSuite) SetupSuite(ctx context.Context, proofType types.Su
 				MockClient:    mockClient,
 			}).
 			CosmosToEthSP1(proofapi.CosmosToEthSP1Params{
-				CosmosChainID: simdA.Config().ChainID,
-				EthChainID:    eth.ChainID.String(),
-				TmRPC:         simdA.GetHostRPCAddress(),
-				ICS26Address:  s.contractAddresses.Ics26Router,
-				EthRPC:        eth.RPC,
-				Prover:        sp1Config,
+				CosmosChainID:       simdA.Config().ChainID,
+				EthChainID:          eth.ChainID.String(),
+				TmRPC:               simdA.GetHostRPCAddress(),
+				ICS26Address:        s.contractAddresses.Ics26Router,
+				IBCMulticallAddress: s.contractAddresses.IbcMulticall,
+				EthRPC:              eth.RPC,
+				Prover:              sp1Config,
 			}).
 			// Eth ↔ ChainB
 			EthToCosmos(proofapi.EthToCosmosParams{
@@ -203,12 +204,13 @@ func (s *MultichainTestSuite) SetupSuite(ctx context.Context, proofType types.Su
 				MockClient:    mockClient,
 			}).
 			CosmosToEthSP1(proofapi.CosmosToEthSP1Params{
-				CosmosChainID: simdB.Config().ChainID,
-				EthChainID:    eth.ChainID.String(),
-				TmRPC:         simdB.GetHostRPCAddress(),
-				ICS26Address:  s.contractAddresses.Ics26Router,
-				EthRPC:        eth.RPC,
-				Prover:        sp1Config,
+				CosmosChainID:       simdB.Config().ChainID,
+				EthChainID:          eth.ChainID.String(),
+				TmRPC:               simdB.GetHostRPCAddress(),
+				ICS26Address:        s.contractAddresses.Ics26Router,
+				IBCMulticallAddress: s.contractAddresses.IbcMulticall,
+				EthRPC:              eth.RPC,
+				Prover:              sp1Config,
 			}).
 			// ChainA ↔ ChainB (signer must exist on destination chain)
 			CosmosToCosmos(proofapi.CosmosToCosmosParams{
@@ -706,7 +708,7 @@ func (s *MultichainTestSuite) Test_TransferCosmosToEthToCosmosAndBack() {
 
 	eth, simdA, simdB := s.Eth.Chains[0], s.Cosmos.Chains[0], s.Cosmos.Chains[1]
 
-	ics26Address := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
+	ibcMulticallAddress := ethcommon.HexToAddress(s.contractAddresses.IbcMulticall)
 	ics20Address := ethcommon.HexToAddress(s.contractAddresses.Ics20Transfer)
 	transferAmount := big.NewInt(testvalues.TransferAmount)
 	ethereumUserAddress := crypto.PubkeyToAddress(s.key.PublicKey)
@@ -778,14 +780,14 @@ func (s *MultichainTestSuite) Test_TransferCosmosToEthToCosmosAndBack() {
 			})
 			s.Require().NoError(err)
 			s.Require().NotEmpty(resp.Tx)
-			s.Require().Equal(resp.Address, ics26Address.String())
+			s.Require().Equal(resp.Address, ibcMulticallAddress.String())
 
 			recvRelayTx = resp.Tx
 		}))
 
 		var packet ics26router.IICS26RouterMsgsPacket
 		s.Require().True(s.Run("Submit relay tx", func() {
-			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ics26Address, recvRelayTx)
+			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ibcMulticallAddress, recvRelayTx)
 			s.Require().NoError(err)
 			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status, fmt.Sprintf("Tx failed: %+v", receipt))
 
@@ -961,13 +963,13 @@ func (s *MultichainTestSuite) Test_TransferCosmosToEthToCosmosAndBack() {
 				})
 				s.Require().NoError(err)
 				s.Require().NotEmpty(resp.Tx)
-				s.Require().Equal(ics26Address.String(), resp.Address)
+				s.Require().Equal(ibcMulticallAddress.String(), resp.Address)
 
 				relayTxBodyBz = resp.Tx
 			}))
 
 			s.Require().True(s.Run("Submit relay tx", func() {
-				receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ics26Address, relayTxBodyBz)
+				receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ibcMulticallAddress, relayTxBodyBz)
 				s.Require().NoError(err)
 				s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status, fmt.Sprintf("Tx failed: %+v", receipt))
 			}))
@@ -1343,7 +1345,7 @@ func (s *MultichainTestSuite) Test_TransferEthToCosmosToCosmosAndBack() {
 		s.Require().NoError(err)
 
 		s.Require().True(s.Run("Receive packet on Ethereum", func() {
-			ics26Address := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
+			ibcMulticallAddress := ethcommon.HexToAddress(s.contractAddresses.IbcMulticall)
 
 			var relayTxBodyBz []byte
 			s.Require().True(s.Run("Retrieve relay tx", func() {
@@ -1356,13 +1358,13 @@ func (s *MultichainTestSuite) Test_TransferEthToCosmosToCosmosAndBack() {
 				})
 				s.Require().NoError(err)
 				s.Require().NotEmpty(resp.Tx)
-				s.Require().Equal(ics26Address.String(), resp.Address)
+				s.Require().Equal(ibcMulticallAddress.String(), resp.Address)
 
 				relayTxBodyBz = resp.Tx
 			}))
 
 			s.Require().True(s.Run("Submit relay tx", func() {
-				receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ics26Address, relayTxBodyBz)
+				receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ibcMulticallAddress, relayTxBodyBz)
 				s.Require().NoError(err)
 				s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status, fmt.Sprintf("Tx failed: %+v", receipt))
 			}))
@@ -1504,7 +1506,7 @@ func (s *MultichainTestSuite) Test_TransferCosmosToCosmosToEth() {
 	var denomOnEthereum transfertypes.Denom
 	var ibcERC20 *ibcerc20.Contract
 	s.Require().True(s.Run("Receive packet on Ethereum", func() {
-		ics26Address := ethcommon.HexToAddress(s.contractAddresses.Ics26Router)
+		ibcMulticallAddress := ethcommon.HexToAddress(s.contractAddresses.IbcMulticall)
 
 		var relayTxBodyBz []byte
 		s.Require().True(s.Run("Retrieve relay tx", func() {
@@ -1517,13 +1519,13 @@ func (s *MultichainTestSuite) Test_TransferCosmosToCosmosToEth() {
 			})
 			s.Require().NoError(err)
 			s.Require().NotEmpty(resp.Tx)
-			s.Require().Equal(ics26Address.String(), resp.Address)
+			s.Require().Equal(ibcMulticallAddress.String(), resp.Address)
 
 			relayTxBodyBz = resp.Tx
 		}))
 
 		s.Require().True(s.Run("Submit relay tx", func() {
-			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ics26Address, relayTxBodyBz)
+			receipt, err := eth.BroadcastTx(ctx, s.EthRelayerSubmitter, 5_000_000, &ibcMulticallAddress, relayTxBodyBz)
 			s.Require().NoError(err)
 			s.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status, fmt.Sprintf("Tx failed: %+v", receipt))
 			denomOnEthereum = transfertypes.NewDenom(

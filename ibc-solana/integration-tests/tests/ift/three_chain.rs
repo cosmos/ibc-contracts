@@ -146,6 +146,10 @@ async fn test_ift_three_chain_roundtrip() {
     )
     .await;
 
+    // Chains A and B sat idle while the later chains were initialized.
+    chain_a.refresh_blockhash().await;
+    chain_b.refresh_blockhash().await;
+
     // ── Setup tokens ──
     let mint_a = mint_keypair_a.pubkey();
     let mint_b = mint_keypair_b.pubkey();
