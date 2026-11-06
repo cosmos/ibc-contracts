@@ -92,9 +92,10 @@ pub fn is_valid_light_client_header(
             &header.execution_branch,
             // A pre-Gloas block proves its block hash through the execution payload, in a branch
             // normalized to the Gloas depth
-            match epoch {
-                _ if is_gloas => EXECUTION_BLOCK_HASH_GINDEX_GLOAS,
-                _ => EXECUTION_BLOCK_HASH_GINDEX_DENEB,
+            if is_gloas {
+                EXECUTION_BLOCK_HASH_GINDEX_GLOAS
+            } else {
+                EXECUTION_BLOCK_HASH_GINDEX_DENEB
             },
             header.beacon.body_root,
         ),
