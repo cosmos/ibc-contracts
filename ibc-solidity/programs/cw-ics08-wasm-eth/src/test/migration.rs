@@ -94,18 +94,30 @@ pub mod v1_3_0 {
         env
     }
 
-    /// This test runs through the e2e test scenario defined in the interchaintest:
-    /// `Test_Gloas_Fork`. A client running v1.3.0 on Fulu is given the Gloas fork parameters before
-    /// the fork by the migration, and is then updated across the fork.
-    #[allow(clippy::too_many_lines)]
     #[test]
-    fn test_migrate_from_v1_3_0_and_update_across_gloas_fork() {
+    fn test_migrate_from_v1_3_0_and_update_across_gloas_fork_at_period_boundary() {
+        migrate_from_v1_3_0_and_update_across_gloas_fork("Test_Gloas_Fork_PeriodBoundary");
+    }
+
+    #[test]
+    fn test_migrate_from_v1_3_0_and_update_across_gloas_fork_mid_period() {
+        let updates_finalizing_before_fork =
+            migrate_from_v1_3_0_and_update_across_gloas_fork("Test_Gloas_Fork_MidPeriod");
+        assert_ne!(updates_finalizing_before_fork, 0);
+    }
+
+    /// This test runs through the e2e test scenario defined in the interchaintest:
+    /// `GloasForkTest`. A client running v1.3.0 on Fulu is given the Gloas fork parameters before
+    /// the fork by the migration, and is then updated across the fork.
+    /// Returns the number of updates that attest a Gloas block and finalize a block before the fork.
+    #[allow(clippy::too_many_lines)]
+    fn migrate_from_v1_3_0_and_update_across_gloas_fork(fixture_name: &str) -> usize {
         let mut deps = mk_deps_v1_3();
 
         let creator = deps.api.addr_make("creator");
         let info = message_info(&creator, &coins(1, "uatom"));
 
-        let fixture: StepsFixture = fixtures::load("Test_Gloas_Fork");
+        let fixture: StepsFixture = fixtures::load(fixture_name);
 
         // Initialize v1.3.0
         let initial_state: serde_json::Value = fixture.get_data_at_step(0);
@@ -180,14 +192,24 @@ pub mod v1_3_0 {
         let relayer_messages: RelayerMessages = fixture.get_data_at_step(3);
         let (update_client_msgs, recv_msgs, _, _) = relayer_messages.get_sdk_msgs();
         assert_ne!(update_client_msgs.len(), 0);
-        assert_eq!(1, recv_msgs.len());
+        // One packet sent before the fork and one sent after it
+        assert_eq!(2, recv_msgs.len());
 
+        let mut updates_finalizing_before_fork = 0;
         let mut last_header = None;
         for msg in update_client_msgs {
             let header_bz = ClientMessage::decode(msg.client_message.unwrap().value.as_slice())
                 .unwrap()
                 .data;
             let header: Header = serde_json::from_slice(&header_bz).unwrap();
+            let update = &header.consensus_update;
+            if client_state.compute_epoch_at_slot(update.attested_header().beacon().slot)
+                >= gloas_fork_epoch
+                && client_state.compute_epoch_at_slot(update.finalized_header().beacon().slot)
+                    < gloas_fork_epoch
+            {
+                updates_finalizing_before_fork += 1;
+            }
             let mut env = mock_env();
             env.block.time = Timestamp::from_seconds(
                 client_state.compute_timestamp_at_slot(header.consensus_update.signature_slot())
@@ -226,26 +248,29 @@ pub mod v1_3_0 {
                 .block_number
         );
 
-        // Verify the packet against the execution state of the Gloas consensus state
-        let recv_msg = recv_msgs[0].clone();
-        let (path, value, _) = get_packet_paths(recv_msg.packet.unwrap());
-        contract::sudo(
-            new_deps.as_mut(),
-            mock_env(),
-            msg::SudoMsg::VerifyMembership(msg::VerifyMembershipMsg {
-                height: msg::Height {
-                    revision_number: 0,
-                    revision_height: recv_msg.proof_height.unwrap().revision_height,
-                },
-                delay_time_period: 0,
-                delay_block_period: 0,
-                proof: Binary::from(recv_msg.proof_commitment),
-                merkle_path: msg::MerklePath {
-                    key_path: vec![Binary::from(path)],
-                },
-                value: Binary::from(value),
-            }),
-        )
-        .unwrap();
+        // Verify the packets against the execution state of the Gloas consensus state
+        for recv_msg in recv_msgs {
+            let (path, value, _) = get_packet_paths(recv_msg.packet.unwrap());
+            contract::sudo(
+                new_deps.as_mut(),
+                mock_env(),
+                msg::SudoMsg::VerifyMembership(msg::VerifyMembershipMsg {
+                    height: msg::Height {
+                        revision_number: 0,
+                        revision_height: recv_msg.proof_height.unwrap().revision_height,
+                    },
+                    delay_time_period: 0,
+                    delay_block_period: 0,
+                    proof: Binary::from(recv_msg.proof_commitment),
+                    merkle_path: msg::MerklePath {
+                        key_path: vec![Binary::from(path)],
+                    },
+                    value: Binary::from(value),
+                }),
+            )
+            .unwrap();
+        }
+
+        updates_finalizing_before_fork
     }
 }
