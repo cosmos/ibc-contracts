@@ -1,4 +1,5 @@
 [workspace]
+# POC-F10: comment-only trigger. Security PoC for the Cosmos Immunefi bug bounty; no build impact.
 members = [
     # Packages
     "packages/solidity",
