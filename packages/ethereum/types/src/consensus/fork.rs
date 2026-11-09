@@ -21,6 +21,18 @@ pub struct Fork {
     pub epoch: u64,
 }
 
+impl Fork {
+    /// Returns a fork that isn't scheduled, which activates at the far future epoch of the
+    /// consensus specs
+    #[must_use]
+    pub const fn unscheduled() -> Self {
+        Self {
+            version: Version::ZERO,
+            epoch: u64::MAX,
+        }
+    }
+}
+
 /// The fork data
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug, Default, TreeHash)]
 struct ForkData {
@@ -52,10 +64,10 @@ pub struct ForkParameters {
     /// The fulu fork
     pub fulu: Fork,
     /// The gloas fork
-    // Client states stored before this fork was known don't have this field, which must be set
-    // with `Migration::UpdateForkParameters` when migrating them. Until then the default value
-    // makes the client reject updates.
-    #[serde(default)]
+    // Client states stored before this fork was known don't have this field. It defaults to an
+    // unscheduled fork, so they keep verifying pre-Gloas updates until it is set with
+    // `Migration::UpdateForkParameters`.
+    #[serde(default = "Fork::unscheduled")]
     pub gloas: Fork,
 }
 
@@ -132,5 +144,6 @@ mod test {
         let fork_parameters: ForkParameters = serde_json::from_value(stored).unwrap();
 
         assert_eq!(fork_parameters.fulu, fork(6, 10));
+        assert_eq!(fork_parameters.gloas.epoch, u64::MAX);
     }
 }
