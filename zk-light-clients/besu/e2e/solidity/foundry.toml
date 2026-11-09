@@ -1,0 +1,25 @@
+# Optional integration workspace. Never used by the standalone deployment image.
+[profile.default]
+src = "../contracts"
+script = "script"
+test = "test"
+out = "out"
+cache_path = "cache"
+libs = ["../../contracts/lib"]
+allow_paths = ["../.."]
+solc_version = "0.8.28"
+optimizer = true
+optimizer_runs = 200
+evm_version = "cancun"
+bytecode_hash = "none"
+cbor_metadata = false
+fs_permissions = [
+  { access = "read", path = "../../artifacts" },
+  { access = "read-write", path = "../../.e2e-state" },
+  { access = "read", path = "../../config" },
+]
+
+[fmt]
+line_length = 100
+tab_width = 4
+bracket_spacing = true

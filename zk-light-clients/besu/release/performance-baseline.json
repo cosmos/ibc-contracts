@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 2,
+  "status": "pending-heavy-validation",
+  "benchmarkEnvironment": {
+    "hardware": "",
+    "backend": ""
+  },
+  "membershipBatchSizes": [1, 5, 10, 20, 32],
+  "preferredBatchSize": 10,
+  "benchmarks": [],
+  "parallelUpdateAndMembership": null
+}

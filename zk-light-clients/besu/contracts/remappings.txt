@@ -1,0 +1,8 @@
+@ibc-contracts/=vendor/ibc/
+@sp1-contracts/=lib/sp1-contracts/contracts/src/
+@openzeppelin-contracts/=node_modules/@openzeppelin/contracts/
+@openzeppelin-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/
+@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/
+@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/
+forge-std/=lib/sp1-contracts/contracts/lib/forge-std/src/
+openzeppelin-contracts/=lib/sp1-contracts/contracts/lib/openzeppelin-contracts/contracts/

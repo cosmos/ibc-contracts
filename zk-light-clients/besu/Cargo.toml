@@ -1,0 +1,68 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/types",
+  "crates/public-values",
+  "crates/evm-mpt",
+  "crates/qbft",
+  "crates/ibc-storage",
+  "crates/batch-merkle",
+  "programs/update-client",
+  "programs/membership",
+  "programs/non-membership",
+  "tooling/prover-script",
+  "tooling/generate-vkeys",
+  "tooling/proof-api-integration",
+  "tooling/proof-api",
+]
+exclude = ["patches/k256", "patches/sp1-lib"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+# This is the workspace MSRV, not the host toolchain pin. It must remain
+# compatible with the Rust compiler bundled by the pinned SP1 guest toolchain.
+rust-version = "1.85"
+license = "Apache-2.0"
+
+[workspace.dependencies]
+alloy-primitives = { version = "=1.5.2", default-features = false }
+alloy-sol-types = { version = "=1.5.2", default-features = false }
+axum = { version = "=0.7.9", default-features = false, features = ["http1", "json", "tokio"] }
+clap = { version = "=4.5.35", features = ["derive", "env"] }
+hex = "=0.4.3"
+k256 = { version = "=0.13.4", default-features = false, features = ["ecdsa"] }
+serde = { version = "=1.0.219", default-features = false, features = ["derive", "alloc"] }
+serde_json = "=1.0.140"
+sha2 = { version = "=0.10.9", default-features = false }
+thiserror = "=2.0.12"
+tiny-keccak = { version = "=2.0.2", features = ["keccak"] }
+sp1-zkvm = "=6.1.0"
+sp1-sdk = { version = "=6.1.0", default-features = false }
+reqwest = { version = "=0.12.15", default-features = false, features = ["json", "rustls-tls"] }
+tokio = { version = "=1.44.2", features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+
+[patch.crates-io]
+# SP1's pinned k256 patch uses the zkVM secp256k1 precompiles and avoids the
+# redundant verification inherent in recovering a key from an ECDSA signature.
+k256 = { path = "patches/k256" }
+# Keep SP1 at the specification-pinned v6.1.0 while replacing its two-point
+# scalar multiplication with the equivalent joint-window implementation.
+sp1-lib = { path = "patches/sp1-lib" }

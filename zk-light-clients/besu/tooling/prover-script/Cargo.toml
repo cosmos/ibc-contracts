@@ -1,0 +1,28 @@
+[package]
+name = "prover-script"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+besu-public-values = { path = "../../crates/public-values" }
+besu-qbft = { path = "../../crates/qbft" }
+besu-zk-types = { path = "../../crates/types" }
+batch-merkle = { path = "../../crates/batch-merkle" }
+axum.workspace = true
+clap.workspace = true
+evm-mpt = { path = "../../crates/evm-mpt" }
+hex.workspace = true
+ibc-storage = { path = "../../crates/ibc-storage" }
+k256.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+# The self-hosted cluster exposes SP1's base/hosted RPCs, not the public auction service.
+sp1-sdk = { workspace = true, features = ["network", "reserved-capacity"] }
+thiserror.workspace = true
+tokio.workspace = true
+
+[lints]
+workspace = true

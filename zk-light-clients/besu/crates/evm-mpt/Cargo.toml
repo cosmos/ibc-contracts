@@ -1,0 +1,16 @@
+[package]
+name = "evm-mpt"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+besu-zk-types = { path = "../types" }
+
+[dev-dependencies]
+hex.workspace = true
+
+[lints]
+workspace = true
+

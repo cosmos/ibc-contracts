@@ -1,0 +1,188 @@
+[
+  {
+    "configuredClient": "client-0",
+    "counterparty": "client-1",
+    "expectedCommitment": "f0fb8002e4ca3e5a77d895f0ea00fd6ee79117eaf400420de33424c6f8644781",
+    "fullPath": [
+      "636c69656e742d31010000000000000007"
+    ],
+    "kind": 1,
+    "logicalSlot": "4f2c2f5621582a12ac24e8465d6c267914f4e708641cd9ff15b4818e2a13b42a",
+    "packet": {
+      "sequence": 7,
+      "source_client": "client-1",
+      "destination_client": "client-0",
+      "timeout_timestamp": 99,
+      "payloads": [
+        {
+          "source_port": "transfer",
+          "destination_port": "transfer",
+          "version": "1",
+          "encoding": "json",
+          "value": "AQID"
+        }
+      ]
+    },
+    "pathDigest": "6317471ad23a94d8809672387d0ba3bb3d7e5a3e7adf20d4f76c8b6475ae439f",
+    "prefix": [
+      ""
+    ],
+    "terminalPath": "636c69656e742d31010000000000000007"
+  },
+  {
+    "configuredClient": "client-0",
+    "counterparty": "client-1",
+    "expectedCommitment": null,
+    "fullPath": [
+      "636c69656e742d31030000000000000007"
+    ],
+    "kind": 2,
+    "logicalSlot": "356e321ef29ca5f5db6bb321418e7bbac558f8d4681b7322ba2402e4cbfceecd",
+    "packet": {
+      "sequence": 7,
+      "source_client": "client-0",
+      "destination_client": "client-1",
+      "timeout_timestamp": 99,
+      "payloads": [
+        {
+          "source_port": "transfer",
+          "destination_port": "transfer",
+          "version": "1",
+          "encoding": "json",
+          "value": "AQID"
+        }
+      ]
+    },
+    "pathDigest": "755a0a3da1a32c3b737b23013c40f176cc2e974097184b4277772c6f6175727f",
+    "prefix": [
+      ""
+    ],
+    "terminalPath": "636c69656e742d31030000000000000007"
+  },
+  {
+    "configuredClient": "client-0",
+    "counterparty": "client-1",
+    "expectedCommitment": null,
+    "fullPath": [
+      "636c69656e742d31020000000000000007"
+    ],
+    "kind": 3,
+    "logicalSlot": "66452b2347fa67963ddeb75016b4b58932c2e6878b0da0b50f47128ca0f2e974",
+    "packet": {
+      "sequence": 7,
+      "source_client": "client-0",
+      "destination_client": "client-1",
+      "timeout_timestamp": 99,
+      "payloads": [
+        {
+          "source_port": "transfer",
+          "destination_port": "transfer",
+          "version": "1",
+          "encoding": "json",
+          "value": "AQID"
+        }
+      ]
+    },
+    "pathDigest": "10bddeeaca0f600d5e07983e1e563353449a154319db06d4612f7bea3612a5ab",
+    "prefix": [
+      ""
+    ],
+    "terminalPath": "636c69656e742d31020000000000000007"
+  },
+  {
+    "configuredClient": "client-0",
+    "counterparty": "client-1",
+    "expectedCommitment": "f0fb8002e4ca3e5a77d895f0ea00fd6ee79117eaf400420de33424c6f8644781",
+    "fullPath": [
+      "0102",
+      "0304636c69656e742d31010000000000000007"
+    ],
+    "kind": 1,
+    "logicalSlot": "4f2c2f5621582a12ac24e8465d6c267914f4e708641cd9ff15b4818e2a13b42a",
+    "packet": {
+      "sequence": 7,
+      "source_client": "client-1",
+      "destination_client": "client-0",
+      "timeout_timestamp": 99,
+      "payloads": [
+        {
+          "source_port": "transfer",
+          "destination_port": "transfer",
+          "version": "1",
+          "encoding": "json",
+          "value": "AQID"
+        }
+      ]
+    },
+    "pathDigest": "ba8f2cd64cf17af2c31b91198344a97f09e1f2e632fb2a76bfdf8554fa315621",
+    "prefix": [
+      "0102",
+      "0304"
+    ],
+    "terminalPath": "636c69656e742d31010000000000000007"
+  },
+  {
+    "configuredClient": "client-0",
+    "counterparty": "client-1",
+    "expectedCommitment": null,
+    "fullPath": [
+      "0102",
+      "0304636c69656e742d31030000000000000007"
+    ],
+    "kind": 2,
+    "logicalSlot": "356e321ef29ca5f5db6bb321418e7bbac558f8d4681b7322ba2402e4cbfceecd",
+    "packet": {
+      "sequence": 7,
+      "source_client": "client-0",
+      "destination_client": "client-1",
+      "timeout_timestamp": 99,
+      "payloads": [
+        {
+          "source_port": "transfer",
+          "destination_port": "transfer",
+          "version": "1",
+          "encoding": "json",
+          "value": "AQID"
+        }
+      ]
+    },
+    "pathDigest": "7c925ffa0cdf57778bc81c26aebd9dec70cf0dafc81bbe33a1017eba481060e6",
+    "prefix": [
+      "0102",
+      "0304"
+    ],
+    "terminalPath": "636c69656e742d31030000000000000007"
+  },
+  {
+    "configuredClient": "client-0",
+    "counterparty": "client-1",
+    "expectedCommitment": null,
+    "fullPath": [
+      "0102",
+      "0304636c69656e742d31020000000000000007"
+    ],
+    "kind": 3,
+    "logicalSlot": "66452b2347fa67963ddeb75016b4b58932c2e6878b0da0b50f47128ca0f2e974",
+    "packet": {
+      "sequence": 7,
+      "source_client": "client-0",
+      "destination_client": "client-1",
+      "timeout_timestamp": 99,
+      "payloads": [
+        {
+          "source_port": "transfer",
+          "destination_port": "transfer",
+          "version": "1",
+          "encoding": "json",
+          "value": "AQID"
+        }
+      ]
+    },
+    "pathDigest": "c7495890f77c4b4653a008bffd43eb1946f9c636851744bbaba3d9e39f017916",
+    "prefix": [
+      "0102",
+      "0304"
+    ],
+    "terminalPath": "636c69656e742d31020000000000000007"
+  }
+]

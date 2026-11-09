@@ -1,0 +1,30 @@
+{
+  "name": "template",
+  "description": "Copy to config/<name>.json and fill every null.",
+  "notes": [],
+  "chainId": null,
+  "deployer": null,
+  "localIbcRouter": null,
+  "sp1VerifierGateway": null,
+  "upgradeAuthority": null,
+  "sp1Groth16Selector": "0x4388a21c",
+  "proofMode": "groth16",
+  "source": {
+    "name": null,
+    "chainId": null,
+    "ibcRouter": null,
+    "validatorMode": "header-qbft"
+  },
+  "bootstrap": {
+    "height": null,
+    "stateRoot": null,
+    "blockTimestamp": null,
+    "validatorSetHash": null
+  },
+  "trustingPeriodSeconds": null,
+  "maxClockDriftSeconds": null,
+  "registration": {
+    "clientId": null,
+    "counterpartyClientId": null
+  }
+}

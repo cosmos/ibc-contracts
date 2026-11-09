@@ -1,0 +1,8 @@
+@sp1-contracts/=../../contracts/lib/sp1-contracts/contracts/src/
+@openzeppelin-contracts/=../../contracts/node_modules/@openzeppelin/contracts/
+@openzeppelin-upgradeable/=../../contracts/node_modules/@openzeppelin/contracts-upgradeable/
+@openzeppelin/contracts/=../../contracts/node_modules/@openzeppelin/contracts/
+@openzeppelin/contracts-upgradeable/=../../contracts/node_modules/@openzeppelin/contracts-upgradeable/
+forge-std/=../../contracts/lib/sp1-contracts/contracts/lib/forge-std/src/
+openzeppelin-contracts/=../../contracts/lib/sp1-contracts/contracts/lib/openzeppelin-contracts/contracts/
+e2e/=../

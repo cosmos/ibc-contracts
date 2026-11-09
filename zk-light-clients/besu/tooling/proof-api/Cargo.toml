@@ -1,0 +1,44 @@
+[package]
+name = "proof-api"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+proof-api-integration = { path = "../proof-api-integration" }
+besu-public-values = { path = "../../crates/public-values" }
+evm-mpt = { path = "../../crates/evm-mpt" }
+batch-merkle = { path = "../../crates/batch-merkle" }
+alloy-primitives.workspace = true
+alloy-sol-types.workspace = true
+hex.workspace = true
+reqwest.workspace = true
+flate2 = "=1.1.5"
+prover-script = { path = "../prover-script" }
+clap.workspace = true
+thiserror.workspace = true
+serde_yaml_ng = "=0.10.0"
+besu-zk-types = { path = "../../crates/types" }
+ibc-storage = { path = "../../crates/ibc-storage" }
+axum = { workspace = true, features = ["http2"] }
+prost = "=0.13.5"
+pbjson = "=0.7.0"
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["time"] }
+tonic = { version = "=0.12.3", features = ["gzip"] }
+tonic-web = "=0.12.3"
+tower = { version = "=0.5.3", features = ["util"] }
+
+[build-dependencies]
+tonic-build = "=0.12.3"
+pbjson-build = "=0.7.0"
+protoc-bin-vendored = "=3.2.0"
+
+[dev-dependencies]
+tempfile = "=3.27.0"
+tokio-stream = "=0.1.19"
+
+[lints]
+workspace = true

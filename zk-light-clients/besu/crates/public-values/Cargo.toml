@@ -1,0 +1,17 @@
+[package]
+name = "besu-public-values"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+alloy-primitives.workspace = true
+alloy-sol-types.workspace = true
+besu-zk-types = { path = "../types" }
+
+[dev-dependencies]
+hex.workspace = true
+
+[lints]
+workspace = true
