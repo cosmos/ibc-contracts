@@ -9,57 +9,30 @@ use serde_with::{serde_as, DisplayFromStr};
 use tree_hash_derive::TreeHash;
 
 use super::{
-    merkle::{
-        floorlog2, EXECUTION_BLOCK_HASH_GINDEX_GLOAS, EXECUTION_PAYLOAD_GINDEX,
-        FINALIZED_ROOT_GINDEX_ELECTRA, FINALIZED_ROOT_GINDEX_GLOAS,
-        NEXT_SYNC_COMMITTEE_GINDEX_ELECTRA, NEXT_SYNC_COMMITTEE_GINDEX_GLOAS,
-    },
+    merkle::{floorlog2, EXECUTION_BLOCK_HASH_GINDEX_GLOAS, EXECUTION_PAYLOAD_GINDEX},
     sync_committee::{SyncAggregate, SyncCommittee},
 };
 
-/// A light client update in the format of the fork of its attested header
-#[derive(Serialize, Deserialize, JsonSchema, PartialEq, Eq, Clone, Debug)]
-#[serde(untagged)]
-#[allow(clippy::module_name_repetitions, clippy::large_enum_variant)]
-pub enum LightClientUpdate {
-    /// An update with a Gloas attested header
-    Gloas(
-        GenericLightClientUpdate<
-            { floorlog2(NEXT_SYNC_COMMITTEE_GINDEX_GLOAS) },
-            { floorlog2(FINALIZED_ROOT_GINDEX_GLOAS) },
-        >,
-    ),
-    /// An update with a Fulu attested header
-    Fulu(
-        GenericLightClientUpdate<
-            { floorlog2(NEXT_SYNC_COMMITTEE_GINDEX_ELECTRA) },
-            { floorlog2(FINALIZED_ROOT_GINDEX_ELECTRA) },
-        >,
-    ),
-}
-
-/// A light client update with branches of the given depths
-#[serde_as(schemars = false)]
+/// A light client update
+///
+/// The depth of its branches depends on the fork of the attested header, and is checked when they
+/// are verified.
+#[serde_as]
 #[derive(Serialize, Deserialize, JsonSchema, PartialEq, Eq, Clone, Debug)]
 #[allow(clippy::module_name_repetitions)]
-pub struct GenericLightClientUpdate<
-    const NEXT_SYNC_COMMITTEE_DEPTH: usize,
-    const FINALITY_DEPTH: usize,
-> {
+pub struct LightClientUpdate {
     /// Header attested to by the sync committee
     pub attested_header: LightClientHeader,
     /// Next sync committee corresponding to `attested_header.state_root`
     pub next_sync_committee: Option<SyncCommittee>,
     /// The branch of the next sync committee
-    #[serde_as(as = "Option<[_; NEXT_SYNC_COMMITTEE_DEPTH]>", no_default)]
     #[schemars(with = "Vec<String>")]
-    pub next_sync_committee_branch: Option<[B256; NEXT_SYNC_COMMITTEE_DEPTH]>,
+    pub next_sync_committee_branch: Option<Vec<B256>>,
     /// Finalized header corresponding to `attested_header.state_root`
     pub finalized_header: LightClientHeader,
     /// Branch of the finalized header
-    #[serde_as(as = "[_; FINALITY_DEPTH]")]
     #[schemars(with = "Vec<String>")]
-    pub finality_branch: [B256; FINALITY_DEPTH],
+    pub finality_branch: Vec<B256>,
     /// Sync committee aggregate signature
     pub sync_aggregate: SyncAggregate,
     /// Slot at which the aggregate signature was created (untrusted)
@@ -68,95 +41,21 @@ pub struct GenericLightClientUpdate<
     pub signature_slot: u64,
 }
 
-impl LightClientUpdate {
-    /// Returns the header attested to by the sync committee
-    #[must_use]
-    pub const fn attested_header(&self) -> &LightClientHeader {
-        match self {
-            Self::Gloas(update) => &update.attested_header,
-            Self::Fulu(update) => &update.attested_header,
-        }
-    }
-
-    /// Returns the next sync committee
-    #[must_use]
-    pub const fn next_sync_committee(&self) -> Option<&SyncCommittee> {
-        match self {
-            Self::Gloas(update) => update.next_sync_committee.as_ref(),
-            Self::Fulu(update) => update.next_sync_committee.as_ref(),
-        }
-    }
-
-    /// Returns the branch of the next sync committee
-    #[must_use]
-    pub fn next_sync_committee_branch(&self) -> Option<&[B256]> {
-        match self {
-            Self::Gloas(update) => update.next_sync_committee_branch.as_ref().map(|b| &b[..]),
-            Self::Fulu(update) => update.next_sync_committee_branch.as_ref().map(|b| &b[..]),
-        }
-    }
-
-    /// Returns the finalized header
-    #[must_use]
-    pub const fn finalized_header(&self) -> &LightClientHeader {
-        match self {
-            Self::Gloas(update) => &update.finalized_header,
-            Self::Fulu(update) => &update.finalized_header,
-        }
-    }
-
-    /// Returns the branch of the finalized header
-    #[must_use]
-    pub const fn finality_branch(&self) -> &[B256] {
-        match self {
-            Self::Gloas(update) => &update.finality_branch,
-            Self::Fulu(update) => &update.finality_branch,
-        }
-    }
-
-    /// Returns the sync committee aggregate signature
-    #[must_use]
-    pub const fn sync_aggregate(&self) -> &SyncAggregate {
-        match self {
-            Self::Gloas(update) => &update.sync_aggregate,
-            Self::Fulu(update) => &update.sync_aggregate,
-        }
-    }
-
-    /// Returns the slot at which the aggregate signature was created (untrusted)
-    #[must_use]
-    pub const fn signature_slot(&self) -> u64 {
-        match self {
-            Self::Gloas(update) => update.signature_slot,
-            Self::Fulu(update) => update.signature_slot,
-        }
-    }
-}
-
-/// A light client finality update in the format of the fork of its attested header
-#[derive(Serialize, Deserialize, JsonSchema, PartialEq, Eq, Clone, Debug)]
-#[serde(untagged)]
-#[allow(clippy::module_name_repetitions, clippy::large_enum_variant)]
-pub enum LightClientFinalityUpdate {
-    /// A finality update with a Gloas attested header
-    Gloas(GenericLightClientFinalityUpdate<{ floorlog2(FINALIZED_ROOT_GINDEX_GLOAS) }>),
-    /// A finality update with a Fulu attested header
-    Fulu(GenericLightClientFinalityUpdate<{ floorlog2(FINALIZED_ROOT_GINDEX_ELECTRA) }>),
-}
-
-/// A light client finality update with a finality branch of the given depth
-#[serde_as(schemars = false)]
+/// A light client finality update
+///
+/// The depth of its finality branch depends on the fork of the attested header, and is checked
+/// when it is verified.
+#[serde_as]
 #[derive(Serialize, Deserialize, JsonSchema, PartialEq, Eq, Clone, Debug)]
 #[allow(clippy::module_name_repetitions)]
-pub struct GenericLightClientFinalityUpdate<const FINALITY_DEPTH: usize> {
+pub struct LightClientFinalityUpdate {
     /// Header attested to by the sync committee
     pub attested_header: LightClientHeader,
     /// Finalized header corresponding to `attested_header.state_root`
     pub finalized_header: LightClientHeader,
     /// Branch of the finalized header
-    #[serde_as(as = "[_; FINALITY_DEPTH]")]
     #[schemars(with = "Vec<String>")]
-    pub finality_branch: [B256; FINALITY_DEPTH],
+    pub finality_branch: Vec<B256>,
     /// Sync committee aggregate signature
     pub sync_aggregate: SyncAggregate,
     /// Slot at which the aggregate signature was created (untrusted)
@@ -168,18 +67,6 @@ pub struct GenericLightClientFinalityUpdate<const FINALITY_DEPTH: usize> {
 // Light Client Finality Update to Light Client Update conversion
 impl From<LightClientFinalityUpdate> for LightClientUpdate {
     fn from(finality_update: LightClientFinalityUpdate) -> Self {
-        match finality_update {
-            LightClientFinalityUpdate::Gloas(update) => Self::Gloas(update.into()),
-            LightClientFinalityUpdate::Fulu(update) => Self::Fulu(update.into()),
-        }
-    }
-}
-
-impl<const NEXT_SYNC_COMMITTEE_DEPTH: usize, const FINALITY_DEPTH: usize>
-    From<GenericLightClientFinalityUpdate<FINALITY_DEPTH>>
-    for GenericLightClientUpdate<NEXT_SYNC_COMMITTEE_DEPTH, FINALITY_DEPTH>
-{
-    fn from(finality_update: GenericLightClientFinalityUpdate<FINALITY_DEPTH>) -> Self {
         Self {
             attested_header: finality_update.attested_header,
             next_sync_committee: None,

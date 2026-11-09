@@ -296,7 +296,6 @@ mod tests {
         };
         use ethereum_types::consensus::{
             fork::{Fork, ForkParameters},
-            light_client_header::LightClientUpdate,
             sync_committee::SummarizedSyncCommittee,
         };
         use ibc_proto::{
@@ -368,8 +367,7 @@ mod tests {
             for header_bz in client_msgs {
                 let header: Header = serde_json::from_slice(&header_bz).unwrap();
                 env.block.time = Timestamp::from_seconds(
-                    client_state
-                        .compute_timestamp_at_slot(header.consensus_update.signature_slot())
+                    client_state.compute_timestamp_at_slot(header.consensus_update.signature_slot)
                         + 1000,
                 );
 
@@ -390,7 +388,7 @@ mod tests {
                 assert_eq!(1, update_state_result.heights.len());
                 assert_eq!(0, update_state_result.heights[0].revision_number);
                 assert_eq!(
-                    header.consensus_update.finalized_header().beacon().slot,
+                    header.consensus_update.finalized_header.beacon().slot,
                     update_state_result.heights[0].revision_height
                 );
             }
@@ -495,11 +493,11 @@ mod tests {
                     let mut bits = vec![0xFF; 48];
                     bits[0] = 0b0000_0010;
 
-                    let LightClientUpdate::Gloas(update) = &mut header.consensus_update else {
-                        panic!("the fixture should be from a Gloas chain");
-                    };
-                    update.sync_aggregate.sync_committee_bits = bits.into();
-                    update.sync_aggregate.sync_committee_signature = FixedBytes([
+                    header.consensus_update.sync_aggregate.sync_committee_bits = bits.into();
+                    header
+                        .consensus_update
+                        .sync_aggregate
+                        .sync_committee_signature = FixedBytes([
                         141, 213, 40, 198, 216, 4, 232, 6, 81, 233, 68, 218, 77, 6, 86, 182, 237,
                         151, 157, 194, 232, 232, 2, 229, 197, 81, 72, 102, 47, 198, 140, 250, 207,
                         60, 148, 124, 180, 228, 54, 236, 83, 56, 107, 245, 42, 98, 160, 150, 1,
@@ -514,8 +512,7 @@ mod tests {
                 let header_manipulated = serde_json::to_vec(&header).unwrap();
 
                 env.block.time = Timestamp::from_seconds(
-                    client_state
-                        .compute_timestamp_at_slot(header.consensus_update.signature_slot())
+                    client_state.compute_timestamp_at_slot(header.consensus_update.signature_slot)
                         + 1000,
                 );
 
@@ -592,11 +589,11 @@ mod tests {
                     let mut bits = vec![0xFF; 48];
                     bits[0] = 0b0000_0010;
 
-                    let LightClientUpdate::Gloas(update) = &mut header.consensus_update else {
-                        panic!("the fixture should be from a Gloas chain");
-                    };
-                    update.sync_aggregate.sync_committee_bits = bits.into();
-                    update.sync_aggregate.sync_committee_signature = FixedBytes([
+                    header.consensus_update.sync_aggregate.sync_committee_bits = bits.into();
+                    header
+                        .consensus_update
+                        .sync_aggregate
+                        .sync_committee_signature = FixedBytes([
                         141, 213, 40, 198, 216, 4, 232, 6, 81, 233, 68, 218, 77, 6, 86, 182, 237,
                         151, 157, 194, 232, 232, 2, 229, 197, 81, 72, 102, 47, 198, 140, 250, 207,
                         60, 148, 124, 180, 228, 54, 236, 83, 56, 107, 245, 42, 98, 160, 150, 1,
@@ -623,8 +620,7 @@ mod tests {
                 let header_manipulated = serde_json::to_vec(&header).unwrap();
 
                 env.block.time = Timestamp::from_seconds(
-                    client_state
-                        .compute_timestamp_at_slot(header.consensus_update.signature_slot())
+                    client_state.compute_timestamp_at_slot(header.consensus_update.signature_slot)
                         + 1000,
                 );
 
@@ -695,8 +691,7 @@ mod tests {
             for header_bz in client_msgs {
                 let header: Header = serde_json::from_slice(&header_bz).unwrap();
                 env.block.time = Timestamp::from_seconds(
-                    client_state
-                        .compute_timestamp_at_slot(header.consensus_update.signature_slot())
+                    client_state.compute_timestamp_at_slot(header.consensus_update.signature_slot)
                         + 1000,
                 );
 
@@ -717,7 +712,7 @@ mod tests {
                 assert_eq!(1, update_state_result.heights.len());
                 assert_eq!(0, update_state_result.heights[0].revision_number);
                 assert_eq!(
-                    header.consensus_update.finalized_header().beacon().slot,
+                    header.consensus_update.finalized_header.beacon().slot,
                     update_state_result.heights[0].revision_height
                 );
             }

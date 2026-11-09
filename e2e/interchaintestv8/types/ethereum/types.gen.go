@@ -154,13 +154,10 @@ type SyncCommittee struct {
 
 // The consensus update
 //
-// # A light client update in the format of the fork of its attested header
+// # A light client update
 //
-// # An update with a Gloas attested header
-//
-// # A light client update with branches of the given depths
-//
-// An update with a Fulu attested header
+// The depth of its branches depends on the fork of the attested header, and is checked when
+// they are verified.
 type LightClientUpdate struct {
 	// Header attested to by the sync committee
 	AttestedHeader LightClientHeader `json:"attested_header"`

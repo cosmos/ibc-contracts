@@ -203,16 +203,16 @@ pub mod v1_3_0 {
                 .data;
             let header: Header = serde_json::from_slice(&header_bz).unwrap();
             let update = &header.consensus_update;
-            if client_state.compute_epoch_at_slot(update.attested_header().beacon().slot)
+            if client_state.compute_epoch_at_slot(update.attested_header.beacon().slot)
                 >= gloas_fork_epoch
-                && client_state.compute_epoch_at_slot(update.finalized_header().beacon().slot)
+                && client_state.compute_epoch_at_slot(update.finalized_header.beacon().slot)
                     < gloas_fork_epoch
             {
                 updates_finalizing_before_fork += 1;
             }
             let mut env = mock_env();
             env.block.time = Timestamp::from_seconds(
-                client_state.compute_timestamp_at_slot(header.consensus_update.signature_slot())
+                client_state.compute_timestamp_at_slot(header.consensus_update.signature_slot)
                     + 1000,
             );
 

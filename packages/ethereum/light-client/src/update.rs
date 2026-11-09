@@ -2,8 +2,6 @@
 
 //! This module provides [`update_consensus_state`] function to update the consensus state
 
-use ethereum_types::consensus::sync_committee::SyncCommittee;
-
 use crate::{
     client_state::ClientState, consensus_state::ConsensusState, error::EthereumIBCError,
     header::Header,
@@ -36,7 +34,7 @@ pub fn update_consensus_state(
     let store_slot = current_consensus_state.slot;
     let store_period = current_client_state.compute_sync_committee_period_at_slot(store_slot);
 
-    let update_finalized_slot = header.consensus_update.finalized_header().beacon().slot;
+    let update_finalized_slot = header.consensus_update.finalized_header.beacon().slot;
     let update_finalized_period =
         current_client_state.compute_sync_committee_period_at_slot(update_finalized_slot);
 
@@ -50,8 +48,8 @@ pub fn update_consensus_state(
             new_consensus_state.current_sync_committee = next_sync_committee;
             new_consensus_state.next_sync_committee = header
                 .consensus_update
-                .next_sync_committee()
-                .map(SyncCommittee::to_summarized_sync_committee);
+                .next_sync_committee
+                .map(|c| c.to_summarized_sync_committee());
         }
     } else {
         // if the finalized period is greater, we have to have a next sync committee
@@ -61,8 +59,8 @@ pub fn update_consensus_state(
         );
         new_consensus_state.next_sync_committee = header
             .consensus_update
-            .next_sync_committee()
-            .map(SyncCommittee::to_summarized_sync_committee);
+            .next_sync_committee
+            .map(|c| c.to_summarized_sync_committee());
     }
 
     new_consensus_state.slot = update_finalized_slot;

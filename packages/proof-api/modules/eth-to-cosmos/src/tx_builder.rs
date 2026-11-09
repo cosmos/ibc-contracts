@@ -140,9 +140,8 @@ where
         let trusted_period =
             client_state.compute_sync_committee_period_at_slot(client_state.latest_slot);
 
-        let target_period = client_state.compute_sync_committee_period_at_slot(
-            finality_update.finalized_header().beacon().slot,
-        );
+        let target_period = client_state
+            .compute_sync_committee_period_at_slot(finality_update.finalized_header.beacon().slot);
 
         tracing::debug!(
             "Getting light client updates from period {} to {}",
@@ -160,7 +159,7 @@ where
 
     /// Returns the number of the finalized execution block of a light client update.
     async fn finalized_execution_block_number(&self, update: &LightClientUpdate) -> Result<u64> {
-        let block_hash = match update.finalized_header() {
+        let block_hash = match &update.finalized_header {
             LightClientHeader::Gloas(header) => header.execution_block_hash,
             LightClientHeader::Fulu(header) => return Ok(header.execution.block_number),
         };
@@ -178,7 +177,7 @@ where
         &self,
         update: &LightClientUpdate,
     ) -> Result<Option<alloy::primitives::Bytes>> {
-        let LightClientHeader::Gloas(header) = update.finalized_header() else {
+        let LightClientHeader::Gloas(header) = &update.finalized_header else {
             return Ok(None);
         };
         Ok(Some(
@@ -248,9 +247,9 @@ where
         for update in light_client_updates {
             let update_sync_committee = std::mem::replace(
                 &mut signing_sync_committee,
-                update.next_sync_committee().cloned(),
+                update.next_sync_committee.clone(),
             );
-            let update_finalized_slot = update.finalized_header().beacon().slot;
+            let update_finalized_slot = update.finalized_header.beacon().slot;
 
             tracing::debug!(
                 "Processing light client update for finalized slot {} with trusted slot {}",
@@ -305,18 +304,12 @@ where
 
         // If the latest header is earlier than the finality update, we need to add a header for the finality update.
         if headers.last().is_none_or(|last_header| {
-            last_header
-                .consensus_update
-                .finalized_header()
-                .beacon()
-                .slot
-                < finality_update.finalized_header().beacon().slot
+            last_header.consensus_update.finalized_header.beacon().slot
+                < finality_update.finalized_header.beacon().slot
         }) {
-            let finality_update_finalized_slot = finality_update.finalized_header().beacon().slot;
+            let finality_update_finalized_slot = finality_update.finalized_header.beacon().slot;
             let finality_update_sync_committee = self
-                .get_sync_commitee_for_finalized_slot(
-                    finality_update.attested_header().beacon().slot,
-                )
+                .get_sync_commitee_for_finalized_slot(finality_update.attested_header.beacon().slot)
                 .await?;
             let active_sync_committee =
                 ActiveSyncCommittee::Current(finality_update_sync_committee);
@@ -474,7 +467,7 @@ where
         let proof_slot = headers
             .last()
             .map_or(ethereum_client_state.latest_slot, |h| {
-                h.consensus_update.finalized_header().beacon().slot
+                h.consensus_update.finalized_header.beacon().slot
             });
 
         cosmos::inject_ethereum_proofs(
@@ -520,7 +513,7 @@ where
         if let Some(last_header) = headers.last() {
             self.wait_for_cosmos_chain_to_catch_up(
                 &ethereum_client_state,
-                last_header.consensus_update.signature_slot(),
+                last_header.consensus_update.signature_slot,
             )
             .await?;
         }
@@ -634,8 +627,7 @@ where
             .pop()
             .ok_or_else(|| anyhow::anyhow!("No light client updates found for the latest period"))?
             .data
-            .next_sync_committee()
-            .cloned()
+            .next_sync_committee
             .ok_or_else(|| {
                 anyhow::anyhow!("No next sync committee found in the light client update")
             })?;
@@ -715,7 +707,7 @@ where
         if let Some(last_header) = headers.last() {
             self.wait_for_cosmos_chain_to_catch_up(
                 &ethereum_client_state,
-                last_header.consensus_update.signature_slot(),
+                last_header.consensus_update.signature_slot,
             )
             .await?;
         }
@@ -723,7 +715,7 @@ where
         let proof_slot = headers
             .last()
             .map_or(ethereum_client_state.latest_slot, |h| {
-                h.consensus_update.finalized_header().beacon().slot
+                h.consensus_update.finalized_header.beacon().slot
             });
         let initial_period = ethereum_client_state
             .compute_sync_committee_period_at_slot(ethereum_client_state.latest_slot);
