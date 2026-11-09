@@ -50,13 +50,13 @@ import (
 	"github.com/cosmos/interchaintest/v11/ibc"
 	"github.com/cosmos/interchaintest/v11/testutil"
 
-	"github.com/cosmos/ibc-contracts/packages/go-abigen/ibcmulticall"
-	"github.com/cosmos/ibc-contracts/packages/go-abigen/ics26router"
+	"github.com/lfdt-ibc/ibc-contracts/packages/go-abigen/ibcmulticall"
+	"github.com/lfdt-ibc/ibc-contracts/packages/go-abigen/ics26router"
 
-	"github.com/cosmos/ibc-contracts/e2e/v8/ethereum"
-	ibctesting "github.com/cosmos/ibc-contracts/e2e/v8/ibctesting"
-	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
-	ethereumtypes "github.com/cosmos/ibc-contracts/e2e/v8/types/ethereum"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/ethereum"
+	ibctesting "github.com/lfdt-ibc/ibc-contracts/e2e/v8/ibctesting"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/testvalues"
+	ethereumtypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/ethereum"
 )
 
 // broadcastMessages is the shared broadcast path. Pass waitBlocks=0 to skip the post-inclusion wait.

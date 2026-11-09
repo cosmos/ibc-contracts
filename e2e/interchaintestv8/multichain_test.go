@@ -34,21 +34,21 @@ import (
 
 	"github.com/cosmos/interchaintest/v11/ibc"
 
-	"github.com/cosmos/ibc-contracts/packages/go-abigen/ibcerc20"
-	"github.com/cosmos/ibc-contracts/packages/go-abigen/ics20transfer"
-	"github.com/cosmos/ibc-contracts/packages/go-abigen/ics26router"
-	"github.com/cosmos/ibc-contracts/packages/go-abigen/sp1ics07tendermint"
+	"github.com/lfdt-ibc/ibc-contracts/packages/go-abigen/ibcerc20"
+	"github.com/lfdt-ibc/ibc-contracts/packages/go-abigen/ics20transfer"
+	"github.com/lfdt-ibc/ibc-contracts/packages/go-abigen/ics26router"
+	"github.com/lfdt-ibc/ibc-contracts/packages/go-abigen/sp1ics07tendermint"
 
-	"github.com/cosmos/ibc-contracts/e2e/v8/chainconfig"
-	"github.com/cosmos/ibc-contracts/e2e/v8/cosmos"
-	"github.com/cosmos/ibc-contracts/e2e/v8/e2esuite"
-	"github.com/cosmos/ibc-contracts/e2e/v8/ethereum"
-	ibctesting "github.com/cosmos/ibc-contracts/e2e/v8/ibctesting"
-	proofapi "github.com/cosmos/ibc-contracts/e2e/v8/proofapi"
-	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
-	"github.com/cosmos/ibc-contracts/e2e/v8/types"
-	"github.com/cosmos/ibc-contracts/e2e/v8/types/erc20"
-	proofapitypes "github.com/cosmos/ibc-contracts/e2e/v8/types/proofapi"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/chainconfig"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/cosmos"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/e2esuite"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/ethereum"
+	ibctesting "github.com/lfdt-ibc/ibc-contracts/e2e/v8/ibctesting"
+	proofapi "github.com/lfdt-ibc/ibc-contracts/e2e/v8/proofapi"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/testvalues"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/types"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/erc20"
+	proofapitypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/proofapi"
 )
 
 type MultichainTestSuite struct {

@@ -19,9 +19,9 @@ import (
 
 	"github.com/cosmos/interchaintest/v11/testutil"
 
-	ics26router "github.com/cosmos/ibc-contracts/packages/go-anchor/ics26router"
+	ics26router "github.com/lfdt-ibc/ibc-contracts/packages/go-anchor/ics26router"
 
-	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/testvalues"
 )
 
 type Solana struct {

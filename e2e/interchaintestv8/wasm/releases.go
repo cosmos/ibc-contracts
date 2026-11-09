@@ -7,7 +7,7 @@ type Release struct {
 }
 
 func (r Release) BaseDownloadURL() string {
-	return "https://github.com/cosmos/ibc-contracts/releases/download/" + r.TagName
+	return "https://github.com/lfdt-ibc/ibc-contracts/releases/download/" + r.TagName
 }
 
 func (r Release) WasmDownloadURL() string {

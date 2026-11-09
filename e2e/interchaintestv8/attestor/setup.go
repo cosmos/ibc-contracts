@@ -14,7 +14,7 @@ import (
 	dockerclient "github.com/moby/moby/client"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/testvalues"
 )
 
 // TransformLocalhostToDockerHost transforms localhost URLs to use host.docker.internal

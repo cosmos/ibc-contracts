@@ -10,10 +10,10 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 
-	"github.com/cosmos/ibc-contracts/packages/go-abigen/ics26router"
+	"github.com/lfdt-ibc/ibc-contracts/packages/go-abigen/ics26router"
 
-	"github.com/cosmos/ibc-contracts/e2e/v8/ethereum"
-	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/ethereum"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/testvalues"
 )
 
 type SolidityFixtureGenerator struct {

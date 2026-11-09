@@ -29,22 +29,22 @@ import (
 	"github.com/gagliardetto/solana-go/programs/token"
 	"github.com/gagliardetto/solana-go/rpc"
 
-	"github.com/cosmos/ibc-contracts/packages/go-abigen/ics26router"
-	evmift "github.com/cosmos/ibc-contracts/packages/go-abigen/ift"
+	"github.com/lfdt-ibc/ibc-contracts/packages/go-abigen/ics26router"
+	evmift "github.com/lfdt-ibc/ibc-contracts/packages/go-abigen/ift"
 
-	access_manager "github.com/cosmos/ibc-contracts/packages/go-anchor/accessmanager"
-	attestation "github.com/cosmos/ibc-contracts/packages/go-anchor/attestation"
-	ics26_router "github.com/cosmos/ibc-contracts/packages/go-anchor/ics26router"
-	ics27_gmp "github.com/cosmos/ibc-contracts/packages/go-anchor/ics27gmp"
-	ift "github.com/cosmos/ibc-contracts/packages/go-anchor/ift"
+	access_manager "github.com/lfdt-ibc/ibc-contracts/packages/go-anchor/accessmanager"
+	attestation "github.com/lfdt-ibc/ibc-contracts/packages/go-anchor/attestation"
+	ics26_router "github.com/lfdt-ibc/ibc-contracts/packages/go-anchor/ics26router"
+	ics27_gmp "github.com/lfdt-ibc/ibc-contracts/packages/go-anchor/ics27gmp"
+	ift "github.com/lfdt-ibc/ibc-contracts/packages/go-anchor/ift"
 
-	"github.com/cosmos/ibc-contracts/e2e/v8/attestor"
-	"github.com/cosmos/ibc-contracts/e2e/v8/e2esuite"
-	"github.com/cosmos/ibc-contracts/e2e/v8/ethereum"
-	proofapi "github.com/cosmos/ibc-contracts/e2e/v8/proofapi"
-	"github.com/cosmos/ibc-contracts/e2e/v8/solana"
-	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
-	proofapitypes "github.com/cosmos/ibc-contracts/e2e/v8/types/proofapi"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/attestor"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/e2esuite"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/ethereum"
+	proofapi "github.com/lfdt-ibc/ibc-contracts/e2e/v8/proofapi"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/solana"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/testvalues"
+	proofapitypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/proofapi"
 )
 
 const (

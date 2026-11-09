@@ -30,10 +30,10 @@ import (
 	solomachine "github.com/cosmos/ibc-go/v11/modules/light-clients/06-solomachine"
 	ibctmtypes "github.com/cosmos/ibc-go/v11/modules/light-clients/07-tendermint"
 
-	proposaltypes "github.com/cosmos/ibc-contracts/e2e/v8/paramsproposal"
-	"github.com/cosmos/ibc-contracts/e2e/v8/types/attestations"
-	ifttypes "github.com/cosmos/ibc-contracts/e2e/v8/types/wfchain/ift"
-	tokenfactorytypes "github.com/cosmos/ibc-contracts/e2e/v8/types/wfchain/tokenfactory"
+	proposaltypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/paramsproposal"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/attestations"
+	ifttypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/wfchain/ift"
+	tokenfactorytypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/wfchain/tokenfactory"
 )
 
 // Codec returns the global E2E protobuf codec.
