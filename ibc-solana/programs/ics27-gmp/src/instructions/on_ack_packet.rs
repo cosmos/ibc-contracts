@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::encoding::GmpEncoding;
 use crate::errors::GMPError;
 use crate::events::GMPCallAcknowledgment;
 use crate::state::{GMPAppState, GMPCallResult, GMPCallResultAccount};
@@ -54,8 +55,8 @@ pub fn on_acknowledgement_packet(
     )
     .map_err(GMPError::from)?;
 
-    let raw_packet_data =
-        crate::encoding::decode_gmp_packet(&msg.payload.value, &msg.payload.encoding)?;
+    let encoding = GmpEncoding::try_from(msg.payload.encoding.as_str())?;
+    let raw_packet_data = crate::encoding::decode_gmp_packet(&msg.payload.value, encoding)?;
     let packet_data = GmpPacketData::try_from(raw_packet_data).map_err(|e| {
         msg!("GMP packet validation failed: {}", e);
         GMPError::InvalidPacketData
@@ -84,10 +85,8 @@ pub fn on_acknowledgement_packet(
 
 #[cfg(test)]
 mod tests {
-    use crate::constants::{
-        GMP_PORT_ID, ICS27_ENCODING_ABI, ICS27_ENCODING_PROTOBUF, ICS27_VERSION,
-    };
-    use crate::encoding::encode_gmp_packet;
+    use crate::constants::{GMP_PORT_ID, ICS27_ENCODING_PROTOBUF, ICS27_VERSION};
+    use crate::encoding::{encode_gmp_packet, GmpEncoding};
     use crate::state::{GMPAppState, GMPCallResult, GMPCallResultAccount};
     use crate::test_utils::{
         create_fake_instructions_sysvar_account, create_gmp_app_state_account,
@@ -388,11 +387,14 @@ mod tests {
         mollusk.process_and_validate_instruction(&instruction, &accounts, &checks);
     }
 
-    fn encode_test_packet(raw: solana_ibc_proto::RawGmpPacketData, encoding: &str) -> Vec<u8> {
-        encode_gmp_packet(GmpPacketData::try_from(raw).unwrap(), encoding).unwrap()
+    fn encode_test_packet(
+        raw: solana_ibc_proto::RawGmpPacketData,
+        encoding: GmpEncoding,
+    ) -> Vec<u8> {
+        encode_gmp_packet(GmpPacketData::try_from(raw).unwrap(), encoding)
     }
 
-    fn run_ack_success_test(encoding: &str) {
+    fn run_ack_success_test(encoding: GmpEncoding) {
         let mollusk = Mollusk::new(&crate::ID, crate::get_gmp_program_path());
 
         let router_program = ics26_router::ID;
@@ -418,7 +420,7 @@ mod tests {
                 source_port: GMP_PORT_ID.to_string(),
                 dest_port: GMP_PORT_ID.to_string(),
                 version: ICS27_VERSION.to_string(),
-                encoding: encoding.to_string(),
+                encoding: encoding.as_str().to_string(),
                 value: packet_bytes,
             },
             acknowledgement: ack_bytes.clone(),
@@ -450,7 +452,7 @@ mod tests {
         let result = mollusk.process_instruction(&instruction, &accounts);
         assert!(
             !result.program_result.is_err(),
-            "on_ack_packet should succeed with {encoding} encoding: {:?}",
+            "on_ack_packet should succeed with {encoding:?} encoding: {:?}",
             result.program_result
         );
 
@@ -474,9 +476,9 @@ mod tests {
     }
 
     #[rstest]
-    #[case::protobuf(ICS27_ENCODING_PROTOBUF)]
-    #[case::abi(ICS27_ENCODING_ABI)]
-    fn test_on_ack_packet_success(#[case] encoding: &str) {
+    #[case::protobuf(GmpEncoding::Protobuf)]
+    #[case::abi(GmpEncoding::Abi)]
+    fn test_on_ack_packet_success(#[case] encoding: GmpEncoding) {
         run_ack_success_test(encoding);
     }
 

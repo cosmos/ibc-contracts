@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::constants::*;
+use crate::encoding::GmpEncoding;
 use crate::errors::GMPError;
 use crate::proto::{GmpSolanaPayload, GmpValidationError};
 use crate::state::GMPAppState;
@@ -95,8 +96,8 @@ pub fn on_recv_packet<'info>(
     require!(target_program.executable, GMPError::TargetNotExecutable);
 
     // Decode GMP packet data using the payload's declared encoding
-    let raw_packet_data =
-        crate::encoding::decode_gmp_packet(&msg.payload.value, &msg.payload.encoding)?;
+    let encoding = GmpEncoding::try_from(msg.payload.encoding.as_str())?;
+    let raw_packet_data = crate::encoding::decode_gmp_packet(&msg.payload.value, encoding)?;
     let packet_data = GmpPacketData::try_from(raw_packet_data).map_err(|e| {
         msg!("GMP packet validation failed: {}", e);
         GMPError::InvalidPacketData
@@ -137,7 +138,7 @@ pub fn on_recv_packet<'info>(
     );
 
     let solana_payload: GmpSolanaPayload =
-        crate::gmp_solana_payload::decode_raw(&packet_data.payload, &msg.payload.encoding)?
+        crate::gmp_solana_payload::decode_raw(&packet_data.payload, encoding)?
             .try_into()
             .map_err(|e: GmpValidationError| {
                 msg!("GMP Solana payload validation failed: {}", e);
@@ -194,7 +195,7 @@ pub fn on_recv_packet<'info>(
         _ => Vec::new(),
     };
 
-    crate::encoding::encode_gmp_ack(&result, &msg.payload.encoding)
+    Ok(crate::encoding::encode_gmp_ack(&result, encoding))
 }
 
 #[cfg(test)]
@@ -1174,10 +1175,10 @@ mod tests {
             sender,
             &DUMMY_TARGET_PROGRAM.to_string(),
             salt,
-            encode_test_solana_payload(&solana_payload, ICS27_ENCODING_ABI),
+            encode_test_solana_payload(&solana_payload, GmpEncoding::Abi),
         );
         // ABI-encode the outer packet (signer check must work for both encodings)
-        let packet_data_bytes = encode_test_packet(raw_packet, ICS27_ENCODING_ABI);
+        let packet_data_bytes = encode_test_packet(raw_packet, GmpEncoding::Abi);
 
         let recv_msg = solana_ibc_types::OnRecvPacketMsg {
             source_client: "cosmos-1".to_string(),
@@ -1428,15 +1429,15 @@ mod tests {
         run_valid_signer_test(case);
     }
 
-    fn encode_test_packet(raw: RawGmpPacketData, encoding: &str) -> Vec<u8> {
-        encode_gmp_packet(GmpPacketData::try_from(raw).unwrap(), encoding).unwrap()
+    fn encode_test_packet(raw: RawGmpPacketData, encoding: GmpEncoding) -> Vec<u8> {
+        encode_gmp_packet(GmpPacketData::try_from(raw).unwrap(), encoding)
     }
 
     /// Encode a `RawGmpSolanaPayload` using the same encoding as the outer packet.
     /// ABI packets expect the inner payload to be ABI-encoded too.
-    fn encode_test_solana_payload(raw: &RawGmpSolanaPayload, encoding: &str) -> Vec<u8> {
+    fn encode_test_solana_payload(raw: &RawGmpSolanaPayload, encoding: GmpEncoding) -> Vec<u8> {
         match encoding {
-            ICS27_ENCODING_ABI => {
+            GmpEncoding::Abi => {
                 use alloy_sol_types::SolValue;
                 let mut packed = Vec::new();
                 for account in &raw.accounts {
@@ -1451,11 +1452,11 @@ mod tests {
                 }
                 .abi_encode()
             }
-            _ => raw.encode_to_vec(),
+            GmpEncoding::Protobuf => raw.encode_to_vec(),
         }
     }
 
-    fn run_recv_success_test(encoding: &str) {
+    fn run_recv_success_test(encoding: GmpEncoding) {
         // Create Mollusk instance and load both programs
         let mut mollusk = Mollusk::new(&crate::ID, crate::get_gmp_program_path());
 
@@ -1555,7 +1556,7 @@ mod tests {
                 source_port: GMP_PORT_ID.to_string(),
                 dest_port: GMP_PORT_ID.to_string(),
                 version: ICS27_VERSION.to_string(),
-                encoding: encoding.to_string(),
+                encoding: encoding.as_str().to_string(),
                 value: packet_data_bytes,
             },
             relayer: Pubkey::new_unique(),
@@ -1645,7 +1646,7 @@ mod tests {
 
         assert!(
             !result.program_result.is_err(),
-            "OnRecvPacket should succeed with {encoding} encoding: {:?}",
+            "OnRecvPacket should succeed with {encoding:?} encoding: {:?}",
             result.program_result
         );
 
@@ -1689,9 +1690,9 @@ mod tests {
     }
 
     #[rstest]
-    #[case::protobuf(ICS27_ENCODING_PROTOBUF)]
-    #[case::abi(ICS27_ENCODING_ABI)]
-    fn test_on_recv_packet_success_with_cpi(#[case] encoding: &str) {
+    #[case::protobuf(GmpEncoding::Protobuf)]
+    #[case::abi(GmpEncoding::Abi)]
+    fn test_on_recv_packet_success_with_cpi(#[case] encoding: GmpEncoding) {
         run_recv_success_test(encoding);
     }
 
@@ -1903,7 +1904,7 @@ mod tests {
         } else {
             &result.return_data[..]
         };
-        let ack = crate::encoding::decode_gmp_ack(ack_bytes, ICS27_ENCODING_PROTOBUF).unwrap();
+        let ack = crate::encoding::decode_gmp_ack(ack_bytes, GmpEncoding::Protobuf).unwrap();
 
         assert!(
             !ack.result.is_empty(),

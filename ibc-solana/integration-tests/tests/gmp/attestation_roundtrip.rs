@@ -168,9 +168,8 @@ async fn test_gmp_attestation_roundtrip() {
     // Chain A verifies → sign with attestors_a
     let raw_ack_b = ics27_gmp::encoding::encode_gmp_ack(
         &amount_a_to_b.to_le_bytes(),
-        gmp::ICS27_ENCODING_PROTOBUF,
-    )
-    .expect("encode GMP ack B");
+        ics27_gmp::encoding::GmpEncoding::Protobuf,
+    );
 
     let ack_commitment_b = extract_ack_data(&chain_b, recv_on_b.ack_pda).await;
     let ack_entry_b = attestation::ack_commitment_entry(
@@ -211,9 +210,8 @@ async fn test_gmp_attestation_roundtrip() {
     // Chain B verifies → sign with attestors_b
     let raw_ack_a = ics27_gmp::encoding::encode_gmp_ack(
         &amount_b_to_a.to_le_bytes(),
-        gmp::ICS27_ENCODING_PROTOBUF,
-    )
-    .expect("encode GMP ack A");
+        ics27_gmp::encoding::GmpEncoding::Protobuf,
+    );
 
     let ack_commitment_a = extract_ack_data(&chain_a, recv_on_a.ack_pda).await;
     let ack_entry_a = attestation::ack_commitment_entry(

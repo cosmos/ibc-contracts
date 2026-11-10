@@ -122,9 +122,8 @@ async fn test_multiple_gmp_calls() {
 
     let raw_ack_1 = ics27_gmp::encoding::encode_gmp_ack(
         &first_amount.to_le_bytes(),
-        gmp::ICS27_ENCODING_PROTOBUF,
-    )
-    .expect("encode first GMP ack");
+        ics27_gmp::encoding::GmpEncoding::Protobuf,
+    );
 
     relayer
         .gmp_ack_packet(
@@ -214,9 +213,8 @@ async fn test_multiple_gmp_calls() {
 
     let raw_ack_2 = ics27_gmp::encoding::encode_gmp_ack(
         &first_amount.saturating_add(second_amount).to_le_bytes(),
-        gmp::ICS27_ENCODING_PROTOBUF,
-    )
-    .expect("encode second GMP ack");
+        ics27_gmp::encoding::GmpEncoding::Protobuf,
+    );
 
     relayer
         .gmp_ack_packet(
