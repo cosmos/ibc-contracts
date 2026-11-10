@@ -20,6 +20,13 @@ pub const MAX_COUNTERPARTY_ADDRESS_LENGTH: usize = 128;
 /// Maximum receiver address length
 pub const MAX_RECEIVER_LENGTH: usize = 128;
 
+/// IBC commitment of the universal error acknowledgement:
+/// `sha256(0x02 || sha256(UNIVERSAL_ERROR_ACK))`. Pinned to the runtime computation by a test.
+pub const ERROR_ACK_COMMITMENT: [u8; 32] = [
+    0xe2, 0xfb, 0x30, 0xdf, 0xbf, 0x7a, 0xbd, 0xea, 0xca, 0x82, 0xd4, 0x26, 0x53, 0x4d, 0x2b, 0x3a,
+    0x9d, 0x54, 0x44, 0xdd, 0x2a, 0x87, 0xfa, 0x16, 0xd3, 0x8b, 0x77, 0xba, 0x1a, 0x13, 0xce, 0xd7,
+];
+
 /// PDA seed for IFT app state (global singleton)
 pub const IFT_APP_STATE_SEED: &[u8] = b"ift_app_state";
 
