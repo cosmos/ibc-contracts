@@ -10,6 +10,12 @@ pub const UNIVERSAL_ERROR_ACK: [u8; 32] = [
     0x45, 0x7a, 0xbe, 0xf8, 0x58, 0x91, 0x78, 0xdb, 0x8d, 0x10, 0xc9, 0x4b, 0x4a, 0xb5, 0x11, 0xab,
 ];
 
+/// ICS27 GMP protobuf payload encoding (Cosmos IBC-Go's `EncodingProtobuf` constant).
+pub const ICS27_ENCODING_PROTOBUF: &str = "application/x-protobuf";
+
+/// ICS27 GMP Solidity ABI payload encoding (EVM `ICS27Lib`'s `ICS27_ENCODING` constant).
+pub const ICS27_ENCODING_ABI: &str = "application/x-solidity-abi";
+
 /// Anchor default discriminator length in bytes
 pub const ANCHOR_DISCRIMINATOR_LEN: usize = 8;
 

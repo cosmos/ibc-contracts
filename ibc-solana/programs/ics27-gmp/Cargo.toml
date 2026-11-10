@@ -24,6 +24,7 @@ idl-build = ["anchor-lang/idl-build"]
 [dependencies]
 anchor-lang = { workspace = true, features = ["init-if-needed"] }
 solana-ibc-types.workspace = true
+solana-ibc-constants.workspace = true
 solana-ibc-proto.workspace = true
 solana-ibc-macros.workspace = true
 ics26-router = { workspace = true, features = ["cpi"] }
