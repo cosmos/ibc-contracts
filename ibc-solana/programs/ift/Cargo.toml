@@ -34,9 +34,6 @@ serde.workspace = true
 serde_json.workspace = true
 alloy-sol-types = { workspace = true, features = ["json"] }
 
-[build-dependencies]
-sha2.workspace = true
-
 [dev-dependencies]
 mollusk-svm.workspace = true
 mollusk-svm-bencher.workspace = true

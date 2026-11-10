@@ -12,11 +12,11 @@ use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 use solana_ibc_types::{reject_cpi, CallResultStatus, GMPCallResult};
 
 use crate::constants::{
-    IFT_APP_MINT_STATE_SEED, IFT_APP_STATE_SEED, MINT_AUTHORITY_SEED, PENDING_TRANSFER_SEED,
+    ERROR_ACK_COMMITMENT, IFT_APP_MINT_STATE_SEED, IFT_APP_STATE_SEED, MINT_AUTHORITY_SEED,
+    PENDING_TRANSFER_SEED,
 };
 use crate::errors::IFTError;
 use crate::events::{IFTTransferCompleted, IFTTransferRefunded, RefundReason};
-use crate::evm_selectors::ERROR_ACK_COMMITMENT;
 use crate::helpers::mint_to_account;
 use crate::state::{IFTAppMintState, IFTAppState, PendingTransfer};
 
@@ -217,8 +217,8 @@ mod tests {
         pubkey::Pubkey,
     };
 
+    use crate::constants::ERROR_ACK_COMMITMENT;
     use crate::errors::IFTError;
-    use crate::evm_selectors::ERROR_ACK_COMMITMENT;
     use crate::test_utils::*;
 
     const TEST_CLIENT_ID: &str = "07-tendermint-0";
