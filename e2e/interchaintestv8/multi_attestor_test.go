@@ -119,10 +119,6 @@ func (s *MultiAttestorTestSuite) SetupSuite(ctx context.Context) {
 	s.T().Logf("Multi-attestor config: total=%d, active=%d, quorum=%d",
 		s.totalAttestors, s.activeAttestors, s.quorumThreshold)
 
-	if os.Getenv(testvalues.EnvKeyRustLog) == "" {
-		os.Setenv(testvalues.EnvKeyRustLog, testvalues.EnvValueRustLog_Info)
-	}
-
 	// Configure for single Anvil chain (PoW) + Cosmos
 	os.Setenv(testvalues.EnvKeyEthTestnetType, testvalues.EthTestnetTypeAnvil)
 

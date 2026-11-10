@@ -112,7 +112,6 @@ func (s *SP1ICS07TendermintTestSuite) SetupSuite(ctx context.Context, proofType 
 			s.Require().Fail("invalid prover type: %s", prover)
 		}
 
-		os.Setenv(testvalues.EnvKeyRustLog, testvalues.EnvValueRustLog_Info)
 		os.Setenv(testvalues.EnvKeyEthRPC, eth.RPC)
 		os.Setenv(testvalues.EnvKeyTendermintRPC, simd.GetHostRPCAddress())
 		os.Setenv(testvalues.EnvKeyOperatorPrivateKey, hex.EncodeToString(crypto.FromECDSA(s.key)))

@@ -193,9 +193,6 @@ func (s *EthereumSolanaIFTTestSuite) SetupSuite(ctx context.Context) {
 		os.Setenv(testvalues.EnvKeySp1Prover, prover)
 		os.Setenv(testvalues.EnvKeyVerifier, testvalues.EnvValueVerifier_Mock)
 
-		if os.Getenv(testvalues.EnvKeyRustLog) == "" {
-			os.Setenv(testvalues.EnvKeyRustLog, testvalues.EnvValueRustLog_Info)
-		}
 		os.Setenv(testvalues.EnvKeyEthRPC, eth.RPC)
 		os.Setenv(testvalues.EnvKeyOperatorPrivateKey, hex.EncodeToString(crypto.FromECDSA(operatorKey)))
 	}))
