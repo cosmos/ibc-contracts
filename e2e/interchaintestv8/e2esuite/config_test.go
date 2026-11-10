@@ -45,6 +45,16 @@ func TestSetupConfigValidateEthereumCompatibility(t *testing.T) {
 		})
 	}
 
+	for _, lcType := range []string{"", testvalues.CosmosLcTypeSp1, testvalues.CosmosLcTypeAttestor} {
+		cfg := setupConfig{ethereum: ethereumConfig{lightClientType: lcType}}
+		if err := cfg.validate(); err != nil {
+			t.Errorf("COSMOS_LC_ON_ETH=%q: %v", lcType, err)
+		}
+	}
+	if err := (&setupConfig{ethereum: ethereumConfig{lightClientType: unknown}}).validate(); err == nil {
+		t.Errorf("COSMOS_LC_ON_ETH=%q: expected an error", unknown)
+	}
+
 	for _, clientType := range []string{"", unknown} {
 		cfg := setupConfig{
 			ethereum: ethereumConfig{testnetType: testvalues.EthTestnetTypeAnvil, anvilCount: 2},
