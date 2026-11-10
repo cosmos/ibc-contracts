@@ -11,7 +11,6 @@ import { SlotDerivation } from "@openzeppelin-contracts/utils/SlotDerivation.sol
 
 import { ILightClient } from "../../interfaces/ILightClient.sol";
 import { ILightClientMsgs } from "../../msgs/ILightClientMsgs.sol";
-import { IICS02ClientMsgs } from "../../msgs/IICS02ClientMsgs.sol";
 import { IBesuLightClientMsgs } from "./msgs/IBesuLightClientMsgs.sol";
 import { IBesuLightClientErrors } from "./errors/IBesuLightClientErrors.sol";
 import { IBesuLightClient } from "./interfaces/IBesuLightClient.sol";
@@ -59,7 +58,9 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
         uint64 trustingPeriod = initialClientState.trustingPeriod;
 
         require(initialClientState.ibcRouter != address(0), InvalidIbcRouter());
-        uint64 latestHeight = _revisionHeight(initialClientState.latestHeight);
+        uint64 latestHeight = _revisionHeight(
+            initialClientState.latestHeight.revisionNumber, initialClientState.latestHeight.revisionHeight
+        );
         require(latestHeight != 0, InvalidHeaderHeight());
         require(!initialClientState.isFrozen, FrozenClientState());
         require(trustingPeriod != 0 && trustingPeriod <= MAX_TRUSTING_PERIOD, InvalidTrustingPeriod(trustingPeriod));
@@ -131,7 +132,7 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
         onlyICS26Router
         returns (uint256)
     {
-        uint64 revisionHeight = _revisionHeight(msg_.proofHeight);
+        uint64 revisionHeight = _revisionHeight(msg_.proofHeight.revisionNumber, msg_.proofHeight.revisionHeight);
         require(msg_.value.length == 32, InvalidValueLength(32, msg_.value.length));
 
         (bytes32 storageRoot, bytes memory storageKey, IBesuLightClientMsgs.MembershipProof memory proof) =
@@ -154,7 +155,7 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
         onlyICS26Router
         returns (uint256)
     {
-        uint64 revisionHeight = _revisionHeight(msg_.proofHeight);
+        uint64 revisionHeight = _revisionHeight(msg_.proofHeight.revisionNumber, msg_.proofHeight.revisionHeight);
 
         (bytes32 storageRoot, bytes memory storageKey, IBesuLightClientMsgs.MembershipProof memory proof) =
             _verifiedCommitmentProof(revisionHeight, msg_.path, msg_.proof);
@@ -235,8 +236,8 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
     )
         private
     {
-        uint64 height1 = _revisionHeight(msg_.height1);
-        uint64 height2 = _revisionHeight(msg_.height2);
+        uint64 height1 = _revisionHeight(msg_.height1.revisionNumber, msg_.height1.revisionHeight);
+        uint64 height2 = _revisionHeight(msg_.height2.revisionNumber, msg_.height2.revisionHeight);
 
         // Stored consensus states remain valid evidence after their trusting period.
         _requireStoredConsensusState(height1, msg_.consensusStatePreimage1);
@@ -433,7 +434,7 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
         view
         returns (uint64 height, IBesuLightClientMsgs.ConsensusState memory consensusState, bool sameValidators)
     {
-        uint64 trustedHeight = _revisionHeight(msg_.trustedHeight);
+        uint64 trustedHeight = _revisionHeight(msg_.trustedHeight.revisionNumber, msg_.trustedHeight.revisionHeight);
 
         Header.Data memory header = Header.decodeRlp(msg_.headerRlp);
         height = header.height;
@@ -474,14 +475,13 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
         private
         returns (bytes32)
     {
-        address ibcRouter = clientState.ibcRouter;
         if (accountProofNodes.length == 0) {
-            return _getCachedStorageRoot(ibcRouter, revisionHeight);
+            return _getCachedStorageRoot(revisionHeight);
         }
 
-        bytes32 storageRoot = _verifyAccountProof(ibcRouter, stateRoot, accountProofNodes);
+        bytes32 storageRoot = _verifyAccountProof(clientState.ibcRouter, stateRoot, accountProofNodes);
         require(_isNonEmptyRoot(storageRoot), InvalidStorageRoot(storageRoot));
-        _cacheStorageRoot(ibcRouter, revisionHeight, storageRoot);
+        _cacheStorageRoot(revisionHeight, storageRoot);
         return storageRoot;
     }
 
@@ -672,37 +672,38 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
     }
 
     /// @notice Returns the revision height of a height, which must use revision number `0`.
-    /// @param height The height.
+    /// @dev Takes the fields rather than the `Height` struct so that calldata heights are not copied to memory.
+    /// @param revisionNumber The revision number of the height.
+    /// @param revisionHeight The revision height of the height.
     /// @return The revision height.
-    function _revisionHeight(IICS02ClientMsgs.Height memory height) private pure returns (uint64) {
-        require(height.revisionNumber == 0, InvalidRevisionNumber(height.revisionNumber));
-        return height.revisionHeight;
+    function _revisionHeight(uint64 revisionNumber, uint64 revisionHeight) private pure returns (uint64) {
+        require(revisionNumber == 0, InvalidRevisionNumber(revisionNumber));
+        return revisionHeight;
     }
 
-    /// @notice Caches a storage root for a revision height in a transient slot.
-    /// @param ibcRouter The ICS26 router address whose storageRoot was proven.
+    /// @notice Caches the router storage root for a revision height in a transient slot.
     /// @param revisionHeight The revision height for the storage root.
     /// @param storageRoot The storage root to cache.
-    function _cacheStorageRoot(address ibcRouter, uint64 revisionHeight, bytes32 storageRoot) private {
-        _cacheKey(ibcRouter, revisionHeight).tstore(storageRoot);
+    function _cacheStorageRoot(uint64 revisionHeight, bytes32 storageRoot) private {
+        _cacheKey(revisionHeight).tstore(storageRoot);
     }
 
-    /// @notice Retrieves a cached storage root for a revision height from a transient slot.
-    /// @param ibcRouter The ICS26 router address whose storageRoot was proven.
+    /// @notice Retrieves the cached router storage root for a revision height from a transient slot.
     /// @param revisionHeight The revision height for the storage root.
     /// @return The cached storage root, reverting if not found.
-    function _getCachedStorageRoot(address ibcRouter, uint64 revisionHeight) private view returns (bytes32) {
-        bytes32 storageRoot = _cacheKey(ibcRouter, revisionHeight).tload();
+    function _getCachedStorageRoot(uint64 revisionHeight) private view returns (bytes32) {
+        bytes32 storageRoot = _cacheKey(revisionHeight).tload();
         require(storageRoot != bytes32(0), StorageRootNotInCache(revisionHeight));
         return storageRoot;
     }
 
     /// @notice Computes a transient slot cache key for a revision height.
-    /// @param ibcRouter The ICS26 router address whose storageRoot was proven.
+    /// @dev Only `clientState.ibcRouter`, which is fixed at construction, is ever proven, so the height alone is
+    /// unique.
     /// @param revisionHeight The revision height for the cache key.
     /// @return The cache key.
-    function _cacheKey(address ibcRouter, uint64 revisionHeight) private pure returns (TransientSlot.Bytes32Slot) {
-        return TransientSlot.asBytes32(keccak256(abi.encode(ibcRouter, revisionHeight)));
+    function _cacheKey(uint64 revisionHeight) private pure returns (TransientSlot.Bytes32Slot) {
+        return TransientSlot.asBytes32(keccak256(abi.encode(revisionHeight)));
     }
 
     /// @notice Reverts if the client is frozen. A frozen client can never be unfrozen.
