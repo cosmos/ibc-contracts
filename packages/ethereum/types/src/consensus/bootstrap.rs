@@ -2,7 +2,6 @@
 
 //! This module defines types related to the bootstrap endpoint of the Beacon API.
 
-use alloy_primitives::B256;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
@@ -17,7 +16,4 @@ pub struct LightClientBootstrap {
     pub header: LightClientHeader,
     /// The current sync committee
     pub current_sync_committee: SyncCommittee,
-    /// The branch of the current sync committee
-    // TODO: Assert the length of this branch once mainnet has forked to Gloas (#1252)
-    pub current_sync_committee_branch: Vec<B256>,
 }

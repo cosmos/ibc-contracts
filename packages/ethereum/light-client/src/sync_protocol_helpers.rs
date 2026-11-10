@@ -6,8 +6,7 @@ use alloy_primitives::B256;
 use ethereum_types::consensus::{
     light_client_header::LightClientHeader,
     merkle::{
-        floorlog2, CURRENT_SYNC_COMMITTEE_GINDEX_ELECTRA, CURRENT_SYNC_COMMITTEE_GINDEX_GLOAS,
-        EXECUTION_BLOCK_HASH_GINDEX_DENEB, EXECUTION_BLOCK_HASH_GINDEX_GLOAS,
+        floorlog2, EXECUTION_BLOCK_HASH_GINDEX_DENEB, EXECUTION_BLOCK_HASH_GINDEX_GLOAS,
         EXECUTION_PAYLOAD_GINDEX, FINALIZED_ROOT_GINDEX_ELECTRA, FINALIZED_ROOT_GINDEX_GLOAS,
         NEXT_SYNC_COMMITTEE_GINDEX_ELECTRA, NEXT_SYNC_COMMITTEE_GINDEX_GLOAS,
     },
@@ -34,25 +33,6 @@ pub fn finalized_root_gindex_at_slot(
     Ok(match epoch {
         _ if epoch >= client_state.fork_parameters.gloas.epoch => FINALIZED_ROOT_GINDEX_GLOAS,
         _ => FINALIZED_ROOT_GINDEX_ELECTRA,
-    })
-}
-
-// See spec: https://github.com/ethereum/consensus-specs/blob/master/specs/gloas/light-client/sync-protocol.md#modified-current_sync_committee_gindex_at_slot
-/// Returns the current sync committee gindex at the given slot.
-/// # Errors
-/// Returns an error if the epoch is in a non-supported fork.
-pub fn current_sync_committee_gindex_at_slot(
-    client_state: &ClientState,
-    slot: u64,
-) -> Result<u64, EthereumIBCError> {
-    let epoch = client_state.compute_epoch_at_slot(slot);
-    client_state.verify_supported_fork_at_epoch(epoch)?;
-
-    Ok(match epoch {
-        _ if epoch >= client_state.fork_parameters.gloas.epoch => {
-            CURRENT_SYNC_COMMITTEE_GINDEX_GLOAS
-        }
-        _ => CURRENT_SYNC_COMMITTEE_GINDEX_ELECTRA,
     })
 }
 
