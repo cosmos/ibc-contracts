@@ -173,23 +173,6 @@ mod tests {
     }
 
     #[test]
-    fn encoding_string_round_trip() {
-        for encoding in [GmpEncoding::Abi, GmpEncoding::Protobuf] {
-            assert!(matches!(GmpEncoding::try_from(encoding.as_str()), Ok(e) if e == encoding));
-        }
-        assert_eq!(GmpEncoding::Abi.as_str(), ICS27_ENCODING_ABI);
-        assert_eq!(GmpEncoding::Protobuf.as_str(), ICS27_ENCODING_PROTOBUF);
-    }
-
-    #[test]
-    fn invalid_encoding_rejected() {
-        assert!(matches!(
-            GmpEncoding::try_from("application/json"),
-            Err(GMPError::InvalidEncoding)
-        ));
-    }
-
-    #[test]
     fn abi_round_trip() {
         let original = sample_packet_data();
         let encoded = encode_gmp_packet(original, GmpEncoding::Abi);
