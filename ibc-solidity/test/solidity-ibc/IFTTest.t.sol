@@ -45,6 +45,14 @@ import { PausableUpgradeable } from "@openzeppelin-upgradeable/utils/PausableUpg
 
 contract IFTTest is Test {
     // solhint-disable gas-indexed-events
+
+    /// @dev The reference IFT variants that share `IFTPausableUpgradeable`
+    enum Impl {
+        Ownable,
+        Ownable2Step,
+        AccessManaged
+    }
+
     IIFT public ift;
 
     EVMIFTSendCallConstructor public evmCallConstructor = new EVMIFTSendCallConstructor();
@@ -109,135 +117,137 @@ contract IFTTest is Test {
         ift.iftMint(minter, amount);
     }
 
-    /// @dev Deploys the reference IFT selected by `impl` (0: Ownable, 1: Ownable2Step, 2: AccessManaged)
-    function setUpImpl(uint256 impl) public {
-        if (impl == 0) {
+    /// @dev Deploys the reference IFT selected by `impl`
+    function setUpImpl(Impl impl) public {
+        if (impl == Impl.Ownable) {
             setUpOwnable();
-        } else if (impl == 1) {
+        } else if (impl == Impl.Ownable2Step) {
             setUpOwnable2Step();
         } else {
             setUpAccessManaged();
         }
     }
 
+    /// @dev Maps a fuzzed seed to a reference IFT variant, so each fuzz run deploys only one
+    function boundImpl(uint256 implSeed) public pure returns (Impl) {
+        return Impl(bound(implSeed, 0, uint256(type(Impl).max)));
+    }
+
     /// @dev The error the reference IFT selected by `impl` raises for a caller that is not its authority
-    function unauthorizedErr(uint256 impl, address caller) public pure returns (bytes memory) {
-        return impl == 2
+    function unauthorizedErr(Impl impl, address caller) public pure returns (bytes memory) {
+        return impl == Impl.AccessManaged
             ? abi.encodeWithSelector(IAccessManaged.AccessManagedUnauthorized.selector, caller)
             : abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, caller);
     }
 
     function test_deployment() public {
-        for (uint256 impl = 0; impl < 3; ++impl) {
+        for (uint256 i = 0; i <= uint256(type(Impl).max); ++i) {
+            Impl impl = Impl(i);
             setUpImpl(impl);
             assertEq(address(ift.ics27()), mockICS27);
             assertEq(IERC20Metadata(address(ift)).name(), TOKEN_NAME);
             assertEq(IERC20Metadata(address(ift)).symbol(), TOKEN_SYMBOL);
             assertFalse(PausableUpgradeable(address(ift)).paused());
 
-            if (impl == 2) {
+            if (impl == Impl.AccessManaged) {
                 AccessManager manager = AccessManager(IFTAccessManaged(address(ift)).authority());
                 (bool isAdmin,) = manager.hasRole(IBCRolesLib.ADMIN_ROLE, admin);
                 assertTrue(isAdmin);
             } else {
                 assertEq(OwnableUpgradeable(address(ift)).owner(), admin);
             }
-            if (impl == 1) {
+            if (impl == Impl.Ownable2Step) {
                 assertEq(IFTOwnable2Step(address(ift)).pendingOwner(), address(0));
             }
         }
     }
 
-    function testFuzz_authorityCanMint(uint256 amount) public {
+    function testFuzz_authorityCanMint(uint256 amount, uint256 implSeed) public {
         address receiver = makeAddr("receiver");
-        for (uint256 impl = 0; impl < 3; ++impl) {
-            setUpImpl(impl);
+        Impl impl = boundImpl(implSeed);
+        setUpImpl(impl);
 
-            vm.prank(admin);
-            IFTPausableUpgradeable(address(ift)).mint(receiver, amount);
+        vm.prank(admin);
+        IFTPausableUpgradeable(address(ift)).mint(receiver, amount);
 
-            assertEq(IERC20(address(ift)).balanceOf(receiver), amount);
-            assertEq(IERC20(address(ift)).totalSupply(), amount);
-        }
+        assertEq(IERC20(address(ift)).balanceOf(receiver), amount);
+        assertEq(IERC20(address(ift)).totalSupply(), amount);
     }
 
-    function testFuzz_unauthorizedCannotMint(uint256 amount) public {
+    function testFuzz_unauthorizedCannotMint(uint256 amount, uint256 implSeed) public {
         address unauthorized = makeAddr("unauthorized");
-        for (uint256 impl = 0; impl < 3; ++impl) {
-            setUpImpl(impl);
+        Impl impl = boundImpl(implSeed);
+        setUpImpl(impl);
 
-            vm.expectRevert(unauthorizedErr(impl, unauthorized));
-            vm.prank(unauthorized);
-            IFTPausableUpgradeable(address(ift)).mint(makeAddr("receiver"), amount);
-        }
+        vm.expectRevert(unauthorizedErr(impl, unauthorized));
+        vm.prank(unauthorized);
+        IFTPausableUpgradeable(address(ift)).mint(makeAddr("receiver"), amount);
     }
 
-    function testFuzz_holderCanBurn(uint256 amount) public {
+    function testFuzz_holderCanBurn(uint256 amount, uint256 implSeed) public {
         address holder = makeAddr("holder");
-        for (uint256 impl = 0; impl < 3; ++impl) {
-            setUpImpl(impl);
+        Impl impl = boundImpl(implSeed);
+        setUpImpl(impl);
 
-            vm.prank(admin);
-            IFTPausableUpgradeable(address(ift)).mint(holder, amount);
+        vm.prank(admin);
+        IFTPausableUpgradeable(address(ift)).mint(holder, amount);
 
-            vm.prank(holder);
-            IFTPausableUpgradeable(address(ift)).burn(amount);
+        vm.prank(holder);
+        IFTPausableUpgradeable(address(ift)).burn(amount);
 
-            assertEq(IERC20(address(ift)).balanceOf(holder), 0);
-            assertEq(IERC20(address(ift)).totalSupply(), 0);
-        }
+        assertEq(IERC20(address(ift)).balanceOf(holder), 0);
+        assertEq(IERC20(address(ift)).totalSupply(), 0);
     }
 
-    function testFuzz_approvedSpenderCanBurnFrom(uint256 amount) public {
+    function testFuzz_approvedSpenderCanBurnFrom(uint256 amount, uint256 implSeed) public {
         address holder = makeAddr("holder");
         address spender = makeAddr("spender");
-        for (uint256 impl = 0; impl < 3; ++impl) {
-            setUpImpl(impl);
+        Impl impl = boundImpl(implSeed);
+        setUpImpl(impl);
 
-            vm.prank(admin);
-            IFTPausableUpgradeable(address(ift)).mint(holder, amount);
+        vm.prank(admin);
+        IFTPausableUpgradeable(address(ift)).mint(holder, amount);
 
-            vm.prank(holder);
-            IERC20(address(ift)).approve(spender, amount);
+        vm.prank(holder);
+        IERC20(address(ift)).approve(spender, amount);
 
-            vm.prank(spender);
-            IFTPausableUpgradeable(address(ift)).burnFrom(holder, amount);
+        vm.prank(spender);
+        IFTPausableUpgradeable(address(ift)).burnFrom(holder, amount);
 
-            assertEq(IERC20(address(ift)).balanceOf(holder), 0);
-            assertEq(IERC20(address(ift)).totalSupply(), 0);
-        }
+        assertEq(IERC20(address(ift)).balanceOf(holder), 0);
+        assertEq(IERC20(address(ift)).totalSupply(), 0);
     }
 
-    function testFuzz_unapprovedSpenderCannotBurnFrom(uint256 amount) public {
+    function testFuzz_unapprovedSpenderCannotBurnFrom(uint256 amount, uint256 implSeed) public {
         vm.assume(amount > 0);
         address holder = makeAddr("holder");
         address spender = makeAddr("spender");
-        for (uint256 impl = 0; impl < 3; ++impl) {
-            setUpImpl(impl);
+        Impl impl = boundImpl(implSeed);
+        setUpImpl(impl);
 
-            vm.prank(admin);
-            IFTPausableUpgradeable(address(ift)).mint(holder, amount);
+        vm.prank(admin);
+        IFTPausableUpgradeable(address(ift)).mint(holder, amount);
 
-            vm.expectRevert();
-            vm.prank(spender);
-            IFTPausableUpgradeable(address(ift)).burnFrom(holder, amount);
-        }
+        vm.expectRevert();
+        vm.prank(spender);
+        IFTPausableUpgradeable(address(ift)).burnFrom(holder, amount);
     }
 
     function test_upgrade_onlyAuthority() public {
         address unauthorized = makeAddr("unauthorized");
-        for (uint256 impl = 0; impl < 3; ++impl) {
+        for (uint256 i = 0; i <= uint256(type(Impl).max); ++i) {
+            Impl impl = Impl(i);
             setUpImpl(impl);
             address newImpl;
-            if (impl == 0) {
+            if (impl == Impl.Ownable) {
                 newImpl = address(new IFTOwnable());
-            } else if (impl == 1) {
+            } else if (impl == Impl.Ownable2Step) {
                 newImpl = address(new IFTOwnable2Step());
             } else {
                 newImpl = address(new IFTAccessManaged());
             }
 
-            address authority = impl == 2 ? IFTAccessManaged(address(ift)).authority() : address(0);
+            address authority = impl == Impl.AccessManaged ? IFTAccessManaged(address(ift)).authority() : address(0);
 
             vm.expectRevert(unauthorizedErr(impl, unauthorized));
             vm.prank(unauthorized);
@@ -247,7 +257,7 @@ contract IFTTest is Test {
             UUPSUpgradeable(address(ift)).upgradeToAndCall(newImpl, "");
 
             assertEq(IERC20Metadata(address(ift)).name(), TOKEN_NAME, "state should be preserved after upgrade");
-            if (impl == 2) {
+            if (impl == Impl.AccessManaged) {
                 assertEq(IFTAccessManaged(address(ift)).authority(), authority, "authority should be preserved");
             } else {
                 assertEq(OwnableUpgradeable(address(ift)).owner(), admin, "owner should be preserved after upgrade");
@@ -1819,9 +1829,8 @@ contract IFTTest is Test {
         }
     }
 
-    /// @dev Deploys the reference IFT selected by `impl` (0: Ownable, 1: Ownable2Step, 2: AccessManaged), with the
-    /// first bridge registered and rate limits set
-    function setUpPausable(uint256 impl) public returns (IPausable pausable) {
+    /// @dev Deploys the reference IFT selected by `impl`, with the first bridge registered and rate limits set
+    function setUpPausable(Impl impl) public returns (IPausable pausable) {
         setUpImpl(impl);
         string memory clientId = th.FIRST_CLIENT_ID();
         vm.prank(admin);
@@ -1832,7 +1841,8 @@ contract IFTTest is Test {
 
     function test_pause_onlyAuthority() public {
         address unauthorized = makeAddr("unauthorized");
-        for (uint256 impl = 0; impl < 3; ++impl) {
+        for (uint256 i = 0; i <= uint256(type(Impl).max); ++i) {
+            Impl impl = Impl(i);
             IPausable pausable = setUpPausable(impl);
 
             vm.expectRevert(unauthorizedErr(impl, unauthorized));
@@ -1855,7 +1865,7 @@ contract IFTTest is Test {
 
     /// @dev `IBCRolesLib` maps `pause` and `unpause` of `IFTAccessManaged` to their own roles, which grant nothing else
     function test_pause_accessManagedRoles() public {
-        IPausable pausable = setUpPausable(2);
+        IPausable pausable = setUpPausable(Impl.AccessManaged);
         AccessManager manager = AccessManager(IFTAccessManaged(address(ift)).authority());
         address pauser = makeAddr("pauser");
         address unpauser = makeAddr("unpauser");
@@ -1868,7 +1878,7 @@ contract IFTTest is Test {
 
         address[2] memory notPausers = [admin, unpauser];
         for (uint256 i = 0; i < notPausers.length; ++i) {
-            vm.expectRevert(unauthorizedErr(2, notPausers[i]));
+            vm.expectRevert(unauthorizedErr(Impl.AccessManaged, notPausers[i]));
             vm.prank(notPausers[i]);
             pausable.pause();
         }
@@ -1878,7 +1888,7 @@ contract IFTTest is Test {
 
         address[2] memory notUnpausers = [admin, pauser];
         for (uint256 i = 0; i < notUnpausers.length; ++i) {
-            vm.expectRevert(unauthorizedErr(2, notUnpausers[i]));
+            vm.expectRevert(unauthorizedErr(Impl.AccessManaged, notUnpausers[i]));
             vm.prank(notUnpausers[i]);
             pausable.unpause();
         }
@@ -1887,10 +1897,10 @@ contract IFTTest is Test {
         assertFalse(PausableUpgradeable(address(ift)).paused());
 
         // The pause roles grant no other authority function, which stay with the admin
-        vm.expectRevert(unauthorizedErr(2, pauser));
+        vm.expectRevert(unauthorizedErr(Impl.AccessManaged, pauser));
         vm.prank(pauser);
         IFTPausableUpgradeable(address(ift)).mint(pauser, 1);
-        vm.expectRevert(unauthorizedErr(2, unpauser));
+        vm.expectRevert(unauthorizedErr(Impl.AccessManaged, unpauser));
         vm.prank(unpauser);
         IIFTRateLimit(address(ift)).setIFTRateLimit(RATE_LIMIT_CAPACITY, RATE_LIMIT_WINDOW);
         vm.prank(admin);
@@ -1898,13 +1908,14 @@ contract IFTTest is Test {
     }
 
     function test_pause_bridgeFlows() public {
-        for (uint256 impl = 0; impl < 3; ++impl) {
-            _testPauseBridgeFlows(impl);
+        for (uint256 i = 0; i <= uint256(type(Impl).max); ++i) {
+            Impl impl = Impl(i);
+            _testPauseBridgeFlows(Impl(i));
         }
     }
 
     /// @dev Kept out of the test loop to stay within the stack limit when compiled without via-IR (coverage)
-    function _testPauseBridgeFlows(uint256 impl) private {
+    function _testPauseBridgeFlows(Impl impl) private {
         uint256 amount = 1000;
         string memory clientId = th.FIRST_CLIENT_ID();
         string memory receiver = Strings.toHexString(makeAddr("receiver"));
