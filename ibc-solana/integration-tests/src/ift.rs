@@ -23,8 +23,7 @@ use solana_sdk::{
     pubkey::Pubkey,
 };
 
-/// ABI content-type used for IFT payload encoding towards EVM chains.
-pub const ICS27_ENCODING_ABI: &str = "application/x-solidity-abi";
+pub use solana_ibc_constants::ICS27_ENCODING_ABI;
 /// Dummy EVM address for the counterparty IFT contract in tests.
 pub const COUNTERPARTY_IFT_ADDRESS: &str = "0x1234567890abcdef1234567890abcdef12345678";
 /// Dummy EVM receiver address used in IFT transfer tests.
