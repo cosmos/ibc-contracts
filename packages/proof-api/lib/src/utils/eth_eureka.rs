@@ -3,14 +3,18 @@
 //! Proof API utilities for `ibc-contracts` chains.
 
 use crate::events::{EurekaEvent, EurekaEventWithHeight};
-use alloy::{primitives::Bytes, sol_types::SolValue};
+use alloy::{
+    primitives::{Address, Bytes},
+    sol_types::{SolCall, SolValue},
+};
 use anyhow::{anyhow, Result};
 use futures::future;
 use ibc_eureka_solidity_types::{
+    ibc_multicall::multicall_calldata,
     ics26::{
-        router::{ackPacketCall, recvPacketCall, routerCalls},
+        router::{ackPacketCall, recvPacketCall, timeoutPacketCall, updateClientCall},
         IICS02ClientMsgs::Height,
-        IICS26RouterMsgs::{MsgAckPacket, MsgRecvPacket, MsgTimeoutPacket},
+        IICS26RouterMsgs::{MsgAckPacket, MsgRecvPacket, MsgTimeoutPacket, Packet},
     },
     msgs::{
         IICS07TendermintMsgs::ClientState,
@@ -27,8 +31,84 @@ use sp1_sdk::HashableKey;
 use tendermint_light_client_verifier::types::LightBlock;
 use tendermint_rpc::HttpClient;
 
-/// Converts a list of [`EurekaEvent`]s to a list of [`routerCalls::timeoutPacket`]s with empty
-/// proofs.
+/// A packet call to the ICS26 router.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PacketCall {
+    /// `recvPacket`, proven by the packet commitment on the source chain.
+    Recv(recvPacketCall),
+    /// `ackPacket`, proven by the acknowledgement commitment on the source chain.
+    Ack(ackPacketCall),
+    /// `timeoutPacket`, proven by the absence of a packet receipt on the source chain.
+    Timeout(timeoutPacketCall),
+}
+
+impl PacketCall {
+    /// The packet this call relays.
+    #[must_use]
+    pub const fn packet(&self) -> &Packet {
+        match self {
+            Self::Recv(call) => &call.msg_.packet,
+            Self::Ack(call) => &call.msg_.packet,
+            Self::Timeout(call) => &call.msg_.packet,
+        }
+    }
+
+    /// The source chain commitment path proven by this call.
+    #[must_use]
+    pub fn commitment_path(&self) -> Vec<u8> {
+        match self {
+            Self::Recv(call) => call.msg_.packet.commitment_path(),
+            Self::Ack(call) => call.msg_.packet.ack_commitment_path(),
+            Self::Timeout(call) => call.msg_.packet.receipt_commitment_path(),
+        }
+    }
+
+    /// Sets the proof of [`Self::commitment_path`].
+    pub fn set_proof(&mut self, proof: Bytes) {
+        match self {
+            Self::Recv(call) => call.msg_.proofCommitment = proof,
+            Self::Ack(call) => call.msg_.proofAcked = proof,
+            Self::Timeout(call) => call.msg_.proofTimeout = proof,
+        }
+    }
+
+    /// The ABI-encoded router calldata.
+    #[must_use]
+    pub fn abi_encode(&self) -> Vec<u8> {
+        match self {
+            Self::Recv(call) => call.abi_encode(),
+            Self::Ack(call) => call.abi_encode(),
+            Self::Timeout(call) => call.abi_encode(),
+        }
+    }
+}
+
+/// Encodes the router `updateClient` call for `client_id`.
+#[must_use]
+pub fn update_client_calldata(client_id: String, update_msg: Bytes) -> Bytes {
+    updateClientCall {
+        clientId: client_id,
+        updateMsg: update_msg,
+    }
+    .abi_encode()
+    .into()
+}
+
+/// Encodes an `IBCMulticall` call that only updates `client_id` on the router at `ics26_address`.
+#[must_use]
+pub fn update_client_multicall_calldata(
+    ics26_address: Address,
+    client_id: String,
+    update_msg: Bytes,
+) -> Vec<u8> {
+    multicall_calldata(
+        ics26_address,
+        [update_client_calldata(client_id, update_msg)],
+        1,
+    )
+}
+
+/// Converts a list of [`EurekaEvent`]s to a list of [`PacketCall::Timeout`]s with empty proofs.
 ///
 /// # Arguments
 /// - `target_events`: The list of target events to convert.
@@ -45,7 +125,7 @@ pub fn target_events_to_timeout_msgs(
     dst_packet_seqs: &[u64],
     target_height: &Height,
     now: u64,
-) -> Vec<routerCalls> {
+) -> Vec<PacketCall> {
     target_events
         .into_iter()
         .filter_map(|e| match e.event {
@@ -53,22 +133,20 @@ pub fn target_events_to_timeout_msgs(
                 && packet.sourceClient == dst_client_id
                 && packet.destClient == src_client_id
                 && (dst_packet_seqs.is_empty() || dst_packet_seqs.contains(&packet.sequence)))
-            .then_some(routerCalls::timeoutPacket(
-                ibc_eureka_solidity_types::ics26::router::timeoutPacketCall {
-                    msg_: MsgTimeoutPacket {
-                        packet,
-                        proofHeight: target_height.clone(),
-                        proofTimeout: Bytes::default(),
-                    },
+            .then_some(PacketCall::Timeout(timeoutPacketCall {
+                msg_: MsgTimeoutPacket {
+                    packet,
+                    proofHeight: target_height.clone(),
+                    proofTimeout: Bytes::default(),
                 },
-            )),
+            })),
             EurekaEvent::WriteAcknowledgement(..) => None,
         })
         .collect()
 }
 
-/// Converts a list of [`EurekaEvent`]s to a list of [`routerCalls::recvPacket`]s and
-/// [`routerCalls::ackPacket`]s with empty proofs.
+/// Converts a list of [`EurekaEvent`]s to a list of [`PacketCall::Recv`]s and
+/// [`PacketCall::Ack`]s with empty proofs.
 ///
 /// # Arguments
 /// - `src_events`: The list of source events to convert.
@@ -89,7 +167,7 @@ pub fn src_events_to_recv_and_ack_msgs(
     dst_packet_seqs: &[u64],
     target_height: &Height,
     now: u64,
-) -> Result<Vec<routerCalls>> {
+) -> Result<Vec<PacketCall>> {
     let mut calls = Vec::new();
     for event in src_events {
         match event.event {
@@ -100,7 +178,7 @@ pub fn src_events_to_recv_and_ack_msgs(
                     && (src_packet_seqs.is_empty()
                         || src_packet_seqs.contains(&packet.sequence)) =>
             {
-                calls.push(routerCalls::recvPacket(recvPacketCall {
+                calls.push(PacketCall::Recv(recvPacketCall {
                     msg_: MsgRecvPacket {
                         packet,
                         proofHeight: target_height.clone(),
@@ -120,7 +198,7 @@ pub fn src_events_to_recv_and_ack_msgs(
                         packet.sequence
                     )
                 })?;
-                calls.push(routerCalls::ackPacket(ackPacketCall {
+                calls.push(PacketCall::Ack(ackPacketCall {
                     msg_: MsgAckPacket {
                         packet,
                         acknowledgement, // TODO: handle multiple acks (#93)
@@ -141,7 +219,7 @@ pub fn src_events_to_recv_and_ack_msgs(
 pub async fn inject_sp1_proof(
     sp1_prover: &Sp1Prover,
     uc_and_mem_program: &UpdateClientAndMembershipProgram,
-    msgs: &mut [routerCalls],
+    msgs: &mut [PacketCall],
     tm_client: &HttpClient,
     target_light_block: LightBlock,
     client_state: ClientState,
@@ -151,13 +229,7 @@ pub async fn inject_sp1_proof(
 
     let ibc_paths = msgs
         .iter()
-        .map(|msg| match msg {
-            routerCalls::timeoutPacket(call) => call.msg_.packet.receipt_commitment_path(),
-            routerCalls::recvPacket(call) => call.msg_.packet.commitment_path(),
-            routerCalls::ackPacket(call) => call.msg_.packet.ack_commitment_path(),
-            _ => unreachable!(),
-        })
-        .map(|path| vec![b"ibc".into(), path]);
+        .map(|msg| vec![b"ibc".into(), msg.commitment_path()]);
 
     let kv_proofs: Vec<(_, _)> = future::try_join_all(ibc_paths.into_iter().map(|path| async {
         let (value, proof) = tm_client.prove_path(&path, target_height).await?;
@@ -200,17 +272,8 @@ pub async fn inject_sp1_proof(
     drop(uc_and_mem_prover);
 
     // inject proof
-    match msgs.first_mut() {
-        Some(routerCalls::timeoutPacket(ref mut call)) => {
-            *call.msg_.proofTimeout = sp1_proof.abi_encode().into();
-        }
-        Some(routerCalls::recvPacket(ref mut call)) => {
-            *call.msg_.proofCommitment = sp1_proof.abi_encode().into();
-        }
-        Some(routerCalls::ackPacket(ref mut call)) => {
-            *call.msg_.proofAcked = sp1_proof.abi_encode().into();
-        }
-        _ => unreachable!(),
+    if let Some(msg) = msgs.first_mut() {
+        msg.set_proof(sp1_proof.abi_encode().into());
     }
 
     Ok(())
@@ -219,7 +282,102 @@ pub async fn inject_sp1_proof(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ibc_eureka_solidity_types::ics26::IICS26RouterMsgs::Packet;
+    use alloy::sol_types::SolInterface;
+    use ibc_eureka_solidity_types::ics26::{router::routerCalls, IICS26RouterMsgs::Payload};
+
+    fn packet() -> Packet {
+        Packet {
+            sequence: 42,
+            sourceClient: "client-0".to_string(),
+            destClient: "client-1".to_string(),
+            timeoutTimestamp: 1_700_000_000,
+            payloads: vec![Payload {
+                sourcePort: "transfer".to_string(),
+                destPort: "transfer".to_string(),
+                version: "ics20-1".to_string(),
+                encoding: "application/x-solidity-abi".to_string(),
+                value: Bytes::from_static(b"payload value"),
+            }],
+        }
+    }
+
+    fn height() -> Height {
+        Height {
+            revisionNumber: 1,
+            revisionHeight: 1234,
+        }
+    }
+
+    /// Every packet call kind with a non-empty proof, paired with the router call it replaces.
+    fn packet_calls() -> Vec<(PacketCall, routerCalls)> {
+        let proof = Bytes::from_static(b"proof bytes");
+        let recv = recvPacketCall {
+            msg_: MsgRecvPacket {
+                packet: packet(),
+                proofHeight: height(),
+                proofCommitment: proof.clone(),
+            },
+        };
+        let ack = ackPacketCall {
+            msg_: MsgAckPacket {
+                packet: packet(),
+                acknowledgement: Bytes::from_static(b"ack"),
+                proofHeight: height(),
+                proofAcked: proof.clone(),
+            },
+        };
+        let timeout = timeoutPacketCall {
+            msg_: MsgTimeoutPacket {
+                packet: packet(),
+                proofHeight: height(),
+                proofTimeout: proof,
+            },
+        };
+        vec![
+            (
+                PacketCall::Recv(recv.clone()),
+                routerCalls::recvPacket(recv),
+            ),
+            (PacketCall::Ack(ack.clone()), routerCalls::ackPacket(ack)),
+            (
+                PacketCall::Timeout(timeout.clone()),
+                routerCalls::timeoutPacket(timeout),
+            ),
+        ]
+    }
+
+    /// `set_proof` replaces the proof of the call's own kind: clearing it changes the calldata,
+    /// and setting the original proof back restores the router call.
+    #[test]
+    fn set_proof_replaces_the_calls_proof() {
+        for (mut call, router_call) in packet_calls() {
+            call.set_proof(Bytes::new());
+            assert_ne!(call.abi_encode(), router_call.abi_encode());
+            call.set_proof(Bytes::from_static(b"proof bytes"));
+            assert_eq!(call.abi_encode(), router_call.abi_encode());
+        }
+    }
+
+    #[test]
+    fn update_client_multicall_matches_router_call_encoding() {
+        let ics26_address = Address::repeat_byte(0x26);
+        let update_msg = Bytes::from_static(b"update msg");
+        let expected = multicall_calldata(
+            ics26_address,
+            [updateClientCall {
+                clientId: "client-1".to_string(),
+                updateMsg: update_msg.clone(),
+            }
+            .abi_encode()
+            .into()],
+            1,
+        );
+
+        assert_eq!(
+            update_client_multicall_calldata(ics26_address, "client-1".to_string(), update_msg),
+            expected
+        );
+    }
 
     #[test]
     fn rejects_selected_event_without_acknowledgements() {
