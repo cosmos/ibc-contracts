@@ -279,9 +279,6 @@ func (s *ExternalCosmosTestSuite) setupExternalCosmosTest(ctx context.Context) {
 		s.ProofApiProcess = process
 		s.T().Logf("Proof API process started with PID: %d", process.Pid)
 
-		s.T().Log("Waiting for proof API to initialize...")
-		time.Sleep(5 * time.Second)
-
 		s.ProofApiClient, err = proofapi.GetGRPCClient(proofapi.DefaultProofAPIGRPCAddress())
 		s.Require().NoError(err, "Failed to create proof API client")
 

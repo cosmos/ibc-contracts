@@ -67,7 +67,11 @@ func StartProofAPI(configPath string) (*os.Process, error) {
 		return nil, err
 	}
 
-	if err := waitForTCP(grpcAddr, startupTimeout); err != nil {
+	// Reap the process so that an exit during startup is reported at once instead of after startupTimeout.
+	exited := make(chan error, 1)
+	go func() { exited <- cmd.Wait() }()
+
+	if err := waitForTCP(grpcAddr, startupTimeout, exited); err != nil {
 		_ = cmd.Process.Kill()
 		return nil, fmt.Errorf("proof API did not start: %w", err)
 	}
@@ -75,8 +79,8 @@ func StartProofAPI(configPath string) (*os.Process, error) {
 	return cmd.Process, nil
 }
 
-// waitForTCP polls addr until it accepts a TCP connection or timeout elapses.
-func waitForTCP(addr string, timeout time.Duration) error {
+// waitForTCP polls addr until it accepts a TCP connection, the process reports its exit on exited, or timeout elapses.
+func waitForTCP(addr string, timeout time.Duration, exited <-chan error) error {
 	deadline := time.Now().Add(timeout)
 	for {
 		conn, err := net.DialTimeout("tcp", addr, time.Second)
@@ -86,7 +90,15 @@ func waitForTCP(addr string, timeout time.Duration) error {
 		if time.Now().After(deadline) {
 			return fmt.Errorf("%s not accepting connections after %s: %w", addr, timeout, err)
 		}
-		time.Sleep(200 * time.Millisecond)
+
+		select {
+		case exitErr := <-exited:
+			if exitErr == nil {
+				return errors.New("process exited before accepting connections")
+			}
+			return fmt.Errorf("process exited before accepting connections: %w", exitErr)
+		case <-time.After(200 * time.Millisecond):
+		}
 	}
 }
 

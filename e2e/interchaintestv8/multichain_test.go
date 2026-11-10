@@ -229,8 +229,6 @@ func (s *MultichainTestSuite) SetupSuite(ctx context.Context, proofType types.Su
 	s.StartProofAPI(proofApiConfig)
 
 	s.Require().True(s.Run("Create Proof API Client", func() {
-		time.Sleep(5 * time.Second) // wait for the proof API to start
-
 		var err error
 		s.ProofApiClient, err = proofapi.GetGRPCClient(proofapi.DefaultProofAPIGRPCAddress())
 		s.Require().NoError(err)
@@ -609,8 +607,6 @@ func (s *MultichainTestSuite) Test_Deploy() {
 		s.Require().NoError(err)
 		s.Require().Equal(simdB.Config().ChainID, clientState.ChainId)
 	}))
-
-	time.Sleep(5 * time.Second) // wait for the proof API to start
 
 	s.Require().True(s.Run("Verify SimdA to Eth Proof API Info", func() {
 		info, err := s.ProofApiClient.Info(context.Background(), &proofapitypes.InfoRequest{
