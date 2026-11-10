@@ -2,7 +2,11 @@
 
 package proofapi
 
-import "os"
+import (
+	"os"
+
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/testvalues"
+)
 
 // ConfigBuilder provides a fluent API for building proof API configurations.
 type ConfigBuilder struct {
@@ -588,25 +592,12 @@ func (b *ConfigBuilder) SolanaToEthAttested(p SolanaToEthAttestedParams) *Config
 // Helper constructors for common prover configurations
 // =============================================================================
 
-// MockProver returns an SP1ProverConfig for mock proving.
-func MockProver() SP1ProverConfig {
-	return SP1ProverConfig{Type: "mock"}
-}
-
-// NetworkProver returns an SP1ProverConfig for network proving.
-func NetworkProver(privateKey string, privateCluster bool) SP1ProverConfig {
-	return SP1ProverConfig{
-		Type:              "network",
-		NetworkPrivateKey: privateKey,
-		PrivateCluster:    privateCluster,
+// SP1Prover returns an SP1ProverConfig for proverType. A network prover runs in a private cluster if
+// E2E_PRIVATE_CLUSTER is set to true.
+func SP1Prover(proverType string) SP1ProverConfig {
+	config := SP1ProverConfig{Type: proverType}
+	if proverType == testvalues.EnvValueSp1Prover_Network {
+		config.PrivateCluster = os.Getenv(testvalues.EnvKeyNetworkPrivateCluster) == testvalues.EnvValueSp1Prover_PrivateCluster
 	}
-}
-
-// NetworkProverFromEnv returns an SP1ProverConfig using environment variables.
-func NetworkProverFromEnv() SP1ProverConfig {
-	return SP1ProverConfig{
-		Type:              "network",
-		NetworkPrivateKey: os.Getenv("NETWORK_PRIVATE_KEY"),
-		PrivateCluster:    os.Getenv("SP1_PRIVATE_CLUSTER") == "true",
-	}
+	return config
 }

@@ -195,10 +195,7 @@ func (s *CosmosEthereumIFTTestSuite) SetupSuite(ctx context.Context, proofType t
 
 	var proofApiConfig proofapi.Config
 	s.Require().True(s.Run("Configure Proof API", func() {
-		sp1Config := proofapi.SP1ProverConfig{
-			Type:           s.prover,
-			PrivateCluster: os.Getenv(testvalues.EnvKeyNetworkPrivateCluster) == testvalues.EnvValueSp1Prover_PrivateCluster,
-		}
+		sp1Config := proofapi.SP1Prover(s.prover)
 
 		config := proofapi.NewConfigBuilder().
 			EthToCosmosAttested(proofapi.EthToCosmosAttestedParams{
@@ -426,7 +423,8 @@ func (s *CosmosEthereumIFTTestSuite) setupIFTInfrastructure(ctx context.Context,
 		}))
 
 		s.Require().True(s.Run("Create denom on Cosmos", func() {
-			tc.cosmosDenom = s.CreateTokenFactoryDenom(ctx, s.Wfchain, s.CosmosRelayerSubmitter, testvalues.IFTTestDenom)
+			s.CreateTokenFactoryDenom(ctx, s.Wfchain, s.CosmosRelayerSubmitter, testvalues.IFTTestDenom)
+			tc.cosmosDenom = testvalues.IFTTestDenom
 		}))
 
 		s.Require().True(s.Run("Verify CosmosIFTSendCallConstructor deployment", func() {
@@ -1094,7 +1092,8 @@ func (s *CosmosEthereumIFTTestSuite) Test_IFTTransfer_FailedReceiveOnEthereum() 
 	var cosmosDenom string
 	s.Require().True(s.Run("Setup IFT bridge on Cosmos only", func() {
 		s.Require().True(s.Run("Create denom on Cosmos", func() {
-			cosmosDenom = s.CreateTokenFactoryDenom(ctx, s.Wfchain, s.CosmosRelayerSubmitter, testvalues.IFTTestDenom)
+			s.CreateTokenFactoryDenom(ctx, s.Wfchain, s.CosmosRelayerSubmitter, testvalues.IFTTestDenom)
+			cosmosDenom = testvalues.IFTTestDenom
 		}))
 
 		s.Require().True(s.Run("Register IFT bridge on Cosmos", func() {

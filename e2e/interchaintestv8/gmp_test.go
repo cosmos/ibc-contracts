@@ -171,10 +171,7 @@ func (s *IbcEurekaGmpTestSuite) SetupSuite(ctx context.Context, proofType types.
 				ICS26Address:        s.contractAddresses.Ics26Router,
 				IBCMulticallAddress: s.contractAddresses.IbcMulticall,
 				EthRPC:              eth.RPC,
-				Prover: proofapi.SP1ProverConfig{
-					Type:           prover,
-					PrivateCluster: os.Getenv(testvalues.EnvKeyNetworkPrivateCluster) == testvalues.EnvValueSp1Prover_PrivateCluster,
-				},
+				Prover:              proofapi.SP1Prover(prover),
 			}).
 			Build()
 

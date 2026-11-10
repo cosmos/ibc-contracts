@@ -256,12 +256,14 @@ func (s *CosmosIFTTestSuite) Test_IFTTransfer() {
 	var denomA, denomB string
 
 	s.Require().True(s.Run("Create denom on Chain A", func() {
-		denomA = s.CreateTokenFactoryDenom(ctx, s.ChainA, s.ChainASubmitter, subdenom)
+		s.CreateTokenFactoryDenom(ctx, s.ChainA, s.ChainASubmitter, subdenom)
+		denomA = subdenom
 		s.T().Logf("Created denom on Chain A: %s", denomA)
 	}))
 
 	s.Require().True(s.Run("Create denom on Chain B", func() {
-		denomB = s.CreateTokenFactoryDenom(ctx, s.ChainB, s.ChainBSubmitter, subdenom)
+		s.CreateTokenFactoryDenom(ctx, s.ChainB, s.ChainBSubmitter, subdenom)
+		denomB = subdenom
 		s.T().Logf("Created denom on Chain B: %s", denomB)
 	}))
 
@@ -472,12 +474,14 @@ func (s *CosmosIFTTestSuite) Test_IFTTransferTimeout() {
 	var denomA, denomB string
 
 	s.Require().True(s.Run("Create denom on Chain A", func() {
-		denomA = s.CreateTokenFactoryDenom(ctx, s.ChainA, s.ChainASubmitter, subdenom)
+		s.CreateTokenFactoryDenom(ctx, s.ChainA, s.ChainASubmitter, subdenom)
+		denomA = subdenom
 		s.T().Logf("Created denom on Chain A: %s", denomA)
 	}))
 
 	s.Require().True(s.Run("Create denom on Chain B", func() {
-		denomB = s.CreateTokenFactoryDenom(ctx, s.ChainB, s.ChainBSubmitter, subdenom)
+		s.CreateTokenFactoryDenom(ctx, s.ChainB, s.ChainBSubmitter, subdenom)
+		denomB = subdenom
 		s.T().Logf("Created denom on Chain B: %s", denomB)
 	}))
 
@@ -633,7 +637,8 @@ func (s *CosmosIFTTestSuite) Test_IFTTransferFailedReceive() {
 	var denomA string
 
 	s.Require().True(s.Run("Create denom on Chain A", func() {
-		denomA = s.CreateTokenFactoryDenom(ctx, s.ChainA, s.ChainASubmitter, subdenom)
+		s.CreateTokenFactoryDenom(ctx, s.ChainA, s.ChainASubmitter, subdenom)
+		denomA = subdenom
 	}))
 
 	// NOTE: We intentionally do NOT create denom or register bridge on Chain B
@@ -743,11 +748,13 @@ func (s *CosmosIFTTestSuite) Test_IFTTransferMultipleSequential() {
 	var denomA, denomB string
 
 	s.Require().True(s.Run("Create denom on Chain A", func() {
-		denomA = s.CreateTokenFactoryDenom(ctx, s.ChainA, s.ChainASubmitter, subdenom)
+		s.CreateTokenFactoryDenom(ctx, s.ChainA, s.ChainASubmitter, subdenom)
+		denomA = subdenom
 	}))
 
 	s.Require().True(s.Run("Create denom on Chain B", func() {
-		denomB = s.CreateTokenFactoryDenom(ctx, s.ChainB, s.ChainBSubmitter, subdenom)
+		s.CreateTokenFactoryDenom(ctx, s.ChainB, s.ChainBSubmitter, subdenom)
+		denomB = subdenom
 	}))
 
 	var iftModuleAddrA, iftModuleAddrB string
