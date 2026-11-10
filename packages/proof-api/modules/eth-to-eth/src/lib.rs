@@ -268,7 +268,7 @@ impl ProofApiService for EthToEthProofApiModuleService {
         let inner_req = request.into_inner();
         let tx = self
             .tx_builder
-            .update_client(inner_req.dst_client_id)
+            .update_client(&inner_req.dst_client_id)
             .await
             .map_err(to_tonic_status)?;
 
@@ -312,10 +312,10 @@ impl EthToEthTxBuilder {
         }
     }
 
-    async fn update_client(&self, dst_client_id: String) -> anyhow::Result<Vec<u8>> {
+    async fn update_client(&self, dst_client_id: &str) -> anyhow::Result<Vec<u8>> {
         match self {
             Self::Attested(tb) => tb.update_client(dst_client_id).await,
-            Self::Besu(tb) => tb.update_client(&dst_client_id).await,
+            Self::Besu(tb) => tb.update_client(dst_client_id).await,
         }
     }
 }

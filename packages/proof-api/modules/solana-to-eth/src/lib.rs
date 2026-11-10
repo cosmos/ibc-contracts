@@ -291,7 +291,7 @@ impl SolanaToEthTxBuilder {
 
     async fn update_client(&self, dst_client_id: &str) -> anyhow::Result<Vec<u8>> {
         match self {
-            Self::Attested(tb) => tb.update_client(dst_client_id.to_string()).await,
+            Self::Attested(tb) => tb.update_client(dst_client_id).await,
         }
     }
 }

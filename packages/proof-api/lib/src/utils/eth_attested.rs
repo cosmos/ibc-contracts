@@ -335,7 +335,7 @@ impl<P: Provider + Clone> EthAttestedTxBuilder<P> {
     ///
     /// # Errors
     /// Returns an error if fetching attestation fails.
-    pub async fn update_client(&self, dst_client_id: String) -> Result<Vec<u8>> {
+    pub async fn update_client(&self, dst_client_id: &str) -> Result<Vec<u8>> {
         let current_height = self.aggregator.get_latest_height().await?;
         let state = self
             .aggregator
@@ -344,7 +344,7 @@ impl<P: Provider + Clone> EthAttestedTxBuilder<P> {
 
         Ok(eth_eureka::update_client_multicall_calldata(
             self.ics26_address,
-            dst_client_id,
+            dst_client_id.to_string(),
             build_eth_attestor_proof(state.attested_data, state.signatures).into(),
         ))
     }

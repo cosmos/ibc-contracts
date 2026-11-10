@@ -449,8 +449,8 @@ impl CosmosToEthTxBuilder {
 
     async fn update_client(&self, dst_client_id: String) -> anyhow::Result<Vec<u8>> {
         match self {
-            Self::SP1(tb) => tb.update_client(dst_client_id.clone()).await,
-            Self::Attested(tb) => tb.update_client(dst_client_id).await,
+            Self::SP1(tb) => tb.update_client(dst_client_id).await,
+            Self::Attested(tb) => tb.update_client(&dst_client_id).await,
         }
     }
 
