@@ -7,8 +7,8 @@ name: Release
 # proof-api, once the assets verify, it also publishes the signed container image built from the
 # same linux archives.
 #
-# The attesting, signing and publishing steps are the shared actions in cosmos/ibc's
-# .github/actions, which cosmos/ibc and cosmos/ibc-go use too. Images for pull requests are built,
+# The attesting, signing and publishing steps are the shared actions in lfdt-ibc/ibc's
+# .github/actions, which lfdt-ibc/ibc and lfdt-ibc/ibc-go use too. Images for pull requests are built,
 # unsigned, by docker.yml.
 
 on:

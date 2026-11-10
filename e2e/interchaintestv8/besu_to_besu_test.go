@@ -31,20 +31,20 @@ import (
 
 	"github.com/cosmos/interchaintest/v11/testutil"
 
-	"github.com/cosmos/ibc-contracts/packages/go-abigen/besulightclient"
-	"github.com/cosmos/ibc-contracts/packages/go-abigen/besumsgs"
-	"github.com/cosmos/ibc-contracts/packages/go-abigen/ibcerc20"
-	"github.com/cosmos/ibc-contracts/packages/go-abigen/ics20transfer"
-	"github.com/cosmos/ibc-contracts/packages/go-abigen/ics26router"
+	"github.com/lfdt-ibc/ibc-contracts/packages/go-abigen/besulightclient"
+	"github.com/lfdt-ibc/ibc-contracts/packages/go-abigen/besumsgs"
+	"github.com/lfdt-ibc/ibc-contracts/packages/go-abigen/ibcerc20"
+	"github.com/lfdt-ibc/ibc-contracts/packages/go-abigen/ics20transfer"
+	"github.com/lfdt-ibc/ibc-contracts/packages/go-abigen/ics26router"
 
-	"github.com/cosmos/ibc-contracts/e2e/v8/chainconfig"
-	"github.com/cosmos/ibc-contracts/e2e/v8/e2esuite"
-	"github.com/cosmos/ibc-contracts/e2e/v8/ethereum"
-	"github.com/cosmos/ibc-contracts/e2e/v8/proofapi"
-	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
-	e2etypes "github.com/cosmos/ibc-contracts/e2e/v8/types"
-	"github.com/cosmos/ibc-contracts/e2e/v8/types/erc20"
-	proofapitypes "github.com/cosmos/ibc-contracts/e2e/v8/types/proofapi"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/chainconfig"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/e2esuite"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/ethereum"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/proofapi"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/testvalues"
+	e2etypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/types"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/erc20"
+	proofapitypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/proofapi"
 )
 
 const (

@@ -276,7 +276,7 @@ impl TendermintRpcExt for HttpClient {
         anyhow::Ok((res.value, vm_proof))
     }
     //
-    // https://github.com/cosmos/ibc-go/blob/release/v10.3.x/modules/core/04-channel/v2/keeper/grpc_query.go#L60
+    // https://github.com/lfdt-ibc/ibc-go/blob/release/v10.3.x/modules/core/04-channel/v2/keeper/grpc_query.go#L60
     async fn v2_packet_commitment(
         &self,
         client_id: String,
@@ -311,7 +311,7 @@ impl TendermintRpcExt for HttpClient {
             .map_err(|e| anyhow::anyhow!("Failed to decode QueryPacketCommitmentResponse: {e}"))
     }
 
-    // https://github.com/cosmos/ibc-go/blob/release/v10.3.x/modules/core/04-channel/v2/keeper/grpc_query.go#L206
+    // https://github.com/lfdt-ibc/ibc-go/blob/release/v10.3.x/modules/core/04-channel/v2/keeper/grpc_query.go#L206
     async fn v2_packet_receipt(
         &self,
         client_id: String,
@@ -344,7 +344,7 @@ impl TendermintRpcExt for HttpClient {
             .map_err(|e| anyhow::anyhow!("Failed to decode QueryPacketReceiptResponse: {e}"))
     }
 
-    // https://github.com/cosmos/ibc-go/blob/release/v10.3.x/modules/core/04-channel/v2/keeper/grpc_query.go#L122
+    // https://github.com/lfdt-ibc/ibc-go/blob/release/v10.3.x/modules/core/04-channel/v2/keeper/grpc_query.go#L122
     async fn v2_packet_acknowledgement(
         &self,
         client_id: String,

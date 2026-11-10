@@ -1,4 +1,4 @@
-module github.com/cosmos/ibc-contracts/packages/go-anchor
+module github.com/lfdt-ibc/ibc-contracts/packages/go-anchor
 
 go 1.26.5
 

@@ -1,4 +1,4 @@
-module github.com/cosmos/ibc-contracts/tools/compute-ift-addresses
+module github.com/lfdt-ibc/ibc-contracts/tools/compute-ift-addresses
 
 go 1.26.5
 
