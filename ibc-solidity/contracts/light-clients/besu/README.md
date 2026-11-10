@@ -99,7 +99,7 @@ struct MsgUpdateClient {
   - The commit seals must be ordered by recovered signer address in strictly ascending order. Besu does not order them this way, so the submitter must reorder them.
   - Each commit seal must be a 65-byte `r || s || v` signature with `v` set to 27 or 28. Besu encodes the recovery id as 0 or 1, so the submitter must add 27 to it. Seals with a 0/1 recovery id revert in OpenZeppelin's `ECDSA.recover`.
 
-  The proof-api `besu-to-eth` module applies both rewrites.
+  The proof-api `besu_to_eth` module applies both rewrites.
 
 - `trustedHeight`: must use `revisionNumber == 0` and identify a stored consensus state hash.
 - `consensusStatePreimage`: the consensus state trusted at `trustedHeight`. Its hash must match the stored hash.
