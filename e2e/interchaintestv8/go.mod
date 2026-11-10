@@ -15,9 +15,6 @@ require (
 	github.com/cosmos/cosmos-proto v1.0.0-beta.5
 	github.com/cosmos/cosmos-sdk v0.55.0
 	github.com/cosmos/gogoproto v1.7.2
-	github.com/lfdt-ibc/ibc-contracts/e2e/interchaintestv8/solana/go-anchor v0.0.0-00010101000000-000000000000
-	github.com/lfdt-ibc/ibc-contracts/packages/go-abigen v0.0.0
-	github.com/lfdt-ibc/ibc-contracts/packages/go-anchor v0.0.0
 	github.com/cosmos/ibc-go/modules/light-clients/08-wasm/v11 v11.1.0
 	github.com/cosmos/ibc-go/v11 v11.2.0
 	github.com/cosmos/ics23/go v0.11.0
@@ -26,9 +23,12 @@ require (
 	github.com/docker/go-connections v0.8.1
 	github.com/ethereum/go-ethereum v1.17.5
 	github.com/gagliardetto/binary v0.8.0
-	github.com/gagliardetto/solana-go v1.25.0
+	github.com/gagliardetto/solana-go v1.26.0
 	github.com/holiman/uint256 v1.3.2
 	github.com/kurtosis-tech/kurtosis/api/golang v1.22.2
+	github.com/lfdt-ibc/ibc-contracts/e2e/interchaintestv8/solana/go-anchor v0.0.0-00010101000000-000000000000
+	github.com/lfdt-ibc/ibc-contracts/packages/go-abigen v0.0.0
+	github.com/lfdt-ibc/ibc-contracts/packages/go-anchor v0.0.0
 	github.com/moby/moby v28.5.2+incompatible
 	github.com/rs/zerolog v1.35.1
 	github.com/stretchr/testify v1.12.1
