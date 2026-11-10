@@ -18,8 +18,6 @@ require (
 	github.com/lfdt-ibc/ibc-contracts/e2e/interchaintestv8/solana/go-anchor v0.0.0-00010101000000-000000000000
 	github.com/lfdt-ibc/ibc-contracts/packages/go-abigen v0.0.0
 	github.com/lfdt-ibc/ibc-contracts/packages/go-anchor v0.0.0
-	github.com/cosmos/ibc-go/modules/light-clients/08-wasm/v11 v11.1.0
-	github.com/cosmos/ibc-go/v11 v11.2.0
 	github.com/cosmos/ics23/go v0.11.0
 	github.com/cosmos/interchaintest/v11 v11.0.0-20260805134452-6ecd341bf76a
 	github.com/docker/docker v28.5.2+incompatible

@@ -40,10 +40,10 @@ import (
 	comettypes "github.com/cometbft/cometbft/types"
 	comettime "github.com/cometbft/cometbft/types/time"
 
-	ibcwasmtypes "github.com/cosmos/ibc-go/modules/light-clients/08-wasm/v11/types"
-	clienttypes "github.com/cosmos/ibc-go/v11/modules/core/02-client/types"
-	ibcexported "github.com/cosmos/ibc-go/v11/modules/core/exported"
-	tmclient "github.com/cosmos/ibc-go/v11/modules/light-clients/07-tendermint"
+	ibcwasmtypes "github.com/lfdt-ibc/ibc-go/modules/light-clients/08-wasm/v11/types"
+	clienttypes "github.com/lfdt-ibc/ibc-go/v11/modules/core/02-client/types"
+	ibcexported "github.com/lfdt-ibc/ibc-go/v11/modules/core/exported"
+	tmclient "github.com/lfdt-ibc/ibc-go/v11/modules/light-clients/07-tendermint"
 
 	"github.com/cosmos/interchaintest/v11"
 	"github.com/cosmos/interchaintest/v11/chain/cosmos"

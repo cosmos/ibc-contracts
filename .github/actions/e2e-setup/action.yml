@@ -7,6 +7,12 @@ inputs:
   github_token:
     description: A Github PAT
     required: true
+  wfchain_pat:
+    description: >-
+      PAT with read:packages, used only to pull the private ghcr.io/cosmos/wfchain
+      image. It is never written to the runner's global Docker config.
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -21,13 +27,30 @@ runs:
         retry_wait_seconds: 5
         command: docker login ghcr.io -u ${{ github.actor }} --password-stdin <<< "$GH_TOKEN"
 
+    # The wfchain image lives in the cosmos org and is not readable with this repo's
+    # GITHUB_TOKEN. Pull it with the PAT using a throwaway Docker config, so the PAT is
+    # scoped to this single pull. interchaintest then uses the locally cached image.
     - name: Pre-pull private images
       uses: nick-invision/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
+      env:
+        WFCHAIN_PAT: ${{ inputs.wfchain_pat }}
+        GH_ACTOR: ${{ github.actor }}
       with:
         timeout_minutes: 10
         max_attempts: 3
         retry_wait_seconds: 5
-        command: docker pull ghcr.io/cosmos/wfchain:latest
+        shell: bash
+        command: |
+          set -euo pipefail
+          if [ -z "${WFCHAIN_PAT}" ]; then
+            echo "::warning::wfchain_pat is not set; pulling ghcr.io/cosmos/wfchain with the default credentials"
+            docker pull ghcr.io/cosmos/wfchain:latest
+            exit 0
+          fi
+          export DOCKER_CONFIG="$(mktemp -d)"
+          trap 'rm -rf "${DOCKER_CONFIG}"' EXIT
+          docker login ghcr.io -u "${GH_ACTOR}" --password-stdin <<< "${WFCHAIN_PAT}"
+          docker pull ghcr.io/cosmos/wfchain:latest
       continue-on-error: true
 
     - name: Set up foundry tooling
