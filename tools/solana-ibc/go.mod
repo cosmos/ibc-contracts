@@ -5,8 +5,8 @@ go 1.26.5
 replace github.com/lfdt-ibc/ibc-contracts/packages/go-anchor => ../../packages/go-anchor
 
 require (
+	github.com/gagliardetto/solana-go v1.26.0
 	github.com/lfdt-ibc/ibc-contracts/packages/go-anchor v0.0.0
-	github.com/gagliardetto/solana-go v1.25.0
 	github.com/spf13/cobra v1.10.2
 )
 
@@ -34,8 +34,8 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/ratelimit v0.3.1 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	golang.org/x/crypto v0.56.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/term v0.45.0 // indirect
+	golang.org/x/crypto v0.57.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
+	golang.org/x/term v0.46.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 )
