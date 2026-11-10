@@ -12,9 +12,7 @@ categories = ["cryptography", "blockchain"]
 
 [dependencies]
 anchor-lang.workspace = true
-
-[build-dependencies]
-sha2 = "0.10"
+solana-ibc-macros.workspace = true
 
 [lib]
 crate-type = ["cdylib", "lib"]
