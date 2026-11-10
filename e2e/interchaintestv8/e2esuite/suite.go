@@ -39,6 +39,9 @@ type TestSuite struct {
 		Chain solana.Solana
 	}
 
+	// SetupOverrides fixes chain setup options for this suite. Set it before calling SetupSuite.
+	SetupOverrides SetupOverrides
+
 	// Parsed configuration
 	config setupConfig
 
@@ -46,6 +49,16 @@ type TestSuite struct {
 	dockerClient *dockerclient.Client
 	network      string
 	logger       *zap.Logger
+}
+
+// SetupOverrides fixes chain setup options that are otherwise read from the environment variable named for each
+// field. A zero field leaves its environment variable in effect.
+type SetupOverrides struct {
+	EthTestnetType    string // ETH_TESTNET_TYPE
+	EthAnvilCount     int    // ETH_ANVIL_COUNT
+	CosmosLcOnEth     string // COSMOS_LC_ON_ETH
+	SolanaTestnetType string // SOLANA_TESTNET_TYPE
+	EthLcOnCosmos     string // ETH_LC_ON_COSMOS
 }
 
 // SetupSuite sets up the chains, relayer, user accounts, clients, and connections
@@ -115,20 +128,30 @@ func (s *TestSuite) SetupDocker() {
 }
 
 func (s *TestSuite) parseConfig() setupConfig {
+	o := s.SetupOverrides
 	return setupConfig{
 		ethereum: ethereumConfig{
-			testnetType:     os.Getenv(testvalues.EnvKeyEthTestnetType),
-			anvilCount:      envInt(testvalues.EnvKeyEthAnvilCount, 1),
-			lightClientType: os.Getenv(testvalues.EnvKeyCosmosLcOnEth),
+			testnetType:     override(o.EthTestnetType, os.Getenv(testvalues.EnvKeyEthTestnetType)),
+			anvilCount:      override(o.EthAnvilCount, envInt(testvalues.EnvKeyEthAnvilCount, 1)),
+			lightClientType: override(o.CosmosLcOnEth, os.Getenv(testvalues.EnvKeyCosmosLcOnEth)),
 		},
 		solana: solanaConfig{
-			testnetType: os.Getenv(testvalues.EnvKeySolanaTestnetType),
+			testnetType: override(o.SolanaTestnetType, os.Getenv(testvalues.EnvKeySolanaTestnetType)),
 		},
 		cosmos: cosmosConfig{
-			lightClientType:    os.Getenv(testvalues.EnvKeyEthLcOnCosmos),
+			lightClientType:    override(o.EthLcOnCosmos, os.Getenv(testvalues.EnvKeyEthLcOnCosmos)),
 			wasmLightClientTag: os.Getenv(testvalues.EnvKeyE2EWasmLightClientTag),
 		},
 	}
+}
+
+// override returns value unless it is the zero value, in which case it returns fallback.
+func override[T comparable](value, fallback T) T {
+	var zero T
+	if value != zero {
+		return value
+	}
+	return fallback
 }
 
 func (s *TestSuite) setupChainsInParallel(

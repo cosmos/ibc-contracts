@@ -65,7 +65,9 @@ func TestWithCosmosProofAPITestSuite(t *testing.T) {
 func (s *CosmosProofAPITestSuite) SetupSuite(ctx context.Context) {
 	chainconfig.DefaultChainSpecs = append(chainconfig.DefaultChainSpecs, chainconfig.IbcGoChainSpec("ibc-go-simd-2", "simd-2"))
 
-	os.Setenv(testvalues.EnvKeyEthTestnetType, testvalues.EthTestnetType_None)
+	s.SetupOverrides = e2esuite.SetupOverrides{
+		EthTestnetType: testvalues.EthTestnetType_None,
+	}
 
 	// Initialize fixture generation
 	s.TendermintLightClientFixtures = e2etypes.NewTendermintLightClientFixtureGenerator(&s.Suite)
