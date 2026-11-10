@@ -71,7 +71,8 @@ pub struct AssembleAndUpdateClient<'info> {
     #[account(address = anchor_lang::solana_program::sysvar::instructions::ID)]
     pub instructions_sysvar: AccountInfo<'info>,
     // Remaining accounts are the chunk accounts in order, followed by signature verification accounts.
-    // They will be validated and closed in the instruction handler.
+    // They are validated in the instruction handler, which leaves the chunks open; the submitter
+    // reclaims their rent with `cleanup_incomplete_upload`.
 }
 
 impl AssembleAndUpdateClient<'_> {
