@@ -90,20 +90,6 @@ impl TryFrom<u8> for ClientStatus {
 #[cfg(test)]
 mod tests {
     use super::discriminators::*;
-    use sha2::{Digest, Sha256};
-
-    fn sighash(name: &str) -> [u8; 8] {
-        Sha256::digest(format!("global:{name}").as_bytes())[..8]
-            .try_into()
-            .unwrap()
-    }
-
-    #[test]
-    fn discriminators_match_anchor_sighash() {
-        assert_eq!(VERIFY_MEMBERSHIP, sighash("verify_membership"));
-        assert_eq!(VERIFY_NON_MEMBERSHIP, sighash("verify_non_membership"));
-        assert_eq!(CLIENT_STATUS, sighash("client_status"));
-    }
 
     /// Bytes as emitted in the deployed light client IDLs.
     #[test]

@@ -14,9 +14,6 @@ categories = ["cryptography", "blockchain"]
 anchor-lang.workspace = true
 solana-ibc-macros.workspace = true
 
-[dev-dependencies]
-sha2.workspace = true
-
 [lib]
 crate-type = ["cdylib", "lib"]
 
