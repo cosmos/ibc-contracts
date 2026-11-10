@@ -331,6 +331,8 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
     /// @param heightB The height of the second consensus state.
     /// @param b The second consensus state.
     /// @param sameValidators Whether `a` and `b` have the same validator set, as computed by `_sameValidatorSet`.
+    /// Passed in so that `_verifyHeader` callers do not compare them again. A wrong `true` disables the validator set
+    /// change check, so callers without a computed value must pass `_sameValidatorSet(a.validators, b.validators)`.
     /// @return frozen True if the consensus states conflict and the client was frozen.
     function _freezeOnConflict(
         uint64 heightA,
