@@ -109,9 +109,11 @@ func (s *IbcSolanaAttestationTestSuite) SetupSuite(ctx context.Context) {
 	err = os.Chdir("../..")
 	s.Require().NoError(err)
 
-	os.Setenv(testvalues.EnvKeyEthTestnetType, testvalues.EthTestnetType_None)
-	os.Setenv(testvalues.EnvKeySolanaTestnetType, testvalues.SolanaTestnetType_Localnet)
-	os.Setenv(testvalues.EnvKeyEthLcOnCosmos, testvalues.EthLCOnCosmosTypeAttestorNative)
+	s.SetupOverrides = e2esuite.SetupOverrides{
+		EthTestnetType:    testvalues.EthTestnetType_None,
+		SolanaTestnetType: testvalues.SolanaTestnetType_Localnet,
+		EthLcOnCosmos:     testvalues.EthLCOnCosmosTypeAttestorNative,
+	}
 
 	s.TestSuite.SetupSuite(ctx)
 

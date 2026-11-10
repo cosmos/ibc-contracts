@@ -59,8 +59,10 @@ func (s *CosmosIFTTestSuite) SetupSuite(ctx context.Context) {
 		chainconfig.WfchainChainSpec("wfchain-2", "wfchain-2"),
 	}
 
-	os.Setenv(testvalues.EnvKeyEthTestnetType, testvalues.EthTestnetType_None)
-	os.Setenv(testvalues.EnvKeySolanaTestnetType, testvalues.SolanaTestnetType_None)
+	s.SetupOverrides = e2esuite.SetupOverrides{
+		EthTestnetType:    testvalues.EthTestnetType_None,
+		SolanaTestnetType: testvalues.SolanaTestnetType_None,
+	}
 
 	s.TestSuite.SetupSuite(ctx)
 

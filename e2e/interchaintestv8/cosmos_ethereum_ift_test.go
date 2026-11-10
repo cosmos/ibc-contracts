@@ -92,8 +92,10 @@ func (s *CosmosEthereumIFTTestSuite) SetupSuite(ctx context.Context, proofType t
 	}
 
 	// Set up Ethereum chain with native attestor light client
-	os.Setenv(testvalues.EnvKeyEthTestnetType, testvalues.EthTestnetTypeAnvil)
-	os.Setenv(testvalues.EnvKeyEthLcOnCosmos, testvalues.EthLCOnCosmosTypeAttestorNative)
+	s.SetupOverrides = e2esuite.SetupOverrides{
+		EthTestnetType: testvalues.EthTestnetTypeAnvil,
+		EthLcOnCosmos:  testvalues.EthLCOnCosmosTypeAttestorNative,
+	}
 
 	s.TestSuite.SetupSuite(ctx)
 
