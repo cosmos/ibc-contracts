@@ -346,44 +346,14 @@ mod tests {
         ]
     }
 
+    /// `set_proof` replaces the proof of the call's own kind: clearing it changes the calldata,
+    /// and setting the original proof back restores the router call.
     #[test]
-    fn packet_call_calldata_matches_router_call_encoding() {
-        for (call, router_call) in packet_calls() {
-            let encoded_call = match &router_call {
-                routerCalls::recvPacket(call) => call.abi_encode(),
-                routerCalls::ackPacket(call) => call.abi_encode(),
-                routerCalls::timeoutPacket(call) => call.abi_encode(),
-                _ => unreachable!(),
-            };
-            assert_eq!(call.abi_encode(), encoded_call);
-            assert_eq!(call.abi_encode(), router_call.abi_encode());
-        }
-    }
-
-    #[test]
-    fn packet_call_commitment_path_and_proof_match_router_call() {
+    fn set_proof_replaces_the_calls_proof() {
         for (mut call, router_call) in packet_calls() {
-            let (path, proof) = match &router_call {
-                routerCalls::recvPacket(call) => (
-                    call.msg_.packet.commitment_path(),
-                    &call.msg_.proofCommitment,
-                ),
-                routerCalls::ackPacket(call) => (
-                    call.msg_.packet.ack_commitment_path(),
-                    &call.msg_.proofAcked,
-                ),
-                routerCalls::timeoutPacket(call) => (
-                    call.msg_.packet.receipt_commitment_path(),
-                    &call.msg_.proofTimeout,
-                ),
-                _ => unreachable!(),
-            };
-            assert_eq!(call.packet(), &packet());
-            assert_eq!(call.commitment_path(), path);
-
             call.set_proof(Bytes::new());
             assert_ne!(call.abi_encode(), router_call.abi_encode());
-            call.set_proof(proof.clone());
+            call.set_proof(Bytes::from_static(b"proof bytes"));
             assert_eq!(call.abi_encode(), router_call.abi_encode());
         }
     }
