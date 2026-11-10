@@ -160,12 +160,7 @@ func (s *MultichainTestSuite) SetupSuite(ctx context.Context, proofType types.Su
 			beaconAPI = eth.BeaconAPIClient.GetBeaconAPIURL()
 		}
 
-		sp1Config := proofapi.SP1ProverConfig{
-			Type: prover,
-		}
-		if prover == testvalues.EnvValueSp1Prover_Network {
-			sp1Config.PrivateCluster = os.Getenv(testvalues.EnvKeyNetworkPrivateCluster) == testvalues.EnvValueSp1Prover_PrivateCluster
-		}
+		sp1Config := proofapi.SP1Prover(prover)
 
 		mockClient := s.GetEthTestnetType() == testvalues.EthTestnetTypeAnvil
 

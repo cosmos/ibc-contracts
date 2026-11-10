@@ -153,10 +153,7 @@ func (s *SP1ICS07TendermintTestSuite) SetupSuite(ctx context.Context, proofType 
 				ICS26Address:        s.ics26Address.Hex(),
 				IBCMulticallAddress: s.ibcMulticallAddress.Hex(),
 				EthRPC:              eth.RPC,
-				Prover: proofapi.SP1ProverConfig{
-					Type:           prover,
-					PrivateCluster: os.Getenv(testvalues.EnvKeyNetworkPrivateCluster) == testvalues.EnvValueSp1Prover_PrivateCluster,
-				},
+				Prover:              proofapi.SP1Prover(prover),
 			}).
 			Build()
 

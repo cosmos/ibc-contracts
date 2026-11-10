@@ -111,8 +111,8 @@ func (s *TestSuite) BroadcastMessagesNoWait(ctx context.Context, chain *cosmos.C
 	return s.broadcastMessages(ctx, chain, user, gas, 0, msgs...)
 }
 
-// CreateTokenFactoryDenom creates a tokenfactory denom owned by user and returns the denom.
-func (s *TestSuite) CreateTokenFactoryDenom(ctx context.Context, chain *cosmos.CosmosChain, user ibc.Wallet, denom string) string {
+// CreateTokenFactoryDenom creates the tokenfactory denom `denom`, owned by user.
+func (s *TestSuite) CreateTokenFactoryDenom(ctx context.Context, chain *cosmos.CosmosChain, user ibc.Wallet, denom string) {
 	msg := &tokenfactorytypes.MsgCreateDenom{
 		Sender: user.FormattedAddress(),
 		Denom:  denom,
@@ -120,8 +120,6 @@ func (s *TestSuite) CreateTokenFactoryDenom(ctx context.Context, chain *cosmos.C
 
 	_, err := s.BroadcastMessages(ctx, chain, user, 200_000, msg)
 	s.Require().NoError(err)
-
-	return denom
 }
 
 // MintTokenFactory mints tokenfactory tokens of denom from user to recipient.

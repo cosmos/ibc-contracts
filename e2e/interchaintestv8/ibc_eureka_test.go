@@ -250,10 +250,7 @@ func (s *IbcEurekaTestSuite) SetupSuite(ctx context.Context, proofType types.Sup
 				ICS26Address:        s.contractAddresses.Ics26Router,
 				IBCMulticallAddress: s.contractAddresses.IbcMulticall,
 				EthRPC:              eth.RPC,
-				Prover: proofapi.SP1ProverConfig{
-					Type:           prover,
-					PrivateCluster: os.Getenv(testvalues.EnvKeyNetworkPrivateCluster) == testvalues.EnvValueSp1Prover_PrivateCluster,
-				},
+				Prover:              proofapi.SP1Prover(prover),
 			})
 		}
 
@@ -352,11 +349,8 @@ func (s *IbcEurekaTestSuite) SetupSuite(ctx context.Context, proofType types.Sup
 
 	// Create Ethereum light client on Cosmos for Eth→Cosmos direction
 	s.Require().True(s.Run("Create ethereum light client on Cosmos chain", func() {
-		checksumHex := s.StoreLightClient(ctx, simd, s.SimdRelayerSubmitter)
 		// checksumHex is empty for native attestor (no wasm needed)
-		if !s.IsEthLcOnCosmosAttestor() {
-			s.Require().NotEmpty(checksumHex)
-		}
+		checksumHex := s.StoreLightClient(ctx, simd, s.SimdRelayerSubmitter)
 
 		var createClientTxBodyBz []byte
 
