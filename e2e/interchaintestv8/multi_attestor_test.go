@@ -223,8 +223,8 @@ func (s *MultiAttestorTestSuite) SetupSuite(ctx context.Context) {
 	// Note: Docker containers cleanup automatically via t.Cleanup() registered in SetupAttestors
 
 	// Start proof API with multi-attestor config
-	var proofApiProcess *os.Process
-	s.Require().True(s.Run("Start Proof API with multi-attestor config", func() {
+	var proofApiConfig proofapi.Config
+	s.Require().True(s.Run("Configure Proof API with multi-attestor config", func() {
 		config := proofapi.NewConfigBuilder().
 			// Eth → Cosmos direction (uses Eth attestors)
 			EthToCosmosAttested(proofapi.EthToCosmosAttestedParams{
@@ -254,14 +254,10 @@ func (s *MultiAttestorTestSuite) SetupSuite(ctx context.Context) {
 
 		s.T().Logf("Proof API config with quorum threshold %d", s.quorumThreshold)
 
-		proofApiProcess = s.StartProofAPI(config)
+		proofApiConfig = config
 	}))
 
-	s.T().Cleanup(func() {
-		if proofApiProcess != nil {
-			_ = proofApiProcess.Kill()
-		}
-	})
+	s.StartProofAPI(proofApiConfig)
 
 	s.Require().True(s.Run("Create Proof API Client", func() {
 		grpcAddr := proofapi.DefaultProofAPIGRPCAddress()

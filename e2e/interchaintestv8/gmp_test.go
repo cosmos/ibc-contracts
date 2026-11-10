@@ -145,8 +145,8 @@ func (s *IbcEurekaGmpTestSuite) SetupSuite(ctx context.Context, proofType types.
 		s.Require().NoError(err)
 	}))
 
-	var proofApiProcess *os.Process
-	s.Require().True(s.Run("Start Proof API", func() {
+	var proofApiConfig proofapi.Config
+	s.Require().True(s.Run("Configure Proof API", func() {
 		beaconAPI := ""
 		// The BeaconAPIClient is nil when the testnet is `pow`
 		if eth.BeaconAPIClient != nil {
@@ -178,17 +178,10 @@ func (s *IbcEurekaGmpTestSuite) SetupSuite(ctx context.Context, proofType types.
 			}).
 			Build()
 
-		proofApiProcess = s.StartProofAPI(config)
+		proofApiConfig = config
 	}))
 
-	s.T().Cleanup(func() {
-		if proofApiProcess != nil {
-			err := proofApiProcess.Kill()
-			if err != nil {
-				s.T().Logf("Failed to kill the proof API process: %v", err)
-			}
-		}
-	})
+	s.StartProofAPI(proofApiConfig)
 
 	s.Require().True(s.Run("Create Proof API Client", func() {
 		time.Sleep(5 * time.Second) // wait for the proof API to start

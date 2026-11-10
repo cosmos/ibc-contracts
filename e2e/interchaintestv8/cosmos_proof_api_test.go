@@ -78,8 +78,8 @@ func (s *CosmosProofAPITestSuite) SetupSuite(ctx context.Context) {
 	s.SimdASubmitter = s.CreateAndFundCosmosUser(ctx, s.SimdA)
 	s.SimdBSubmitter = s.CreateAndFundCosmosUser(ctx, s.SimdB)
 
-	var proofApiProcess *os.Process
-	s.Require().True(s.Run("Start Proof API", func() {
+	var proofApiConfig proofapi.Config
+	s.Require().True(s.Run("Configure Proof API", func() {
 		err := os.Chdir("../..")
 		s.Require().NoError(err)
 
@@ -100,17 +100,10 @@ func (s *CosmosProofAPITestSuite) SetupSuite(ctx context.Context) {
 			}).
 			Build()
 
-		proofApiProcess = s.StartProofAPI(config)
+		proofApiConfig = config
 	}))
 
-	s.T().Cleanup(func() {
-		if proofApiProcess != nil {
-			err := proofApiProcess.Kill()
-			if err != nil {
-				s.T().Logf("Failed to kill the proof API process: %v", err)
-			}
-		}
-	})
+	s.StartProofAPI(proofApiConfig)
 
 	s.Require().True(s.Run("Create Proof API Client", func() {
 		var err error

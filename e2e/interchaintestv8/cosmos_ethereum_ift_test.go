@@ -193,8 +193,8 @@ func (s *CosmosEthereumIFTTestSuite) SetupSuite(ctx context.Context, proofType t
 		s.T().Logf("Attestor %d at %s is healthy", i, endpoint)
 	}
 
-	var proofApiProcess *os.Process
-	s.Require().True(s.Run("Start Proof API", func() {
+	var proofApiConfig proofapi.Config
+	s.Require().True(s.Run("Configure Proof API", func() {
 		sp1Config := proofapi.SP1ProverConfig{
 			Type:           s.prover,
 			PrivateCluster: os.Getenv(testvalues.EnvKeyNetworkPrivateCluster) == testvalues.EnvValueSp1Prover_PrivateCluster,
@@ -223,14 +223,10 @@ func (s *CosmosEthereumIFTTestSuite) SetupSuite(ctx context.Context, proofType t
 			}).
 			Build()
 
-		proofApiProcess = s.StartProofAPI(config)
+		proofApiConfig = config
 	}))
 
-	s.T().Cleanup(func() {
-		if proofApiProcess != nil {
-			_ = proofApiProcess.Kill()
-		}
-	})
+	s.StartProofAPI(proofApiConfig)
 
 	s.Require().True(s.Run("Create Proof API Client", func() {
 		var err error
