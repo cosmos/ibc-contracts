@@ -223,61 +223,6 @@ impl IBCAppState {
     }
 }
 
-pub struct PayloadChunk;
-
-impl PayloadChunk {
-    pub const SEED: &'static [u8] = b"payload_chunk";
-
-    /// Get payload chunk PDA
-    #[allow(clippy::too_many_arguments)]
-    pub fn pda(
-        payer: Pubkey,
-        client_id: &str,
-        sequence: u64,
-        payload_index: u8,
-        chunk_index: u8,
-        program_id: Pubkey,
-    ) -> (Pubkey, u8) {
-        Pubkey::find_program_address(
-            &[
-                Self::SEED,
-                payer.as_ref(),
-                client_id.as_bytes(),
-                &sequence.to_le_bytes(),
-                &[payload_index],
-                &[chunk_index],
-            ],
-            &program_id,
-        )
-    }
-}
-
-pub struct ProofChunk;
-
-impl ProofChunk {
-    pub const SEED: &'static [u8] = b"proof_chunk";
-
-    /// Get proof chunk PDA
-    pub fn pda(
-        payer: Pubkey,
-        client_id: &str,
-        sequence: u64,
-        chunk_index: u8,
-        program_id: Pubkey,
-    ) -> (Pubkey, u8) {
-        Pubkey::find_program_address(
-            &[
-                Self::SEED,
-                payer.as_ref(),
-                client_id.as_bytes(),
-                &sequence.to_le_bytes(),
-                &[chunk_index],
-            ],
-            &program_id,
-        )
-    }
-}
-
 /// Reason a chunk account failed [`verify_chunk_account`].
 ///
 /// Programs map each variant to their own error code.
@@ -333,7 +278,7 @@ mod tests {
     #[test]
     fn verify_chunk_account_accepts_owned_pda() {
         let program_id = Pubkey::new_unique();
-        let (pda, _) = ProofChunk::pda(Pubkey::new_unique(), "07-tendermint-0", 1, 0, program_id);
+        let pda = Pubkey::new_unique();
         assert_eq!(check(pda, pda, program_id, program_id), Ok(()));
     }
 

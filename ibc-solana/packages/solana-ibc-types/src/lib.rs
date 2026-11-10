@@ -21,7 +21,7 @@ pub use router::{
     verify_chunk_account, AccountVersion, ChunkAccountError, Client, ClientAccount, Commitment,
     CounterpartyInfo, Delivery, IBCApp, IBCAppState, MsgAckPacket, MsgCleanupChunks, MsgPacket,
     MsgPayload, MsgProof, MsgRecvPacket, MsgSendPacket, MsgTimeoutPacket, MsgUploadChunk, Packet,
-    PayloadChunk, ProofChunk, RouterState,
+    RouterState,
 };
 
 pub use solana_ibc_proto::MAX_CLIENT_ID_LENGTH;

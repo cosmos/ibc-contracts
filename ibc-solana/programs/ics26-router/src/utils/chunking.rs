@@ -106,13 +106,12 @@ pub fn assemble_single_payload_chunks(params: AssemblePayloadParams) -> Result<V
 
         let chunk_account = &params.remaining_accounts[account_index];
 
-        let (expected_pda, _) = solana_ibc_types::PayloadChunk::pda(
-            params.submitter,
+        let expected_pda = PayloadChunk::pda(
+            &params.submitter,
             params.client_id,
             params.sequence,
             params.payload_index,
             i,
-            crate::ID,
         );
         verify_chunk_account(chunk_account, &expected_pda, &crate::ID)
             .map_err(RouterError::from)?;
@@ -226,13 +225,7 @@ pub fn assemble_proof_chunks(params: AssembleProofParams) -> Result<Vec<u8>> {
 
         let chunk_account = &params.remaining_accounts[account_index];
 
-        let (expected_pda, _) = solana_ibc_types::ProofChunk::pda(
-            params.submitter,
-            params.client_id,
-            params.sequence,
-            i,
-            crate::ID,
-        );
+        let expected_pda = ProofChunk::pda(&params.submitter, params.client_id, params.sequence, i);
         verify_chunk_account(chunk_account, &expected_pda, &crate::ID)
             .map_err(RouterError::from)?;
 
@@ -268,13 +261,12 @@ fn cleanup_payload_chunks(params: CleanupPayloadChunksParams) -> Result<()> {
 
     for (i, chunk_account) in params.chunk_accounts.iter().enumerate() {
         // Double-check PDA (paranoid check)
-        let (expected_pda, _) = solana_ibc_types::PayloadChunk::pda(
-            params.submitter,
+        let expected_pda = PayloadChunk::pda(
+            &params.submitter,
             params.client_id,
             params.sequence,
             params.payload_index,
             i as u8,
-            crate::ID,
         );
         verify_chunk_account(chunk_account, &expected_pda, &crate::ID)
             .map_err(RouterError::from)?;
@@ -292,12 +284,11 @@ fn cleanup_payload_chunks(params: CleanupPayloadChunksParams) -> Result<()> {
 fn cleanup_proof_chunks(params: CleanupProofChunksParams) -> Result<()> {
     for (i, chunk_account) in params.chunk_accounts.iter().enumerate() {
         // Double-check PDA (paranoid check)
-        let (expected_pda, _) = solana_ibc_types::ProofChunk::pda(
-            params.submitter,
+        let expected_pda = ProofChunk::pda(
+            &params.submitter,
             params.client_id,
             params.sequence,
             i as u8,
-            crate::ID,
         );
         verify_chunk_account(chunk_account, &expected_pda, &crate::ID)
             .map_err(RouterError::from)?;

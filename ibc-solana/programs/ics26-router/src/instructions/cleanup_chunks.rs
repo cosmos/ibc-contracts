@@ -64,13 +64,12 @@ pub fn cleanup_chunks<'info>(
 
             let chunk_account = &ctx.remaining_accounts[chunk_index];
 
-            let (expected_pda, _) = solana_ibc_types::PayloadChunk::pda(
-                relayer_key,
+            let expected_pda = PayloadChunk::pda(
+                &relayer_key,
                 &msg.client_id,
                 msg.sequence,
                 payload_idx as u8,
                 i,
-                crate::ID,
             );
             verify_chunk_account(chunk_account, &expected_pda, &crate::ID)
                 .map_err(RouterError::from)?;
@@ -90,13 +89,7 @@ pub fn cleanup_chunks<'info>(
 
         let chunk_account = &ctx.remaining_accounts[chunk_index];
 
-        let (expected_pda, _) = solana_ibc_types::ProofChunk::pda(
-            relayer_key,
-            &msg.client_id,
-            msg.sequence,
-            i,
-            crate::ID,
-        );
+        let expected_pda = ProofChunk::pda(&relayer_key, &msg.client_id, msg.sequence, i);
         verify_chunk_account(chunk_account, &expected_pda, &crate::ID)
             .map_err(RouterError::from)?;
 
