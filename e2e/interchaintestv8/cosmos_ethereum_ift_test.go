@@ -32,20 +32,20 @@ import (
 	interchaintestcosmos "github.com/cosmos/interchaintest/v11/chain/cosmos"
 	"github.com/cosmos/interchaintest/v11/ibc"
 
-	"github.com/cosmos/ibc-contracts/packages/go-abigen/ics26router"
-	evmift "github.com/cosmos/ibc-contracts/packages/go-abigen/ift"
+	"github.com/lfdt-ibc/ibc-contracts/packages/go-abigen/ics26router"
+	evmift "github.com/lfdt-ibc/ibc-contracts/packages/go-abigen/ift"
 
-	"github.com/cosmos/ibc-contracts/e2e/v8/attestor"
-	"github.com/cosmos/ibc-contracts/e2e/v8/chainconfig"
-	"github.com/cosmos/ibc-contracts/e2e/v8/cosmos"
-	"github.com/cosmos/ibc-contracts/e2e/v8/e2esuite"
-	"github.com/cosmos/ibc-contracts/e2e/v8/ethereum"
-	proofapi "github.com/cosmos/ibc-contracts/e2e/v8/proofapi"
-	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
-	"github.com/cosmos/ibc-contracts/e2e/v8/types"
-	proofapitypes "github.com/cosmos/ibc-contracts/e2e/v8/types/proofapi"
-	ifttypes "github.com/cosmos/ibc-contracts/e2e/v8/types/wfchain/ift"
-	tokenfactorytypes "github.com/cosmos/ibc-contracts/e2e/v8/types/wfchain/tokenfactory"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/attestor"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/chainconfig"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/cosmos"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/e2esuite"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/ethereum"
+	proofapi "github.com/lfdt-ibc/ibc-contracts/e2e/v8/proofapi"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/testvalues"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/types"
+	proofapitypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/proofapi"
+	ifttypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/wfchain/ift"
+	tokenfactorytypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/wfchain/tokenfactory"
 )
 
 // CosmosEthereumIFTTestSuite tests IFT transfers between wfchain and Ethereum

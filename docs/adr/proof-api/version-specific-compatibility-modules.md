@@ -67,7 +67,7 @@ The compatibility module must depend on the legacy implementation from the selec
 Use dependency aliases that include the legacy version so imports are explicit:
 
 ```toml
-proof-api-eth-to-cosmos-vX_Y = { package = "proof-api-eth-to-cosmos", git = "https://github.com/cosmos/ibc-contracts", rev = "<exact-legacy-rev>", default-features = false }
+proof-api-eth-to-cosmos-vX_Y = { package = "proof-api-eth-to-cosmos", git = "https://github.com/lfdt-ibc/ibc-contracts", rev = "<exact-legacy-rev>", default-features = false }
 ```
 
 If the target revision predates the current `proof-api` crate layout, import the legacy crate that exposed the equivalent service boundary. The v1.3.0 compatibility module uses the historical relayer crates:

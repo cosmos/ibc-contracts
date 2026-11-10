@@ -34,19 +34,19 @@ import (
 
 	"github.com/cosmos/interchaintest/v11/ibc"
 
-	"github.com/cosmos/ibc-contracts/packages/go-abigen/ics26router"
-	"github.com/cosmos/ibc-contracts/packages/go-abigen/ics27gmp"
-	"github.com/cosmos/ibc-contracts/packages/go-abigen/sp1ics07tendermint"
+	"github.com/lfdt-ibc/ibc-contracts/packages/go-abigen/ics26router"
+	"github.com/lfdt-ibc/ibc-contracts/packages/go-abigen/ics27gmp"
+	"github.com/lfdt-ibc/ibc-contracts/packages/go-abigen/sp1ics07tendermint"
 
-	"github.com/cosmos/ibc-contracts/e2e/v8/cosmos"
-	"github.com/cosmos/ibc-contracts/e2e/v8/e2esuite"
-	"github.com/cosmos/ibc-contracts/e2e/v8/ethereum"
-	proofapi "github.com/cosmos/ibc-contracts/e2e/v8/proofapi"
-	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
-	"github.com/cosmos/ibc-contracts/e2e/v8/types"
-	"github.com/cosmos/ibc-contracts/e2e/v8/types/erc20"
-	"github.com/cosmos/ibc-contracts/e2e/v8/types/gmphelpers"
-	proofapitypes "github.com/cosmos/ibc-contracts/e2e/v8/types/proofapi"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/cosmos"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/e2esuite"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/ethereum"
+	proofapi "github.com/lfdt-ibc/ibc-contracts/e2e/v8/proofapi"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/testvalues"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/types"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/erc20"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/gmphelpers"
+	proofapitypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/proofapi"
 )
 
 // IbcEurekaGmpTestSuite is a suite of tests that wraps TestSuite

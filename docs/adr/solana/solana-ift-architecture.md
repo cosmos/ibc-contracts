@@ -277,6 +277,6 @@ This PDA-based validation is more efficient and Solana-native than instruction s
 
 ## References
 
-- [ICS-20 Fungible Token Transfer](https://github.com/cosmos/ibc/tree/main/spec/app/ics-020-fungible-token-transfer)
+- [ICS-20 Fungible Token Transfer](https://github.com/lfdt-ibc/ibc/tree/main/spec/app/ics-020-fungible-token-transfer)
 - [SPL Token Program](https://spl.solana.com/token)
 - [ICS27-GMP ADR](./solana-ics27-gmp-architecture.md)

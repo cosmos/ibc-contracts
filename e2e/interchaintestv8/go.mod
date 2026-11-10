@@ -1,4 +1,4 @@
-module github.com/cosmos/ibc-contracts/e2e/v8
+module github.com/lfdt-ibc/ibc-contracts/e2e/v8
 
 go 1.26.5
 
@@ -15,9 +15,9 @@ require (
 	github.com/cosmos/cosmos-proto v1.0.0-beta.5
 	github.com/cosmos/cosmos-sdk v0.55.0
 	github.com/cosmos/gogoproto v1.7.2
-	github.com/cosmos/ibc-contracts/e2e/interchaintestv8/solana/go-anchor v0.0.0-00010101000000-000000000000
-	github.com/cosmos/ibc-contracts/packages/go-abigen v0.0.0
-	github.com/cosmos/ibc-contracts/packages/go-anchor v0.0.0
+	github.com/lfdt-ibc/ibc-contracts/e2e/interchaintestv8/solana/go-anchor v0.0.0-00010101000000-000000000000
+	github.com/lfdt-ibc/ibc-contracts/packages/go-abigen v0.0.0
+	github.com/lfdt-ibc/ibc-contracts/packages/go-anchor v0.0.0
 	github.com/cosmos/ibc-go/modules/light-clients/08-wasm/v11 v11.1.0
 	github.com/cosmos/ibc-go/v11 v11.2.0
 	github.com/cosmos/ics23/go v0.11.0
@@ -430,11 +430,11 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
-replace github.com/cosmos/ibc-contracts/packages/go-abigen => ../../packages/go-abigen
+replace github.com/lfdt-ibc/ibc-contracts/packages/go-abigen => ../../packages/go-abigen
 
-replace github.com/cosmos/ibc-contracts/packages/go-anchor => ../../packages/go-anchor
+replace github.com/lfdt-ibc/ibc-contracts/packages/go-anchor => ../../packages/go-anchor
 
-replace github.com/cosmos/ibc-contracts/e2e/interchaintestv8/solana/go-anchor => ./solana/go-anchor
+replace github.com/lfdt-ibc/ibc-contracts/e2e/interchaintestv8/solana/go-anchor => ./solana/go-anchor
 
 replace github.com/gogo/protobuf => github.com/regen-network/protobuf v1.3.3-alpha.regen.1
 

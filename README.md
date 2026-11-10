@@ -1,17 +1,17 @@
 # IBC Contracts
 
-[![Full Actions](https://github.com/cosmos/ibc-contracts/actions/workflows/e2e-full.yml/badge.svg)](https://github.com/cosmos/ibc-contracts/actions)
-[![Minimal Actions](https://github.com/cosmos/ibc-contracts/actions/workflows/e2e-minimal.yml/badge.svg)](https://github.com/cosmos/ibc-contracts/actions)
-[![CodeQL](https://github.com/cosmos/ibc-contracts/actions/workflows/codeql.yml/badge.svg)](https://github.com/cosmos/ibc-contracts/actions/workflows/codeql.yml)
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/cosmos/ibc-contracts/badge)](https://scorecard.dev/viewer/?uri=github.com/cosmos/ibc-contracts)
+[![Full Actions](https://github.com/lfdt-ibc/ibc-contracts/actions/workflows/e2e-full.yml/badge.svg)](https://github.com/lfdt-ibc/ibc-contracts/actions)
+[![Minimal Actions](https://github.com/lfdt-ibc/ibc-contracts/actions/workflows/e2e-minimal.yml/badge.svg)](https://github.com/lfdt-ibc/ibc-contracts/actions)
+[![CodeQL](https://github.com/lfdt-ibc/ibc-contracts/actions/workflows/codeql.yml/badge.svg)](https://github.com/lfdt-ibc/ibc-contracts/actions/workflows/codeql.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/lfdt-ibc/ibc-contracts/badge)](https://scorecard.dev/viewer/?uri=github.com/lfdt-ibc/ibc-contracts)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![Discord](https://img.shields.io/discord/669268347736686612?logo=discord&label=Discord)](https://discord.com/invite/interchain)
-[![codecov](https://codecov.io/gh/cosmos/ibc-contracts/graph/badge.svg)](https://codecov.io/gh/cosmos/ibc-contracts)
+[![codecov](https://codecov.io/gh/lfdt-ibc/ibc-contracts/graph/badge.svg)](https://codecov.io/gh/lfdt-ibc/ibc-contracts)
 [![Built with Foundry](https://img.shields.io/badge/Built%20with-Foundry-FFDB1C.svg)](https://getfoundry.sh/)
-[![solidity](https://img.shields.io/github/v/tag/cosmos/ibc-contracts?filter=solidity-v*&label=solidity)](https://github.com/cosmos/ibc-contracts/releases)
-[![sp1-programs](https://img.shields.io/github/v/tag/cosmos/ibc-contracts?filter=sp1-programs-v*&label=sp1-programs)](https://github.com/cosmos/ibc-contracts/releases)
-[![cw-ics08-wasm-eth](https://img.shields.io/github/v/tag/cosmos/ibc-contracts?filter=cw-ics08-wasm-eth-v*&label=cw-ics08-wasm-eth)](https://github.com/cosmos/ibc-contracts/releases)
-[![proof-api](https://img.shields.io/github/v/tag/cosmos/ibc-contracts?filter=proof-api-v*&label=proof-api)](https://github.com/cosmos/ibc-contracts/releases)
+[![solidity](https://img.shields.io/github/v/tag/lfdt-ibc/ibc-contracts?filter=solidity-v*&label=solidity)](https://github.com/lfdt-ibc/ibc-contracts/releases)
+[![sp1-programs](https://img.shields.io/github/v/tag/lfdt-ibc/ibc-contracts?filter=sp1-programs-v*&label=sp1-programs)](https://github.com/lfdt-ibc/ibc-contracts/releases)
+[![cw-ics08-wasm-eth](https://img.shields.io/github/v/tag/lfdt-ibc/ibc-contracts?filter=cw-ics08-wasm-eth-v*&label=cw-ics08-wasm-eth)](https://github.com/lfdt-ibc/ibc-contracts/releases)
+[![proof-api](https://img.shields.io/github/v/tag/lfdt-ibc/ibc-contracts?filter=proof-api-v*&label=proof-api)](https://github.com/lfdt-ibc/ibc-contracts/releases)
 
 ![banner](./.github/assets/ibc-contracts-banner.jpg)
 
@@ -19,7 +19,7 @@
 
 This repository is the home of IBC contracts for Ethereum and Solana. The files include the Solidity contracts, the Solana programs, and the light clients.
 
-The [Inter-Blockchain Communication (IBC) Protocol](https://github.com/cosmos/ibc) is the open standard for secure interoperability between independent systems. Visit the [IBC docs](https://ibcprotocol.dev/docs) for more information.
+The [Inter-Blockchain Communication (IBC) Protocol](https://github.com/lfdt-ibc/ibc) is the open standard for secure interoperability between independent systems. Visit the [IBC docs](https://ibcprotocol.dev/docs) for more information.
 
 Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
 
@@ -38,7 +38,7 @@ Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for contributi
 
 ## Documentation
 
-The published documentation for this repository lives at [ibcprotocol.dev](https://ibcprotocol.dev/docs/ibc/06-ibc-solidity-contracts/01-overview), and its source lives in [cosmos/ibc](https://github.com/cosmos/ibc/tree/main/docs). Documentation changes are tracked there.
+The published documentation for this repository lives at [ibcprotocol.dev](https://ibcprotocol.dev/docs/ibc/06-ibc-solidity-contracts/01-overview), and its source lives in [lfdt-ibc/ibc](https://github.com/lfdt-ibc/ibc/tree/main/docs). Documentation changes are tracked there.
 
 - [IBC Solidity contracts](https://ibcprotocol.dev/docs/ibc/06-ibc-solidity-contracts/01-overview) is the reference for each contract: what it does, its storage, events, and roles.
 - [Permissions and upgrades](https://ibcprotocol.dev/docs/ibc/06-ibc-solidity-contracts/06-permissions-and-upgrades) covers the roles, the proxies, and what each deployment fixes for good.
@@ -48,7 +48,7 @@ The published documentation for this repository lives at [ibcprotocol.dev](https
 
 ## Releases
 
-See [`RELEASES.md`](RELEASES.md) for the versioning scheme, how to cut a release, and how to verify its signed files and image. Current versions are on the [releases page](https://github.com/cosmos/ibc-contracts/releases).
+See [`RELEASES.md`](RELEASES.md) for the versioning scheme, how to cut a release, and how to verify its signed files and image. Current versions are on the [releases page](https://github.com/lfdt-ibc/ibc-contracts/releases).
 
 ### Solidity contracts
 
@@ -147,14 +147,14 @@ just solidity::test-foundry test_success_sendTransfer
 
 ### Coverage
 
-Coverage is reported to [Codecov](https://codecov.io/gh/cosmos/ibc-contracts) from the Foundry and Rust unit tests, tracked per component:
+Coverage is reported to [Codecov](https://codecov.io/gh/lfdt-ibc/ibc-contracts) from the Foundry and Rust unit tests, tracked per component:
 
 | Component | Path | Coverage |
 | --------- | ---- | -------- |
-| Solidity contracts | `ibc-solidity/contracts/` | [![Solidity contracts](https://codecov.io/gh/cosmos/ibc-contracts/graph/badge.svg?component=solidity-contracts)](https://app.codecov.io/gh/cosmos/ibc-contracts/components) |
-| CosmWasm Ethereum light client | `ibc-solidity/programs/cw-ics08-wasm-eth/` | [![CosmWasm Ethereum light client](https://codecov.io/gh/cosmos/ibc-contracts/graph/badge.svg?component=cw-ics08-wasm-eth)](https://app.codecov.io/gh/cosmos/ibc-contracts/components) |
-| Ethereum light client | `packages/ethereum/` | [![Ethereum light client](https://codecov.io/gh/cosmos/ibc-contracts/graph/badge.svg?component=ethereum-light-client)](https://app.codecov.io/gh/cosmos/ibc-contracts/components) |
-| Tendermint light client | `packages/tendermint-light-client/` | [![Tendermint light client](https://codecov.io/gh/cosmos/ibc-contracts/graph/badge.svg?component=tendermint-light-client)](https://app.codecov.io/gh/cosmos/ibc-contracts/components) |
+| Solidity contracts | `ibc-solidity/contracts/` | [![Solidity contracts](https://codecov.io/gh/lfdt-ibc/ibc-contracts/graph/badge.svg?component=solidity-contracts)](https://app.codecov.io/gh/lfdt-ibc/ibc-contracts/components) |
+| CosmWasm Ethereum light client | `ibc-solidity/programs/cw-ics08-wasm-eth/` | [![CosmWasm Ethereum light client](https://codecov.io/gh/lfdt-ibc/ibc-contracts/graph/badge.svg?component=cw-ics08-wasm-eth)](https://app.codecov.io/gh/lfdt-ibc/ibc-contracts/components) |
+| Ethereum light client | `packages/ethereum/` | [![Ethereum light client](https://codecov.io/gh/lfdt-ibc/ibc-contracts/graph/badge.svg?component=ethereum-light-client)](https://app.codecov.io/gh/lfdt-ibc/ibc-contracts/components) |
+| Tendermint light client | `packages/tendermint-light-client/` | [![Tendermint light client](https://codecov.io/gh/lfdt-ibc/ibc-contracts/graph/badge.svg?component=tendermint-light-client)](https://app.codecov.io/gh/lfdt-ibc/ibc-contracts/components) |
 
 [`codecov.yml`](codecov.yml) has the full list.
 
@@ -210,7 +210,7 @@ Additionally, the Security Council is responsible for:
 - **Upgrading IBC contracts** in the event of a security vulnerability.
 - **Introducing new features** while balancing security and decentralization.
 
-Ideally, the Security Council should mirror the validators of the counterparty Cosmos SDK chain for better decentralization. In the future, a mechanism called **`govAdmin`** will allow the Cosmos SDK chain’s governance to directly control Ethereum contract upgrades via IBC (tracked in [#278](https://github.com/cosmos/ibc-contracts/issues/278)).
+Ideally, the Security Council should mirror the validators of the counterparty Cosmos SDK chain for better decentralization. In the future, a mechanism called **`govAdmin`** will allow the Cosmos SDK chain’s governance to directly control Ethereum contract upgrades via IBC (tracked in [#278](https://github.com/lfdt-ibc/ibc-contracts/issues/278)).
 
 ### Security Council and Governance Admin
 
@@ -262,4 +262,4 @@ Apache License, Version 2.0. See [LICENSE.md](LICENSE.md).
 
 ## Acknowledgements
 
-Bootstrapped from this [Foundry template](https://github.com/PaulRBerg/foundry-template). The IBC implementations in [Solidity](https://github.com/hyperledger-labs/yui-ibc-solidity/), [CosmWasm](https://github.com/srdtrk/cw-ibc-lite), [Go](https://github.com/cosmos/ibc-go), and [Rust](https://github.com/cosmos/ibc-rs) were used as references. The `08-wasm` Ethereum light client from [unionlabs](https://github.com/unionlabs/union/) is the basis for this repository's own.
+Bootstrapped from this [Foundry template](https://github.com/PaulRBerg/foundry-template). The IBC implementations in [Solidity](https://github.com/hyperledger-labs/yui-ibc-solidity/), [CosmWasm](https://github.com/srdtrk/cw-ibc-lite), [Go](https://github.com/lfdt-ibc/ibc-go), and [Rust](https://github.com/cosmos/ibc-rs) were used as references. The `08-wasm` Ethereum light client from [unionlabs](https://github.com/unionlabs/union/) is the basis for this repository's own.
