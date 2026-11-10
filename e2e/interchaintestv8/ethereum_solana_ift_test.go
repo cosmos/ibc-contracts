@@ -75,8 +75,7 @@ type EthereumSolanaIFTTestSuite struct {
 
 	contractAddresses ethereum.DeployedContracts
 
-	ProofApiClient  proofapitypes.ProofApiServiceClient
-	ProofApiProcess *os.Process
+	ProofApiClient proofapitypes.ProofApiServiceClient
 
 	SolanaAltAddress string
 
@@ -151,13 +150,6 @@ func (s *EthereumSolanaIFTTestSuite) TearDownSuite() {
 	ctx := context.Background()
 	attestor.CleanupContainers(ctx, s.T(), s.ethAttestorResult.Containers)
 	attestor.CleanupContainers(ctx, s.T(), s.solanaAttestorResult.Containers)
-
-	if s.ProofApiProcess != nil {
-		s.T().Logf("Cleaning up proof API process (PID: %d)", s.ProofApiProcess.Pid)
-		if err := s.ProofApiProcess.Kill(); err != nil {
-			s.T().Logf("Failed to kill proof API process: %v", err)
-		}
-	}
 }
 
 func (s *EthereumSolanaIFTTestSuite) SetupSuite(ctx context.Context) {
@@ -447,8 +439,9 @@ func (s *EthereumSolanaIFTTestSuite) SetupSuite(ctx context.Context) {
 		s.initializeAttestationLightClientOnSolana(ctx, EthClientIDOnSolana)
 	}))
 
-	s.Require().True(s.Run("Start Proof API", func() {
-		config := proofapi.NewConfigBuilder().
+	var proofApiConfig proofapi.Config
+	s.Require().True(s.Run("Configure Proof API", func() {
+		proofApiConfig = proofapi.NewConfigBuilder().
 			EthToSolanaAttested(proofapi.EthToSolanaAttestedParams{
 				EthChainID:        eth.ChainID.String(),
 				SolanaChainID:     testvalues.SolanaChainID,
@@ -476,9 +469,9 @@ func (s *EthereumSolanaIFTTestSuite) SetupSuite(ctx context.Context) {
 				QuorumThreshold:     numSolAttestors,
 			}).
 			Build()
-
-		s.ProofApiProcess = s.StartProofAPI(config)
 	}))
+
+	s.StartProofAPI(proofApiConfig)
 
 	s.Require().True(s.Run("Create Proof API Client", func() {
 		s.ProofApiClient, err = proofapi.GetGRPCClient(proofapi.DefaultProofAPIGRPCAddress())

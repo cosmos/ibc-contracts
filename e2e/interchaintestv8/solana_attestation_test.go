@@ -90,8 +90,7 @@ type IbcSolanaAttestationTestSuite struct {
 	SolanaAttestorAddresses  []string
 	SolanaAttestorClient     attestortypes.AttestationServiceClient
 
-	ProofApiClient  proofapitypes.ProofApiServiceClient
-	ProofApiProcess *os.Process
+	ProofApiClient proofapitypes.ProofApiServiceClient
 }
 
 func TestWithIbcSolanaAttestationTestSuite(t *testing.T) {
@@ -102,13 +101,6 @@ func (s *IbcSolanaAttestationTestSuite) TearDownSuite() {
 	ctx := context.Background()
 	attestor.CleanupContainers(ctx, s.T(), s.CosmosAttestorContainers)
 	attestor.CleanupContainers(ctx, s.T(), s.SolanaAttestorContainers)
-
-	if s.ProofApiProcess != nil {
-		s.T().Logf("Cleaning up proof API process (PID: %d)", s.ProofApiProcess.Pid)
-		if err := s.ProofApiProcess.Kill(); err != nil {
-			s.T().Logf("Failed to kill proof API process: %v", err)
-		}
-	}
 }
 
 func (s *IbcSolanaAttestationTestSuite) SetupSuite(ctx context.Context) {
@@ -347,7 +339,7 @@ func (s *IbcSolanaAttestationTestSuite) SetupSuite(ctx context.Context) {
 		}).
 		Build()
 
-	s.ProofApiProcess = s.StartProofAPI(config)
+	s.StartProofAPI(config)
 
 	s.ProofApiClient, err = proofapi.GetGRPCClient(proofapi.DefaultProofAPIGRPCAddress())
 	s.Require().NoError(err)

@@ -543,20 +543,23 @@ func StripHTTPPrefix(endpoint string) string {
 	return endpoint
 }
 
-// StartProofAPI writes config to the proof API config file and starts the proof API with it.
-// The config file is removed when the current (sub)test finishes; stopping the process is up to the caller.
-func (s *TestSuite) StartProofAPI(config proofapi.Config) *os.Process {
+// StartProofAPI writes config to the proof API config file, starts the proof API with it and waits until it is ready.
+// The process is killed and the config file removed when the current test finishes. Call it outside `s.Run`, since
+// inside it the current test is the subtest, which would stop the proof API as soon as the subtest returns.
+func (s *TestSuite) StartProofAPI(config proofapi.Config) {
 	err := config.GenerateConfigFile(testvalues.ProofAPIConfigFilePath)
 	s.Require().NoError(err)
 
 	process, err := proofapi.StartProofAPI(testvalues.ProofAPIConfigFilePath)
 	s.Require().NoError(err)
 
-	s.T().Cleanup(func() {
+	t := s.T()
+	t.Cleanup(func() {
+		if err := process.Kill(); err != nil {
+			t.Logf("Failed to kill the proof API process: %v", err)
+		}
 		os.Remove(testvalues.ProofAPIConfigFilePath)
 	})
-
-	return process
 }
 
 // RequireMulticallRejected requires that the `IBCMulticall` relay tx delivered no packet. Either the batch reverted, or
