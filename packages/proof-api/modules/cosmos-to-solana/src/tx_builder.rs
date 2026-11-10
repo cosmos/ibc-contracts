@@ -313,22 +313,11 @@ impl TxBuilder {
         })
     }
 
-    /// Build relay transaction from Cosmos events to Solana
-    ///
-    /// # Errors
-    /// Returns an error if proof generation or transaction building fails.
-    pub async fn relay_events_chunked(
+    /// Builds the chunked relay transactions for Cosmos events, proven at `proof_height`.
+    async fn relay_events_chunked(
         &self,
         params: RelayEventsParams<SolanaEurekaEventWithHeight>,
-    ) -> Result<Vec<SolanaPacketTxs>> {
-        self.relay_events_chunked_internal(params, None).await
-    }
-
-    /// Internal relay implementation with optional proof height override
-    async fn relay_events_chunked_internal(
-        &self,
-        params: RelayEventsParams<SolanaEurekaEventWithHeight>,
-        proof_height_override: Option<u64>,
+        proof_height: u64,
     ) -> Result<Vec<SolanaPacketTxs>> {
         let RelayEventsParams {
             src_events,
@@ -343,21 +332,10 @@ impl TxBuilder {
         let solana_ics07_program_id = self.resolve_client_program_id(&dst_client_id)?;
         let client_state = self.cosmos_client_state(solana_ics07_program_id)?;
 
-        let proof_height = proof_height_override.map_or_else(
-            || {
-                Self::validate_height_and_get_proof_params(
-                    &src_events,
-                    client_state.latest_height.revision_height,
-                    client_state.latest_height.revision_number,
-                )
-            },
-            |h| {
-                Ok(ibc_proto_eureka::ibc::core::client::v1::Height {
-                    revision_number: client_state.latest_height.revision_number,
-                    revision_height: h,
-                })
-            },
-        )?;
+        let proof_height = ibc_proto_eureka::ibc::core::client::v1::Height {
+            revision_number: client_state.latest_height.revision_number,
+            revision_height: proof_height,
+        };
 
         let now_secs = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)?
@@ -444,9 +422,7 @@ impl TxBuilder {
             .as_ref()
             .map_or(current_height, |u| u.target_height);
 
-        let packets = self
-            .relay_events_chunked_internal(params, Some(proof_height))
-            .await?;
+        let packets = self.relay_events_chunked(params, proof_height).await?;
 
         Ok((packets, update_client))
     }
@@ -509,31 +485,6 @@ impl TxBuilder {
         } else {
             None
         }
-    }
-
-    fn validate_height_and_get_proof_params(
-        src_events: &[EurekaEventWithHeight],
-        solana_latest_height: u64,
-        solana_revision_number: u64,
-    ) -> Result<ibc_proto_eureka::ibc::core::client::v1::Height> {
-        let max_event_height = src_events
-            .iter()
-            .map(|e| e.height)
-            .max()
-            .unwrap_or_else(|| solana_latest_height.saturating_sub(1));
-
-        let required_height = max_event_height + 1;
-
-        if solana_latest_height < required_height {
-            anyhow::bail!(
-                "Solana client is at height {solana_latest_height} but need height {required_height} to prove events at height {max_event_height}. Update Solana client to at least height {required_height} first!",
-            );
-        }
-
-        Ok(ibc_proto_eureka::ibc::core::client::v1::Height {
-            revision_number: solana_revision_number,
-            revision_height: solana_latest_height,
-        })
     }
 
     #[allow(clippy::cast_possible_truncation)]
