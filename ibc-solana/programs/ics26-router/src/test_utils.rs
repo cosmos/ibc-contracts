@@ -136,8 +136,7 @@ pub fn setup_access_manager(relayers: Vec<Pubkey>) -> (Pubkey, Vec<u8>) {
 }
 
 pub fn setup_access_manager_with_roles(roles: &[(u64, &[Pubkey])]) -> (Pubkey, Vec<u8>) {
-    let (access_manager_pda, _) =
-        solana_ibc_types::access_manager::AccessManager::pda(access_manager::ID);
+    let access_manager_pda = access_manager::state::AccessManager::pda();
 
     let mut role_data: Vec<RoleData> = roles
         .iter()
@@ -993,8 +992,7 @@ pub fn setup_program_test_with_roles_and_whitelist(
     );
 
     // Pre-create AccessManager PDA with custom roles and whitelist
-    let (access_manager_pda, _) =
-        solana_ibc_types::access_manager::AccessManager::pda(access_manager::ID);
+    let access_manager_pda = access_manager::state::AccessManager::pda();
 
     let role_data: Vec<access_manager::RoleData> = roles
         .iter()

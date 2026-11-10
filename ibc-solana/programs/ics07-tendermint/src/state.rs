@@ -46,6 +46,19 @@ pub struct HeaderChunk {
 
 impl HeaderChunk {
     pub const SEED: &'static [u8] = b"header_chunk";
+
+    pub fn pda(submitter: &Pubkey, target_height: u64, chunk_index: u8) -> Pubkey {
+        Pubkey::find_program_address(
+            &[
+                Self::SEED,
+                submitter.as_ref(),
+                &target_height.to_le_bytes(),
+                &[chunk_index],
+            ],
+            &crate::ID,
+        )
+        .0
+    }
 }
 
 /// Temporary storage for a single chunk of misbehaviour evidence during
@@ -64,6 +77,14 @@ pub struct MisbehaviourChunk {
 
 impl MisbehaviourChunk {
     pub const SEED: &'static [u8] = b"misbehaviour_chunk";
+
+    pub fn pda(submitter: &Pubkey, chunk_index: u8) -> Pubkey {
+        Pubkey::find_program_address(
+            &[Self::SEED, submitter.as_ref(), &[chunk_index]],
+            &crate::ID,
+        )
+        .0
+    }
 }
 
 /// Stores the result of an Ed25519 signature verification.

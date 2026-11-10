@@ -497,10 +497,7 @@ mod integration_tests {
 
     fn build_add_ibc_app_ix(payer: Pubkey, authority: Pubkey, port_id: &str) -> Instruction {
         let (router_state_pda, _) = Pubkey::find_program_address(&[RouterState::SEED], &crate::ID);
-        let (access_manager_pda, _) = Pubkey::find_program_address(
-            &[access_manager::state::AccessManager::SEED],
-            &access_manager::ID,
-        );
+        let access_manager_pda = access_manager::state::AccessManager::pda();
         let (ibc_app_pda, _) =
             Pubkey::find_program_address(&[IBCApp::SEED, port_id.as_bytes()], &crate::ID);
 

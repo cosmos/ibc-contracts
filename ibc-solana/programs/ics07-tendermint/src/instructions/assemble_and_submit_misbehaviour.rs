@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::error::ErrorCode;
-use crate::helpers::deserialize_misbehaviour;
+use crate::helpers::{close_account, deserialize_misbehaviour};
 use crate::state::{ConsensusStateStore, MisbehaviourChunk};
 use crate::types::{AppState, ClientState};
 use anchor_lang::prelude::*;
 use ibc_client_tendermint::types::ConsensusState as IbcConsensusState;
+use solana_ibc_types::verify_chunk_account;
 use tendermint_light_client_update_client::ClientState as TmClientState;
 
 /// Reassembles previously uploaded misbehaviour chunks, verifies the evidence
@@ -127,23 +128,8 @@ fn validate_and_load_chunk(
     index: u8,
     misbehaviour_bytes: &mut Vec<u8>,
 ) -> Result<()> {
-    let expected_seeds = &[
-        crate::state::MisbehaviourChunk::SEED,
-        submitter.as_ref(),
-        &[index],
-    ];
-    let (expected_pda, _) = Pubkey::find_program_address(expected_seeds, &crate::ID);
-    require_keys_eq!(
-        chunk_account.key(),
-        expected_pda,
-        ErrorCode::InvalidChunkAccount
-    );
-
-    require_keys_eq!(
-        *chunk_account.owner,
-        crate::ID,
-        ErrorCode::InvalidAccountOwner
-    );
+    let expected_pda = MisbehaviourChunk::pda(&submitter, index);
+    verify_chunk_account(chunk_account, &expected_pda, &crate::ID).map_err(ErrorCode::from)?;
 
     let chunk_data = chunk_account.try_borrow_data()?;
 
@@ -219,34 +205,10 @@ fn cleanup_chunks(
     chunk_count: usize,
 ) -> Result<()> {
     for (index, chunk_account) in ctx.remaining_accounts[..chunk_count].iter().enumerate() {
-        let expected_seeds = &[
-            crate::state::MisbehaviourChunk::SEED,
-            submitter.as_ref(),
-            &[index as u8],
-        ];
-        let (expected_pda, _) = Pubkey::find_program_address(expected_seeds, &crate::ID);
-        require_keys_eq!(
-            chunk_account.key(),
-            expected_pda,
-            ErrorCode::InvalidChunkAccount
-        );
+        let expected_pda = MisbehaviourChunk::pda(&submitter, index as u8);
+        verify_chunk_account(chunk_account, &expected_pda, &crate::ID).map_err(ErrorCode::from)?;
 
-        require_keys_eq!(
-            *chunk_account.owner,
-            crate::ID,
-            ErrorCode::InvalidAccountOwner
-        );
-
-        let mut data = chunk_account.try_borrow_mut_data()?;
-        data.fill(0);
-
-        let mut lamports = chunk_account.try_borrow_mut_lamports()?;
-        let mut submitter_lamports = ctx.accounts.submitter.try_borrow_mut_lamports()?;
-
-        **submitter_lamports = submitter_lamports
-            .checked_add(**lamports)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-        **lamports = 0;
+        close_account(chunk_account, &ctx.accounts.submitter)?;
     }
     Ok(())
 }

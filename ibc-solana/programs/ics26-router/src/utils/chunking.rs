@@ -3,6 +3,7 @@
 use crate::errors::RouterError;
 use crate::state::{Delivery, MsgPayload, PayloadChunk, ProofChunk};
 use anchor_lang::prelude::*;
+use solana_ibc_types::verify_chunk_account;
 
 /// Parameters for assembling single payload chunks
 pub struct AssemblePayloadParams<'a, 'b, 'c> {
@@ -105,27 +106,15 @@ pub fn assemble_single_payload_chunks(params: AssemblePayloadParams) -> Result<V
 
         let chunk_account = &params.remaining_accounts[account_index];
 
-        let expected_seeds = &[
-            PayloadChunk::SEED,
-            params.submitter.as_ref(),
-            params.client_id.as_bytes(),
-            &params.sequence.to_le_bytes(),
-            &[params.payload_index],
-            &[i],
-        ];
-        let (expected_pda, _) = Pubkey::find_program_address(expected_seeds, &crate::ID);
-
-        require_keys_eq!(
-            chunk_account.key(),
-            expected_pda,
-            RouterError::InvalidChunkAccount
+        let expected_pda = PayloadChunk::pda(
+            &params.submitter,
+            params.client_id,
+            params.sequence,
+            params.payload_index,
+            i,
         );
-
-        require_keys_eq!(
-            *chunk_account.owner,
-            crate::ID,
-            RouterError::InvalidAccountOwner
-        );
+        verify_chunk_account(chunk_account, &expected_pda, &crate::ID)
+            .map_err(RouterError::from)?;
 
         let chunk_data = chunk_account.try_borrow_data()?;
         let chunk: PayloadChunk = PayloadChunk::try_deserialize(&mut &chunk_data[..])?;
@@ -236,26 +225,9 @@ pub fn assemble_proof_chunks(params: AssembleProofParams) -> Result<Vec<u8>> {
 
         let chunk_account = &params.remaining_accounts[account_index];
 
-        let expected_seeds = &[
-            ProofChunk::SEED,
-            params.submitter.as_ref(),
-            params.client_id.as_bytes(),
-            &params.sequence.to_le_bytes(),
-            &[i],
-        ];
-        let (expected_pda, _) = Pubkey::find_program_address(expected_seeds, &crate::ID);
-
-        require_keys_eq!(
-            chunk_account.key(),
-            expected_pda,
-            RouterError::InvalidChunkAccount
-        );
-
-        require_keys_eq!(
-            *chunk_account.owner,
-            crate::ID,
-            RouterError::InvalidAccountOwner
-        );
+        let expected_pda = ProofChunk::pda(&params.submitter, params.client_id, params.sequence, i);
+        verify_chunk_account(chunk_account, &expected_pda, &crate::ID)
+            .map_err(RouterError::from)?;
 
         let chunk_data = chunk_account.try_borrow_data()?;
         let chunk: ProofChunk = ProofChunk::try_deserialize(&mut &chunk_data[..])?;
@@ -289,27 +261,15 @@ fn cleanup_payload_chunks(params: CleanupPayloadChunksParams) -> Result<()> {
 
     for (i, chunk_account) in params.chunk_accounts.iter().enumerate() {
         // Double-check PDA (paranoid check)
-        let expected_seeds = &[
-            PayloadChunk::SEED,
-            params.submitter.as_ref(),
-            params.client_id.as_bytes(),
-            &params.sequence.to_le_bytes(),
-            &[params.payload_index],
-            &[i as u8],
-        ];
-        let (expected_pda, _) = Pubkey::find_program_address(expected_seeds, &crate::ID);
-
-        require_keys_eq!(
-            chunk_account.key(),
-            expected_pda,
-            RouterError::InvalidChunkAccount
+        let expected_pda = PayloadChunk::pda(
+            &params.submitter,
+            params.client_id,
+            params.sequence,
+            params.payload_index,
+            i as u8,
         );
-
-        require_keys_eq!(
-            *chunk_account.owner,
-            crate::ID,
-            RouterError::InvalidAccountOwner
-        );
+        verify_chunk_account(chunk_account, &expected_pda, &crate::ID)
+            .map_err(RouterError::from)?;
 
         // Clear the chunk data to prevent replay
         // Note: Lamports are NOT transferred here to avoid UnbalancedInstruction errors.
@@ -324,25 +284,14 @@ fn cleanup_payload_chunks(params: CleanupPayloadChunksParams) -> Result<()> {
 fn cleanup_proof_chunks(params: CleanupProofChunksParams) -> Result<()> {
     for (i, chunk_account) in params.chunk_accounts.iter().enumerate() {
         // Double-check PDA (paranoid check)
-        let expected_seeds = &[
-            ProofChunk::SEED,
-            params.submitter.as_ref(),
-            params.client_id.as_bytes(),
-            &params.sequence.to_le_bytes(),
-            &[i as u8],
-        ];
-        let (expected_pda, _) = Pubkey::find_program_address(expected_seeds, &crate::ID);
-        require_keys_eq!(
-            chunk_account.key(),
-            expected_pda,
-            RouterError::InvalidChunkAccount
+        let expected_pda = ProofChunk::pda(
+            &params.submitter,
+            params.client_id,
+            params.sequence,
+            i as u8,
         );
-
-        require_keys_eq!(
-            *chunk_account.owner,
-            crate::ID,
-            RouterError::InvalidAccountOwner
-        );
+        verify_chunk_account(chunk_account, &expected_pda, &crate::ID)
+            .map_err(RouterError::from)?;
 
         // Clear the chunk data to prevent replay
         // Note: Lamports are NOT transferred here to avoid UnbalancedInstruction errors.

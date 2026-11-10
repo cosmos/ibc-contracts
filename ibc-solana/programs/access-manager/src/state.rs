@@ -68,6 +68,11 @@ impl AccessManager {
     pub const UPGRADE_AUTHORITY_SEED: &'static [u8] = b"upgrade_authority";
     pub const MAX_PENDING_TRANSFERS: usize = MAX_PENDING_TRANSFERS;
 
+    /// The access manager state PDA of this program.
+    pub fn pda() -> Pubkey {
+        Pubkey::find_program_address(&[Self::SEED], &crate::ID).0
+    }
+
     /// Get upgrade authority PDA for a target program
     pub fn upgrade_authority_pda(target_program: &Pubkey, program_id: &Pubkey) -> (Pubkey, u8) {
         Pubkey::find_program_address(

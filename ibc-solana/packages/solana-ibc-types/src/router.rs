@@ -149,33 +149,18 @@ pub struct IBCApp;
 
 impl IBCApp {
     pub const SEED: &'static [u8] = b"ibc_app";
-
-    /// Get IBC app PDA for a port
-    pub fn pda(port_id: &str, program_id: Pubkey) -> (Pubkey, u8) {
-        Pubkey::find_program_address(&[Self::SEED, port_id.as_bytes()], &program_id)
-    }
 }
 
 pub struct RouterState;
 
 impl RouterState {
     pub const SEED: &'static [u8] = b"router_state";
-
-    /// Get router state PDA
-    pub fn pda(program_id: Pubkey) -> (Pubkey, u8) {
-        Pubkey::find_program_address(&[Self::SEED], &program_id)
-    }
 }
 
 pub struct Client;
 
 impl Client {
     pub const SEED: &'static [u8] = b"client";
-
-    /// Get client PDA
-    pub fn pda(client_id: &str, program_id: Pubkey) -> (Pubkey, u8) {
-        Pubkey::find_program_address(&[Self::SEED, client_id.as_bytes()], &program_id)
-    }
 }
 
 pub struct Commitment;
@@ -238,57 +223,77 @@ impl IBCAppState {
     }
 }
 
-pub struct PayloadChunk;
-
-impl PayloadChunk {
-    pub const SEED: &'static [u8] = b"payload_chunk";
-
-    /// Get payload chunk PDA
-    #[allow(clippy::too_many_arguments)]
-    pub fn pda(
-        payer: Pubkey,
-        client_id: &str,
-        sequence: u64,
-        payload_index: u8,
-        chunk_index: u8,
-        program_id: Pubkey,
-    ) -> (Pubkey, u8) {
-        Pubkey::find_program_address(
-            &[
-                Self::SEED,
-                payer.as_ref(),
-                client_id.as_bytes(),
-                &sequence.to_le_bytes(),
-                &[payload_index],
-                &[chunk_index],
-            ],
-            &program_id,
-        )
-    }
+/// Reason a chunk account failed [`verify_chunk_account`].
+///
+/// Programs map each variant to their own error code.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChunkAccountError {
+    /// The account key is not the expected chunk PDA.
+    InvalidChunkAccount,
+    /// The account is not owned by the program that derives the chunk PDA.
+    InvalidAccountOwner,
 }
 
-pub struct ProofChunk;
+/// Verifies that `account` is the chunk PDA `expected_pda` and is owned by
+/// `program_id`. The key is checked before the owner.
+pub fn verify_chunk_account(
+    account: &AccountInfo,
+    expected_pda: &Pubkey,
+    program_id: &Pubkey,
+) -> core::result::Result<(), ChunkAccountError> {
+    if account.key != expected_pda {
+        return Err(ChunkAccountError::InvalidChunkAccount);
+    }
+    if account.owner != program_id {
+        return Err(ChunkAccountError::InvalidAccountOwner);
+    }
+    Ok(())
+}
 
-impl ProofChunk {
-    pub const SEED: &'static [u8] = b"proof_chunk";
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    /// Get proof chunk PDA
-    pub fn pda(
-        payer: Pubkey,
-        client_id: &str,
-        sequence: u64,
-        chunk_index: u8,
+    fn check(
+        key: Pubkey,
+        expected_pda: Pubkey,
+        owner: Pubkey,
         program_id: Pubkey,
-    ) -> (Pubkey, u8) {
-        Pubkey::find_program_address(
-            &[
-                Self::SEED,
-                payer.as_ref(),
-                client_id.as_bytes(),
-                &sequence.to_le_bytes(),
-                &[chunk_index],
-            ],
-            &program_id,
-        )
+    ) -> core::result::Result<(), ChunkAccountError> {
+        let mut lamports = 1;
+        let mut data = [];
+        let account = AccountInfo::new(
+            &key,
+            false,
+            true,
+            &mut lamports,
+            &mut data,
+            &owner,
+            false,
+            0,
+        );
+        verify_chunk_account(&account, &expected_pda, &program_id)
+    }
+
+    #[test]
+    fn verify_chunk_account_accepts_owned_pda() {
+        let program_id = Pubkey::new_unique();
+        let pda = Pubkey::new_unique();
+        assert_eq!(check(pda, pda, program_id, program_id), Ok(()));
+    }
+
+    #[test]
+    fn verify_chunk_account_checks_key_before_owner() {
+        let program_id = Pubkey::new_unique();
+        let pda = Pubkey::new_unique();
+        let other = Pubkey::new_unique();
+        assert_eq!(
+            check(other, pda, other, program_id),
+            Err(ChunkAccountError::InvalidChunkAccount)
+        );
+        assert_eq!(
+            check(pda, pda, other, program_id),
+            Err(ChunkAccountError::InvalidAccountOwner)
+        );
     }
 }

@@ -3,6 +3,7 @@
 use crate::errors::RouterError;
 use crate::state::*;
 use anchor_lang::prelude::*;
+use solana_ibc_types::verify_chunk_account;
 
 /// Reclaims rent from previously uploaded payload and proof chunk accounts.
 ///
@@ -63,27 +64,15 @@ pub fn cleanup_chunks<'info>(
 
             let chunk_account = &ctx.remaining_accounts[chunk_index];
 
-            let expected_seeds = &[
-                PayloadChunk::SEED,
-                relayer_key.as_ref(),
-                msg.client_id.as_bytes(),
-                &msg.sequence.to_le_bytes(),
-                &[payload_idx as u8],
-                &[i],
-            ];
-            let (expected_pda, _) = Pubkey::find_program_address(expected_seeds, &crate::ID);
-
-            require_keys_eq!(
-                chunk_account.key(),
-                expected_pda,
-                RouterError::InvalidChunkAccount
+            let expected_pda = PayloadChunk::pda(
+                &relayer_key,
+                &msg.client_id,
+                msg.sequence,
+                payload_idx as u8,
+                i,
             );
-
-            require_keys_eq!(
-                *chunk_account.owner,
-                crate::ID,
-                RouterError::InvalidAccountOwner
-            );
+            verify_chunk_account(chunk_account, &expected_pda, &crate::ID)
+                .map_err(RouterError::from)?;
 
             // Return rent to relayer
             cleanup_single_chunk(chunk_account, &ctx.accounts.relayer)?;
@@ -100,26 +89,9 @@ pub fn cleanup_chunks<'info>(
 
         let chunk_account = &ctx.remaining_accounts[chunk_index];
 
-        let expected_seeds = &[
-            ProofChunk::SEED,
-            relayer_key.as_ref(),
-            msg.client_id.as_bytes(),
-            &msg.sequence.to_le_bytes(),
-            &[i],
-        ];
-        let (expected_pda, _) = Pubkey::find_program_address(expected_seeds, &crate::ID);
-
-        require_keys_eq!(
-            chunk_account.key(),
-            expected_pda,
-            RouterError::InvalidChunkAccount
-        );
-
-        require_keys_eq!(
-            *chunk_account.owner,
-            crate::ID,
-            RouterError::InvalidAccountOwner
-        );
+        let expected_pda = ProofChunk::pda(&relayer_key, &msg.client_id, msg.sequence, i);
+        verify_chunk_account(chunk_account, &expected_pda, &crate::ID)
+            .map_err(RouterError::from)?;
 
         // Return rent to relayer
         cleanup_single_chunk(chunk_account, &ctx.accounts.relayer)?;
@@ -380,10 +352,7 @@ mod integration_tests {
         let sequence = 1u64;
 
         let (router_state_pda, _) = Pubkey::find_program_address(&[RouterState::SEED], &crate::ID);
-        let (access_manager_pda, _) = Pubkey::find_program_address(
-            &[access_manager::state::AccessManager::SEED],
-            &access_manager::ID,
-        );
+        let access_manager_pda = access_manager::state::AccessManager::pda();
 
         let payload_chunk_pda = Pubkey::find_program_address(
             &[

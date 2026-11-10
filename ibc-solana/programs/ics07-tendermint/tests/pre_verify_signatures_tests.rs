@@ -59,10 +59,7 @@ fn setup_program_test() -> ProgramTest {
 }
 
 fn add_access_manager_with_relayer(pt: &mut ProgramTest, relayer: &Pubkey) {
-    let (access_manager_pda, _) = Pubkey::find_program_address(
-        &[access_manager::state::AccessManager::SEED],
-        &access_manager::ID,
-    );
+    let access_manager_pda = access_manager::state::AccessManager::pda();
     let am = access_manager::state::AccessManager {
         roles: vec![
             access_manager::RoleData {
@@ -205,10 +202,7 @@ fn create_pre_verify_instruction(
     );
     let (app_state_pda, _) =
         Pubkey::find_program_address(&[ics07_tendermint::AppState::SEED], &ics07_tendermint::ID);
-    let (access_manager_pda, _) = Pubkey::find_program_address(
-        &[access_manager::state::AccessManager::SEED],
-        &access_manager::ID,
-    );
+    let access_manager_pda = access_manager::state::AccessManager::pda();
 
     let accounts = ics07_tendermint::accounts::PreVerifySignature {
         instructions_sysvar: ix_sysvar::ID,

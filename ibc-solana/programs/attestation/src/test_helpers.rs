@@ -318,10 +318,7 @@ pub fn setup_program_test_with_whitelist(
     );
 
     // Pre-create AccessManager PDA with admin role and whitelist
-    let (access_manager_pda, _) = solana_sdk::pubkey::Pubkey::find_program_address(
-        &[access_manager::state::AccessManager::SEED],
-        &access_manager::ID,
-    );
+    let access_manager_pda = access_manager::state::AccessManager::pda();
     let am = access_manager::state::AccessManager {
         roles: vec![access_manager::RoleData {
             role_id: solana_ibc_types::roles::ADMIN_ROLE,
@@ -437,10 +434,7 @@ pub mod access_control {
     use anchor_lang::{AnchorSerialize, Discriminator};
 
     pub fn setup_access_manager(admin: Pubkey, relayers: Vec<Pubkey>) -> (Pubkey, Vec<u8>) {
-        let (access_manager_pda, _) = Pubkey::find_program_address(
-            &[access_manager::state::AccessManager::SEED],
-            &access_manager::ID,
-        );
+        let access_manager_pda = access_manager::state::AccessManager::pda();
 
         let mut roles = vec![RoleData {
             role_id: solana_ibc_types::roles::ADMIN_ROLE,

@@ -170,7 +170,7 @@ mod integration_tests {
         }
 
         // Our (claimer's) access manager state PDA with admin role
-        let (our_am_pda, _) = Pubkey::find_program_address(&[AccessManager::SEED], &crate::ID);
+        let our_am_pda = AccessManager::pda();
         let our_am = AccessManager {
             roles: vec![RoleData {
                 role_id: roles::ADMIN_ROLE,
@@ -271,7 +271,7 @@ mod integration_tests {
             Pubkey::find_program_address(&[target_program.as_ref()], &bpf_loader_upgradeable::ID);
         let (source_upgrade_authority, _) =
             AccessManager::upgrade_authority_pda(&target_program, &crate::test_config::OTHER_AM_ID);
-        let (our_am_pda, _) = Pubkey::find_program_address(&[AccessManager::SEED], &crate::ID);
+        let our_am_pda = AccessManager::pda();
 
         Instruction {
             program_id: crate::ID,

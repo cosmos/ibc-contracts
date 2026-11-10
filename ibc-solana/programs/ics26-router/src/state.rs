@@ -164,7 +164,30 @@ pub struct PayloadChunk {
 }
 
 impl PayloadChunk {
-    pub const SEED: &'static [u8] = solana_ibc_types::PayloadChunk::SEED;
+    pub const SEED: &'static [u8] = b"payload_chunk";
+
+    /// The PDA of chunk `chunk_index` of payload `payload_index` of packet `sequence` on
+    /// `client_id`, uploaded by `submitter`.
+    pub fn pda(
+        submitter: &Pubkey,
+        client_id: &str,
+        sequence: u64,
+        payload_index: u8,
+        chunk_index: u8,
+    ) -> Pubkey {
+        Pubkey::find_program_address(
+            &[
+                Self::SEED,
+                submitter.as_ref(),
+                client_id.as_bytes(),
+                &sequence.to_le_bytes(),
+                &[payload_index],
+                &[chunk_index],
+            ],
+            &crate::ID,
+        )
+        .0
+    }
 }
 
 /// Temporary storage for a single chunk of IBC membership proof data
@@ -190,5 +213,21 @@ pub struct ProofChunk {
 }
 
 impl ProofChunk {
-    pub const SEED: &'static [u8] = solana_ibc_types::ProofChunk::SEED;
+    pub const SEED: &'static [u8] = b"proof_chunk";
+
+    /// The PDA of proof chunk `chunk_index` of packet `sequence` on `client_id`, uploaded by
+    /// `submitter`.
+    pub fn pda(submitter: &Pubkey, client_id: &str, sequence: u64, chunk_index: u8) -> Pubkey {
+        Pubkey::find_program_address(
+            &[
+                Self::SEED,
+                submitter.as_ref(),
+                client_id.as_bytes(),
+                &sequence.to_le_bytes(),
+                &[chunk_index],
+            ],
+            &crate::ID,
+        )
+        .0
+    }
 }

@@ -543,10 +543,7 @@ mod integration_tests {
 
     fn build_pause_app_ix(authority: Pubkey) -> Instruction {
         let (app_state_pda, _) = Pubkey::find_program_address(&[GMPAppState::SEED], &crate::ID);
-        let (access_manager_pda, _) = Pubkey::find_program_address(
-            &[access_manager::state::AccessManager::SEED],
-            &access_manager::ID,
-        );
+        let access_manager_pda = access_manager::state::AccessManager::pda();
 
         Instruction {
             program_id: crate::ID,
@@ -562,10 +559,7 @@ mod integration_tests {
 
     fn build_unpause_app_ix(authority: Pubkey) -> Instruction {
         let (app_state_pda, _) = Pubkey::find_program_address(&[GMPAppState::SEED], &crate::ID);
-        let (access_manager_pda, _) = Pubkey::find_program_address(
-            &[access_manager::state::AccessManager::SEED],
-            &access_manager::ID,
-        );
+        let access_manager_pda = access_manager::state::AccessManager::pda();
 
         Instruction {
             program_id: crate::ID,
@@ -617,8 +611,7 @@ mod integration_tests {
         );
 
         // Pre-create AccessManager PDA with pauser + unpauser roles
-        let (access_manager_pda, _) =
-            solana_ibc_types::access_manager::AccessManager::pda(access_manager::ID);
+        let access_manager_pda = access_manager::state::AccessManager::pda();
 
         let am = access_manager::state::AccessManager {
             roles: vec![

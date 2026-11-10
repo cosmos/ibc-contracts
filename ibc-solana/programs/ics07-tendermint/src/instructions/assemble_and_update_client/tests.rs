@@ -370,8 +370,7 @@ fn test_assembly_with_corrupted_chunk() {
     let chunk_pdas = get_chunk_pdas(&submitter, target_height, 2);
 
     // Access manager PDA
-    let (access_manager_pda, _) =
-        solana_ibc_types::access_manager::AccessManager::pda(access_manager::ID);
+    let access_manager_pda = access_manager::state::AccessManager::pda();
 
     // Setup app state
     let (app_state_pda, app_state_account) = create_app_state_account(access_manager::ID);
@@ -481,8 +480,7 @@ fn test_assembly_wrong_submitter() {
     );
 
     // Access manager PDA
-    let (access_manager_pda, _) =
-        solana_ibc_types::access_manager::AccessManager::pda(access_manager::ID);
+    let access_manager_pda = access_manager::state::AccessManager::pda();
 
     // Setup app state
     let (app_state_pda, app_state_account) = create_app_state_account(access_manager::ID);
@@ -589,8 +587,7 @@ fn test_assembly_chunks_in_wrong_order() {
     let wrong_order_pdas = vec![chunk_pdas[2], chunk_pdas[0], chunk_pdas[1]];
 
     // Access manager PDA
-    let (access_manager_pda, _) =
-        solana_ibc_types::access_manager::AccessManager::pda(access_manager::ID);
+    let access_manager_pda = access_manager::state::AccessManager::pda();
 
     // Setup app state
     let (app_state_pda, app_state_account) = create_app_state_account(access_manager::ID);
@@ -705,8 +702,7 @@ fn test_rent_reclaim_after_assembly() {
     let submitter_account = create_submitter_account(initial_balance);
 
     // Access manager PDA
-    let (access_manager_pda, _) =
-        solana_ibc_types::access_manager::AccessManager::pda(access_manager::ID);
+    let access_manager_pda = access_manager::state::AccessManager::pda();
 
     // Setup app state
     let (app_state_pda, app_state_account) = create_app_state_account(access_manager::ID);
@@ -832,8 +828,7 @@ fn test_assemble_and_update_client_happy_path() {
     let chunk_pdas = get_chunk_pdas(&submitter, target_height, num_chunks);
 
     // Access manager PDA
-    let (access_manager_pda, _) =
-        solana_ibc_types::access_manager::AccessManager::pda(access_manager::ID);
+    let access_manager_pda = access_manager::state::AccessManager::pda();
 
     // Setup app state
     let (app_state_pda, app_state_account) = create_app_state_account(access_manager::ID);
@@ -1023,8 +1018,7 @@ fn test_assemble_with_frozen_client() {
     );
 
     // Access manager PDA
-    let (access_manager_pda, _) =
-        solana_ibc_types::access_manager::AccessManager::pda(access_manager::ID);
+    let access_manager_pda = access_manager::state::AccessManager::pda();
 
     // Setup app state
     let (app_state_pda, app_state_account) = create_app_state_account(access_manager::ID);
@@ -1181,8 +1175,7 @@ fn test_assemble_with_existing_consensus_state() {
     .unwrap();
 
     // Access manager PDA
-    let (access_manager_pda, _) =
-        solana_ibc_types::access_manager::AccessManager::pda(access_manager::ID);
+    let access_manager_pda = access_manager::state::AccessManager::pda();
 
     // Setup app state
     let (app_state_pda, app_state_account) = create_app_state_account(access_manager::ID);
@@ -1313,8 +1306,7 @@ fn test_assemble_with_invalid_header_after_assembly() {
     let chunk_pdas = get_chunk_pdas(&submitter, target_height, 2);
 
     // Access manager PDA
-    let (access_manager_pda, _) =
-        solana_ibc_types::access_manager::AccessManager::pda(access_manager::ID);
+    let access_manager_pda = access_manager::state::AccessManager::pda();
 
     // Setup app state
     let (app_state_pda, app_state_account) = create_app_state_account(access_manager::ID);
@@ -1423,8 +1415,7 @@ fn test_assemble_updates_latest_height() {
     let chunk_pdas = get_chunk_pdas(&submitter, target_height, 2);
 
     // Access manager PDA
-    let (access_manager_pda, _) =
-        solana_ibc_types::access_manager::AccessManager::pda(access_manager::ID);
+    let access_manager_pda = access_manager::state::AccessManager::pda();
 
     // Setup app state
     let (app_state_pda, app_state_account) = create_app_state_account(access_manager::ID);
@@ -1624,8 +1615,7 @@ fn test_assemble_and_update_with_invalid_signature() {
     }
 
     // Access manager PDA
-    let (access_manager_pda, _) =
-        solana_ibc_types::access_manager::AccessManager::pda(access_manager::ID);
+    let access_manager_pda = access_manager::state::AccessManager::pda();
 
     // Setup app state
     let (app_state_pda, app_state_account) = create_app_state_account(access_manager::ID);
@@ -1781,8 +1771,7 @@ fn test_assemble_wrong_client_state_pda() {
     );
 
     let chunk_pdas = get_chunk_pdas(&submitter, target_height, 2);
-    let (access_manager_pda, _) =
-        solana_ibc_types::access_manager::AccessManager::pda(access_manager::ID);
+    let access_manager_pda = access_manager::state::AccessManager::pda();
     let (app_state_pda, app_state_account) = create_app_state_account(access_manager::ID);
 
     let (_, access_manager_account) =
@@ -1872,8 +1861,7 @@ fn test_assemble_wrong_new_consensus_state_pda() {
         &crate::ID,
     );
 
-    let (access_manager_pda, _) =
-        solana_ibc_types::access_manager::AccessManager::pda(access_manager::ID);
+    let access_manager_pda = access_manager::state::AccessManager::pda();
     let (app_state_pda, app_state_account) = create_app_state_account(access_manager::ID);
 
     let (_, access_manager_account) =
@@ -1972,8 +1960,7 @@ fn test_assemble_target_height_mismatch() {
     // mismatch is only caught after header verification returns new_height.
     let chunk_pdas = get_chunk_pdas(&submitter, wrong_target_height, num_chunks);
 
-    let (access_manager_pda, _) =
-        solana_ibc_types::access_manager::AccessManager::pda(access_manager::ID);
+    let access_manager_pda = access_manager::state::AccessManager::pda();
     let (app_state_pda, app_state_account) = create_app_state_account(access_manager::ID);
 
     let mut client_state_account =
