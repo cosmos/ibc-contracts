@@ -18,8 +18,8 @@ use solana_ibc_sdk::ift::instructions::{
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
 use spl_associated_token_account::get_associated_token_address_with_program_id;
 
-use crate::constants::ANCHOR_DISCRIMINATOR_SIZE;
 use crate::gmp::{ABI_ENCODING, GMP_PORT_ID, PROTOBUF_ENCODING};
+use solana_ibc_constants::ANCHOR_DISCRIMINATOR_LEN;
 
 /// Parameters for building IFT `finalize_transfer` instruction
 pub struct FinalizeTransferParams<'a> {
@@ -118,13 +118,13 @@ fn find_pending_transfer(
     let accounts: Vec<_> = all_accounts
         .into_iter()
         .filter(|(_, account)| {
-            account.data.len() >= ANCHOR_DISCRIMINATOR_SIZE
-                && account.data[..ANCHOR_DISCRIMINATOR_SIZE] == PendingTransfer::DISCRIMINATOR
+            account.data.len() >= ANCHOR_DISCRIMINATOR_LEN
+                && account.data[..ANCHOR_DISCRIMINATOR_LEN] == PendingTransfer::DISCRIMINATOR
         })
         .collect();
 
     for (pubkey, account) in accounts {
-        let mut data = &account.data[ANCHOR_DISCRIMINATOR_SIZE..];
+        let mut data = &account.data[ANCHOR_DISCRIMINATOR_LEN..];
         let pending = match PendingTransfer::deserialize(&mut data) {
             Ok(p) => p,
             Err(e) => {

@@ -14,7 +14,7 @@ use anchor_lang::prelude::*;
 use anyhow::{Context, Result};
 use ibc_client_tendermint::types::Header as TmHeader;
 use ibc_proto_eureka::ibc::lightclients::tendermint::v1::Fraction;
-use proof_api_lib::utils::solana::convert_client_state_to_sol;
+use proof_api_lib::utils::solana::{convert_client_state_to_sol, deserialize_anchor_account};
 use proof_api_lib::{
     events::{
         solana::solana_timeout_packet_to_tm_timeout, EurekaEventWithHeight,
@@ -33,7 +33,6 @@ use proof_api_lib::{
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey};
 
-use crate::constants::ANCHOR_DISCRIMINATOR_SIZE;
 use proof_api_core::api::{self, SolanaPacketTxs};
 
 use solana_ibc_sdk::ics07_tendermint::{
@@ -446,9 +445,8 @@ impl TxBuilder {
             .value
             .ok_or_else(|| anyhow::anyhow!("Consensus state account not found"))?;
 
-        let mut data = &account.data[ANCHOR_DISCRIMINATOR_SIZE..];
-        let consensus_state = ConsensusState::deserialize(&mut data)
-            .context("Failed to deserialize consensus state")?;
+        let consensus_state: ConsensusState =
+            deserialize_anchor_account(&account.data, "consensus state")?;
 
         Ok(consensus_state.timestamp / NANOS_PER_SECOND)
     }

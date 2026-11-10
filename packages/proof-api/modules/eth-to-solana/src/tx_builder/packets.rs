@@ -4,8 +4,8 @@
 
 use std::collections::HashSet;
 
-use anchor_lang::prelude::*;
 use anyhow::Result;
+use proof_api_lib::utils::solana::deserialize_anchor_account;
 use solana_sdk::{
     commitment_config::CommitmentConfig,
     instruction::{AccountMeta, Instruction},
@@ -39,7 +39,6 @@ use proof_api_lib::utils::{
     solana_v0_tx::{derive_alt_address, extend_compute_ix},
 };
 
-use crate::constants::ANCHOR_DISCRIMINATOR_SIZE;
 use crate::{gmp, ift};
 
 /// Result type for ALT transaction building: (`create_alt_tx`, `extend_alt_txs`, `packet_txs`)
@@ -205,13 +204,7 @@ impl super::SolanaTxBuilder {
             .value
             .ok_or_else(|| anyhow::anyhow!("IBC app account not found"))?;
 
-        if ibc_app_account.data.len() < ANCHOR_DISCRIMINATOR_SIZE {
-            anyhow::bail!("Account data too short for IBCApp account");
-        }
-
-        let mut account_data = &ibc_app_account.data[ANCHOR_DISCRIMINATOR_SIZE..];
-        let ibc_app = IBCApp::deserialize(&mut account_data)
-            .map_err(|e| anyhow::anyhow!("Failed to deserialize IBCApp account: {e}"))?;
+        let ibc_app: IBCApp = deserialize_anchor_account(&ibc_app_account.data, "IBCApp account")?;
         let ibc_app_program = ibc_app.app_program_id;
 
         let (app_state, _) = app_state_pda(&ibc_app_program);

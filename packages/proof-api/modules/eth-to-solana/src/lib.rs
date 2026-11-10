@@ -8,7 +8,6 @@
 #![deny(clippy::nursery, clippy::pedantic, warnings)]
 #![allow(missing_docs, unused_crate_dependencies)]
 
-pub mod constants;
 pub mod gmp;
 pub mod ift;
 pub mod proto;
