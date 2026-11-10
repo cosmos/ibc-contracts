@@ -2,11 +2,10 @@
 
 //! ICS07 Tendermint and Solana account queries.
 
-use anchor_lang::prelude::*;
 use anyhow::{Context, Result};
+use proof_api_lib::utils::solana::deserialize_anchor_account;
 use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey};
 
-use crate::constants::ANCHOR_DISCRIMINATOR_SIZE;
 use solana_ibc_sdk::ics07_tendermint::{
     accounts::ClientState, instructions as ics07_tendermint_instructions,
 };
@@ -75,11 +74,7 @@ impl super::TxBuilder {
             .value
             .ok_or_else(|| anyhow::anyhow!("Client state account not found"))?;
 
-        let mut data = &account.data[ANCHOR_DISCRIMINATOR_SIZE..];
-        let client_state =
-            ClientState::deserialize(&mut data).context("Failed to deserialize client state")?;
-
-        Ok(client_state)
+        deserialize_anchor_account(&account.data, "client state")
     }
 
     /// Check if an account exists on-chain

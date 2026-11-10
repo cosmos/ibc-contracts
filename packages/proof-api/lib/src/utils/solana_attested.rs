@@ -9,12 +9,11 @@ use crate::aggregator::Aggregator;
 use crate::events::SolanaEurekaEventWithHeight;
 use crate::utils::attestor::get_packet_attestation;
 use crate::utils::solana::{
-    ibc_to_solana_ack_packet, ibc_to_solana_recv_packet, max_timeout_timestamp,
-    target_events_to_timeout_msgs, TimeoutPacketWithChunks,
+    deserialize_anchor_account, ibc_to_solana_ack_packet, ibc_to_solana_recv_packet,
+    max_timeout_timestamp, target_events_to_timeout_msgs, TimeoutPacketWithChunks,
 };
 use crate::utils::{cosmos, solana_v0_tx, wait_for_condition, RelayEventsParams};
 use alloy::sol_types::SolValue;
-use anchor_lang::AnchorDeserialize;
 use anyhow::{Context, Result};
 use borsh::BorshSerialize;
 use ibc_eureka_solidity_types::ics26::IICS26RouterMsgs::{Packet, Payload};
@@ -37,9 +36,6 @@ use solana_ibc_sdk::ics26_router::{
     },
 };
 use solana_sdk::{commitment_config::CommitmentConfig, instruction::Instruction, pubkey::Pubkey};
-
-/// Size of the Anchor account discriminator that precedes the account data.
-const ANCHOR_DISCRIMINATOR_SIZE: usize = 8;
 
 /// A Solana transaction builder targeting the ICS26 router program.
 ///
@@ -106,15 +102,8 @@ pub trait SolanaAttestationTxBuilder: Sync {
             .value
             .ok_or_else(|| anyhow::anyhow!("Router state account not found"))?;
 
-        if account.data.len() < ANCHOR_DISCRIMINATOR_SIZE {
-            return Err(anyhow::anyhow!(
-                "Account data too short for RouterState account"
-            ));
-        }
-
-        let mut data = &account.data[ANCHOR_DISCRIMINATOR_SIZE..];
-        let router_state = RouterState::deserialize(&mut data)
-            .map_err(|e| anyhow::anyhow!("Failed to deserialize RouterState account: {e}"))?;
+        let router_state: RouterState =
+            deserialize_anchor_account(&account.data, "RouterState account")?;
 
         Ok(router_state.am_state.access_manager)
     }
@@ -136,13 +125,7 @@ pub trait SolanaAttestationTxBuilder: Sync {
             .value
             .ok_or_else(|| anyhow::anyhow!("IBCApp account not found for port '{port_id}'"))?;
 
-        if account.data.len() < ANCHOR_DISCRIMINATOR_SIZE {
-            return Err(anyhow::anyhow!("Account data too short for IBCApp account"));
-        }
-
-        let mut data = &account.data[ANCHOR_DISCRIMINATOR_SIZE..];
-        let ibc_app = IBCApp::deserialize(&mut data)
-            .map_err(|e| anyhow::anyhow!("Failed to deserialize IBCApp account: {e}"))?;
+        let ibc_app: IBCApp = deserialize_anchor_account(&account.data, "IBCApp account")?;
 
         tracing::debug!("Resolved port '{}' → {}", port_id, ibc_app.app_program_id);
 
@@ -166,13 +149,7 @@ pub trait SolanaAttestationTxBuilder: Sync {
             .value
             .ok_or_else(|| anyhow::anyhow!("Client account not found for client '{client_id}'"))?;
 
-        if account.data.len() < ANCHOR_DISCRIMINATOR_SIZE {
-            return Err(anyhow::anyhow!("Account data too short for Client account"));
-        }
-
-        let mut data = &account.data[ANCHOR_DISCRIMINATOR_SIZE..];
-        let client = ClientAccount::deserialize(&mut data)
-            .map_err(|e| anyhow::anyhow!("Failed to deserialize Client account: {e}"))?;
+        let client: ClientAccount = deserialize_anchor_account(&account.data, "Client account")?;
 
         tracing::debug!(
             "Resolved client '{}' → {}",
@@ -201,11 +178,7 @@ pub trait SolanaAttestationTxBuilder: Sync {
             .value
             .ok_or_else(|| anyhow::anyhow!("Attestation client state account not found"))?;
 
-        let mut data = &account.data[ANCHOR_DISCRIMINATOR_SIZE..];
-        let client_state = AttestationClientState::deserialize(&mut data)
-            .context("Failed to deserialize attestation client state")?;
-
-        Ok(client_state)
+        deserialize_anchor_account(&account.data, "attestation client state")
     }
 
     /// Fetches the timestamp (in seconds) of the attestation consensus state at `height`.
@@ -230,9 +203,8 @@ pub trait SolanaAttestationTxBuilder: Sync {
             .value
             .ok_or_else(|| anyhow::anyhow!("Attestation consensus state account not found"))?;
 
-        let mut data = &account.data[ANCHOR_DISCRIMINATOR_SIZE..];
-        let consensus_state = ConsensusStateStore::deserialize(&mut data)
-            .context("Failed to deserialize attestation consensus state")?;
+        let consensus_state: ConsensusStateStore =
+            deserialize_anchor_account(&account.data, "attestation consensus state")?;
 
         // Attestation consensus state stores timestamp in seconds (not nanoseconds)
         Ok(consensus_state.timestamp)

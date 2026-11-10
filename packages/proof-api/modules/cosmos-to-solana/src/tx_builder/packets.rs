@@ -2,8 +2,8 @@
 
 //! Packet instruction builders for recv, ack, and timeout packets.
 
-use anchor_lang::prelude::*;
 use anyhow::Result;
+use proof_api_lib::utils::solana::deserialize_anchor_account;
 use proof_api_lib::utils::solana_attested::SolanaAttestationTxBuilder as _;
 use solana_sdk::{
     commitment_config::CommitmentConfig,
@@ -22,8 +22,6 @@ use solana_ibc_sdk::ics26_router::{
     },
     types::{Delivery, MsgAckPacket, MsgPayload, MsgRecvPacket, MsgTimeoutPacket},
 };
-
-use crate::constants::ANCHOR_DISCRIMINATOR_SIZE;
 
 /// Derives client state and consensus state PDAs which always use the same seeds across
 /// different light client implementations
@@ -150,13 +148,7 @@ impl super::TxBuilder {
             .value
             .ok_or_else(|| anyhow::anyhow!("IBC app account not found"))?;
 
-        if ibc_app_account.data.len() < ANCHOR_DISCRIMINATOR_SIZE {
-            anyhow::bail!("Account data too short for IBCApp account");
-        }
-
-        let mut account_data = &ibc_app_account.data[ANCHOR_DISCRIMINATOR_SIZE..];
-        let ibc_app = IBCApp::deserialize(&mut account_data)
-            .map_err(|e| anyhow::anyhow!("Failed to deserialize IBCApp account: {e}"))?;
+        let ibc_app: IBCApp = deserialize_anchor_account(&ibc_app_account.data, "IBCApp account")?;
         let ibc_app_program = ibc_app.app_program_id;
 
         let (app_state, _) = solana_ibc_sdk::pda::ibc_app::app_state_pda(&ibc_app_program);
