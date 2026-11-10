@@ -627,8 +627,7 @@ mod integration_tests {
         target_program: Pubkey,
         buffer: Pubkey,
     ) -> Instruction {
-        let (access_manager_pda, _) =
-            Pubkey::find_program_address(&[AccessManager::SEED], &crate::ID);
+        let access_manager_pda = AccessManager::pda();
         let (program_data, _) =
             Pubkey::find_program_address(&[target_program.as_ref()], &bpf_loader_upgradeable::ID);
         let (upgrade_authority_pda, _) =

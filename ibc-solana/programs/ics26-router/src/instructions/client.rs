@@ -984,10 +984,7 @@ mod integration_tests {
 
     fn build_add_client_ix(authority: Pubkey, client_id: &str) -> Instruction {
         let (router_state_pda, _) = Pubkey::find_program_address(&[RouterState::SEED], &crate::ID);
-        let (access_manager_pda, _) = Pubkey::find_program_address(
-            &[access_manager::state::AccessManager::SEED],
-            &access_manager::ID,
-        );
+        let access_manager_pda = access_manager::state::AccessManager::pda();
         let (client_pda, _) =
             Pubkey::find_program_address(&[Client::SEED, client_id.as_bytes()], &crate::ID);
 
@@ -1015,10 +1012,7 @@ mod integration_tests {
 
     fn build_migrate_client_ix(authority: Pubkey, client_id: &str) -> Instruction {
         let (router_state_pda, _) = Pubkey::find_program_address(&[RouterState::SEED], &crate::ID);
-        let (access_manager_pda, _) = Pubkey::find_program_address(
-            &[access_manager::state::AccessManager::SEED],
-            &access_manager::ID,
-        );
+        let access_manager_pda = access_manager::state::AccessManager::pda();
         let (client_pda, _) =
             Pubkey::find_program_address(&[Client::SEED, client_id.as_bytes()], &crate::ID);
 

@@ -19,7 +19,7 @@ pub fn serialize_access_manager(access_manager: &AccessManager) -> Vec<u8> {
 }
 
 pub fn create_initialized_access_manager(admin: Pubkey) -> (Pubkey, Account) {
-    let (access_manager_pda, _) = Pubkey::find_program_address(&[AccessManager::SEED], &crate::ID);
+    let access_manager_pda = AccessManager::pda();
 
     let access_manager = AccessManager {
         roles: vec![RoleData {
@@ -52,7 +52,7 @@ pub fn create_access_manager_with_role(
     role_id: u64,
     member: Pubkey,
 ) -> (Pubkey, Account) {
-    let (access_manager_pda, _) = Pubkey::find_program_address(&[AccessManager::SEED], &crate::ID);
+    let access_manager_pda = AccessManager::pda();
 
     let mut roles_vec = vec![RoleData {
         role_id: roles::ADMIN_ROLE,
@@ -127,7 +127,7 @@ pub fn build_instruction<T: anchor_lang::InstructionData>(
 
 /// Get the `access_manager` PDA
 pub fn get_access_manager_pda() -> Pubkey {
-    Pubkey::find_program_address(&[AccessManager::SEED], &crate::ID).0
+    AccessManager::pda()
 }
 
 /// Deserialize `access_manager` from instruction result
@@ -371,7 +371,7 @@ pub fn setup_program_test_with_whitelist(
     pt.add_program("test_cpi_target", TEST_CPI_TARGET_ID, None);
 
     // Pre-create AccessManager PDA with admin role and whitelist
-    let (access_manager_pda, _) = Pubkey::find_program_address(&[AccessManager::SEED], &crate::ID);
+    let access_manager_pda = AccessManager::pda();
 
     let am = AccessManager {
         roles: vec![RoleData {
@@ -556,7 +556,7 @@ pub fn create_access_manager_with_transfers(
     admin: Pubkey,
     transfers: Vec<PendingAuthorityTransfer>,
 ) -> (Pubkey, Account) {
-    let (pda, _) = Pubkey::find_program_address(&[AccessManager::SEED], &crate::ID);
+    let pda = AccessManager::pda();
     let am = AccessManager {
         roles: vec![RoleData {
             role_id: roles::ADMIN_ROLE,
@@ -625,7 +625,7 @@ pub fn build_propose_ix(
 ) -> Instruction {
     use anchor_lang::InstructionData;
 
-    let (access_manager_pda, _) = Pubkey::find_program_address(&[AccessManager::SEED], &crate::ID);
+    let access_manager_pda = AccessManager::pda();
 
     Instruction {
         program_id: crate::ID,
@@ -646,7 +646,7 @@ pub fn build_accept_ix(target_program: Pubkey, new_authority: Pubkey) -> Instruc
     use anchor_lang::InstructionData;
     use solana_sdk::bpf_loader_upgradeable;
 
-    let (access_manager_pda, _) = Pubkey::find_program_address(&[AccessManager::SEED], &crate::ID);
+    let access_manager_pda = AccessManager::pda();
     let (program_data, _) =
         Pubkey::find_program_address(&[target_program.as_ref()], &bpf_loader_upgradeable::ID);
     let (upgrade_authority_pda, _) =
@@ -668,7 +668,7 @@ pub fn build_accept_ix(target_program: Pubkey, new_authority: Pubkey) -> Instruc
 pub fn build_cancel_ix(admin: Pubkey, target_program: Pubkey) -> Instruction {
     use anchor_lang::InstructionData;
 
-    let (access_manager_pda, _) = Pubkey::find_program_address(&[AccessManager::SEED], &crate::ID);
+    let access_manager_pda = AccessManager::pda();
 
     Instruction {
         program_id: crate::ID,
@@ -709,7 +709,7 @@ pub async fn get_program_data_authority(
 pub async fn get_pending_transfers(
     banks_client: &solana_program_test::BanksClient,
 ) -> Vec<PendingAuthorityTransfer> {
-    let (pda, _) = Pubkey::find_program_address(&[AccessManager::SEED], &crate::ID);
+    let pda = AccessManager::pda();
     let account = banks_client.get_account(pda).await.unwrap().unwrap();
     let am: AccessManager =
         anchor_lang::AccountDeserialize::try_deserialize(&mut &account.data[..]).unwrap();

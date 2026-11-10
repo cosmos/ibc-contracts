@@ -352,10 +352,7 @@ mod integration_tests {
         let sequence = 1u64;
 
         let (router_state_pda, _) = Pubkey::find_program_address(&[RouterState::SEED], &crate::ID);
-        let (access_manager_pda, _) = Pubkey::find_program_address(
-            &[access_manager::state::AccessManager::SEED],
-            &access_manager::ID,
-        );
+        let access_manager_pda = access_manager::state::AccessManager::pda();
 
         let payload_chunk_pda = Pubkey::find_program_address(
             &[

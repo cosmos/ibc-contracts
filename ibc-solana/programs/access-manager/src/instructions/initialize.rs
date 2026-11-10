@@ -78,8 +78,7 @@ mod tests {
         let payer = Pubkey::new_unique();
         let authority = Pubkey::new_unique();
 
-        let (access_manager_pda, _) =
-            Pubkey::find_program_address(&[AccessManager::SEED], &crate::ID);
+        let access_manager_pda = AccessManager::pda();
         let (program_data_pda, program_data_account) =
             create_program_data_account(&crate::ID, Some(authority));
 
@@ -180,8 +179,7 @@ mod tests {
         let payer = Pubkey::new_unique();
         let authority = Pubkey::new_unique();
 
-        let (access_manager_pda, _) =
-            Pubkey::find_program_address(&[AccessManager::SEED], &crate::ID);
+        let access_manager_pda = AccessManager::pda();
         let (program_data_pda, program_data_account) =
             create_program_data_account(&crate::ID, Some(authority));
 
@@ -264,8 +262,7 @@ mod tests {
         let admin = Pubkey::new_unique();
         let authority = Pubkey::new_unique();
 
-        let (access_manager_pda, _) =
-            Pubkey::find_program_address(&[AccessManager::SEED], &crate::ID);
+        let access_manager_pda = AccessManager::pda();
         let (program_data_pda, program_data_account) =
             create_program_data_account(&crate::ID, Some(authority));
 
@@ -427,8 +424,7 @@ mod tests {
         let real_authority = Pubkey::new_unique();
         let wrong_authority = Pubkey::new_unique();
 
-        let (access_manager_pda, _) =
-            Pubkey::find_program_address(&[AccessManager::SEED], &crate::ID);
+        let access_manager_pda = AccessManager::pda();
         let (program_data_pda, program_data_account) =
             create_program_data_account(&crate::ID, Some(real_authority));
 
@@ -511,8 +507,7 @@ mod tests {
         let payer = Pubkey::new_unique();
         let authority = Pubkey::new_unique();
 
-        let (access_manager_pda, _) =
-            Pubkey::find_program_address(&[AccessManager::SEED], &crate::ID);
+        let access_manager_pda = AccessManager::pda();
         let (program_data_pda, program_data_account) =
             create_program_data_account(&crate::ID, None);
 
@@ -595,8 +590,7 @@ mod tests {
         let authority = Pubkey::new_unique();
         let other_program_id = Pubkey::new_unique();
 
-        let (access_manager_pda, _) =
-            Pubkey::find_program_address(&[AccessManager::SEED], &crate::ID);
+        let access_manager_pda = AccessManager::pda();
         // Derive ProgramData from a *different* program — should be rejected by the seeds constraint.
         let (wrong_program_data_pda, wrong_program_data_account) =
             create_program_data_account(&other_program_id, Some(authority));
