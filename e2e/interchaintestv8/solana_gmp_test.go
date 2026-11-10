@@ -13,9 +13,9 @@ import (
 	"time"
 
 	"github.com/cosmos/gogoproto/proto"
+	bin "github.com/gagliardetto/binary"
 	test_cpi_proxy "github.com/lfdt-ibc/ibc-contracts/e2e/interchaintestv8/solana/go-anchor/testcpiproxy"
 	test_gmp_app "github.com/lfdt-ibc/ibc-contracts/e2e/interchaintestv8/solana/go-anchor/testgmpapp"
-	bin "github.com/gagliardetto/binary"
 	"github.com/stretchr/testify/suite"
 	googleproto "google.golang.org/protobuf/proto"
 

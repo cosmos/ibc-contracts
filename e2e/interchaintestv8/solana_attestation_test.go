@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	test_ibc_app "github.com/lfdt-ibc/ibc-contracts/e2e/interchaintestv8/solana/go-anchor/testibcapp"
 	bin "github.com/gagliardetto/binary"
+	test_ibc_app "github.com/lfdt-ibc/ibc-contracts/e2e/interchaintestv8/solana/go-anchor/testibcapp"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/protobuf/proto"
 
