@@ -36,16 +36,7 @@ use solana_ibc_sdk::ics26_router::{
         MsgRecvPacket as SolanaMsgRecvPacket, MsgTimeoutPacket as SolanaMsgTimeoutPacket,
     },
 };
-use solana_sdk::{
-    commitment_config::CommitmentConfig, compute_budget::ComputeBudgetInstruction,
-    instruction::Instruction, pubkey::Pubkey,
-};
-
-/// Maximum compute units allowed per Solana transaction.
-const MAX_COMPUTE_UNIT_LIMIT: u32 = 1_400_000;
-
-/// Priority fee in micro-lamports per compute unit.
-const DEFAULT_PRIORITY_FEE: u64 = 1000;
+use solana_sdk::{commitment_config::CommitmentConfig, instruction::Instruction, pubkey::Pubkey};
 
 /// Size of the Anchor account discriminator that precedes the account data.
 const ANCHOR_DISCRIMINATOR_SIZE: usize = 8;
@@ -844,11 +835,9 @@ impl<B: SolanaAttestationTxBuilder> SolanaAttestedTxBuilder<B> {
             })
             .build();
 
-        let assembly_tx = self.tx_builder.create_tx_bytes(&[
-            ComputeBudgetInstruction::set_compute_unit_limit(MAX_COMPUTE_UNIT_LIMIT),
-            ComputeBudgetInstruction::set_compute_unit_price(DEFAULT_PRIORITY_FEE),
-            instruction,
-        ])?;
+        let mut instructions = solana_v0_tx::extend_compute_ix();
+        instructions.push(instruction);
+        let assembly_tx = self.tx_builder.create_tx_bytes(&instructions)?;
 
         Ok(AttestationUpdateClientResult {
             assembly_tx,
