@@ -2,18 +2,15 @@
 
 //! Utilities for attested relays targeting Ethereum chains.
 
-use std::{collections::HashMap, time::Duration};
+use std::collections::HashMap;
 
 use crate::aggregator::rpc::AggregatedAttestation;
 use crate::aggregator::Aggregator;
 use crate::events::EurekaEventWithHeight;
-use crate::utils::attestor::{
-    collect_send_and_ack_packets_with_height, collect_timeout_packets, fetch_attestations,
-    AttestationData,
-};
+use crate::utils::attestor::{fetch_relay_attestations, AttestationData};
 use crate::utils::{
     eth_eureka::{self, PacketCall},
-    wait_for_condition, RelayEventsParams,
+    RelayEventsParams,
 };
 use alloy::{
     primitives::{Address, Bytes},
@@ -252,47 +249,7 @@ impl<P: Provider + Clone> EthAttestedTxBuilder<P> {
             params.target_events.len()
         );
 
-        let (send_packets, ack_packets, mut relay_height) =
-            collect_send_and_ack_packets_with_height(
-                &params.src_events,
-                &params.src_client_id,
-                &params.dst_client_id,
-                &params.src_packet_seqs,
-                &params.dst_packet_seqs,
-            );
-
-        let timeout_packets = collect_timeout_packets(
-            &params.target_events,
-            &params.src_client_id,
-            &params.dst_client_id,
-            &params.dst_packet_seqs,
-        );
-
-        if timeout_packets.is_empty() {
-            tracing::debug!("No timeout packets collected");
-        } else {
-            let timeout_height = params.timeout_relay_height.ok_or_else(|| {
-                anyhow::anyhow!("timeout_relay_height required for timeout packets")
-            })?;
-            // Use max of src_events height and timeout height
-            relay_height = Some(relay_height.map_or(timeout_height, |h| h.max(timeout_height)));
-        }
-
-        let relay_height = relay_height.ok_or_else(|| anyhow::anyhow!("No packets collected"))?;
-        wait_for_condition(Duration::from_mins(15), Duration::from_secs(1), || async {
-            let finalized_height = self.aggregator.get_latest_height().await?;
-            Ok(finalized_height >= relay_height)
-        })
-        .await?;
-
-        let attestations = fetch_attestations(
-            &self.aggregator,
-            send_packets,
-            ack_packets,
-            timeout_packets,
-            relay_height,
-        )
-        .await?;
+        let attestations = fetch_relay_attestations(&self.aggregator, &params).await?;
 
         build_eth_multicall(MulticallInput {
             ics26_address: self.ics26_address,
