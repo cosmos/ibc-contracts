@@ -135,7 +135,6 @@ func (s *CosmosEthereumIFTTestSuite) SetupSuite(ctx context.Context, proofType t
 			s.Require().Fail("invalid prover type: %s", s.prover)
 		}
 
-		testvalues.EnvEnsure(testvalues.EnvKeyRustLog, testvalues.EnvValueRustLog_Info)
 		os.Setenv(testvalues.EnvKeyEthRPC, eth.RPC)
 		os.Setenv(testvalues.EnvKeyTendermintRPC, s.Wfchain.GetHostRPCAddress())
 		os.Setenv(testvalues.EnvKeySp1Prover, s.prover)
