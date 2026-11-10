@@ -5,6 +5,7 @@ node_modules
 out
 tmp
 .claude
+.amp/portals/*
 
 # files
 *.env
