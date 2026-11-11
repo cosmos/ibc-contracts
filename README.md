@@ -13,7 +13,7 @@
 [![cw-ics08-wasm-eth](https://img.shields.io/github/v/tag/cosmos/ibc-contracts?filter=cw-ics08-wasm-eth-v*&label=cw-ics08-wasm-eth)](https://github.com/cosmos/ibc-contracts/releases)
 [![proof-api](https://img.shields.io/github/v/tag/cosmos/ibc-contracts?filter=proof-api-v*&label=proof-api)](https://github.com/cosmos/ibc-contracts/releases)
 
-![banner](./.github/assets/ibc-contracts-banner.webp)
+![banner](./.github/assets/ibc-contracts-banner.jpg)
 
 ## Synopsis
 
