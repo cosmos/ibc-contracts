@@ -11,6 +11,7 @@
   openssl,
   zlib,
   zstd,
+  rust-jemalloc-sys-unprefixed,
   protobuf,
   perl,
   hidapi,
@@ -180,9 +181,13 @@
         [
           openssl
           zlib
-          # nixpkgs' cargo setup hook exports ZSTD_SYS_USE_PKG_CONFIG=1, so zstd-sys
-          # links the system library instead of building its bundled copy.
+          # nixpkgs' cargo setup hook makes these -sys crates link system libraries
+          # instead of building their bundled copies: ZSTD_SYS_USE_PKG_CONFIG=1 for
+          # zstd-sys, and a placeholder JEMALLOC_OVERRIDE for tikv-jemalloc-sys unless a
+          # jemalloc setup hook sets it. Agave enables jemallocator's
+          # unprefixed_malloc_on_supported_platforms, hence the unprefixed variant.
           zstd
+          rust-jemalloc-sys-unprefixed
           llvmPackages.libclang.lib
         ]
         ++ optionals isLinux [
