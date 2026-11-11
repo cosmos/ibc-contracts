@@ -1112,6 +1112,10 @@ func (_Contract *ContractFilterer) WatchAckPacket(opts *bind.WatchOpts, sink cha
 				// New log arrived, parse the event and forward to the user
 				event := new(ContractAckPacket)
 				if err := _Contract.contract.UnpackLog(event, "AckPacket", log); err != nil {
+					// If the signature doesn't match, skip this log.
+					if errors.Is(err, bind.ErrEventSignatureMismatch) {
+						continue
+					}
 					return err
 				}
 				event.Raw = log
@@ -1246,6 +1250,10 @@ func (_Contract *ContractFilterer) WatchAuthorityUpdated(opts *bind.WatchOpts, s
 				// New log arrived, parse the event and forward to the user
 				event := new(ContractAuthorityUpdated)
 				if err := _Contract.contract.UnpackLog(event, "AuthorityUpdated", log); err != nil {
+					// If the signature doesn't match, skip this log.
+					if errors.Is(err, bind.ErrEventSignatureMismatch) {
+						continue
+					}
 					return err
 				}
 				event.Raw = log
@@ -1381,6 +1389,10 @@ func (_Contract *ContractFilterer) WatchIBCAppAdded(opts *bind.WatchOpts, sink c
 				// New log arrived, parse the event and forward to the user
 				event := new(ContractIBCAppAdded)
 				if err := _Contract.contract.UnpackLog(event, "IBCAppAdded", log); err != nil {
+					// If the signature doesn't match, skip this log.
+					if errors.Is(err, bind.ErrEventSignatureMismatch) {
+						continue
+					}
 					return err
 				}
 				event.Raw = log
@@ -1515,6 +1527,10 @@ func (_Contract *ContractFilterer) WatchIBCAppRecvPacketCallbackError(opts *bind
 				// New log arrived, parse the event and forward to the user
 				event := new(ContractIBCAppRecvPacketCallbackError)
 				if err := _Contract.contract.UnpackLog(event, "IBCAppRecvPacketCallbackError", log); err != nil {
+					// If the signature doesn't match, skip this log.
+					if errors.Is(err, bind.ErrEventSignatureMismatch) {
+						continue
+					}
 					return err
 				}
 				event.Raw = log
@@ -1651,6 +1667,10 @@ func (_Contract *ContractFilterer) WatchICS02ClientAdded(opts *bind.WatchOpts, s
 				// New log arrived, parse the event and forward to the user
 				event := new(ContractICS02ClientAdded)
 				if err := _Contract.contract.UnpackLog(event, "ICS02ClientAdded", log); err != nil {
+					// If the signature doesn't match, skip this log.
+					if errors.Is(err, bind.ErrEventSignatureMismatch) {
+						continue
+					}
 					return err
 				}
 				event.Raw = log
@@ -1787,6 +1807,10 @@ func (_Contract *ContractFilterer) WatchICS02ClientMigrated(opts *bind.WatchOpts
 				// New log arrived, parse the event and forward to the user
 				event := new(ContractICS02ClientMigrated)
 				if err := _Contract.contract.UnpackLog(event, "ICS02ClientMigrated", log); err != nil {
+					// If the signature doesn't match, skip this log.
+					if errors.Is(err, bind.ErrEventSignatureMismatch) {
+						continue
+					}
 					return err
 				}
 				event.Raw = log
@@ -1922,6 +1946,10 @@ func (_Contract *ContractFilterer) WatchICS02ClientUpdated(opts *bind.WatchOpts,
 				// New log arrived, parse the event and forward to the user
 				event := new(ContractICS02ClientUpdated)
 				if err := _Contract.contract.UnpackLog(event, "ICS02ClientUpdated", log); err != nil {
+					// If the signature doesn't match, skip this log.
+					if errors.Is(err, bind.ErrEventSignatureMismatch) {
+						continue
+					}
 					return err
 				}
 				event.Raw = log
@@ -2056,6 +2084,10 @@ func (_Contract *ContractFilterer) WatchICS02MisbehaviourSubmitted(opts *bind.Wa
 				// New log arrived, parse the event and forward to the user
 				event := new(ContractICS02MisbehaviourSubmitted)
 				if err := _Contract.contract.UnpackLog(event, "ICS02MisbehaviourSubmitted", log); err != nil {
+					// If the signature doesn't match, skip this log.
+					if errors.Is(err, bind.ErrEventSignatureMismatch) {
+						continue
+					}
 					return err
 				}
 				event.Raw = log
@@ -2190,6 +2222,10 @@ func (_Contract *ContractFilterer) WatchInitialized(opts *bind.WatchOpts, sink c
 				// New log arrived, parse the event and forward to the user
 				event := new(ContractInitialized)
 				if err := _Contract.contract.UnpackLog(event, "Initialized", log); err != nil {
+					// If the signature doesn't match, skip this log.
+					if errors.Is(err, bind.ErrEventSignatureMismatch) {
+						continue
+					}
 					return err
 				}
 				event.Raw = log
@@ -2323,6 +2359,10 @@ func (_Contract *ContractFilterer) WatchNoop(opts *bind.WatchOpts, sink chan<- *
 				// New log arrived, parse the event and forward to the user
 				event := new(ContractNoop)
 				if err := _Contract.contract.UnpackLog(event, "Noop", log); err != nil {
+					// If the signature doesn't match, skip this log.
+					if errors.Is(err, bind.ErrEventSignatureMismatch) {
+						continue
+					}
 					return err
 				}
 				event.Raw = log
@@ -2457,6 +2497,10 @@ func (_Contract *ContractFilterer) WatchPaused(opts *bind.WatchOpts, sink chan<-
 				// New log arrived, parse the event and forward to the user
 				event := new(ContractPaused)
 				if err := _Contract.contract.UnpackLog(event, "Paused", log); err != nil {
+					// If the signature doesn't match, skip this log.
+					if errors.Is(err, bind.ErrEventSignatureMismatch) {
+						continue
+					}
 					return err
 				}
 				event.Raw = log
@@ -2611,6 +2655,10 @@ func (_Contract *ContractFilterer) WatchSendPacket(opts *bind.WatchOpts, sink ch
 				// New log arrived, parse the event and forward to the user
 				event := new(ContractSendPacket)
 				if err := _Contract.contract.UnpackLog(event, "SendPacket", log); err != nil {
+					// If the signature doesn't match, skip this log.
+					if errors.Is(err, bind.ErrEventSignatureMismatch) {
+						continue
+					}
 					return err
 				}
 				event.Raw = log
@@ -2765,6 +2813,10 @@ func (_Contract *ContractFilterer) WatchTimeoutPacket(opts *bind.WatchOpts, sink
 				// New log arrived, parse the event and forward to the user
 				event := new(ContractTimeoutPacket)
 				if err := _Contract.contract.UnpackLog(event, "TimeoutPacket", log); err != nil {
+					// If the signature doesn't match, skip this log.
+					if errors.Is(err, bind.ErrEventSignatureMismatch) {
+						continue
+					}
 					return err
 				}
 				event.Raw = log
@@ -2899,6 +2951,10 @@ func (_Contract *ContractFilterer) WatchUnpaused(opts *bind.WatchOpts, sink chan
 				// New log arrived, parse the event and forward to the user
 				event := new(ContractUnpaused)
 				if err := _Contract.contract.UnpackLog(event, "Unpaused", log); err != nil {
+					// If the signature doesn't match, skip this log.
+					if errors.Is(err, bind.ErrEventSignatureMismatch) {
+						continue
+					}
 					return err
 				}
 				event.Raw = log
@@ -3043,6 +3099,10 @@ func (_Contract *ContractFilterer) WatchUpgraded(opts *bind.WatchOpts, sink chan
 				// New log arrived, parse the event and forward to the user
 				event := new(ContractUpgraded)
 				if err := _Contract.contract.UnpackLog(event, "Upgraded", log); err != nil {
+					// If the signature doesn't match, skip this log.
+					if errors.Is(err, bind.ErrEventSignatureMismatch) {
+						continue
+					}
 					return err
 				}
 				event.Raw = log
@@ -3198,6 +3258,10 @@ func (_Contract *ContractFilterer) WatchWriteAcknowledgement(opts *bind.WatchOpt
 				// New log arrived, parse the event and forward to the user
 				event := new(ContractWriteAcknowledgement)
 				if err := _Contract.contract.UnpackLog(event, "WriteAcknowledgement", log); err != nil {
+					// If the signature doesn't match, skip this log.
+					if errors.Is(err, bind.ErrEventSignatureMismatch) {
+						continue
+					}
 					return err
 				}
 				event.Raw = log
