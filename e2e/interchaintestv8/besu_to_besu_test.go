@@ -27,7 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	transfertypes "github.com/cosmos/ibc-go/v11/modules/apps/transfer/types"
+	transfertypes "github.com/lfdt-ibc/ibc-go/v11/modules/apps/transfer/types"
 
 	"github.com/cosmos/interchaintest/v11/testutil"
 
