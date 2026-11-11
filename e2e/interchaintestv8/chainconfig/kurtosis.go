@@ -20,8 +20,8 @@ import (
 
 	"github.com/cosmos/interchaintest/v11/testutil"
 
-	"github.com/cosmos/ibc-contracts/e2e/v8/ethereum"
-	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/ethereum"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/testvalues"
 )
 
 const (

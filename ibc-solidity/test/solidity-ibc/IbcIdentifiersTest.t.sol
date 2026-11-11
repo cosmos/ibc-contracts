@@ -16,7 +16,7 @@ contract IBCIdentifiersTest is Test {
 
     function test_validateCustomIBCIdentifier() public {
         // The following test cases are based on the test cases of ibc-go:
-        // https://github.com/cosmos/ibc-go/blob/e443a88e0f2c84c131c5a1de47945a5733ff9c91/modules/core/24-host/validate_test.go#L57
+        // https://github.com/lfdt-ibc/ibc-go/blob/e443a88e0f2c84c131c5a1de47945a5733ff9c91/modules/core/24-host/validate_test.go#L57
         ValidateCustomIBCIdentifierTestCase[] memory testCases = new ValidateCustomIBCIdentifierTestCase[](15);
         testCases[0] = ValidateCustomIBCIdentifierTestCase({ m: "valid lowercase", id: "transfer", expPass: true });
         testCases[1] = ValidateCustomIBCIdentifierTestCase({

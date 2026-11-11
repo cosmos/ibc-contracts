@@ -26,7 +26,7 @@ interface IICS20TransferMsgs {
 
     /// @notice FungibleTokenPacketData is the payload for a fungible token transfer packet.
     /// @dev PacketData is defined in
-    /// [ICS-20](https://github.com/cosmos/ibc/tree/main/spec/app/ics-020-fungible-token-transfer).
+    /// [ICS-20](https://github.com/lfdt-ibc/ibc/tree/main/spec/app/ics-020-fungible-token-transfer).
     /// @param denom The denomination of the token
     /// @param sender The sender of the token
     /// @param receiver The receiver of the token

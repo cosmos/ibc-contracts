@@ -16,9 +16,9 @@ import (
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 
-	"github.com/cosmos/ibc-contracts/packages/go-abigen/besumsgs"
+	"github.com/lfdt-ibc/ibc-contracts/packages/go-abigen/besumsgs"
 
-	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/testvalues"
 )
 
 var updateBesuSynthetic = flag.Bool("update-besu-synthetic", false, "regenerate the synthetic Besu fixtures")

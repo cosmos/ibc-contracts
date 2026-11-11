@@ -8,7 +8,7 @@ import { IICS24HostErrors } from "../errors/IICS24HostErrors.sol";
 /// @notice ICS24Host is a library that provides commitment path generators for ICS24 host requirements.
 library ICS24Host {
     // Commitment generators that comply with
-    // https://github.com/cosmos/ibc/tree/main/spec/core/ics-024-host-requirements#path-space
+    // https://github.com/lfdt-ibc/ibc/tree/main/spec/core/ics-024-host-requirements#path-space
 
     /// @notice Universal error acknowledgement
     /// @dev The error acknowledgement used when a packet is not successfully received

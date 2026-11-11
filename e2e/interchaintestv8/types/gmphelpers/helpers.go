@@ -11,10 +11,10 @@ import (
 
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
 
-	gmptypes "github.com/cosmos/ibc-go/v11/modules/apps/27-gmp/types"
+	gmptypes "github.com/lfdt-ibc/ibc-go/v11/modules/apps/27-gmp/types"
 
-	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
-	solanatypes "github.com/cosmos/ibc-contracts/e2e/v8/types/solana"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/testvalues"
+	solanatypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/solana"
 )
 
 // packedAccountSize is the size of a single packed account entry: pubkey(32) + is_signer(1) + is_writable(1).
