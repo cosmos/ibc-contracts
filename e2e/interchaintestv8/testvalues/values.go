@@ -16,7 +16,7 @@ import (
 
 	"cosmossdk.io/math"
 
-	ibctm "github.com/cosmos/ibc-go/v11/modules/light-clients/07-tendermint"
+	ibctm "github.com/lfdt-ibc/ibc-go/v11/modules/light-clients/07-tendermint"
 
 	"github.com/cosmos/interchaintest/v11/chain/ethereum"
 

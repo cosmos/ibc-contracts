@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
+	bin "github.com/gagliardetto/binary"
 	test_cpi_proxy "github.com/lfdt-ibc/ibc-contracts/e2e/interchaintestv8/solana/go-anchor/testcpiproxy"
 	test_gmp_app "github.com/lfdt-ibc/ibc-contracts/e2e/interchaintestv8/solana/go-anchor/testgmpapp"
 	test_ibc_app "github.com/lfdt-ibc/ibc-contracts/e2e/interchaintestv8/solana/go-anchor/testibcapp"
-	bin "github.com/gagliardetto/binary"
 	"github.com/stretchr/testify/suite"
 
 	solanago "github.com/gagliardetto/solana-go"
@@ -26,13 +26,13 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 
-	transfertypes "github.com/cosmos/ibc-go/v11/modules/apps/transfer/types"
-	ibcclientutils "github.com/cosmos/ibc-go/v11/modules/core/02-client/client/utils"
-	clienttypes "github.com/cosmos/ibc-go/v11/modules/core/02-client/types"
-	clienttypesv2 "github.com/cosmos/ibc-go/v11/modules/core/02-client/v2/types"
-	channeltypesv2 "github.com/cosmos/ibc-go/v11/modules/core/04-channel/v2/types"
-	ibcexported "github.com/cosmos/ibc-go/v11/modules/core/exported"
-	tmclient "github.com/cosmos/ibc-go/v11/modules/light-clients/07-tendermint"
+	transfertypes "github.com/lfdt-ibc/ibc-go/v11/modules/apps/transfer/types"
+	ibcclientutils "github.com/lfdt-ibc/ibc-go/v11/modules/core/02-client/client/utils"
+	clienttypes "github.com/lfdt-ibc/ibc-go/v11/modules/core/02-client/types"
+	clienttypesv2 "github.com/lfdt-ibc/ibc-go/v11/modules/core/02-client/v2/types"
+	channeltypesv2 "github.com/lfdt-ibc/ibc-go/v11/modules/core/04-channel/v2/types"
+	ibcexported "github.com/lfdt-ibc/ibc-go/v11/modules/core/exported"
+	tmclient "github.com/lfdt-ibc/ibc-go/v11/modules/light-clients/07-tendermint"
 
 	access_manager "github.com/lfdt-ibc/ibc-contracts/packages/go-anchor/accessmanager"
 	ics07_tendermint_patches "github.com/lfdt-ibc/ibc-contracts/packages/go-anchor/ics07_tendermint_patches"

@@ -41,13 +41,16 @@ import (
 	comettypes "github.com/cometbft/cometbft/types"
 	comettime "github.com/cometbft/cometbft/types/time"
 
-	ibcwasmtypes "github.com/cosmos/ibc-go/modules/light-clients/08-wasm/v11/types"
-	clienttypes "github.com/cosmos/ibc-go/v11/modules/core/02-client/types"
-	ibcexported "github.com/cosmos/ibc-go/v11/modules/core/exported"
-	tmclient "github.com/cosmos/ibc-go/v11/modules/light-clients/07-tendermint"
+	ibcwasmtypes "github.com/lfdt-ibc/ibc-go/modules/light-clients/08-wasm/v11/types"
+	clienttypes "github.com/lfdt-ibc/ibc-go/v11/modules/core/02-client/types"
+	ibcexported "github.com/lfdt-ibc/ibc-go/v11/modules/core/exported"
+	tmclient "github.com/lfdt-ibc/ibc-go/v11/modules/light-clients/07-tendermint"
 
 	"github.com/cosmos/interchaintest/v11"
 	"github.com/cosmos/interchaintest/v11/chain/cosmos"
+	// interchaintest's copy of the 08-wasm tx and client types is registered first (package init order),
+	// so it must be used for anything packed into or unpacked from an Any.
+	wasmtypes "github.com/cosmos/interchaintest/v11/chain/cosmos/08-wasm-types"
 	"github.com/cosmos/interchaintest/v11/ibc"
 	"github.com/cosmos/interchaintest/v11/testutil"
 
@@ -202,7 +205,7 @@ func (s *TestSuite) PushNewWasmClientProposal(ctx context.Context, chain *cosmos
 
 	moduleAddr, err := chain.AuthQueryModuleAddress(ctx, govtypes.ModuleName)
 	s.Require().NoError(err)
-	message := ibcwasmtypes.MsgStoreCode{
+	message := wasmtypes.MsgStoreCode{
 		Signer:       moduleAddr,
 		WasmByteCode: zippedContent,
 	}
@@ -226,7 +229,7 @@ func (s *TestSuite) PushMigrateWasmClientProposal(ctx context.Context, chain *co
 	checksumBz, err := hex.DecodeString(checksum)
 	s.Require().NoError(err)
 
-	message := ibcwasmtypes.MsgMigrateContract{
+	message := wasmtypes.MsgMigrateContract{
 		Signer:   authtypes.NewModuleAddress(govtypes.ModuleName).String(),
 		ClientId: clientId,
 		Checksum: checksumBz,
@@ -308,7 +311,7 @@ func IsLowercase(s string) bool {
 	return true
 }
 
-func (s *TestSuite) GetEthereumClientState(ctx context.Context, cosmosChain *cosmos.CosmosChain, clientID string) (*ibcwasmtypes.ClientState, ethereumtypes.ClientState) {
+func (s *TestSuite) GetEthereumClientState(ctx context.Context, cosmosChain *cosmos.CosmosChain, clientID string) (*wasmtypes.ClientState, ethereumtypes.ClientState) {
 	clientStateResp, err := GRPCQuery[clienttypes.QueryClientStateResponse](ctx, cosmosChain, &clienttypes.QueryClientStateRequest{
 		ClientId: clientID,
 	})
@@ -318,7 +321,7 @@ func (s *TestSuite) GetEthereumClientState(ctx context.Context, cosmosChain *cos
 	err = cosmosChain.Config().EncodingConfig.InterfaceRegistry.UnpackAny(clientStateResp.ClientState, &clientState)
 	s.Require().NoError(err)
 
-	wasmClientState, ok := clientState.(*ibcwasmtypes.ClientState)
+	wasmClientState, ok := clientState.(*wasmtypes.ClientState)
 	s.Require().True(ok)
 	s.Require().NotEmpty(wasmClientState.Data)
 
