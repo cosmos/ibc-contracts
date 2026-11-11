@@ -10,8 +10,13 @@
 #
 # Keep `version`/`rev` in sync with the abigen pin in .github/workflows/abigen.yaml
 # and the version check in ibc-solidity/solidity.just.
+#
+# Built with Go 1.26: go-ethereum 1.17.5 depends on cockroachdb/swiss, whose runtime
+# linkname shims are gated by Go version build tags and don't compile under Go 1.27.
+# Bumping abigen to 1.17.10 (newer swiss) would fix this, but its bindings reference
+# bind.ErrEventSignatureMismatch, which the op-geth replace in e2e doesn't provide.
 {pkgs}:
-pkgs.buildGoModule rec {
+pkgs.buildGo126Module rec {
   pname = "abigen";
   version = "1.17.5";
 
