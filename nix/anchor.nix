@@ -7,6 +7,7 @@
   fetchFromGitHub,
   pkg-config,
   openssl,
+  zstd,
   perl,
   hidapi,
   udev,
@@ -27,7 +28,9 @@ rustPlatform.buildRustPackage rec {
 
   nativeBuildInputs = [perl pkg-config];
 
-  buildInputs = [openssl] ++ lib.optionals stdenv.isLinux [hidapi udev];
+  # zstd: nixpkgs' cargo setup hook exports ZSTD_SYS_USE_PKG_CONFIG=1, so
+  # zstd-sys links the system library instead of building its bundled copy.
+  buildInputs = [openssl zstd] ++ lib.optionals stdenv.isLinux [hidapi udev];
 
   checkFlags = [
     "--skip=tests::test_check_and_get_full_commit_when_full_commit"

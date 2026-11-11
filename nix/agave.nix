@@ -10,6 +10,7 @@
   pkg-config,
   openssl,
   zlib,
+  zstd,
   protobuf,
   perl,
   hidapi,
@@ -179,6 +180,9 @@
         [
           openssl
           zlib
+          # nixpkgs' cargo setup hook exports ZSTD_SYS_USE_PKG_CONFIG=1, so zstd-sys
+          # links the system library instead of building its bundled copy.
+          zstd
           llvmPackages.libclang.lib
         ]
         ++ optionals isLinux [
