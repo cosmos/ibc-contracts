@@ -1,4 +1,4 @@
-module github.com/cosmos/ibc-contracts/scripts/go-test-matrix
+module github.com/lfdt-ibc/ibc-contracts/scripts/go-test-matrix
 
 go 1.26.5
 

@@ -3,7 +3,7 @@
 //! Contains the types needed to parse Cosmos SDK's IBC Eureka events.
 //!
 //! Should be kept in sync with
-//! <https://github.com/cosmos/ibc-go/blob/13a13abea09415f2d5c2b4c4ac8edf6b756b8e74/modules/core/04-channel/v2/types/events.go#L9>.
+//! <https://github.com/lfdt-ibc/ibc-go/blob/13a13abea09415f2d5c2b4c4ac8edf6b756b8e74/modules/core/04-channel/v2/types/events.go#L9>.
 
 /// The event type for a send packet event.
 pub const EVENT_TYPE_SEND_PACKET: &str = "send_packet";

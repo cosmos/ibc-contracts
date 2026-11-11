@@ -22,25 +22,25 @@ import (
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
 
-	gmptypes "github.com/cosmos/ibc-go/v11/modules/apps/27-gmp/types"
+	gmptypes "github.com/lfdt-ibc/ibc-go/v11/modules/apps/27-gmp/types"
 
 	interchaintest "github.com/cosmos/interchaintest/v11"
 	"github.com/cosmos/interchaintest/v11/chain/cosmos"
 	"github.com/cosmos/interchaintest/v11/ibc"
 
-	ics07_tendermint "github.com/cosmos/ibc-contracts/packages/go-anchor/ics07tendermint"
-	ics26_router "github.com/cosmos/ibc-contracts/packages/go-anchor/ics26router"
-	ics27_gmp "github.com/cosmos/ibc-contracts/packages/go-anchor/ics27gmp"
-	ift "github.com/cosmos/ibc-contracts/packages/go-anchor/ift"
+	ics07_tendermint "github.com/lfdt-ibc/ibc-contracts/packages/go-anchor/ics07tendermint"
+	ics26_router "github.com/lfdt-ibc/ibc-contracts/packages/go-anchor/ics26router"
+	ics27_gmp "github.com/lfdt-ibc/ibc-contracts/packages/go-anchor/ics27gmp"
+	ift "github.com/lfdt-ibc/ibc-contracts/packages/go-anchor/ift"
 
-	"github.com/cosmos/ibc-contracts/e2e/v8/chainconfig"
-	cosmosutils "github.com/cosmos/ibc-contracts/e2e/v8/cosmos"
-	"github.com/cosmos/ibc-contracts/e2e/v8/e2esuite"
-	"github.com/cosmos/ibc-contracts/e2e/v8/solana"
-	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
-	proofapitypes "github.com/cosmos/ibc-contracts/e2e/v8/types/proofapi"
-	ifttypes "github.com/cosmos/ibc-contracts/e2e/v8/types/wfchain/ift"
-	tokenfactorytypes "github.com/cosmos/ibc-contracts/e2e/v8/types/wfchain/tokenfactory"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/chainconfig"
+	cosmosutils "github.com/lfdt-ibc/ibc-contracts/e2e/v8/cosmos"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/e2esuite"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/solana"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/testvalues"
+	proofapitypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/proofapi"
+	ifttypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/wfchain/ift"
+	tokenfactorytypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/wfchain/tokenfactory"
 )
 
 // IbcEurekaSolanaIFTTestSuite tests IFT functionality

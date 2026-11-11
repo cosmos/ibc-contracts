@@ -16,24 +16,27 @@ import (
 	govv1beta1 "github.com/cosmos/cosmos-sdk/x/gov/types/v1beta1"
 	upgradetypes "github.com/cosmos/cosmos-sdk/x/upgrade/types"
 
-	ibcwasmtypes "github.com/cosmos/ibc-go/modules/light-clients/08-wasm/v11/types"
-	gmptypes "github.com/cosmos/ibc-go/v11/modules/apps/27-gmp/types"
-	icacontrollertypes "github.com/cosmos/ibc-go/v11/modules/apps/27-interchain-accounts/controller/types"
-	icahosttypes "github.com/cosmos/ibc-go/v11/modules/apps/27-interchain-accounts/host/types"
-	transfertypes "github.com/cosmos/ibc-go/v11/modules/apps/transfer/types"
-	v7migrations "github.com/cosmos/ibc-go/v11/modules/core/02-client/migrations/v7"
-	clienttypes "github.com/cosmos/ibc-go/v11/modules/core/02-client/types"
-	clienttypesv2 "github.com/cosmos/ibc-go/v11/modules/core/02-client/v2/types"
-	connectiontypes "github.com/cosmos/ibc-go/v11/modules/core/03-connection/types"
-	channeltypes "github.com/cosmos/ibc-go/v11/modules/core/04-channel/types"
-	channeltypesv2 "github.com/cosmos/ibc-go/v11/modules/core/04-channel/v2/types"
-	solomachine "github.com/cosmos/ibc-go/v11/modules/light-clients/06-solomachine"
-	ibctmtypes "github.com/cosmos/ibc-go/v11/modules/light-clients/07-tendermint"
+	gmptypes "github.com/lfdt-ibc/ibc-go/v11/modules/apps/27-gmp/types"
+	icacontrollertypes "github.com/lfdt-ibc/ibc-go/v11/modules/apps/27-interchain-accounts/controller/types"
+	icahosttypes "github.com/lfdt-ibc/ibc-go/v11/modules/apps/27-interchain-accounts/host/types"
+	transfertypes "github.com/lfdt-ibc/ibc-go/v11/modules/apps/transfer/types"
+	v7migrations "github.com/lfdt-ibc/ibc-go/v11/modules/core/02-client/migrations/v7"
+	clienttypes "github.com/lfdt-ibc/ibc-go/v11/modules/core/02-client/types"
+	clienttypesv2 "github.com/lfdt-ibc/ibc-go/v11/modules/core/02-client/v2/types"
+	connectiontypes "github.com/lfdt-ibc/ibc-go/v11/modules/core/03-connection/types"
+	channeltypes "github.com/lfdt-ibc/ibc-go/v11/modules/core/04-channel/types"
+	channeltypesv2 "github.com/lfdt-ibc/ibc-go/v11/modules/core/04-channel/v2/types"
+	solomachine "github.com/lfdt-ibc/ibc-go/v11/modules/light-clients/06-solomachine"
+	ibctmtypes "github.com/lfdt-ibc/ibc-go/v11/modules/light-clients/07-tendermint"
 
-	proposaltypes "github.com/cosmos/ibc-contracts/e2e/v8/paramsproposal"
-	"github.com/cosmos/ibc-contracts/e2e/v8/types/attestations"
-	ifttypes "github.com/cosmos/ibc-contracts/e2e/v8/types/wfchain/ift"
-	tokenfactorytypes "github.com/cosmos/ibc-contracts/e2e/v8/types/wfchain/tokenfactory"
+	// interchaintest's copy of the 08-wasm types is used instead of the 08-wasm module: both register the
+	// same proto names, and only the first registration (by package init order) gets a type URL.
+	wasmtypes "github.com/cosmos/interchaintest/v11/chain/cosmos/08-wasm-types"
+
+	proposaltypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/paramsproposal"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/attestations"
+	ifttypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/wfchain/ift"
+	tokenfactorytypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/wfchain/tokenfactory"
 )
 
 // Codec returns the global E2E protobuf codec.
@@ -70,7 +73,7 @@ func codecAndEncodingConfig() (*codec.ProtoCodec, sdktestutil.TestEncodingConfig
 	channeltypes.RegisterInterfaces(cfg.InterfaceRegistry)
 	connectiontypes.RegisterInterfaces(cfg.InterfaceRegistry)
 	ibctmtypes.RegisterInterfaces(cfg.InterfaceRegistry)
-	ibcwasmtypes.RegisterInterfaces(cfg.InterfaceRegistry)
+	wasmtypes.RegisterInterfaces(cfg.InterfaceRegistry)
 	channeltypesv2.RegisterInterfaces(cfg.InterfaceRegistry)
 	attestations.RegisterInterfaces(cfg.InterfaceRegistry)
 	gmptypes.RegisterInterfaces(cfg.InterfaceRegistry)

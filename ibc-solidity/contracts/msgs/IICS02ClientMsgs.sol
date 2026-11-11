@@ -7,7 +7,7 @@ interface IICS02ClientMsgs {
     /// @notice Counterparty client information.
     /// @dev merklePrefix is structured as a list of bytes representing the keys in nested merkle trees.
     /// @custom:spec
-    /// https://github.com/cosmos/ibc/blob/67fe813f7e4ec603a7c5dec35bc654f3b012afda/spec/micro/README.md?plain=1#L91
+    /// https://github.com/lfdt-ibc/ibc/blob/67fe813f7e4ec603a7c5dec35bc654f3b012afda/spec/micro/README.md?plain=1#L91
     /// @param clientId The client identifier from the counterparty chain.
     /// @param merklePrefix The counterparty chain's merkle prefix.
     struct CounterpartyInfo {

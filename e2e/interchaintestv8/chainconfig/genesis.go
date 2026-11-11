@@ -15,7 +15,7 @@ import (
 
 	"github.com/cosmos/interchaintest/v11/ibc"
 
-	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/testvalues"
 )
 
 func defaultModifyGenesis() func(ibc.ChainConfig, []byte) ([]byte, error) {

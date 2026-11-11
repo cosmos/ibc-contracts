@@ -18,24 +18,24 @@ import (
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
 
-	gmptypes "github.com/cosmos/ibc-go/v11/modules/apps/27-gmp/types"
-	clienttypes "github.com/cosmos/ibc-go/v11/modules/core/02-client/types"
-	clienttypesv2 "github.com/cosmos/ibc-go/v11/modules/core/02-client/v2/types"
-	ibcexported "github.com/cosmos/ibc-go/v11/modules/core/exported"
+	gmptypes "github.com/lfdt-ibc/ibc-go/v11/modules/apps/27-gmp/types"
+	clienttypes "github.com/lfdt-ibc/ibc-go/v11/modules/core/02-client/types"
+	clienttypesv2 "github.com/lfdt-ibc/ibc-go/v11/modules/core/02-client/v2/types"
+	ibcexported "github.com/lfdt-ibc/ibc-go/v11/modules/core/exported"
 
 	interchaintest "github.com/cosmos/interchaintest/v11"
 	"github.com/cosmos/interchaintest/v11/chain/cosmos"
 	"github.com/cosmos/interchaintest/v11/ibc"
 
-	"github.com/cosmos/ibc-contracts/e2e/v8/chainconfig"
-	cosmosutils "github.com/cosmos/ibc-contracts/e2e/v8/cosmos"
-	"github.com/cosmos/ibc-contracts/e2e/v8/e2esuite"
-	ibctesting "github.com/cosmos/ibc-contracts/e2e/v8/ibctesting"
-	proofapi "github.com/cosmos/ibc-contracts/e2e/v8/proofapi"
-	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
-	proofapitypes "github.com/cosmos/ibc-contracts/e2e/v8/types/proofapi"
-	ifttypes "github.com/cosmos/ibc-contracts/e2e/v8/types/wfchain/ift"
-	tokenfactorytypes "github.com/cosmos/ibc-contracts/e2e/v8/types/wfchain/tokenfactory"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/chainconfig"
+	cosmosutils "github.com/lfdt-ibc/ibc-contracts/e2e/v8/cosmos"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/e2esuite"
+	ibctesting "github.com/lfdt-ibc/ibc-contracts/e2e/v8/ibctesting"
+	proofapi "github.com/lfdt-ibc/ibc-contracts/e2e/v8/proofapi"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/testvalues"
+	proofapitypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/proofapi"
+	ifttypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/wfchain/ift"
+	tokenfactorytypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/wfchain/tokenfactory"
 )
 
 // CosmosIFTTestSuite tests IFT transfers between two wfchain instances

@@ -15,10 +15,10 @@ import (
 	grpc "google.golang.org/grpc"
 	insecure "google.golang.org/grpc/credentials/insecure"
 
-	"github.com/cosmos/ibc-contracts/e2e/v8/dockerutil"
-	"github.com/cosmos/ibc-contracts/e2e/v8/e2esuite"
-	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
-	attestortypes "github.com/cosmos/ibc-contracts/e2e/v8/types/attestor"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/dockerutil"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/e2esuite"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/testvalues"
+	attestortypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/attestor"
 )
 
 // ChainType represents the type of blockchain adapter
