@@ -339,6 +339,10 @@ func (_Contract *ContractFilterer) WatchUpgraded(opts *bind.WatchOpts, sink chan
 				// New log arrived, parse the event and forward to the user
 				event := new(ContractUpgraded)
 				if err := _Contract.contract.UnpackLog(event, "Upgraded", log); err != nil {
+					// If the signature doesn't match, skip this log.
+					if errors.Is(err, bind.ErrEventSignatureMismatch) {
+						continue
+					}
 					return err
 				}
 				event.Raw = log
