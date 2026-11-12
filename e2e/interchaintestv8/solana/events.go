@@ -31,7 +31,7 @@ func SendPacketEventDiscriminator() []byte {
 }
 
 // SendPacketEvent represents the event emitted when a packet is sent on Solana.
-// This matches the Rust struct in ibc-solana/packages/solana-ibc-types/src/events.rs
+// This matches the Rust struct in ibc-solana/programs/ics26-router/src/events.rs
 type SendPacketEvent struct {
 	ClientID         string
 	Sequence         uint64

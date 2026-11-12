@@ -25,7 +25,7 @@ We implement a PDA-based storage architecture with chunked storage for large dat
 
 **Client State PDA:**
 ```
-Seeds: [b"client", chain_id.as_bytes()]
+Seeds: [b"client"]
 ```
 Stores:
 - `chain_id`: String (max 64 bytes)
@@ -35,7 +35,7 @@ Stores:
 
 **Consensus State PDAs:**
 ```
-Seeds: [b"consensus_state", client_state_pubkey.as_ref(), height.to_le_bytes()]
+Seeds: [b"consensus_state", height.to_le_bytes()]
 ```
 Stores:
 - `height`: u64
@@ -49,7 +49,7 @@ Stores:
 Seeds: [b"app_state"]
 ```
 Stores:
-- `access_manager`: Pubkey
+- `am_state`: AccessManagerState { access_manager, pending_access_manager }
 - `_reserved`: [u8; 256]
 
 ### 2. ICS26-Router Storage
@@ -60,7 +60,8 @@ Seeds: [b"router_state"]
 ```
 Stores:
 - `version`: AccountVersion
-- `access_manager`: Pubkey
+- `am_state`: AccessManagerState { access_manager, pending_access_manager }
+- `paused`: bool
 - `_reserved`: [u8; 256]
 
 **Client Registry PDA:**
@@ -69,7 +70,7 @@ Seeds: [b"client", client_id.as_bytes()]
 ```
 Stores:
 - `version`: AccountVersion
-- `client_id`: String (max 64 bytes)
+- `client_id`: String (max 32 bytes)
 - `client_program_id`: Pubkey (light client program)
 - `counterparty_info`: CounterpartyInfo { client_id, merkle_prefix }
 - `active`: bool
@@ -83,7 +84,6 @@ Stores:
 - `version`: AccountVersion
 - `port_id`: String (max 128 bytes)
 - `app_program_id`: Pubkey
-- `authority`: Pubkey
 - `_reserved`: [u8; 256]
 
 ### 3. Packet Commitment Storage
@@ -114,7 +114,7 @@ Large data exceeding transaction limits is split into 900-byte chunks uploaded i
 
 **Header Chunk (for client updates) — ICS07-Tendermint:**
 ```
-Seeds: [b"header_chunk", submitter.as_ref(), chain_id.as_bytes(), target_height.to_le_bytes(), chunk_index]
+Seeds: [b"header_chunk", submitter.as_ref(), target_height.to_le_bytes(), chunk_index]
 ```
 Stores:
 - `submitter`: Pubkey
@@ -143,7 +143,7 @@ Stores:
 
 **Misbehaviour Chunk (for misbehaviour reports) — ICS07-Tendermint:**
 ```
-Seeds: [b"misbehaviour_chunk", submitter.as_ref(), client_id.as_bytes(), chunk_index]
+Seeds: [b"misbehaviour_chunk", submitter.as_ref(), chunk_index]
 ```
 Stores:
 - `chunk_data`: Vec<u8> (max 900 bytes)
@@ -319,7 +319,7 @@ IBC commitment paths (for cross-chain proofs) use **big-endian** per IBC spec:
 ## Configuration Constants
 
 - **CHUNK_DATA_SIZE**: 900 bytes (maximum chunk size for uploads)
-- **MAX_CLIENT_ID_LENGTH**: 64 bytes
+- **MAX_CLIENT_ID_LENGTH**: 32 bytes
 - **MAX_PORT_ID_LENGTH**: 128 bytes
 
 ## Future Considerations

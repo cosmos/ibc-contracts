@@ -139,7 +139,7 @@ pub fn assemble_single_payload_chunks(params: AssemblePayloadParams) -> Result<V
         accounts_processed += 1;
     }
 
-    // Clean up chunks and return rent
+    // Zero chunk data (rent is reclaimed later via `cleanup_chunks`)
     cleanup_payload_chunks(CleanupPayloadChunksParams {
         chunk_accounts: &params.remaining_accounts
             [params.start_index..params.start_index + accounts_processed],

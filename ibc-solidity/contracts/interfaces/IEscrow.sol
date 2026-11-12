@@ -24,7 +24,7 @@ interface IEscrow {
     /// @return The ICS20 contract address
     function ics20() external view returns (address);
 
-    /// @notice Initializes the IBCERC20 contract
+    /// @notice Initializes the Escrow contract
     /// @dev This initializes the contract to the latest version from an empty state
     /// @param ics20_ The ICS20 contract address, can send funds from the escrow
     /// @param authority The address of the AccessManager contract

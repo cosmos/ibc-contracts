@@ -42,7 +42,7 @@ interface IICS27GMP {
     function initialize(address ics26_, address accountLogic, address authority) external;
 
     /// @notice Upgrades the implementation of the account beacon contract
-    /// @dev The caller must be the ICS26Router admin
+    /// @dev This function is restricted by the AccessManager (`ADMIN_ROLE` by default)
     /// @param newAccountLogic The address of the new account logic contract
     function upgradeAccountTo(address newAccountLogic) external;
 }

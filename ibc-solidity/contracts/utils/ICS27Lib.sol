@@ -6,7 +6,8 @@ import { IICS27Account } from "../interfaces/IICS27Account.sol";
 import { BeaconProxy } from "@openzeppelin-contracts/proxy/beacon/BeaconProxy.sol";
 
 /// @title ICS27Lib
-/// @notice This library provides utility functions for ICS27GMP, including versioning, encoding, and denom handling.
+/// @notice This library provides utility functions for ICS27GMP, including versioning, encoding, acknowledgements and
+/// account proxy bytecode.
 library ICS27Lib {
     /// @notice ICS27_VERSION is the version string for ICS27 packet data.
     string internal constant ICS27_VERSION = "ics27-2";

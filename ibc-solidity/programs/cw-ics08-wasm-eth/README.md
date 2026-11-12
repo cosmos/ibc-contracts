@@ -8,11 +8,11 @@ This repository contains a `CosmWasm` implementation of an Ethereum light client
 
 The `update_client` functionality is based on the [Ethereum Light Client Sync Protocol](https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/light-client/sync-protocol.md), with key modifications to support **historical updates** — a feature necessary for multiple IBC relayers to independently run.
 
-Each update also includes an account proof for the Ethereum `IBCStore.sol` contract, allowing the `CosmWasm` contract to verify the commitment root on Ethereum. This enables IBC clients on Cosmos chains to validate Ethereum-side IBC state using the storage root of `IBCStore`.
+Each update also includes an account proof for the Ethereum `ICS26Router` contract, which stores the IBC commitments through `IBCStoreUpgradeable.sol`, allowing the `CosmWasm` contract to verify the commitment root on Ethereum. This enables IBC clients on Cosmos chains to validate Ethereum-side IBC state using the storage root of the router.
 
 ### Membership Proofs
 
-We support Merkle-Patricia Trie (MPT) inclusion and exclusion proofs to verify the (non-)membership of IBC commitments in the `IBCStore.sol` contract on Ethereum. These proofs ensure that the IBC handler on Ethereum has committed to the expected state.
+We support Merkle-Patricia Trie (MPT) inclusion and exclusion proofs to verify the (non-)membership of IBC commitments in the `ICS26Router` contract's storage on Ethereum. These proofs ensure that the IBC handler on Ethereum has committed to the expected state.
 
 ### Misbehavior Handling
 
@@ -27,7 +27,7 @@ Misbehavior is defined as the submission of two conflicting—but individually v
 - [Protobuf compiler](https://grpc.io/docs/protoc-installation/)
 - [Docker](https://docs.docker.com/get-docker/)
 
-We use the [`cosmwasm/optimizer`](https://github.com/CosmWasm/optimizer) Docker image to build the `CosmWasm` contracts. Ensure you have Docker installed and running.
+We use the Docker image defined in this directory's `Dockerfile` to build and optimize (with `wasm-opt`) the `CosmWasm` contract. Ensure you have Docker installed and running.
 
 ```bash
 just solidity::build-cw-ics08-wasm-eth

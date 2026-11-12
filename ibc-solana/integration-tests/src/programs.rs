@@ -209,8 +209,8 @@ impl ChainProgram for Ift {
 
 /// Attestation-based light client with ECDSA signature verification.
 ///
-/// Unlike mock LC (auto-registered by the chain), the attestation LC must
-/// be included in the `programs` slice and requires explicit attestor
+/// The attestation LC is not auto-registered by the chain: it must be
+/// included in the `programs` slice and requires explicit attestor
 /// addresses and a quorum threshold.
 ///
 /// Supports multiple instances via [`with_program_id`](Self::with_program_id),

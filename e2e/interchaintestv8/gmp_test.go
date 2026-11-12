@@ -151,7 +151,7 @@ func (s *IbcEurekaGmpTestSuite) SetupSuite(ctx context.Context, proofType types.
 	var proofApiProcess *os.Process
 	s.Require().True(s.Run("Start Proof API", func() {
 		beaconAPI := ""
-		// The BeaconAPIClient is nil when the testnet is `pow`
+		// The BeaconAPIClient is nil when the testnet is not `pos`
 		if eth.BeaconAPIClient != nil {
 			beaconAPI = eth.BeaconAPIClient.GetBeaconAPIURL()
 		}

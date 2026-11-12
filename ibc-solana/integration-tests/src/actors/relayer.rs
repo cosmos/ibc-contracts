@@ -575,8 +575,8 @@ impl Relayer {
 /// leaves comfortable headroom for the router + LC + app CPI chain.
 const ATTESTATION_COMPUTE_BUDGET: u32 = 400_000;
 
-/// Prepend a `SetComputeUnitLimit` instruction when the chain uses an
-/// attestation light client, otherwise return the instruction as-is.
+/// Prepend a `SetComputeUnitLimit` instruction sized for attestation proof
+/// verification.
 fn with_attestation_budget(
     ix: solana_sdk::instruction::Instruction,
 ) -> Vec<solana_sdk::instruction::Instruction> {

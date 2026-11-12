@@ -49,7 +49,7 @@ mod unauthorized_cpi;
 /// GMP timeout must match `router::test_timeout(TEST_CLOCK_TIME)` so that
 /// the commitment computed by `send_call` agrees with the ack/recv packet builders.
 const GMP_TIMEOUT: u64 = TEST_CLOCK_TIME as u64 + 86_000;
-/// GMP `send_call` with a timeout exceeding `MAX_TIMEOUT_DURATION` is rejected.
+/// GMP `send_call` with a timeout at `MAX_TIMEOUT_DURATION` is rejected (the limit is exclusive).
 const GMP_TIMEOUT_TOO_LONG: u64 = TEST_CLOCK_TIME as u64 + 86_400;
 
 /// Lamports prefunded to the `GMPAccount` PDA so the counter program can pay

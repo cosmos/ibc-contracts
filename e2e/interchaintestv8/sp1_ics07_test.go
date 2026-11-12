@@ -71,7 +71,7 @@ type SP1ICS07TendermintTestSuite struct {
 	ProofApiClient proofapitypes.ProofApiServiceClient
 }
 
-// SetupSuite calls the underlying SP1ICS07TendermintTestSuite's SetupSuite method
+// SetupSuite calls the underlying TestSuite's SetupSuite method
 // and deploys the SP1ICS07Tendermint contract
 func (s *SP1ICS07TendermintTestSuite) SetupSuite(ctx context.Context, proofType types.SupportedProofType) {
 	s.TestSuite.SetupSuite(ctx)
@@ -633,7 +633,7 @@ func (s *SP1ICS07TendermintTestSuite) Test_BreakingTimeMonotonicityMisbehaviour(
 	s.BreakingTimeMonotonicityMisbehaviourTest(ctx, "breaking_time_monotonicity", proofType)
 }
 
-// TestBreakingTimeMonotonicityMisbehaviour tests the misbehaviour functionality
+// BreakingTimeMonotonicityMisbehaviourTest tests the misbehaviour functionality
 // Fixture is only generated if the environment variable is set
 // Partially based on https://github.com/cosmos/relayer/blob/f9aaf3dd0ebfe99fbe98d190a145861d7df93804/interchaintest/misbehaviour_test.go#L38
 func (s *SP1ICS07TendermintTestSuite) BreakingTimeMonotonicityMisbehaviourTest(ctx context.Context, fixName string, proofType types.SupportedProofType) {

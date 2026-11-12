@@ -48,7 +48,7 @@ The published documentation for this repository lives at [ibcprotocol.dev](https
 
 ## Releases
 
-See [`RELEASES.md`](RELEASES.md) for the versioning scheme, how to cut a release, and how to verify its signed files and image. Current versions are on the [releases page](https://github.com/lfdt-ibc/ibc-contracts/releases).
+See [`RELEASES.md`](RELEASES.md) for the versioning scheme, release branches, supported versions, and artifact signing. Current versions are on the [releases page](https://github.com/lfdt-ibc/ibc-contracts/releases).
 
 ### Solidity contracts
 
@@ -142,7 +142,7 @@ just solidity::test-foundry
 Pass a test name to run one of them:
 
 ```sh
-just solidity::test-foundry test_success_sendTransfer
+just solidity::test-foundry testFuzz_success_sendTransfer
 ```
 
 ### Coverage
@@ -169,7 +169,7 @@ Then set up `.env` as [`.env.example`](.env.example) describes. After changing a
 > [!NOTE]
 > On a Mac with an M chip: set up Rosetta, enable it for Docker under Settings → General, and pull the Foundry image with `docker pull --platform=linux/amd64 ghcr.io/foundry-rs/foundry:latest`.
 
-Five suites are available, each taking a test name:
+The main suites are below, each taking a test name. The root `justfile` has more, for GMP, IFT, attestors, and Solana (`just --list`):
 
 | Suite | Command | Needs |
 | ----- | ------- | ----- |
@@ -214,12 +214,12 @@ Ideally, the Security Council should mirror the validators of the counterparty C
 
 ### Security Council and Governance Admin
 
-Although **`govAdmin`** is not yet implemented, the contract tracking both admins is [`AccessManager`](https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.3.0/contracts/access/manager/AccessManager.sol). We require that both admins are granted the admin role on `AccessManager.sol`:
+Although **`govAdmin`** is not yet implemented, the contract tracking both admins is [`AccessManager`](https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.7.0/contracts/access/manager/AccessManager.sol). We require that both admins are granted the admin role on `AccessManager.sol`:
 
 - **`timelockedAdmin`** (Security Council)
 - **`govAdmin`** (Governance Admin)
 
-Other IBC contracts that require access control or upgradability should reference [`AccessManager`](https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.3.0/contracts/access/manager/AccessManager.sol).
+Other IBC contracts that require access control or upgradability should reference [`AccessManager`](https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.7.0/contracts/access/manager/AccessManager.sol).
 
 #### Admin Powers and Restrictions
 
@@ -242,14 +242,14 @@ The Security Council must enforce its own timelock. After delegation, `govAdmin`
 
 ### Roles and Permissions
 
-The IBC Solidity contracts use [`AccessManager`](https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.3.0/contracts/access/manager/AccessManager.sol) to manage roles and permissions and allow the admins to reassign roles. All the roles are defined in [`IBCRolesLib.sol`](./ibc-solidity/contracts/utils/IBCRolesLib.sol):
+The IBC Solidity contracts use [`AccessManager`](https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.7.0/contracts/access/manager/AccessManager.sol) to manage roles and permissions and allow the admins to reassign roles. All the roles are defined in [`IBCRolesLib.sol`](./ibc-solidity/contracts/utils/IBCRolesLib.sol):
 
 | **Role Name** | **Role Id** | **Description** |
 |:---:|:---:|:---:|
 | `ADMIN_ROLE` | 0 | Can grant and set target functions for all roles. |
 | `RELAYER_ROLE` | 1 | Whitelisted relayer addresses. |
-| `PAUSER_ROLE` | 2 | Can pause the IBC application contracts and app and client registration in the router. |
-| `UNPAUSER_ROLE` | 3 | Can unpause the IBC application contracts and app and client registration in the router. |
+| `PAUSER_ROLE` | 2 | Can pause the IBC application contracts, the light clients bound to the router, and app and client registration in the router. |
+| `UNPAUSER_ROLE` | 3 | Can unpause the IBC application contracts, the light clients bound to the router, and app and client registration in the router. |
 | `DELEGATE_SENDER_ROLE` | 4 | Has permission to call `sendTransferWithSender`. |
 | `RATE_LIMITER_ROLE` | 5 | Can set withdrawal rate limits per `ERC20` token. |
 | `ID_CUSTOMIZER_ROLE` | 6 | Can set custom client and port ids for applications. |

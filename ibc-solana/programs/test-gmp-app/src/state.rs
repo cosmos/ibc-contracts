@@ -6,8 +6,7 @@ use anchor_lang::prelude::*;
 ///
 /// Singleton PDA that tracks aggregate statistics (total user counters
 /// created and total GMP calls processed) and stores the authority
-/// allowed to manage the app. Serves as the program's signer PDA
-/// when calling into the GMP program via CPI to send cross-chain calls.
+/// allowed to manage the app.
 #[account]
 #[derive(InitSpace)]
 pub struct CounterAppState {

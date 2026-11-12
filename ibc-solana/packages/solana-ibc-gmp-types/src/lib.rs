@@ -166,7 +166,7 @@ impl GMPCallResult {
     /// Derive the PDA for a GMP call result.
     ///
     /// # Arguments
-    /// * `source_client` - The source client ID (light client on Solana tracking the source chain)
+    /// * `source_client` - The source client ID (light client on Solana tracking the destination chain)
     /// * `sequence` - The IBC packet sequence number
     /// * `program_id` - The GMP program ID
     ///

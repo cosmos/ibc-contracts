@@ -3,8 +3,8 @@
 //! Attestation light client integration tests.
 //!
 //! Exercises the full IBC router lifecycle with attestation-based proof
-//! verification instead of the mock light client. Attestor signatures are
-//! produced off-chain and verified on-chain via ECDSA recovery.
+//! verification. Attestor signatures are produced off-chain and verified
+//! on-chain via ECDSA recovery.
 
 use ics26_router::ics24;
 use integration_tests::{

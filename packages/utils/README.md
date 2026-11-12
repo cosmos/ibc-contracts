@@ -1,3 +1,3 @@
-# Utilities for SP1 ICS-07 Tendermint
+# `ibc-eureka-utils`
 
-This crate provides some utility functions for `sp1-ics07-tendermint`.
+This crate provides utility functions shared by `sp1-ics07-tendermint` and the proof API, such as Tendermint RPC helpers, light block conversions, and merkle proof conversions.

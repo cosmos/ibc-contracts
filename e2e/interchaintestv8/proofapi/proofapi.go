@@ -73,7 +73,7 @@ func GetGRPCClient(addr string) (proofapitypes.ProofApiServiceClient, error) {
 	return proofapitypes.NewProofApiServiceClient(conn), nil
 }
 
-// GetRelayUpdateSlot extracts the latest update slot from the relay body's update messages.
+// GetRelayUpdateSlotForWasmClient extracts the latest update slot from the relay body's update messages.
 func GetRelayUpdateSlotForWasmClient(relayBody []byte) (uint64, error) {
 	var txBody txtypes.TxBody
 	err := proto.Unmarshal(relayBody, &txBody)

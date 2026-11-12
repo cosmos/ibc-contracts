@@ -216,7 +216,7 @@ clean-cargo:
 	just solidity::clean-sp1
 
 # Compute IFT contract address and ICA address from deployer private key
-# Example: just compute-ift-addresses ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 18 08-wasm-0 wf
+# Example: just compute-ift-addresses ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 20 attestations-0 wf
 [group('tools')]
 compute-ift-addresses private-key nonce client-id bech32-prefix salt="":
 	@cd tools/compute-ift-addresses && go run . {{private-key}} {{nonce}} {{client-id}} {{bech32-prefix}} {{salt}}

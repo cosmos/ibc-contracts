@@ -19,7 +19,7 @@ use super::{get_zero_hash, Hash256, BYTES_PER_CHUNK};
 ///
 /// ## CPU Performance
 ///
-/// A cache of `MAX_TREE_DEPTH` hashes are stored to avoid re-computing the hashes of padding nodes
+/// A cache of `ZERO_HASHES_MAX_INDEX + 1` hashes are stored to avoid re-computing the hashes of padding nodes
 /// (or their parents). Therefore, adding padding nodes only incurs one more hash per additional
 /// height of the tree.
 ///
@@ -34,7 +34,7 @@ use super::{get_zero_hash, Hash256, BYTES_PER_CHUNK};
 /// 3. The input `bytes` are not copied into another list before processing.
 ///
 /// _Note: there are some minor memory overheads, including a handful of usizes and a list of
-/// `MAX_TREE_DEPTH` hashes as `lazy_static` constants._
+/// `ZERO_HASHES_MAX_INDEX + 1` hashes in the lazily initialized `ZERO_HASHES` static._
 pub fn merkleize_padded(bytes: &[u8], min_leaves: usize) -> Hash256 {
     // If the bytes are just one chunk or less, pad to one chunk and return without hashing.
     if bytes.len() <= BYTES_PER_CHUNK && min_leaves <= 1 {
@@ -112,7 +112,7 @@ pub fn merkleize_padded(bytes: &[u8], min_leaves: usize) -> Hash256 {
     // Skip the 0'th height because the leaves have already been processed. Skip the highest-height
     // in the tree as it is the root does not require hashing.
     //
-    // The padding nodes for each height are cached via `lazy static` to simulate non-adjacent
+    // The padding nodes for each height are cached in the lazily initialized `ZERO_HASHES` static to simulate non-adjacent
     // padding nodes (i.e., avoid doing unnecessary hashing).
     for height in 1..height - 1 {
         let child_nodes = chunks.len();

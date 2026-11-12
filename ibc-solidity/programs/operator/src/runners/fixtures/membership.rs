@@ -43,12 +43,12 @@ pub struct SP1ICS07MembershipFixture {
     /// The height of the proof.
     #[serde_as(as = "serde_with::hex::Hex")]
     pub proof_height: Vec<u8>,
-    /// The encoded public values.
+    /// The encoded membership proof.
     #[serde_as(as = "serde_with::hex::Hex")]
     pub membership_proof: Vec<u8>,
 }
 
-/// Writes the proof data for the given trusted and target blocks to the given fixture path.
+/// Writes the proof data for the given trusted block to the given fixture path.
 #[allow(clippy::missing_errors_doc, clippy::missing_panics_doc)]
 pub async fn run(args: MembershipCmd) -> anyhow::Result<()> {
     assert_ne!(args.membership.key_paths, [] as [String; 0]);
@@ -171,7 +171,7 @@ pub async fn run_sp1_membership(
         }))
         .await?;
 
-    // Generate a header update proof for the specified blocks.
+    // Generate a membership proof for the key-value pairs.
     let proof_data = verify_mem_prover
         .generate_proof(&commitment_root_bytes, kv_proofs)
         .await;

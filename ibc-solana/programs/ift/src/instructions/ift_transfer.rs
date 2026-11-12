@@ -19,7 +19,7 @@ use crate::state::{
 #[derive(Accounts)]
 #[instruction(msg: IFTTransferMsg)]
 pub struct IFTTransfer<'info> {
-    /// Global IFT app state (read-only, for GMP program reference and pause check)
+    /// Global IFT app state (read-only, for pause check)
     #[account(
         seeds = [IFT_APP_STATE_SEED],
         bump = app_state.bump,

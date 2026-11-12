@@ -331,7 +331,7 @@ pub async fn tm_update_client_params(
 pub struct TmCreateClientParams {
     /// Latest height
     pub latest_height: u64,
-    /// Consensus state
+    /// Client state
     pub client_state: ClientState,
     /// Initial trusted consensus state
     pub consensus_state: ConsensusState,
@@ -343,7 +343,7 @@ pub struct TmCreateClientParams {
 /// * `trust_level` - Optional trust level (defaults to 1/3 if None)
 ///
 /// # Returns
-/// Client creation parameters with
+/// Client creation parameters with the latest height, client state, and consensus state
 ///
 /// # Errors
 /// - Missing unbonding time in staking parameters
@@ -399,7 +399,7 @@ pub async fn tm_create_client_params(
 /// * `parameters` - Must contain `checksum_hex` key with the WASM code checksum
 /// * `client_state_bytes` - Serialized client state data
 /// * `consensus_state` - Serialized consensus state data
-/// * `height` - Height parameter (currently unused in implementation)
+/// * `height` - Latest height set on the WASM client state
 /// * `signer_address` - Address of the transaction signer
 ///
 /// # Returns
@@ -513,7 +513,7 @@ pub async fn get_latest_tm_heigth(
 
 /// Generates and injects tendermint proofs for rec, ack and timeout messages.
 /// # Errors
-/// Returns an error a proof cannot be generated for any of the provided messages.
+/// Returns an error if a proof cannot be generated for any of the provided messages.
 /// # Panics
 /// Panics if the provided messages do not contain a valid packet.
 #[allow(clippy::too_many_lines)]

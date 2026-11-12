@@ -13,7 +13,7 @@ All contracts are compiled for the **Cancun** EVM (`evm_version = "cancun"` in `
 
 ## Utilities (`utils/`)
 - `Escrow.sol` – Per-client token escrow controlled by `ICS20Transfer`; enforces daily rate limits before releasing funds back out.
-- `IBCERC20.sol` – Upgradeable ERC20 minted/burned by `ICS20Transfer` to represent inbound IBC denoms; allows one-time custom metadata.
+- `IBCERC20.sol` – Upgradeable ERC20 minted/burned by `ICS20Transfer` to represent inbound IBC denoms; name and symbol default to the full denom path.
 - `ICS27Account.sol` – Minimal execution account used by ICS27 to perform arbitrary calls/value transfers; only the owning ICS27 contract can drive it. It bubbles up revert data and reports empty revert data as `FailedCall`, except when the failed call left it less than 1/8 of its gas: then it most likely ran out of gas, up to about 8 frames below the receiver, so the account reverts without data and the relay fails instead of writing an error acknowledgement. ICS27 packets carry no gas limit, so a relayer can still starve a receiver that turns running out of gas into an error, swallows it or checks `gasleft()` itself.
 - `ICS02ClientUpgradeable.sol` – Registry/router for light clients; assigns client ids, stores counterparty info, and gates client upgrades via AccessManager roles.
 - `IBCStoreUpgradeable.sol` – Commitment store for packet commitments/acks/receipts plus next send sequence tracking; uses `ICS24Host` paths.
@@ -48,13 +48,13 @@ All light clients except `ICS02PrecompileWrapper` inherit `light-clients/utils/I
 - Fixture status: `test/besu-bft/fixtures/qbft.json` and `ibft2.json` are captured from live Besu QBFT and IBFT2 networks by the Besu↔Besu e2e suite; only their negative update cases are derived by off-chain header mutation.
 
 ## Interchain Fungible Tokens (IFT)
-- Code reference: find the  `contracts` IFT contract code [here](https://github.com/lfdt-ibc/ibc-contracts/tree/mariuszzak/ift/contracts).
-- IFT is an issuer-controlled ERC20 that bridges via ICS27-GMP instead of ICS20. The abstract `IFTBase` burns on send, constructs a mint call for the counterparty IFT, and tracks pending transfers keyed by (clientId, sequence).
+- Code reference: `utils/IFTBaseUpgradeable.sol` (abstract base), `utils/IFTOwnable.sol`, `utils/IFTOwnable2Step.sol` and `utils/IFTAccessManaged.sol` (deployable variants), and the `utils/*IFTSendCallConstructor.sol` helpers.
+- IFT is an issuer-controlled ERC20 that bridges via ICS27-GMP instead of ICS20. The abstract `IFTBaseUpgradeable` burns on send, constructs a mint call for the counterparty IFT, and tracks pending transfers keyed by (clientId, sequence).
 - Bridges: `registerIFTBridge` configures a counterparty IFT contract per IBC client along with an `IIFTSendCallConstructor` helper to encode the mint call for that chain.
 - Sending: `iftTransfer` burns locally, builds ICS27 `SendCall` to the remote IFT, records `PendingTransfer`, and emits initiation events; default timeout is 15 minutes if not provided.
 - Receiving: `iftMint` is callable only by the ICS27-controlled account; it mints locally after verifying the counterparty sender matches the registered bridge and clears pending transfers on ack/timeout callbacks to refund/mint as appropriate.
 - Rate limits: `setIFTRateLimit` configures a single capacity and refill window shared by both directions, each of which tracks its own usage. Limits are mandatory (until set, every transfer is rejected), shared across all bridges of the token, and never restored by flow in the opposite direction; refunds of pending transfers consume inbound allowance like any other mint. See the [ADR](../../docs/adr/solidity/ift-ratelimit.md).
-- Extensibility: implement concrete ERC20 constructors and different `IIFTSendCallConstructor` variants for EVM vs Cosmos SDK token factory flows; access is governed by `AccessManaged` authority roles.
+- Extensibility: implement concrete ERC20 constructors and different `IIFTSendCallConstructor` variants for EVM, Cosmos SDK and Solana counterparties; access is governed by `AccessManaged` authority roles.
 - Hooks: inheriters can override the no-op `_beforeIFTTransfer` (outbound burn), `_beforeIFTMint` (inbound mint) and `_beforeIFTRefund` (refund after an error ack or timeout) hooks to add bridge policy such as per-client limits or receiver allowlists. Each hook receives the IBC client ID and runs after the built-in validation but before any rate limit usage, balance change or pending transfer update, so reverting aborts the flow cleanly. A reverting mint hook makes ICS27-GMP write an error acknowledgement, which refunds the sender on the counterparty chain. This holds for any revert, including a bare `revert()`, since the ICS27 account reports empty revert data as `FailedCall`; only running the relay out of gas fails it instead. A reverting refund hook leaves the transfer pending and the ack or timeout retryable, but a hook that never stops reverting locks those funds.
 - Pausing: `IFTOwnable`, `IFTOwnable2Step` and `IFTAccessManaged` implement `IPausable` on top of these hooks. While paused, `iftTransfer` reverts, `iftMint` reverts so ICS27-GMP writes an error acknowledgement, and refunds revert so the ack or timeout stays pending and can be relayed again after unpausing. Admin functions, the issuer's `mint` and local token transfers stay available. In `IFTAccessManaged`, map `pause` and `unpause` to `PAUSER_ROLE` and `UNPAUSER_ROLE` with `IBCRolesLib`. See the [ADR](../../docs/adr/solidity/pausability.md).
 
@@ -64,5 +64,4 @@ All light clients except `ICS02PrecompileWrapper` inherit `light-clients/utils/I
 - `msgs/` – ABI-encoded packet/message structs for ICS02/20/26/27, light clients, and app callbacks.
 
 ## Messages and docs
-- `PICKUP.md` – Notes for maintainers on pending tasks.
-- `light-clients/attestation/IBC_ATTESTOR_DESIGN.md` & `ics02-wrapper/README.md` – Additional design notes for their respective light clients.
+- `light-clients/attestation/IBC_ATTESTOR_DESIGN.md`, `light-clients/besu/README.md` & `light-clients/ics02-wrapper/README.md` – Additional design notes for their respective light clients.

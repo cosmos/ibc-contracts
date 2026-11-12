@@ -49,7 +49,7 @@ func NewLocalnetSolana(faucet *solana.Wallet) (Solana, error) {
 	return NewSolana(rpc.LocalNet.RPC, rpc.LocalNet.WS, faucet)
 }
 
-// NewTransactionFromInstructions creates a new tx from the given transactions
+// NewTransactionFromInstructions creates a new tx from the given instructions
 // Uses Confirmed blockhash for faster transaction construction.
 // The blockhash will be refreshed by SignAndBroadcastTxWithRetry before broadcasting.
 func (s *Solana) NewTransactionFromInstructions(payerPubKey solana.PublicKey, instructions ...solana.Instruction) (*solana.Transaction, error) {

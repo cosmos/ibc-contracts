@@ -17,14 +17,14 @@ use crate::{chain::EthEureka, events::EurekaEventWithHeight};
 
 use super::ChainListenerService;
 
-/// The `ChainListenerService` listens for events on the Ethereum chain.
+/// The `ChainListener` listens for events on the Ethereum chain.
 pub struct ChainListener<P: Provider> {
     /// The IBC Eureka router instance.
     ics26_router: routerInstance<P, Ethereum>,
 }
 
 impl<P: Provider> ChainListener<P> {
-    /// Create a new `ChainListenerService` instance.
+    /// Create a new `ChainListener` instance.
     pub const fn new(ics26_address: Address, provider: P) -> Self {
         Self {
             ics26_router: routerInstance::new(ics26_address, provider),

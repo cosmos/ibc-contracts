@@ -108,7 +108,7 @@ pub mod ift {
         instructions::set_mint_rate_limit(ctx, msg)
     }
 
-    /// Pause or unpause an IFT token (admin only)
+    /// Pause or unpause IFT for all mints (admin only)
     pub fn set_paused(ctx: Context<SetPaused>, msg: SetPausedMsg) -> Result<()> {
         instructions::set_paused(ctx, msg)
     }

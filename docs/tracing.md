@@ -456,7 +456,8 @@ docker compose up -d
 - Grafana: http://localhost:3002 (anonymous access enabled)
 - Tempo (traces backend): internal service at `tempo:3200` (Grafana datasource)
 - Prometheus: http://localhost:9090
-- Alloy (collector): OTLP gRPC on `0.0.0.0:4317` and HTTP on `4318`
+- Loki (logs backend): http://localhost:3100 (Grafana datasource)
+- Alloy (collector): OTLP gRPC on `0.0.0.0:4317`. Port `4318` is published, but `config.alloy` defines no OTLP HTTP receiver
 
 ### Enable proof-api tracing to local stack in e2e
 
@@ -498,4 +499,4 @@ export RUST_LOG=debug
 
 - e2e proof-api runs on the host, so `http://127.0.0.1:4317` reaches the Alloy collector in Docker.
 - The OTLP transport is gRPC on 4317 as configured in `scripts/local-grafana-stack/config.alloy`.
-- If you need HTTP instead, switch the endpoint to `http://127.0.0.1:4318` and ensure the proof-api exporter supports HTTP.
+- If you need HTTP instead, add an `http` endpoint to the OTLP receiver in `config.alloy`, switch the endpoint to `http://127.0.0.1:4318`, and ensure the proof-api exporter supports HTTP (it is built with the gRPC transport only).

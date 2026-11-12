@@ -14,7 +14,7 @@ interface IAttestationMsgs {
 
     /// @notice Attested packet membership at a specific height
     /// @param height The height these packets correspond to
-    /// @param packets The list of packet commitments attested as present at `height`
+    /// @param packets The list of packet commitments attested at `height` (a zero commitment attests absence)
     struct PacketAttestation {
         uint64 height;
         PacketCompact[] packets;
@@ -31,9 +31,9 @@ interface IAttestationMsgs {
     /// @notice Generic proof payload used for both client updates and membership checks
     /// @dev attestationData is ABI-encoded payload:
     ///      - updateClient: abi.encode(StateAttestation)
-    ///      - verifyMembership: abi.encode(PacketAttestation)
+    ///      - verifyMembership and verifyNonMembership: abi.encode(PacketAttestation)
     /// @param attestationData ABI-encoded payload (see @dev)
-    /// @param signatures Signatures over sha256(attestationData); each 65-byte (r||s||v)
+    /// @param signatures Signatures over sha256(typeTag || sha256(attestationData)); each 65-byte (r||s||v)
     struct AttestationProof {
         bytes attestationData;
         bytes[] signatures;

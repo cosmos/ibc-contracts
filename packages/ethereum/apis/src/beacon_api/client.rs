@@ -57,7 +57,7 @@ impl BeaconApiClient {
         self.get_json(GENESIS_PATH).await
     }
 
-    /// Fetches the `LigthClientBootstrap` for a given beacon block root
+    /// Fetches the `LightClientBootstrap` for a given beacon block root
     /// # Errors
     /// Returns an error if the request fails or the response is not successful deserialized
     pub async fn light_client_bootstrap(

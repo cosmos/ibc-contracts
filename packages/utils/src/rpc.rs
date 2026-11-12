@@ -56,7 +56,7 @@ pub trait TendermintRpcExt {
     async fn sdk_staking_params(&self) -> Result<Params>;
     /// Fetches the client state from the Tendermint node.
     async fn client_state(&self, client_id: String) -> Result<Any>;
-    /// Fetches the Ethereum consensus state from the light client on cosmos.
+    /// Fetches the consensus state of the given client from the Tendermint node.
     /// If the revision height is 0, the latest height is fetched.
     async fn consensus_state(&self, client_id: String, revision_height: u64) -> Result<Any>;
     /// Proves a path in the chain's Merkle tree and returns the value at the path and the proof.
@@ -275,7 +275,7 @@ impl TendermintRpcExt for HttpClient {
 
         anyhow::Ok((res.value, vm_proof))
     }
-    //
+
     // https://github.com/lfdt-ibc/ibc-go/blob/release/v10.3.x/modules/core/04-channel/v2/keeper/grpc_query.go#L60
     async fn v2_packet_commitment(
         &self,

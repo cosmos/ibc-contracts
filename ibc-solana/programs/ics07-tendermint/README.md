@@ -4,7 +4,7 @@ This is a Solana implementation of the ICS07 Tendermint light client, enabling I
 
 ## Overview
 
-The Tendermint light client verifies consensus proofs from Tendermint chains on Solana. This implementation supports multiple independent light client instances, each tracking a different Tendermint-based chain. After initialization, each client instance is identified by its chain ID and can be used to verify proofs from its corresponding chain.
+The Tendermint light client verifies consensus proofs from Tendermint chains on Solana. Each deployment of the program tracks a single Tendermint-based chain: the `client_state` and `app_state` PDAs are singletons, and the chain ID is stored in the client state. Tracking another chain requires a separate program deployment.
 
 Since Tendermint headers are always several KB in size and exceed Solana's transaction size limitations (~1232 bytes), all headers must be uploaded in chunks across multiple transactions before being assembled and verified. Each chunk can contain up to 900 bytes of header data.
 
@@ -15,18 +15,17 @@ Since Tendermint headers are always several KB in size and exceed Solana's trans
 The client implements a mandatory chunked upload mechanism for all header updates:
 
 1. **Headers are split into chunks**: Large headers are divided into manageable pieces that fit within Solana transactions
-2. **Metadata creation is separate**: The `create_metadata` instruction initializes the upload metadata once per upload
-3. **Full parallel upload support**: All chunks can be uploaded in parallel after metadata creation for maximum throughput
-4. **Each relayer has isolated storage**: Chunks are stored in PDAs derived from the relayer's address, preventing interference between relayers
-5. **Relayers pay rent**: The submitting relayer pays for all storage (metadata and chunk accounts)
-6. **Assembly triggers verification**: Once all chunks are uploaded, the relayer calls `assemble_and_update_client` to reconstruct and verify the header
+2. **Full parallel upload support**: All chunks can be uploaded in parallel for maximum throughput
+3. **Each relayer has isolated storage**: Chunks are stored in PDAs derived from the relayer's address, preventing interference between relayers
+4. **Relayers pay rent**: The submitting relayer pays for all storage (chunk and signature verification accounts)
+5. **Assembly triggers verification**: Once all chunks are uploaded, the relayer calls `assemble_and_update_client` to reconstruct and verify the header
 
 ### Key Design Principles
 
 - **Relayer Isolation**: Each relayer's uploads are completely isolated via PDAs keyed by submitter address
 - **Rent Economics**: Relayers are incentivized to clean up failed uploads as they pay the rent
 - **Atomic Updates**: Header assembly and client updates happen atomically - either all succeed or all fail
-- **Automatic Cleanup**: Successful assembly automatically closes temporary accounts and returns rent
+- **Cleanup**: Header chunks and signature verification PDAs are closed via `cleanup_incomplete_upload`; misbehaviour chunks are closed automatically on successful submission
 
 ## Program Instructions
 
@@ -34,25 +33,23 @@ The client implements a mandatory chunked upload mechanism for all header update
 
 #### `initialize`
 
-Initializes a new Tendermint light client instance for a specific chain. Multiple clients can be initialized to track different Tendermint-based chains simultaneously.
+Initializes the Tendermint light client for its chain. Can only be called once, by the program's upgrade authority.
 
 **Parameters:**
 
-- `chain_id`: The unique chain identifier (e.g., "cosmoshub-4", "osmosis-1", "noble-1")
-- `latest_height`: Initial trusted height
-- `client_state`: Initial client configuration (trust level, periods, etc.)
-- `consensus_state`: Initial trusted consensus state
+- `client_state`: Initial client configuration (`chain_id` such as "cosmoshub-4", trust level, periods, `latest_height`, etc.)
+- `consensus_state`: Initial trusted consensus state at `client_state.latest_height`
 - `access_manager`: The access manager program ID for role-based access control
 
 **Accounts:**
 
-- `client_state` (init): PDA storing client configuration, derived from chain_id
-- `consensus_state_store` (init): PDA storing consensus state at height
+- `client_state_account` (init): Singleton PDA storing client configuration
+- `consensus_state_store` (init): PDA storing consensus state at the initial height
 - `app_state` (init): PDA storing global application state including access manager
 - `payer` (signer, mut): Account paying for initialization
 - `system_program`: System program
-
-**Multi-Chain Support**: Each chain_id creates a separate client instance with its own state. This allows Solana to maintain IBC connections with multiple Tendermint chains concurrently.
+- `program_data`: BPF Loader Upgradeable `ProgramData` account for this program
+- `authority` (signer): The program's upgrade authority
 
 #### `propose_access_manager_transfer`
 
@@ -110,21 +107,23 @@ Since Tendermint headers always exceed Solana's transaction size limits, all hea
 
 #### `upload_header_chunk`
 
-Uploads a single chunk of a large header. Each chunk creates a new PDA.
+Uploads a single chunk of a large header. Requires `RELAYER_ROLE`.
 
 **Parameters:**
 
 - `params`: UploadChunkParams containing:
-  - `chain_id`: Target chain
   - `target_height`: Height being updated to
   - `chunk_index`: Position of this chunk (0-indexed)
   - `chunk_data`: The actual chunk bytes (max 900 bytes)
 
 **Accounts:**
 
-- `chunk` (init): PDA for this specific chunk (fails if already exists)
-- `client_state`: Validates chain exists and chain_id matches
+- `chunk` (init_if_needed): PDA for this specific chunk (re-uploading overwrites the submitter's chunk)
+- `client_state`: Rejects uploads if the client is frozen
+- `app_state`: PDA storing global application state
+- `access_manager`: Access manager account for role validation
 - `submitter` (signer, mut): Relayer uploading and paying rent
+- `instructions_sysvar`: Instructions sysvar for CPI validation
 - `system_program`: System program
 
 **Storage Cost**: Each chunk account costs rent, paid by submitter
@@ -133,25 +132,25 @@ Uploads a single chunk of a large header. Each chunk creates a new PDA.
 
 #### `assemble_and_update_client`
 
-Assembles uploaded chunks into a complete header and updates the client.
+Assembles uploaded chunks into a complete header and updates the client. Requires `RELAYER_ROLE`.
 
 **Parameters:**
 
-- `chain_id`: Target chain identifier
 - `target_height`: Height being updated to
 - `chunk_count`: Number of chunks to assemble
+- `trusted_height`: Height of the trusted consensus state the header builds on
 
 **Accounts:**
 
 - `client_state` (mut): Client being updated
 - `app_state`: PDA storing global application state
 - `access_manager`: Access manager account for role validation
-- `trusted_consensus_state`: Consensus at trusted height (unchecked, validated in handler)
-- `new_consensus_state_store`: New consensus state account (unchecked, may not exist yet)
+- `trusted_consensus_state`: Consensus state PDA at `trusted_height`
+- `new_consensus_state_store` (init_if_needed): Consensus state PDA at `target_height`
 - `submitter` (signer, mut): Relayer submitting the update
 - `system_program`: System program
 - `instructions_sysvar`: Instructions sysvar for CPI validation
-- Remaining accounts: Chunk accounts in order
+- Remaining accounts: Chunk accounts in order, optionally followed by `SignatureVerification` PDAs
 
 **Process:**
 
@@ -185,7 +184,9 @@ Pre-verifies an Ed25519 signature using Solana's Ed25519Program precompile. This
 
 - `instructions_sysvar`: Instructions sysvar for Ed25519Program verification
 - `signature_verification` (init): PDA storing the verification result
-- `payer` (signer, mut): Account paying for the verification PDA
+- `app_state`: PDA storing global application state
+- `access_manager`: Access manager account for role validation (requires `RELAYER_ROLE`)
+- `submitter` (signer, mut): Relayer paying for the verification PDA
 - `system_program`: System program
 
 **Notes:**
@@ -230,11 +231,11 @@ Verifies a key-value pair exists in the counterparty chain's state.
 
 #### `verify_non_membership`
 
-Verifies a key does not exist in the counterparty chain's state.
+Verifies a key does not exist in the counterparty chain's state. Returns the consensus state timestamp (unix seconds) at the proof height via `set_return_data`.
 
 **Parameters:**
 
-- `msg`: MembershipMsg with proof details
+- `msg`: NonMembershipMsg with proof details
 
 **Accounts:**
 
@@ -252,24 +253,28 @@ Uploads a single chunk of misbehaviour data.
 **Parameters:**
 
 - `params`: UploadMisbehaviourChunkParams containing:
-  - `client_id`: Target client identifier
   - `chunk_index`: Position of this chunk (0-indexed)
   - `chunk_data`: The actual chunk bytes (max 900 bytes)
 
 **Accounts:**
 
-- `chunk` (init): PDA for this specific misbehaviour chunk
-- `client_state`: Validates client exists and client_id matches
+- `chunk` (init_if_needed): PDA for this specific misbehaviour chunk
+- `client_state`: Rejects uploads if the client is frozen
+- `app_state`: PDA storing global application state
+- `access_manager`: Access manager account for role validation (requires `RELAYER_ROLE`)
 - `submitter` (signer, mut): Relayer uploading and paying rent
+- `instructions_sysvar`: Instructions sysvar for CPI validation
 - `system_program`: System program
 
 #### `assemble_and_submit_misbehaviour`
 
-Assembles uploaded misbehaviour chunks and freezes the client if valid.
+Assembles uploaded misbehaviour chunks and freezes the client if valid. Requires `RELAYER_ROLE`.
 
 **Parameters:**
 
-- `client_id`: Target client identifier
+- `chunk_count`: Number of chunks to assemble
+- `trusted_height_1`: Height of the first trusted consensus state
+- `trusted_height_2`: Height of the second trusted consensus state
 
 **Accounts:**
 
@@ -280,45 +285,42 @@ Assembles uploaded misbehaviour chunks and freezes the client if valid.
 - `trusted_consensus_state_2`: Second trusted state
 - `submitter` (signer, mut): Relayer submitting the misbehaviour
 - `instructions_sysvar`: Instructions sysvar for CPI validation
-- Remaining accounts: Misbehaviour chunk accounts in order
+- Remaining accounts: Misbehaviour chunk accounts in order, optionally followed by `SignatureVerification` PDAs
 
-**Note:** Chunk accounts are NOT automatically closed. Relayers must call `cleanup_incomplete_misbehaviour` after success to reclaim rent.
+**Note:** On success, the misbehaviour chunk accounts are closed and their rent is returned to the submitter.
 
 #### `cleanup_incomplete_misbehaviour`
 
-Allows relayers to reclaim rent from misbehaviour submissions. Must be called after both successful and failed submissions to close chunk accounts.
+Allows relayers to reclaim rent from failed or abandoned misbehaviour submissions by closing their chunk accounts.
 
 **Parameters:**
 
-- `client_id`: Target client identifier
-- `submitter`: Original submitter address
+- None
 
 **Accounts:**
 
-- `client_state`: Validates client exists
-- `submitter_account` (signer, mut): Must be original submitter
-- Remaining accounts: Misbehaviour chunk accounts to close
+- `submitter` (signer, mut): Original submitter who gets their rent back
+- Remaining accounts: Misbehaviour chunk accounts to close, in chunk-index order
 
 ## PDA Derivations
 
-All storage uses Program Derived Addresses (PDAs) for deterministic addressing. The chain_id is a key component in most PDAs, ensuring complete isolation between different chain clients:
+All storage uses Program Derived Addresses (PDAs) for deterministic addressing. Heights are encoded as little-endian `u64` bytes:
 
 ```
 app_state: [b"app_state"]
-client_state: [b"client", chain_id]
-consensus_state: [b"consensus_state", client_state, height_bytes]
-header_chunk: [b"header_chunk", submitter, chain_id, height_bytes, chunk_index]
-misbehaviour_chunk: [b"misbehaviour_chunk", submitter, client_id, chunk_index]
+client_state: [b"client"]
+consensus_state: [b"consensus_state", height_bytes]
+header_chunk: [b"header_chunk", submitter, target_height_bytes, chunk_index]
+misbehaviour_chunk: [b"misbehaviour_chunk", submitter, chunk_index]
 signature_verification: [b"sig_verify", signature_hash]
 ```
 
 This PDA structure ensures that:
 
 - Global app state manages access control
-- Each chain has its own isolated client state
-- Consensus states are chain-specific
-- Upload operations cannot interfere across different chains
-- Multiple chains can be tracked simultaneously without conflicts
+- There is exactly one client state per program deployment
+- Each verified height maps to exactly one consensus state account
+- Upload operations from different relayers cannot interfere
 - Signature pre-verification results are cached for reuse
 
 ## Upload Flow Example
@@ -353,14 +355,14 @@ This parallel approach can reduce upload time from `n * block_time` to `2 * bloc
 
 - **Temporary Storage**: Chunks and signature verifications are temporary, existing only during upload
 - **Rent Responsibility**: Uploading relayer pays all rent (~0.01 SOL per account)
-- **Manual Cleanup Required**: Relayers must call cleanup instructions after both successful and failed operations to reclaim rent
+- **Manual Cleanup Required**: Relayers must call `cleanup_incomplete_upload` after both successful and failed header updates, and `cleanup_incomplete_misbehaviour` after failed misbehaviour submissions, to reclaim rent
 - **No Cross-Relayer Interference**: Each relayer's uploads are isolated
 
 ## Security Considerations
 
 1. **Permissioned Cleanup**: Only the original submitter can clean up their uploads
-2. **Commitment Verification**: Header commitment prevents chunk tampering
-3. **Height Validation**: Cannot upload chunks for already-processed heights
+2. **Chunk Isolation**: Chunk PDAs are keyed by submitter, so other relayers cannot tamper with an upload
+3. **Height Validation**: Re-submitting a header for an already-stored height is a no-op, unless it conflicts with the stored consensus state, in which case the client is frozen
 4. **Client Freezing**: Misbehaviour detection can freeze compromised clients
 5. **Trusted Height Validation**: Updates must reference valid trusted heights
 
@@ -432,7 +434,7 @@ The update client implementation includes several optimizations tested with real
 
 - Pre-sort signatures by validator address during serialization: **~60-80k CU saved**
 - Avoids on-chain sorting during deserialization
-- Implemented in `solana-ibc-types/src/borsh_header.rs::commit_to_borsh()`
+- Implemented in `ibc-solana/packages/solana-ibc-borsh-header/src/lib.rs::commit_to_borsh()`
 
 **Validator Set Pre-sorting:**
 
@@ -478,6 +480,8 @@ The update client process is split into two phases:
 ## Design Decisions
 
 ### Why On-Chain Signature Verification Instead of Ed25519Program?
+
+> **Note:** This section records the rationale for keeping `brine-ed25519` as the in-program verifier. The program now also supports optional pre-verification through `pre_verify_signature`, where the relayer extracts signatures from the header off-chain and submits them as `Ed25519Program` instructions in parallel transactions (see above). `brine-ed25519` remains the fallback for any signature without a pre-verification PDA.
 
 This implementation uses `brine-ed25519` for on-chain Ed25519 signature verification (~30k CU per signature) instead of Solana's native Ed25519Program (FREE). This is a **fundamental architectural constraint**, not an optimization choice.
 
@@ -554,13 +558,13 @@ The same Solana Tendermint light client implementation handles different chains 
 
 All costs measured on mainnet with real validator sets. Latency is highly dependent on RPC throttling/rate limiting.
 
-For implementation details, see the `SolanaSignatureVerifier` in `packages/tendermint-light-client/update-client/src/solana.rs`.
+For implementation details, see the `SolanaSignatureVerifier` in `packages/tendermint-light-client/solana/src/lib.rs`.
 
 ## Integration Guide
 
 ### For Relayers
 
-1. **Choose the target chain**: Determine which Tendermint chain you're relaying for (each chain_id has its own client)
+1. **Choose the target chain**: Determine which Tendermint chain you're relaying for (each chain has its own program deployment)
 2. Monitor Tendermint chain for new headers
 3. Split header into 900-byte chunks
 4. Upload all chunks in parallel for optimal performance
@@ -571,14 +575,10 @@ For implementation details, see the `SolanaSignatureVerifier` in `packages/tende
    - Retry failed chunks
    - Call `cleanup_incomplete_upload` to reclaim rent before retrying
 
-**Multi-Chain Relaying**: Relayers can operate across multiple chains simultaneously. Each chain's uploads are isolated by chain_id in the PDA derivation.
+**Multi-Chain Relaying**: Relayers can operate across multiple chains simultaneously. Each chain's uploads are isolated because each chain uses a separate program deployment.
 
 **Performance Tip**: All chunks can be uploaded in parallel. A 9KB header (10 chunks of 900 bytes) can be uploaded in ~2 block times instead of ~10.
 
 ### For IBC Applications
 
-1. **Specify the chain**: Reference the specific client via chain_id PDA
-2. Call `verify_membership` for packet proofs from that chain
-3. Check client is active (not frozen or expired) before relying on proofs
-4. Monitor for client updates
-5. **Multi-Chain Applications**: Can interact with multiple chains by referencing different chain_id PDAs
+IBC applications do not call this program directly. The ICS26 router resolves the light client program from its `Client` registry and calls `client_status`, `verify_membership` and `verify_non_membership` via CPI when sending, receiving, acknowledging and timing out packets.

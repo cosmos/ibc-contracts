@@ -26,7 +26,7 @@ const TARGET_PROGRAM_INDEX: usize = 1;
 /// GMP defines its own account layout in `remaining_accounts`:
 ///
 /// `remaining_accounts`:
-/// - [0]: `gmp_account` - GMP account PDA (created if needed, signs via `invoke_signed`)
+/// - [0]: `gmp_account` - GMP account PDA (stateless, not created by GMP; signs via `invoke_signed`)
 /// - [1]: `target_program` - The program to execute (extracted internally, must be executable)
 /// - [2..]: accounts from payload - All accounts required by target program
 ///
@@ -150,7 +150,7 @@ pub fn on_recv_packet<'info>(
     // Skip fixed accounts: gmp_account[0] and target_program[1]
     let remaining_accounts_for_execution = &ctx.remaining_accounts[FIXED_REMAINING_ACCOUNTS..];
 
-    // Validate account count matches exactly (before payer injection)
+    // Validate account count matches exactly
     require!(
         remaining_accounts_for_execution.len() == account_metas.len(),
         GMPError::AccountCountMismatch
@@ -939,8 +939,9 @@ mod tests {
     /// see the relayer as an authorized signer. The relayer would unknowingly
     /// pay rent for a new `UserCounter` account it never requested.
     ///
-    /// The fix rejects any account in the payload that claims `is_signer: true`
-    /// unless its pubkey matches the GMP PDA. Expects `UnexpectedSigner`.
+    /// The fix rejects any execution account that is already a signer on the
+    /// outer transaction (the GMP PDA never is; it only signs inside the CPI
+    /// via `invoke_signed`). Expects `UnexpectedSigner`.
     #[test]
     fn test_signer_exploit_relayer_as_counter_payer_rejected() {
         let mollusk = create_counter_cpi_mollusk();

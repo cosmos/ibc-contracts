@@ -160,13 +160,8 @@ impl<'a> CallbackValidator<'a> {
     }
 
     fn validate(&self) -> syn::Result<()> {
-        // Ensure module has content
         self.validate_module_content()?;
-
-        // Check for missing callbacks
         self.validate_missing_callbacks()?;
-
-        // Validate signatures of present callbacks
         self.validate_callback_signatures()?;
 
         Ok(())
@@ -236,7 +231,6 @@ impl<'a> CallbackValidator<'a> {
             );
         }
 
-        // Could add more common mistake patterns here
         None
     }
 

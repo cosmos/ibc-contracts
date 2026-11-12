@@ -4,20 +4,21 @@ A second access-manager instance with a different `declare_id!` for testing AM-t
 
 ## Why a separate program?
 
-Anchor's `declare_id!` bakes the program ID into the binary at compile time. PDA derivations use `crate::ID`, so deploying two AM instances requires two separate binaries with different program IDs. This program reuses all source files from `access-manager` via symlinks -- only `lib.rs` is unique.
+Anchor's `declare_id!` bakes the program ID into the binary at compile time. PDA derivations use `crate::ID`, so deploying two AM instances requires two separate binaries with different program IDs. This program reuses all source files from `access-manager` via symlinks -- only `lib.rs` and `test_config.rs` are unique.
 
 ## Structure
 
 ```
 test-access-manager/
   src/
-    lib.rs              -- unique: different declare_id!, test constants
+    lib.rs              -- unique: different declare_id! and `.so` path helper
     errors.rs           -> ../../access-manager/src/errors.rs (symlink)
     events.rs           -> ../../access-manager/src/events.rs (symlink)
-    helpers.rs          -> ../../access-manager/src/helpers.rs (symlink)
+    helpers/            -> ../../access-manager/src/helpers/ (symlink)
     instructions.rs     -> ../../access-manager/src/instructions.rs (symlink)
     instructions/       -> ../../access-manager/src/instructions/ (symlink)
     state.rs            -> ../../access-manager/src/state.rs (symlink)
+    test_config.rs      -- unique: binary names and program ID of the other AM instance
     test_utils.rs       -> ../../access-manager/src/test_utils.rs (symlink)
     types.rs            -> ../../access-manager/src/types.rs (symlink)
 ```

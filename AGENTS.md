@@ -11,7 +11,7 @@ Look here first:
 
 Use the smallest relevant validation from the repo root:
 - Solidity: `just solidity::lint-contracts` and `just solidity::test-foundry`
-- Rust workspace, relayer, operator, and shared packages: `just lint-rust` and `just test-cargo`
+- Rust workspace, proof API, operator, and shared packages: `just lint-rust` and `just test-cargo`
 - Broad cross-stack changes: `just lint`
 - Solana or e2e changes: use the subtree-specific commands in `ibc-solana/AGENTS.md` or `e2e/interchaintestv8/AGENTS.md`
 

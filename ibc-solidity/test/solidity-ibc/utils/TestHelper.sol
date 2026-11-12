@@ -53,7 +53,7 @@ contract TestHelper is Test {
         return uint64(block.timestamp + 1000);
     }
 
-    /// @dev retuns a random base64 string
+    /// @dev returns a random base64 string
     function randomString() public view returns (string memory) {
         uint256 randomNum = vm.randomUint();
         return vm.toBase64(abi.encodePacked(randomNum));

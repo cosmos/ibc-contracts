@@ -16,6 +16,7 @@ This directory was AI generated and reviewed for correctness. Its behaviour is p
 | `SimHeader.sol` | Besu header model with RLP decode, mode-specific commit seal signing RLP and digest, and block hash. |
 | `SimWorldState.sol` | Height-versioned accounts and storage; state roots, account and storage proofs, IBC commitment slots. |
 | `MerklePatriciaTrie.sol` | Trie builder computing roots and membership or exclusion proofs from a flat key/value set. |
+| `BesuSimDriver.sol` | `ILightClientDriver` for the integration suites: a Besu light client that tracks a simulated chain mirroring the counterparty router. |
 
 Typical use:
 

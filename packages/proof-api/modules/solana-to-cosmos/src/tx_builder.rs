@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module defines [`TxBuilder`] which is responsible for building transactions to be sent to
-//! the Cosmos SDK chain from events received from Solana.
+//! This module defines [`MockTxBuilder`] and [`AttestedTxBuilder`] which are responsible for
+//! building transactions to be sent to the Cosmos SDK chain from events received from Solana.
 
 use prost::Message;
 use std::collections::HashMap;
@@ -45,7 +45,7 @@ pub struct MockTxBuilder {
 }
 
 impl MockTxBuilder {
-    /// Creates a new `TxBuilder`.
+    /// Creates a new `MockTxBuilder`.
     #[must_use]
     pub const fn new(
         solana_client: Arc<RpcClient>,

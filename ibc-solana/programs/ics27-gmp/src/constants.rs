@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
-/// Program constants for ICS27 GMP
+//! Program constants for ICS27 GMP
+
 // Re-export validation constants
 pub use solana_ibc_types::{
     MAX_CLIENT_ID_LENGTH, MAX_MEMO_LENGTH, MAX_RECEIVER_LENGTH, MAX_SALT_LENGTH, MAX_SENDER_LENGTH,

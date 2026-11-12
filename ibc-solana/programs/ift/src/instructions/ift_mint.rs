@@ -79,7 +79,8 @@ pub struct IFTMint<'info> {
     /// GMP account PDA - validated to match counterparty bridge
     pub gmp_account: Signer<'info>,
 
-    /// Pays for ATA creation (if needed) and transaction fees
+    /// Pays for ATA creation (if needed). In the GMP flow this is the GMP
+    /// account PDA, pre-funded by the relayer.
     #[account(mut)]
     pub payer: Signer<'info>,
 

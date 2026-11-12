@@ -156,7 +156,7 @@ func (s *MultichainTestSuite) SetupSuite(ctx context.Context, proofType types.Su
 	var proofApiProcess *os.Process
 	s.Require().True(s.Run("Start Proof API", func() {
 		beaconAPI := ""
-		// The BeaconAPIClient is nil when the testnet is `pow`
+		// The BeaconAPIClient is nil when the testnet is not `pos`
 		if eth.BeaconAPIClient != nil {
 			beaconAPI = eth.BeaconAPIClient.GetBeaconAPIURL()
 		}
@@ -795,8 +795,6 @@ func (s *MultichainTestSuite) Test_TransferCosmosToEthToCosmosAndBack() {
 			s.Require().NoError(err)
 
 			packet = ethReceiveAckEvent.Packet
-			// ackTxHash = receipt.TxHash.Bytes()
-			// NOTE: ackTxHash is not used in the test since acking the packet is not necessary
 		}))
 
 		// Recreate the full denom path

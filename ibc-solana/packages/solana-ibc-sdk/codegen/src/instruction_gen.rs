@@ -10,16 +10,16 @@ use crate::pda::{self, ResolvedPda};
 use crate::type_gen::idl_type_to_rust;
 use crate::util::{address_to_rust_expr, sanitize_ident, to_pascal_case, NameMap};
 
-/// Classification of instruction args for `build_instruction` signature generation.
+/// Classification of instruction args for builder `.args()` generation.
 enum ArgsKind {
-    /// No args — `build_instruction` takes no args parameter.
+    /// No args — the builder has no `.args()` method.
     None,
-    /// Single defined type — `build_instruction` takes a typed `&T` parameter.
+    /// Single defined type — `.args()` takes a typed `&T` parameter.
     SingleDefined {
         /// Resolved Rust type name (e.g. `MsgRecvPacket`).
         type_name: String,
     },
-    /// Multiple flat/mixed args — a `{Instruction}Args` struct is generated.
+    /// Primitive or multiple args — a `{Instruction}Args` struct is generated.
     Flat {
         /// Generated struct name (e.g. `FinalizeTransferArgs`).
         struct_name: String,
@@ -158,7 +158,7 @@ fn generate_instruction_module(
 enum AccountKind {
     /// Fixed address (e.g. `system_program`) — not a struct field, hardcoded.
     Fixed,
-    /// Auto-derivable PDA — not in Accounts struct, derived in `new()`.
+    /// Auto-derivable PDA — not in Accounts struct, derived in `build()`.
     AutoPda { seed_refs: Vec<SeedRef> },
     /// Non-derivable account — `Pubkey` field in Accounts struct.
     Provided,

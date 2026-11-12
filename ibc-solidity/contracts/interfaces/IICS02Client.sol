@@ -9,7 +9,7 @@ import { ILightClient } from "./ILightClient.sol";
 /// @notice Interface for the access controlled functions of the IBC Eureka light client router
 interface IICS02ClientAccessControlled {
     /// @notice Adds a client to the client router.
-    /// @dev Only a caller with `CLIENT_ID_CUSTOMIZER_ROLE` can call this function.
+    /// @dev Only a caller with `ID_CUSTOMIZER_ROLE` can call this function.
     /// @param clientId The custom client identifier
     /// @param counterpartyInfo The counterparty client information
     /// @param client The address of the client contract
@@ -61,7 +61,7 @@ interface IICS02ClientAccessControlled {
         returns (uint256);
 
     /// @notice Migrate a client by replacing the existing counterparty information and contract address.
-    /// @dev This is a privilaged operation, only one with `getLightClientMigratorRole(clientId)` can call this.
+    /// @dev This is a privileged operation, restricted by the AccessManager (`ADMIN_ROLE` by default).
     /// @param clientId The client identifier of the client to migrate
     /// @param counterpartyInfo The new counterparty client information
     /// @param client The address of the new client contract
@@ -122,7 +122,7 @@ interface IICS02Client is IICS02ClientAccessControlled {
     event ICS02ClientMigrated(string clientId, IICS02ClientMsgs.CounterpartyInfo counterpartyInfo, address client);
 
     /// @notice Emitted when a client is updated.
-    /// @param clientId The client identifier of the updated ILightClientMsgs
+    /// @param clientId The client identifier of the updated client
     /// @param result The result of the update operation
     event ICS02ClientUpdated(string clientId, ILightClientMsgs.UpdateResult result);
 

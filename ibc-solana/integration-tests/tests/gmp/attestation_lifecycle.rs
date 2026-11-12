@@ -7,7 +7,7 @@ use integration_tests::{
 };
 
 /// Full GMP send → recv → ack lifecycle with attestation light client
-/// (2-of-2 attestor quorum) instead of mock LC.
+/// (2-of-2 attestor quorum).
 #[tokio::test]
 async fn test_gmp_attestation_full_lifecycle() {
     // ── Attestors ──

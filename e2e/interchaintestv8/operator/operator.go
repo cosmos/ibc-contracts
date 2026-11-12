@@ -256,11 +256,11 @@ func ToBase64KeyPaths(paths ...[][]byte) string {
 	return strings.Join(keyPaths, ",")
 }
 
-// TODO: This is a mighty ugly piece of code. Hopefully there is a better way to do this.
-// marshalMisbehaviour takes a MisbehaviourProof struct and marshals it into a JSON byte slice that can be unmarshalled by the operator.
+// marshalMisbehaviour takes a tmclient.Misbehaviour and marshals it into a JSON byte slice that can be unmarshalled by the operator.
 // It first marshals to JSON directly, and then modifies all the incompatible types (mostly base64 encoded bytes) to be hex encoded.
 // Ideally, we can update the types in the operator to be more compatible with the type we have here.
 // It might be enough to get out a new version of the rust crate "ibc-proto" and update the operator to use it.
+// TODO: This is a mighty ugly piece of code. Hopefully there is a better way to do this.
 func marshalMisbehaviour(cdc codec.Codec, misbehaviour tmclient.Misbehaviour) ([]byte, error) {
 	misbehaviour.ClientId = "07-tendermint-0" // We just have to set it to something to make the unmarshalling to work :P
 	bzIntermediary, err := cdc.MarshalJSON(&misbehaviour)

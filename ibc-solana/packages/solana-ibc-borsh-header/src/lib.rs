@@ -11,8 +11,9 @@
 //!
 //! This allows fitting mainnet-sized headers within Solana's 256KB heap limit.
 //!
-//! Note: Conversion functions (From/TryFrom implementations) are implemented
-//! in the packages that have access to ibc-rs types (relayer and ics07-tendermint).
+//! Note: Conversion functions from ibc-rs types (the `conversions` module) and
+//! the direct deserialization wrappers are only available with the
+//! `light-client` feature, which pulls in the ibc-rs and tendermint dependencies.
 //!
 //! ## Direct Deserialization Optimization
 //!

@@ -54,7 +54,7 @@ const (
 	EnvKeyNetworkPrivateCluster = "E2E_PRIVATE_CLUSTER"
 	// EnvKeyGenerateSolidityFixtures Generate fixtures for the solidity tests if set to true.
 	EnvKeyGenerateSolidityFixtures = "GENERATE_SOLIDITY_FIXTURES"
-	// EnvKeyGenerateSolidityFixtures Generate fixtures for the solidity tests if set to true.
+	// EnvKeyGenerateWasmFixtures Generate fixtures for the wasm light client tests if set to true.
 	EnvKeyGenerateWasmFixtures = "GENERATE_WASM_FIXTURES"
 	// EnvKeyGenerateTendermintLightClientFixtures Generate fixtures for the tendermint light client tests if set to true.
 	EnvKeyGenerateTendermintLightClientFixtures = "GENERATE_TENDERMINT_LIGHT_CLIENT_FIXTURES"
@@ -64,7 +64,7 @@ const (
 	EnvKeyRustLog = "RUST_LOG"
 
 	// Enable local observability (Grafana stack under scripts/local-grafana-stack) for e2e runs.
-	// When set to "true", the relayer will emit OTLP traces to http://127.0.0.1:4317 and keep metrics enabled.
+	// When set to "true", the proof API will emit OTLP traces to http://127.0.0.1:4317 and keep metrics enabled.
 	EnvKeyEnableLocalObservability = "ENABLE_LOCAL_OBSERVABILITY"
 
 	// Log level for the Rust logger.
@@ -73,7 +73,7 @@ const (
 	EnvValueEnableLocalObservability_True = "true"
 	// EnvValueSp1Prover_Network is the prover type for the network prover.
 	EnvValueSp1Prover_Network = "network"
-	// EnvValueSp1Prover_PrivateCluster is the for running the network prover in a private cluster.
+	// EnvValueSp1Prover_PrivateCluster is the value for running the network prover in a private cluster.
 	EnvValueSp1Prover_PrivateCluster = "true"
 	// EnvValueSp1Prover_Mock is the prover type for the mock prover.
 	EnvValueSp1Prover_Mock = "mock"
@@ -123,7 +123,7 @@ const (
 	EnvKeyEthTestnetType = "ETH_TESTNET_TYPE"
 	// EnvKeyEthAnvilCount Number of Anvil chains to create (only when ETH_TESTNET_TYPE=anvil). Defaults to 1.
 	EnvKeyEthAnvilCount = "ETH_ANVIL_COUNT"
-	// EnvE2EFacuetAddress The address of the faucet
+	// EnvKeyE2EFacuetAddress The address of the faucet
 	EnvKeyE2EFacuetAddress = "E2E_FAUCET_ADDRESS"
 	// EnvKeyEthereumPosNetworkPreset The environment variable name to configure the Kurtosis network preset
 	EnvKeyEthereumPosNetworkPreset = "ETHEREUM_POS_NETWORK_PRESET"
@@ -298,7 +298,7 @@ var (
 	DefaultTrustLevel = ibctm.Fraction{Numerator: 1, Denominator: 3}.ToTendermint()
 
 	// DefaultTrustPeriod is the trust period used by the SP1ICS07Tendermint contract.
-	// 129600 seconds = 14 days
+	// 1209600 seconds = 14 days
 	DefaultTrustPeriod = 1209600
 
 	// DefaultMaxClockDrift is the default maximum clock drift used by ICS07Tendermint (in seconds).
@@ -349,7 +349,6 @@ type SolanaOptions struct {
 }
 
 // BuildSolanaIFTConstructor returns "{\"solana\":{\"gmp_program_id\":\"...\",\"mint_pubkey\":\"...\"}}"
-// counterpartyClientId is the client ID on Solana that tracks the Cosmos chain (needed for gmp_account_pda derivation)
 func BuildSolanaIFTConstructor(gmpProgramID, mintPubkey string) string {
 	cfg := SolanaOptions{
 		GMPProgramID: gmpProgramID,

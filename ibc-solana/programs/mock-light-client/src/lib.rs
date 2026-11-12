@@ -7,11 +7,12 @@ use solana_ibc_types::ics07::UpdateClientMsg;
 
 declare_id!("CSLS3A9jS7JAD8aUe3LRXMYZ1U8Lvxn9usGygVrA2arZ");
 
-/// Mock light client that always succeeds.
+/// Mock light client that always succeeds (except `verify_membership` with a
+/// proof starting with `REJECT_PROOF`).
 ///
 /// Implements the `ics25_handler` light-client interface with no-op logic so
 /// the ICS26 router can be tested end-to-end without deploying a real
-/// Tendermint or SP1 light client.
+/// Tendermint or attestation light client.
 #[program]
 pub mod mock_light_client {
     use super::*;
@@ -59,8 +60,8 @@ pub mod mock_light_client {
     pub fn update_client(_ctx: Context<UpdateClient>, _msg: UpdateClientMsg) -> Result<u8> {
         msg!("Mock light client: update_client always returns success");
 
-        // For mock client, always return Update (not NoOp)
-        // This matches the UpdateResult enum: Update = 0, NoOp = 1
+        // For mock client, always return UpdateSuccess (not NoOp)
+        // This matches the UpdateResult enum: UpdateSuccess = 0, NoOp = 1, Misbehaviour = 2
         Ok(0)
     }
 
@@ -127,7 +128,7 @@ pub struct ClientStatusCheck<'info> {
     pub consensus_state: AccountInfo<'info>,
 }
 
-/// Accounts for mock client update (always returns `Update`).
+/// Accounts for mock client update (always returns `UpdateSuccess`).
 #[derive(Accounts)]
 #[instruction(_msg: UpdateClientMsg)]
 pub struct UpdateClient<'info> {

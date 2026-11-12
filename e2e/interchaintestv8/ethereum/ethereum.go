@@ -65,7 +65,7 @@ func (e *Ethereum) GetBlockTime(ctx context.Context) (int64, error) {
 	return int64(header.Time), nil
 }
 
-// BroadcastMessages broadcasts the provided messages to the given chain and signs them on behalf of the provided user.
+// BroadcastTx signs a transaction calling address with txBz on behalf of the provided user and broadcasts it.
 // Once the transaction is mined, the receipt is returned.
 func (e *Ethereum) BroadcastTx(ctx context.Context, userKey *ecdsa.PrivateKey, gasLimit uint64, address *ethcommon.Address, txBz []byte) (*ethtypes.Receipt, error) {
 	txOpts, err := e.GetTransactOpts(userKey)

@@ -35,7 +35,7 @@ impl Config {
     /// Validates the parsed config
     ///
     /// # Errors
-    /// - Fails if attestaor config is invalid
+    /// - Fails if attestor config is invalid
     /// - Fails if cache config is invalid
     pub fn validate(&self) -> Result<()> {
         self.attestor.validate()?;

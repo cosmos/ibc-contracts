@@ -62,7 +62,7 @@ const (
 // IbcSolanaAttestationTestSuite is a comprehensive test suite for Solana attestation flows.
 // It tests both directions:
 // - Cosmos → Solana: using attestation-light-client with Cosmos attestors
-// - Solana → Cosmos: using Solana attestors with mock/wasm client on Cosmos
+// - Solana → Cosmos: using Solana attestors with the attestations light client on Cosmos
 type IbcSolanaAttestationTestSuite struct {
 	e2esuite.TestSuite
 

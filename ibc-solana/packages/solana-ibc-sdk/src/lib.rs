@@ -4,7 +4,8 @@
 //!
 //! This crate is auto-generated from Anchor IDL files by `build.rs`.
 //! It provides typed instruction account builders and event structs
-//! for the ICS26 router, ICS07 Tendermint, attestation and IFT programs.
+//! for the ICS26 router, ICS07 Tendermint, ICS27 GMP, attestation, IFT and
+//! access manager programs.
 //!
 //! This crate should only be consumed by off-chain code (relayer, tests).
 //! On-chain programs should depend on `solana-ibc-types` directly.

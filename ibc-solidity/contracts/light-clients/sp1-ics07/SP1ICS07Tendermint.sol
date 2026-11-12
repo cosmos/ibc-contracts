@@ -198,7 +198,7 @@ contract SP1ICS07Tendermint is
         revert UnknownMembershipProofType(uint8(membershipProof.proofType));
     }
 
-    /// @dev The misbehavior is verfied in the sp1 program. Here we only check the public values which contain the
+    /// @dev The misbehavior is verified in the sp1 program. Here we only check the public values which contain the
     /// trusted headers.
     /// @inheritdoc ILightClient
     function misbehaviour(bytes calldata misbehaviourMsg) external notFrozen onlyICS26Router {

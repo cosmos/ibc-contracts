@@ -25,8 +25,11 @@ Each module runs in one direction and specializes in how it builds proofs and tr
 | `eth_to_eth` | EVM | EVM | Parse EVM events, build attested txs | `attested` — multisig attestations |
 | `besu_to_eth` | Besu BFT EVM | EVM | Parse EVM events, build EVM real-proof txs | direct Besu light-client updates + Besu account/storage proofs |
 | `cosmos_to_cosmos` | Cosmos SDK | Cosmos SDK | Parse Cosmos events, build Cosmos IBC txs | ICS-07 light client proofs only (validator signatures and merkle proofs) |
-| `cosmos_to_solana` | Cosmos SDK | Solana | Parse Cosmos events, build Solana IBC txs | ICS-07 light client proofs only (validator signatures and merkle proofs) |
-| `solana_to_cosmos` | Solana | Cosmos SDK | Parse Solana events, build Cosmos IBC txs | multisig attestations only |
+| `eth_to_cosmos_compat` | EVM | Cosmos SDK | Same as `eth_to_cosmos`, routing to the v1.3 or current handler by the client state checksum | `real` or `mock` only (`attested` is rejected at startup) |
+| `cosmos_to_solana` | Cosmos SDK | Solana | Parse Cosmos events, build Solana IBC txs | `ics07_tendermint` (default) — ICS-07 light client proofs (validator signatures and merkle proofs)<br>`attested` — multisig attestations |
+| `solana_to_cosmos` | Solana | Cosmos SDK | Parse Solana events, build Cosmos IBC txs | `mock` — dev/test mode<br>`attested` — multisig attestations |
+| `eth_to_solana` | EVM | Solana | Parse EVM events, build Solana IBC txs | `attested` — multisig attestations |
+| `solana_to_eth` | Solana | EVM | Parse Solana events, build EVM IBC txs | `attested` — multisig attestations |
 
 ## Build and Run
 
@@ -48,7 +51,7 @@ Each module runs in one direction and specializes in how it builds proofs and tr
    proof-api start --config config.json
    ```
 
-The gRPC server listens on `server.address:server.port` and the gRPC-web endpoint listens on `server.grpc_web_port`.
+The gRPC server listens on `server.address:server.port`. A health check (`/healthz`) and Prometheus metrics (`/metrics`) are served on port `9000`.
 
 ## Configuration
 
@@ -58,14 +61,13 @@ Key settings:
 
 - `server.address`: IP address to bind the gRPC server.
 - `server.port`: gRPC port.
-- `server.grpc_web_port`: gRPC-web port.
 - `observability.level`: Logging level (`trace`, `debug`, `info`, `warn`, `error`).
 - `observability.use_otel`: Enable OpenTelemetry export.
 - `observability.service_name`: Service name used in logs/traces.
 - `observability.otel_endpoint`: OpenTelemetry collector endpoint.
 - `modules`: List of modules to run, each with `name`, `src_chain`, `dst_chain`, `config`, and optional `enabled` (defaults to true). For EVM-to-EVM modules, `Info` returns the routed `src_chain` as the source identity and the destination RPC chain ID as the target identity.
 
-Module configuration varies by module type. Mode-specific options are enumerated below.
+Module configuration varies by module type. Proof modes are externally tagged: a mode without options is a string (for example `"mock"`), and a mode with options is an object with a single key naming the mode (for example `{ "attested": { "attestor": { ... } } }`).
 
 Module configuration varies by module type:
 
@@ -75,43 +77,41 @@ Module configuration varies by module type:
   - `ics26_address`: IBC router contract address on the destination chain.
   - `ibc_multicall_address`: `IBCMulticall` contract address on the destination chain. Relay and update client
     transactions are built for and submitted to it.
-  - `mode`: Proof mode object.
-  - `mode.type`: `sp1` or `attested`.
-  - `mode.sp1_prover`: SP1 prover config when `type: sp1`.
-    - `mode.sp1_prover.type`: `mock`, `env`, `network`, `cpu`, `cuda`.
-    - `mode.sp1_prover.network_private_key`: Optional hex key for `network`.
-    - `mode.sp1_prover.network_rpc_url`: Optional RPC URL for `network`.
-    - `mode.sp1_prover.private_cluster`: Optional boolean for `network`.
-  - `mode.sp1_programs`: SP1 program paths when `type: sp1`.
-    - `mode.sp1_programs.update_client`.
-    - `mode.sp1_programs.membership`.
-    - `mode.sp1_programs.update_client_and_membership`.
-    - `mode.sp1_programs.misbehaviour`.
-  - `mode.attestor`: Attestor config when `type: attested`.
-    - `mode.attestor.attestor_query_timeout_ms`.
-    - `mode.attestor.quorum_threshold`.
-    - `mode.attestor.attestor_endpoints`.
-  - `mode.cache`: Optional cache config when `type: attested`.
-    - `mode.cache.state_cache_max_entries`.
-    - `mode.cache.packet_cache_max_entries`.
+  - `mode`: Proof mode object, `{ "sp1": { ... } }` or `{ "attested": { ... } }`.
+  - `mode.sp1.sp1_prover`: SP1 prover config.
+    - `mode.sp1.sp1_prover.type`: `mock`, `env`, `network`, `cpu`, `cuda`.
+    - `mode.sp1.sp1_prover.network_private_key`: Optional hex key for `network`.
+    - `mode.sp1.sp1_prover.network_rpc_url`: Optional RPC URL for `network`.
+    - `mode.sp1.sp1_prover.private_cluster`: Optional boolean for `network`.
+  - `mode.sp1.sp1_programs`: SP1 program paths.
+    - `mode.sp1.sp1_programs.update_client`.
+    - `mode.sp1.sp1_programs.membership`.
+    - `mode.sp1.sp1_programs.update_client_and_membership`.
+    - `mode.sp1.sp1_programs.misbehaviour`.
+  - `mode.attested.attestor`: Attestor config.
+    - `mode.attested.attestor.attestor_query_timeout_ms`.
+    - `mode.attested.attestor.quorum_threshold`.
+    - `mode.attested.attestor.attestor_endpoints`.
+  - `mode.attested.cache`: Optional cache config.
+    - `mode.attested.cache.state_cache_max_entries`. (default: 100000)
+    - `mode.attested.cache.packet_cache_max_entries`. (default: 100000)
 
 - `eth_to_cosmos`:
   - `eth_rpc_url`: EVM RPC endpoint for the source chain.
   - `eth_beacon_api_url`: Ethereum beacon API endpoint for consensus data (required for `real`).
   - `tm_rpc_url`: Tendermint RPC endpoint for the destination chain.
-  - `ics26_address`: IBC router contract address on the destination chain.
+  - `ics26_address`: IBC router contract address on the source chain.
   - `signer_address`: Cosmos address used for message construction metadata.
-  - `mode`: Proof mode (string or object).
-  - `mode`: `real`, `mock`, or `{ "type": "attested", ... }`.
-  - `mode.attestor`: Attestor config when `type: attested`.
-    - `mode.attestor.attestor_query_timeout_ms`.
-    - `mode.attestor.quorum_threshold`.
-    - `mode.attestor.attestor_endpoints`.
-  - `mode.cache`: Optional cache config when `type: attested`.
-    - `mode.cache.state_cache_max_entries`.
-    - `mode.cache.packet_cache_max_entries`.
+  - `mode`: `"real"`, `"mock"`, or `{ "attested": { ... } }`.
+  - `mode.attested.attestor`: Attestor config.
+    - `mode.attested.attestor.attestor_query_timeout_ms`.
+    - `mode.attested.attestor.quorum_threshold`.
+    - `mode.attested.attestor.attestor_endpoints`.
+  - `mode.attested.cache`: Optional cache config.
+    - `mode.attested.cache.state_cache_max_entries`. (default: 100000)
+    - `mode.attested.cache.packet_cache_max_entries`. (default: 100000)
 - `eth_to_cosmos_compat`:
-  - Same settings as `eth_to_cosmos`, but routes requests to the v1.2 or current handler based on the client state checksum.
+  - Same settings as `eth_to_cosmos`, but routes requests to the v1.3 or current handler based on the client state checksum. `mode` must be `"real"` or `"mock"`; `attested` is not supported.
 
 - `eth_to_eth`:
   - `src_rpc_url`: Source EVM RPC endpoint.
@@ -120,15 +120,14 @@ Module configuration varies by module type:
   - `dst_ics26_address`: Destination IBC router contract address.
   - `dst_ibc_multicall_address`: Destination `IBCMulticall` contract address that relay and update client
     transactions are submitted to.
-  - `mode`: Proof mode object.
-  - `mode.type`: `attested`.
-  - `mode.attestor`: Attestor config.
-    - `mode.attestor.attestor_query_timeout_ms`.
-    - `mode.attestor.quorum_threshold`.
-    - `mode.attestor.attestor_endpoints`.
-  - `mode.cache`: Optional cache config.
-    - `mode.cache.state_cache_max_entries`. (default: 10000)
-    - `mode.cache.packet_cache_max_entries`. (default: 10000)
+  - `mode`: Proof mode object, `{ "attested": { ... } }`.
+  - `mode.attested.attestor`: Attestor config.
+    - `mode.attested.attestor.attestor_query_timeout_ms`.
+    - `mode.attested.attestor.quorum_threshold`.
+    - `mode.attested.attestor.attestor_endpoints`.
+  - `mode.attested.cache`: Optional cache config.
+    - `mode.attested.cache.state_cache_max_entries`. (default: 100000)
+    - `mode.attested.cache.packet_cache_max_entries`. (default: 100000)
 - `besu_to_eth`:
   - `src_rpc_url`: Source Besu RPC endpoint.
   - `src_ics26_address`: Source IBC router contract address.
@@ -147,13 +146,33 @@ Module configuration varies by module type:
   - `solana_ics26_program_id`: Solana ICS26 router program ID.
   - `solana_fee_payer`: Solana fee payer address.
   - `solana_alt_address`: Address lookup table address (optional).
-  - `skip_pre_verify_threshold`: Skip pre-verification when signatures are below this threshold. (default: 50)
+  - `solana_ift_program_ids`: Whitelisted Solana IFT program IDs. Empty disables IFT relay. (default: `[]`)
+  - `skip_pre_verify_threshold`: Skip pre-verification when the number of signatures is at most this threshold; `null` always pre-verifies. (default: 50)
+  - `mode`: `"ics07_tendermint"` or `{ "attested": { ... } }` with the same attestor and cache settings as above. (default: `"ics07_tendermint"`)
 - `solana_to_cosmos`:
   - `solana_chain_id`: Solana chain ID label.
   - `src_rpc_url`: Solana RPC endpoint.
   - `target_rpc_url`: Tendermint RPC endpoint for the destination chain.
   - `signer_address`: Cosmos address used for message construction metadata.
   - `solana_ics26_program_id`: Solana ICS26 router program ID.
+  - `mode`: `"mock"` or `{ "attested": { ... } }` with the same attestor and cache settings as above.
+- `eth_to_solana`:
+  - `eth_rpc_url`: EVM RPC endpoint for the source chain.
+  - `ics26_address`: IBC router contract address on the source chain.
+  - `solana_rpc_url`: Solana RPC endpoint.
+  - `solana_ics26_program_id`: Solana ICS26 router program ID.
+  - `solana_fee_payer`: Solana fee payer address.
+  - `solana_alt_address`: Address lookup table address (optional).
+  - `solana_ift_program_ids`: Whitelisted Solana IFT program IDs. Empty disables IFT relay. (default: `[]`)
+  - `mode`: `{ "attested": { ... } }` with the same attestor and cache settings as above.
+- `solana_to_eth`:
+  - `solana_rpc_url`: Solana RPC endpoint.
+  - `solana_ics26_program_id`: Solana ICS26 router program ID.
+  - `eth_rpc_url`: EVM RPC endpoint for the destination chain.
+  - `ics26_address`: IBC router contract address on the destination chain.
+  - `ibc_multicall_address`: `IBCMulticall` contract address on the destination chain that relay and update client
+    transactions are submitted to.
+  - `mode`: `{ "attested": { ... } }` with the same attestor and cache settings as above.
 
 ## `besu_to_eth` create-client parameters
 

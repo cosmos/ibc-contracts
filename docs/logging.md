@@ -37,7 +37,7 @@ Minimum list of correlation fields
 - trace_id: the request ID (e.g., a specific gRPC request's ID)
 - timestamp: RFC 3339 UTC
 - environment: dev/prod
-- service_name: name of the current service (e.g., proof_api)
+- service_name: name of the current service (e.g., proof-api)
 - service_version: the deployed version of the code
 - span_id: when available
 

@@ -52,14 +52,12 @@ pub fn initialize(ctx: Context<Initialize>, access_manager: Pubkey) -> Result<()
     let app_state = &mut ctx.accounts.app_state;
     let clock = Clock::get()?;
 
-    // Initialize app state
     app_state.version = AccountVersion::V1;
     app_state.paused = false;
     app_state.bump = ctx.bumps.app_state;
     app_state.am_state = AccessManagerState::new(access_manager);
     app_state._reserved = [0; 256];
 
-    // Emit initialization event
     emit!(GMPAppInitialized {
         router_program: ics26_router::ID,
         port_id: GMP_PORT_ID.to_string(),

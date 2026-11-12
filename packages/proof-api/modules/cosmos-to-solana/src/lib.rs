@@ -39,7 +39,7 @@ pub struct CosmosToSolanaProofApiModule;
 /// The `CosmosToSolanaProofApiModuleService` defines the proof API service from Cosmos to Solana.
 #[allow(dead_code)]
 struct CosmosToSolanaProofApiModuleService {
-    /// The souce chain listener for Cosmos.
+    /// The source chain listener for Cosmos.
     src_listener: cosmos_sdk::ChainListener,
     /// The target chain listener for Solana.
     target_listener: solana::ChainListener,

@@ -67,10 +67,9 @@ The particular goals we aim to achieve, and that you should keep in mind while i
 ### Metric names
 Use this format: `namespace_subsystem_name_unit`
 
-Good examples:
-- `solidity_ibc_relayer_packets_sent_total`
-- `solidity_ibc_relayer_client_expiry_seconds`
-- `solidity_ibc_relayer_rpc_duration_seconds`
+Good examples (from the proof API, in `packages/proof-api/core/src/metrics.rs`):
+- `eureka_proof_api_request_total`
+- `eureka_proof_api_response_time_seconds`
 
 Bad examples:
 - `PacketsSent` - wrong case, no namespace

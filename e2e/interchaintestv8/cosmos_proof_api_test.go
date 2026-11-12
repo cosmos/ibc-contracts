@@ -55,13 +55,13 @@ type CosmosProofAPITestSuite struct {
 	TendermintLightClientFixtures *e2etypes.TendermintLightClientFixtureGenerator
 }
 
-// TestWithIbcEurekaTestSuite is the boilerplate code that allows the test suite to be run
+// TestWithCosmosProofAPITestSuite is the boilerplate code that allows the test suite to be run
 func TestWithCosmosProofAPITestSuite(t *testing.T) {
 	suite.Run(t, new(CosmosProofAPITestSuite))
 }
 
-// SetupSuite calls the underlying IbcEurekaTestSuite's SetupSuite method
-// and deploys the IbcEureka contract
+// SetupSuite calls the underlying TestSuite's SetupSuite method with a second Cosmos chain,
+// starts the proof API, and creates and registers light clients of each chain on the other
 func (s *CosmosProofAPITestSuite) SetupSuite(ctx context.Context) {
 	chainconfig.DefaultChainSpecs = append(chainconfig.DefaultChainSpecs, chainconfig.IbcGoChainSpec("ibc-go-simd-2", "simd-2"))
 
@@ -194,7 +194,7 @@ func (s *CosmosProofAPITestSuite) SetupSuite(ctx context.Context) {
 	}))
 }
 
-// TestRelayer is a test that runs the relayer
+// Test_ProofAPIInfo verifies that the proof API reports the info for both Cosmos chain directions
 func (s *CosmosProofAPITestSuite) Test_ProofAPIInfo() {
 	ctx := context.Background()
 	s.SetupSuite(ctx)

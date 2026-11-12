@@ -9,8 +9,9 @@ declare_id!("4Fo5RuY7bEPZNz1FjkM9cUkUVc2BVhdYBjDA8P6Tmox1");
 /// Mock IBC Application Program for Testing
 ///
 /// This program is a minimal implementation of the IBC app interface
-/// used only for testing the router. It has no state and no logic,
-/// just accepts the calls and returns success.
+/// used only for testing the router. It has no state and accepts all calls,
+/// returning success; `on_recv_packet` returns an error or empty ack when the
+/// payload starts with `RETURN_ERROR_ACK` or `RETURN_EMPTY_ACK`.
 #[ibc_app]
 pub mod mock_ibc_app {
     use super::*;

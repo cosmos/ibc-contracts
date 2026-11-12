@@ -51,8 +51,8 @@ impl ClientState {
 /// Global attestation program configuration.
 ///
 /// Singleton PDA that links the attestation program to its access manager
-/// for admin-gated operations such as updating the attestor set or freezing
-/// the client.
+/// for role-gated operations (relayer-only `update_client`, admin-only
+/// access manager transfers).
 #[account]
 #[derive(InitSpace)]
 pub struct AppState {
@@ -77,6 +77,7 @@ impl AppState {
 pub struct MembershipProof {
     /// ABI-encoded attestation payload (`PacketAttestation` or `StateAttestation`).
     pub attestation_data: Vec<u8>,
-    /// 65-byte ECDSA signatures (r || s || v) over `sha256(attestation_data)`.
+    /// 65-byte ECDSA signatures (r || s || v) over the domain-separated digest
+    /// `sha256(type_tag || sha256(attestation_data))` (see `crypto::tagged_signing_input`).
     pub signatures: Vec<Vec<u8>>,
 }

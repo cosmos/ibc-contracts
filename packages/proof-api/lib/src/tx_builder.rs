@@ -6,7 +6,7 @@ use crate::chain::Chain;
 use anyhow::Result;
 use std::collections::HashMap;
 
-/// The `TxBuilderService` trait defines the interface for a service that submits transactions
+/// The `TxBuilderService` trait defines the interface for a service that builds transactions
 /// to a chain based on events from two chains.
 #[async_trait::async_trait]
 pub trait TxBuilderService<A: Chain, B: Chain> {
@@ -35,7 +35,7 @@ pub trait TxBuilderService<A: Chain, B: Chain> {
         dst_packet_seqs: Vec<u64>,
     ) -> Result<Vec<u8>>;
 
-    /// Create a transaction to chain A that creates a light client of chain B.
+    /// Create a transaction to chain B that creates a light client of chain A.
     ///
     /// # Arguments
     /// - `parameters` - The optional parameters for the light client creation.

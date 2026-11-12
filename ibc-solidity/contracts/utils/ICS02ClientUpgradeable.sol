@@ -15,10 +15,7 @@ import { IBCIdentifiers } from "../utils/IBCIdentifiers.sol";
 
 /// @title ICS02 Client Router
 /// @notice This is the ICS02 Light Client Router contract, storing the light clients and their identifiers.
-/// @dev Light client migrations/upgrades are supported via `AccessControl` role-based access control
-/// @dev Each client is identified by a unique identifier, hash of which also serves as the role identifier
-/// @dev The light client migrator role is granted to whoever called `addClient` for the client, and can be revoked (not
-/// transferred)
+/// @dev Light client migrations are supported via `migrateClient`, which is restricted by the `AccessManager`
 /// @dev Client registration is blocked while the contract is paused. Other client operations are not.
 abstract contract ICS02ClientUpgradeable is
     IICS02Client,

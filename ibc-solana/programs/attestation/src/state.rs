@@ -4,9 +4,10 @@ use anchor_lang::prelude::*;
 
 /// On-chain PDA storing the consensus state for a specific block height.
 ///
-/// Created or updated when enough attestor signatures confirm a new block.
-/// The ICS26 router reads this account to verify packet membership proofs
-/// against the confirmed state. The block height is also encoded in the
+/// Created when enough attestor signatures confirm a new block and never
+/// overwritten (a conflicting timestamp freezes the client instead). The
+/// ICS26 router passes this account to `verify_membership` /
+/// `verify_non_membership` to check packet proofs against the confirmed state. The block height is also encoded in the
 /// PDA seeds so each height maps to exactly one account.
 #[account]
 #[derive(InitSpace)]

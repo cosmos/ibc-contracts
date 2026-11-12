@@ -8,7 +8,7 @@ import { IICS20Errors } from "../errors/IICS20Errors.sol";
 import { IBCIdentifiers } from "./IBCIdentifiers.sol";
 
 /// @title ICS20 Library
-/// @notice This library provides utility functions for the ICS20Tranfer, including versioning, encoding, and denom
+/// @notice This library provides utility functions for the ICS20Transfer, including versioning, encoding, and denom
 /// handling.
 // This library was originally copied, with minor adjustments, from https://github.com/hyperledger-labs/yui-ibc-solidity
 // It has since been modified heavily (e.g. replacing JSON with ABI encoding, adding new functions, etc.)

@@ -431,8 +431,8 @@ mod tests {
 
 /// Generic non-empty wrapper type
 ///
-/// Validates that the wrapped data is not empty. Works with any type that has
-/// a length/is_empty check.
+/// Validates that the wrapped data is not empty. Constructors are provided for
+/// `Vec<u8>` and `String`.
 ///
 /// # Examples
 /// ```

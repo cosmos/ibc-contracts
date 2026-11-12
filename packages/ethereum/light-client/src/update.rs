@@ -16,7 +16,8 @@ use crate::{
 /// Current implementation requires the client and consensus states to be updated since historical updates are not allowed.
 ///
 /// # Errors
-/// Returns an error if the store period is not equal to the finalized period
+/// Returns an error if the client state and consensus state slots do not match, or if the next
+/// sync committee is unknown and the store period is not equal to the finalized period
 #[allow(clippy::module_name_repetitions, clippy::needless_pass_by_value)]
 pub fn update_consensus_state(
     current_consensus_state: ConsensusState,

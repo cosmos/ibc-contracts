@@ -58,7 +58,7 @@ pub struct AssembleAndUpdateClient<'info> {
     )]
     pub new_consensus_state_store: Account<'info, ConsensusStateStore>,
 
-    /// Relayer that uploaded the chunks, signs the assembly transaction and receives rent refunds.
+    /// Relayer that uploaded the chunks, signs the assembly transaction and pays for the new consensus state.
     #[account(mut)]
     pub submitter: Signer<'info>,
 
@@ -70,7 +70,7 @@ pub struct AssembleAndUpdateClient<'info> {
     #[account(address = anchor_lang::solana_program::sysvar::instructions::ID)]
     pub instructions_sysvar: AccountInfo<'info>,
     // Remaining accounts are the chunk accounts in order, followed by signature verification accounts.
-    // They will be validated and closed in the instruction handler.
+    // They are validated in the instruction handler; use `cleanup_incomplete_upload` to close them.
 }
 
 impl AssembleAndUpdateClient<'_> {

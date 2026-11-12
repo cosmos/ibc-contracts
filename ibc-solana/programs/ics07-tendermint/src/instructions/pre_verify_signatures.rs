@@ -174,7 +174,7 @@ const fn all_instruction_indices_inline(data: &[u8]) -> bool {
     // When `instruction_index != u16::MAX`, the Agave runtime reads data from
     // a different instruction in the transaction, enabling a substitution attack:
     //   - Verify logic: <https://github.com/anza-xyz/agave/blob/95542233cd95309fab114fe9dcbbbd63a06e5390/precompiles/src/ed25519.rs#L51-L76>
-    //   - Branch on `u16::MAX`<https://github.com/anza-xyz/agave/blob/95542233cd95309fab114fe9dcbbbd63a06e5390/precompiles/src/ed25519.rs#L88-L96>96
+    //   - Branch on `u16::MAX`<https://github.com/anza-xyz/agave/blob/95542233cd95309fab114fe9dcbbbd63a06e5390/precompiles/src/ed25519.rs#L88-L96>
     sig_ix == u16::MAX && pk_ix == u16::MAX && msg_ix == u16::MAX
 }
 

@@ -9,7 +9,7 @@ This document specifies how the Solidity light client for IBC Attestations works
 - Support membership checks for packet commitments attested as a list of commitments.
 
 ### Non-goals (initial scope)
-- Misbehaviour evidence processing and freezing (placeholder/TODO only).
+- Misbehaviour evidence processing via `misbehaviour` (it always reverts). Conflicting `updateClient` attestations still freeze the client.
 - Time validity windows (no clock-drift checks beyond stored timestamps).
 
 ## System Overview
@@ -26,7 +26,7 @@ This document specifies how the Solidity light client for IBC Attestations works
   - `attestorAddresses: address[]` — fixed set of attestor identities (addresses favored on EVM for verification efficiency).
   - `minRequiredSigs: uint8` — quorum threshold.
   - `latestHeight: uint64` — highest known height.
-  - `isFrozen: bool` — reserved for misbehaviour (not used until TODO is implemented).
+  - `isFrozen: bool` — set when `updateClient` receives a conflicting timestamp for an already stored height.
 
 - Consensus state storage
   - `mapping(uint64 => uint64) consensusTimestampAtHeight` — maps `height -> timestampSeconds`.
@@ -34,9 +34,9 @@ This document specifies how the Solidity light client for IBC Attestations works
 
 ## Hashing and Signatures
 
-- Hashing: SHA-256 of the exact `attestationData` bytes (same as Rust core). On-chain we use Solidity `sha256(bytes)` to produce the 32-byte digest used for signature checks.
+- Hashing: the digest used for signature checks is the domain-separated `sha256(typeTag || sha256(attestationData))`, where `typeTag` is `0x01` for state attestations (`updateClient`) and `0x02` for packet attestations (`verifyMembership` / `verifyNonMembership`).
 - Signatures: secp256k1 ECDSA signatures with 65 bytes `(r || s || v)` per signature.
-  - We use OpenZeppelin `ECDSA.recover(digest, signature)` for recovery and low-s malleability protection. `ECDSA.recover` accepts `v` in either 27/28 or 0/1 form; we will accept both.
+  - We use OpenZeppelin `ECDSA.recover(digest, signature)` for recovery and low-s malleability protection. `v` must be 27 or 28; signatures with a 0/1 recovery id revert.
   - Each recovered signer address must belong to the fixed attestor set, and each must be unique within the verification set. Enforce `minRequiredSigs` quorum.
   - Each signature MUST be 65 bytes. Unknown or duplicate signers, or failing to meet the threshold, cause reverts.
 
@@ -46,10 +46,10 @@ This document specifies how the Solidity light client for IBC Attestations works
 - Attested data must be decoded on-chain, so JSON/Serde payloads used by Rust are not practical on EVM.
 - Proof envelope used by the client:
   - `AttestationProof { attestationData: bytes, signatures: bytes[] }`
-  - `signatures[i]` is a 65-byte `(r||s||v)` over `sha256(attestationData)`.
+  - `signatures[i]` is a 65-byte `(r||s||v)` over the tagged digest `sha256(typeTag || sha256(attestationData))`.
 - The `attestationData` payload is one of the following ABI-encoded structs, depending on the operation:
   - `StateAttestation { uint64 height; uint64 timestamp; }` — used by `updateClient`.
-  - `PacketAttestation { uint64 height; PacketCompact[] packets; }` — used by `verifyMembership`.
+  - `PacketAttestation { uint64 height; PacketCompact[] packets; }` — used by `verifyMembership` and `verifyNonMembership`.
 - Public keys are not propagated anywhere on chain; addresses are inferred by recovering from signatures.
 - This enables efficient on-chain decoding and membership checks.
 - TODO: Update/align the CosmWasm attestor client to use ABI-equivalent payloads so both clients are wire-compatible at the attested-data level.
@@ -66,11 +66,11 @@ Input (ABI-encoded inside `updateMsg`):
 - `AttestationProof` where `attestationData = abi.encode(StateAttestation{height, timestamp})` and `signatures` is an array of 65-byte `(r||s||v)`.
 
 Verification:
-- Compute `digest = sha256(proof.attestationData)`.
+- Compute `digest = sha256(0x01 || sha256(proof.attestationData))`.
 - For each `signature65` use `ECDSA.recover(digest, signature65)` to obtain `signer`.
 - Require each `signer` to be in `attestorAddresses` and all recovered signers to be unique.
 - Enforce `numUniqueValidSigners >= minRequiredSigs`.
-- Decode `proof.attestationData` into `StateAttestation { height, timestamp }`.
+- Decode `proof.attestationData` into `StateAttestation { height, timestamp }` and require both to be non-zero.
 
 State transition:
 - If `consensusTimestampAtHeight[height]` already exists:
@@ -78,7 +78,7 @@ State transition:
   - Else: freeze the client and return `UpdateResult.Misbehaviour`.
 - Else (first time for this height):
   - Set `consensusTimestampAtHeight[height] = timestamp`.
-  - Set `latestHeight = height`.
+  - Set `latestHeight = height` if `height` is greater than the current `latestHeight`.
   - Return `UpdateResult.Update`.
 
 Access control:
@@ -87,7 +87,7 @@ Access control:
 
 Notes:
 - No time-window or clock-drift validation is performed.
-- Monotonic height increases are NOT enforced in the current version; out-of-order updates are accepted. `latestHeight` is set to the attested `height`, even if it decreases. See TODOs.
+- Monotonic height increases are NOT enforced in the current version; out-of-order updates are accepted and stored, but `latestHeight` never decreases. See TODOs.
 
 ### verifyMembership(MsgVerifyMembership)
 
@@ -105,10 +105,10 @@ Input mapping (from `ILightClientMsgs.MsgVerifyMembership`):
 
 Verification:
 - Require `consensusTimestampAtHeight[proofHeight.revisionHeight]` to exist.
-- Compute `digest = sha256(proof.attestationData)` and verify signatures as in `updateClient` via `ECDSA.recover`.
-- Decode `attestationData` into `PacketAttestation { height, packets }` via `abi.decode` and require `height == proofHeight.revisionHeight`.
-- Decode `pathHash` to `bytes32` and require it to match one `sha256(path[i])` in the `packets` array.
-- Decode `value` to `bytes32` and require it to match the corresponding `packet.commitment` in the matched `packets` entry.
+- Require `value` to be non-empty and `path` to have exactly one element.
+- Compute `digest = sha256(0x02 || sha256(proof.attestationData))` and verify signatures as in `updateClient` via `ECDSA.recover`.
+- Decode `attestationData` into `PacketAttestation { height, packets }` via `abi.decode` and require `height == proofHeight.revisionHeight` and `packets` to be non-empty.
+- Compute `pathHash = keccak256(path[0])`, decode `value` to `bytes32`, and require one `packets` entry to match both `pathHash` and `value`.
 
 Return:
 - The trusted timestamp (in seconds) stored for `proofHeight.revisionHeight`.
@@ -133,10 +133,10 @@ Input mapping (from `ILightClientMsgs.MsgVerifyNonMembership`):
 
 Verification:
 - Require `consensusTimestampAtHeight[proofHeight.revisionHeight]` to exist.
-- Compute `digest = sha256(proof.attestationData)` and verify signatures as in `updateClient` via `ECDSA.recover`.
-- Decode `attestationData` into `PacketAttestation { height, packets }` via `abi.decode` and require `height == proofHeight.revisionHeight`.
-- Decode `pathHash` to `bytes32` and require it to match one of the SHA-256 hashes of the corresponding `path` entries in `packets`.
-- Decode `value` to `bytes32` and require it to match exactly `bytes32(0)` to indicate non-membership.
+- Require `path` to have exactly one element.
+- Compute `digest = sha256(0x02 || sha256(proof.attestationData))` and verify signatures as in `updateClient` via `ECDSA.recover`.
+- Decode `attestationData` into `PacketAttestation { height, packets }` via `abi.decode` and require `height == proofHeight.revisionHeight` and `packets` to be non-empty.
+- Compute `pathHash = keccak256(path[0])`, find the `packets` entry with that path, and require its `commitment` to be exactly `bytes32(0)` to indicate non-membership.
 
 Return:
 - The trusted timestamp (in seconds) stored for `proofHeight.revisionHeight`.
@@ -147,7 +147,7 @@ Access control:
 
 ### misbehaviour(...)
 
-Out of scope for this version. The function exists but MUST revert with a clear TODO note to implement evidence verification and freezing.
+Out of scope for this version. The function exists but always reverts with `FeatureNotSupported`.
 
 ## Roles and Permissions
 
@@ -159,11 +159,11 @@ The client has no roles of its own. It is bound at construction to an immutable,
 ## Time and Ordering
 
 - No validity window or clock-drift checks are enforced. The timestamp stored in consensus state is treated as an attested fact tied to the height.
-- Height progression is not enforced to be monotonic in this version. Replays at the same height with identical timestamp are idempotent (`NoOp`). Conflicts at the same height cause a revert with `ConflictingTimestamp`.
+- Height progression is not enforced to be monotonic in this version. Replays at the same height with identical timestamp are idempotent (`NoOp`). Conflicts at the same height freeze the client and return `UpdateResult.Misbehaviour`.
 
 ## Replay and Domain Separation
 
-This version does not embed domain separation fields in the signed attestation bytes. This introduces potential replay risk across different clients or contexts if the same `attestationData` can be reused elsewhere.
+This version only separates attestation types: the signed digest is tagged with `0x01` (state) or `0x02` (packet), but no chain, client or contract fields are embedded. This introduces potential replay risk across different clients or contexts if the same `attestationData` can be reused elsewhere.
 
 > [!WARNING]
 >
@@ -186,12 +186,12 @@ Recommended future hardening (non-breaking if added to the signed payload defini
 
 - The client implements `ILightClient`. The router invokes:
   - `updateClient` to set or confirm consensus timestamps by height.
-  - `verifyMembership` during proof verification flows (returns the counterparty timestamp in seconds).
-  - Other interface methods revert as described above.
+  - `verifyMembership` and `verifyNonMembership` during proof verification flows (return the counterparty timestamp in seconds).
+  - `misbehaviour` reverts as described above.
 
 ## Open TODOs / Future Work
 - Implement misbehaviour detection and freezing (conflicting attestations for the same height, etc.).
-- Consider adding domain separation to the signed payload.
-- Implement monotonic increase check for `latestHeight` and/or restrict out-of-order updates.
+- Consider adding chain/client domain separation to the signed payload.
+- Consider restricting out-of-order updates (`latestHeight` itself never decreases).
 - Consider attestor set rotation and quorum changes.
 - Optional: proof caching within a transaction if needed for multi-membership checks.

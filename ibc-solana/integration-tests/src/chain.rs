@@ -230,8 +230,7 @@ impl Chain {
     /// [`PROOF_HEIGHT`](crate::router::PROOF_HEIGHT).
     ///
     /// Attestation LC requires an explicit `update_client` after
-    /// initialization (unlike mock LC which is pre-seeded with a
-    /// consensus state). This method bundles both steps so attestation
+    /// initialization. This method bundles both steps so attestation
     /// tests don't need a separate `update_client` call.
     pub async fn init_with_attestation(
         &mut self,

@@ -29,7 +29,7 @@ pub struct Initialize<'info> {
         bump
     )]
     pub consensus_state_store: Account<'info, ConsensusStateStore>,
-    /// PDA holding program-level settings such as the `access_manager` address and `chain_id`.
+    /// PDA holding program-level settings such as the `access_manager` address.
     #[account(
         init,
         payer = payer,

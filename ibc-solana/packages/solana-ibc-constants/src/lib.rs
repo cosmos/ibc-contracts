@@ -30,7 +30,7 @@ pub const CLIENT_TYPE_ATTESTATION: &str = "attestations";
 /// Extracts the client type from a client ID.
 ///
 /// IBC client IDs follow the format `{client_type}-{sequence}`.
-/// For example: `07-tendermint-0`, `attestation-0`.
+/// For example: `07-tendermint-0`, `attestations-0`.
 ///
 /// Returns the client type prefix (everything before the last `-`).
 pub fn client_type_from_id(client_id: &str) -> Option<&str> {

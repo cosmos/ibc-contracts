@@ -47,7 +47,7 @@ pub fn propose_access_manager_transfer(
 /// Requires `ADMIN_ROLE` on the **new** access manager.
 #[derive(Accounts)]
 pub struct AcceptAccessManagerTransfer<'info> {
-    /// PDA holding GMP app settings; the `access_manager` field is updated on success.
+    /// PDA holding GMP app settings; the `am_state.access_manager` field is updated on success.
     #[account(
         mut,
         seeds = [GMPAppState::SEED],

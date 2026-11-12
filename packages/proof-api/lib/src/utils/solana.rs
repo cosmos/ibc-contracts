@@ -96,12 +96,11 @@ pub fn convert_consensus_state(
 /// - Missing unbonding period in the input client state
 /// - Missing max clock drift in the input client state
 /// - Missing latest height in the input client state
-/// - Duration seconds exceed `u64::MAX` (silently defaults to 0)
 ///
 /// # Note
-/// - Durations are converted to seconds (u64)
+/// - Durations are converted to seconds (u64); negative durations silently default to 0
 /// - Frozen height defaults to 0/0 if not set
-/// - Proof specs are not included in the conversion as Solana Tendemint client hardcodes them
+/// - Proof specs are not included in the conversion as Solana Tendermint client hardcodes them
 pub fn convert_client_state_to_sol(
     ibc_client: ibc_proto_eureka::ibc::lightclients::tendermint::v1::ClientState,
 ) -> anyhow::Result<ClientState> {

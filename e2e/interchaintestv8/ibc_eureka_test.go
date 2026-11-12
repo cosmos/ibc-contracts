@@ -83,9 +83,9 @@ type IbcEurekaTestSuite struct {
 	EthRelayerSubmitter  *ecdsa.PrivateKey
 
 	// Attestor-specific fields
-	ethAttestorEndpoints    []string // Used when ETH_LC_TYPE=attestor
+	ethAttestorEndpoints    []string // Used when ETH_LC_ON_COSMOS=attestor-native
 	ethAttestorAddresses    []string // Attestor addresses for light client registration
-	cosmosAttestorEndpoints []string // Used when COSMOS_LC_TYPE=attestor
+	cosmosAttestorEndpoints []string // Used when COSMOS_LC_ON_ETH=attestor
 	cosmosAttestorAddresses []string // Attestor addresses for light client registration
 }
 
@@ -119,8 +119,8 @@ func (s *IbcEurekaTestSuite) getEthLcClientIDOnCosmos() string {
 	return testvalues.FirstWasmClientID
 }
 
-// SetupSuite calls the underlying IbcEurekaTestSuite's SetupSuite method
-// and deploys the IbcEureka contract
+// SetupSuite calls the underlying TestSuite's SetupSuite method
+// and deploys the IbcEureka contracts
 func (s *IbcEurekaTestSuite) SetupSuite(ctx context.Context, proofType types.SupportedProofType) {
 	s.TestSuite.SetupSuite(ctx)
 
@@ -201,7 +201,7 @@ func (s *IbcEurekaTestSuite) SetupSuite(ctx context.Context, proofType types.Sup
 		s.Require().NoError(err)
 	}))
 
-	// Start Ethereum attestors if ETH_LC_TYPE=attestor (for eth→cosmos direction)
+	// Start Ethereum attestors if ETH_LC_ON_COSMOS=attestor-native (for eth→cosmos direction)
 	// NOTE: Not wrapped in s.Run() subtest to ensure t.Cleanup() registers on parent test,
 	// preventing premature container cleanup when subtest completes
 	if s.isEthLcOnCosmosAttestor() {
@@ -215,7 +215,7 @@ func (s *IbcEurekaTestSuite) SetupSuite(ctx context.Context, proofType types.Sup
 		s.ethAttestorAddresses = result.Addresses
 	}
 
-	// Start Cosmos attestors if COSMOS_LC_TYPE=attestor (for cosmos→eth direction)
+	// Start Cosmos attestors if COSMOS_LC_ON_ETH=attestor (for cosmos→eth direction)
 	// NOTE: Not wrapped in s.Run() subtest to ensure t.Cleanup() registers on parent test,
 	// preventing premature container cleanup when subtest completes
 	if s.isCosmosLcOnEthAttestor() {
@@ -1753,7 +1753,7 @@ func (s *IbcEurekaTestSuite) FilteredICS20TimeoutPacketFromEthereumTest(
 			DstClientId: s.getEthLcClientIDOnCosmos(),
 		})
 		// TODO: https://github.com/lfdt-ibc/ibc-contracts/issues/363
-		// The following assertions should be Error and Nil, but the relayer returns a valid response currently.
+		// The following assertions should be Error and Nil, but the proof API returns a valid response currently.
 		s.Require().NoError(err)
 		s.Require().NotNil(resp)
 	}))

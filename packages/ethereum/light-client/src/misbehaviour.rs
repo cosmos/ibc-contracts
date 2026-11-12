@@ -19,7 +19,7 @@ use crate::{
 /// * `full_sync_committee`: The full sync committee data. (untrusted)
 /// * `update_1`: The first light client update.
 /// * `update_2`: The second light client update.
-/// * `current_slot`: The slot number computed based on the current timestamp.
+/// * `current_timestamp`: The current timestamp in seconds, used to compute the current slot.
 /// * `bls_verifier`: BLS verification implementation.
 ///
 /// # Errors
