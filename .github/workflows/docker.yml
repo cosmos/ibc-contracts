@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 name: docker
-# Builds the unsigned proof-api image for pull requests and manual runs. Release tags get the signed
-# image from release.yml instead, so this workflow has no tag trigger and pushes no version tag.
+# Builds the unsigned proof-api image for pull requests and manual runs. Pull requests upload
+# local image archives without publishing to GHCR. Manual runs can publish unsigned images.
+# Release tags get the signed image from release.yml instead.
 
 permissions: {}
 
@@ -64,6 +65,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Login to GitHub Container Registry
+        if: github.event_name == 'workflow_dispatch'
         uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: ghcr.io
@@ -88,7 +90,27 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
+      - name: Build PR image archive
+        if: github.event_name == 'pull_request'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: ./programs/proof-api/Dockerfile
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=docker,dest=${{ runner.temp }}/proof-api-${{ env.PLATFORM_SLUG }}.tar
+
+      - name: Upload PR image archive
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: proof-api-${{ env.PLATFORM_SLUG }}
+          path: ${{ runner.temp }}/proof-api-${{ env.PLATFORM_SLUG }}.tar
+          if-no-files-found: error
+          retention-days: 1
+
       - name: Build and push by digest
+        if: github.event_name == 'workflow_dispatch'
         id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
@@ -102,12 +124,14 @@ jobs:
           # `cargo build`, so every source change rebuilds the expensive layer anyway.
 
       - name: Export digest
+        if: github.event_name == 'workflow_dispatch'
         run: |
           mkdir -p "${{ runner.temp }}/digests"
           digest="${{ steps.build.outputs.digest }}"
           touch "${{ runner.temp }}/digests/${digest#sha256:}"
 
       - name: Upload digest
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: digests-${{ env.PLATFORM_SLUG }}
@@ -116,6 +140,7 @@ jobs:
           retention-days: 1
 
   merge:
+    if: github.event_name == 'workflow_dispatch'
     needs: build-proof-api
     runs-on: ubuntu-24.04
     permissions:
@@ -165,3 +190,4 @@ jobs:
 
       - name: Inspect image
         run: docker buildx imagetools inspect "${REGISTRY_URL}:${{ steps.meta.outputs.version }}"
+
