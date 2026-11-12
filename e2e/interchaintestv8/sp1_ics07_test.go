@@ -27,11 +27,11 @@ import (
 
 	abci "github.com/cometbft/cometbft/abci/types"
 
-	ibcclientutils "github.com/cosmos/ibc-go/v11/modules/core/02-client/client/utils"
-	clienttypes "github.com/cosmos/ibc-go/v11/modules/core/02-client/types"
-	ibchostv2 "github.com/cosmos/ibc-go/v11/modules/core/24-host/v2"
-	ibcexported "github.com/cosmos/ibc-go/v11/modules/core/exported"
-	tmclient "github.com/cosmos/ibc-go/v11/modules/light-clients/07-tendermint"
+	ibcclientutils "github.com/lfdt-ibc/ibc-go/v11/modules/core/02-client/client/utils"
+	clienttypes "github.com/lfdt-ibc/ibc-go/v11/modules/core/02-client/types"
+	ibchostv2 "github.com/lfdt-ibc/ibc-go/v11/modules/core/24-host/v2"
+	ibcexported "github.com/lfdt-ibc/ibc-go/v11/modules/core/exported"
+	tmclient "github.com/lfdt-ibc/ibc-go/v11/modules/light-clients/07-tendermint"
 
 	"github.com/lfdt-ibc/ibc-contracts/packages/go-abigen/ics26router"
 	"github.com/lfdt-ibc/ibc-contracts/packages/go-abigen/sp1ics07tendermint"

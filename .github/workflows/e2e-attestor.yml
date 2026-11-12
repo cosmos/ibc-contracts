@@ -108,6 +108,7 @@ jobs:
         uses: ./.github/actions/e2e-setup
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          wfchain_pat: ${{ secrets.WFCHAIN_PAT }}
 
       - name: Run Tests
         env:
@@ -133,6 +134,7 @@ jobs:
         uses: ./.github/actions/e2e-setup
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          wfchain_pat: ${{ secrets.WFCHAIN_PAT }}
 
       - name: Run Tests
         run: |
@@ -158,6 +160,7 @@ jobs:
         uses: ./.github/actions/e2e-setup
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          wfchain_pat: ${{ secrets.WFCHAIN_PAT }}
       - name: Run test
         run: |
           cd e2e/interchaintestv8
@@ -179,6 +182,7 @@ jobs:
         uses: ./.github/actions/e2e-setup
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          wfchain_pat: ${{ secrets.WFCHAIN_PAT }}
       - name: Run Go package tests
         run: |
           cd e2e/interchaintestv8
@@ -217,6 +221,7 @@ jobs:
         uses: ./.github/actions/e2e-setup
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          wfchain_pat: ${{ secrets.WFCHAIN_PAT }}
 
       - name: Run Tests
         run: |
@@ -242,6 +247,7 @@ jobs:
         uses: ./.github/actions/e2e-setup
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          wfchain_pat: ${{ secrets.WFCHAIN_PAT }}
 
       - name: Run Tests
         run: |

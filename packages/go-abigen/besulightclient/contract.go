@@ -614,6 +614,10 @@ func (_Contract *ContractFilterer) WatchDoubleSign(opts *bind.WatchOpts, sink ch
 				// New log arrived, parse the event and forward to the user
 				event := new(ContractDoubleSign)
 				if err := _Contract.contract.UnpackLog(event, "DoubleSign", log); err != nil {
+					// If the signature doesn't match, skip this log.
+					if errors.Is(err, bind.ErrEventSignatureMismatch) {
+						continue
+					}
 					return err
 				}
 				event.Raw = log
@@ -760,6 +764,10 @@ func (_Contract *ContractFilterer) WatchInvalidValidatorSetChange(opts *bind.Wat
 				// New log arrived, parse the event and forward to the user
 				event := new(ContractInvalidValidatorSetChange)
 				if err := _Contract.contract.UnpackLog(event, "InvalidValidatorSetChange", log); err != nil {
+					// If the signature doesn't match, skip this log.
+					if errors.Is(err, bind.ErrEventSignatureMismatch) {
+						continue
+					}
 					return err
 				}
 				event.Raw = log
@@ -894,6 +902,10 @@ func (_Contract *ContractFilterer) WatchPaused(opts *bind.WatchOpts, sink chan<-
 				// New log arrived, parse the event and forward to the user
 				event := new(ContractPaused)
 				if err := _Contract.contract.UnpackLog(event, "Paused", log); err != nil {
+					// If the signature doesn't match, skip this log.
+					if errors.Is(err, bind.ErrEventSignatureMismatch) {
+						continue
+					}
 					return err
 				}
 				event.Raw = log
@@ -1041,6 +1053,10 @@ func (_Contract *ContractFilterer) WatchSubSecondBlockTime(opts *bind.WatchOpts,
 				// New log arrived, parse the event and forward to the user
 				event := new(ContractSubSecondBlockTime)
 				if err := _Contract.contract.UnpackLog(event, "SubSecondBlockTime", log); err != nil {
+					// If the signature doesn't match, skip this log.
+					if errors.Is(err, bind.ErrEventSignatureMismatch) {
+						continue
+					}
 					return err
 				}
 				event.Raw = log
@@ -1188,6 +1204,10 @@ func (_Contract *ContractFilterer) WatchTimeNonMonotonicity(opts *bind.WatchOpts
 				// New log arrived, parse the event and forward to the user
 				event := new(ContractTimeNonMonotonicity)
 				if err := _Contract.contract.UnpackLog(event, "TimeNonMonotonicity", log); err != nil {
+					// If the signature doesn't match, skip this log.
+					if errors.Is(err, bind.ErrEventSignatureMismatch) {
+						continue
+					}
 					return err
 				}
 				event.Raw = log
@@ -1322,6 +1342,10 @@ func (_Contract *ContractFilterer) WatchUnpaused(opts *bind.WatchOpts, sink chan
 				// New log arrived, parse the event and forward to the user
 				event := new(ContractUnpaused)
 				if err := _Contract.contract.UnpackLog(event, "Unpaused", log); err != nil {
+					// If the signature doesn't match, skip this log.
+					if errors.Is(err, bind.ErrEventSignatureMismatch) {
+						continue
+					}
 					return err
 				}
 				event.Raw = log
