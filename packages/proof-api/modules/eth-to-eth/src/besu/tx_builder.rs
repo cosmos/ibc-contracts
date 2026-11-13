@@ -33,8 +33,10 @@ use proof_api_lib::utils::{
 };
 use rlp::{Rlp, RlpStream};
 
-use crate::BesuConsensusType;
+use super::BesuConsensusType;
 
+/// Builds transactions to an EVM chain that prove the source Besu router state against the
+/// destination Besu light client.
 pub struct TxBuilder {
     src_provider: RootProvider,
     dst_provider: RootProvider,
@@ -70,10 +72,6 @@ impl TxBuilder {
             dst_provider,
             consensus_type,
         }
-    }
-
-    pub const fn ics26_router_address(&self) -> &Address {
-        self.dst_ics26_router.address()
     }
 
     pub async fn create_client(&self, parameters: &HashMap<String, String>) -> Result<Vec<u8>> {
@@ -687,7 +685,7 @@ mod tests {
         parse_create_client_params, retain_provable_packet_calls, split_commit_seals,
         StorageSlotProof, TRUST_LEVEL,
     };
-    use crate::BesuConsensusType;
+    use crate::besu::BesuConsensusType;
     use alloy::{
         consensus::Header,
         primitives::{keccak256, Address, Bytes, Signature, B256, U256},
