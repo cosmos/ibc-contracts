@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+
 # AGENTS.md
 
 This repo combines Solidity/Foundry contracts, a Rust workspace, Solana Anchor programs, and Go-based end-to-end tooling for IBC Eureka.

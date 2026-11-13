@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+
 # Solana IBC Programs
 
 This directory contains the Solana implementation of IBC Eureka protocol, built using the Anchor framework. The programs enable trust-minimized interoperability between Solana and Cosmos SDK chains.

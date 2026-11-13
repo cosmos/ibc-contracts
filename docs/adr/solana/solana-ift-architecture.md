@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+
 # ADR: Interchain Fungible Token (IFT) Architecture for Solana
 
 **Status**: Implemented

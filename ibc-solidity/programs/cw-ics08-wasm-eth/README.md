@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+
 # `CosmWasm` ICS-08 Ethereum Light Client
 
 This repository contains a `CosmWasm` implementation of an Ethereum light client, designed for integration with [`ibc-go`](https://github.com/lfdt-ibc/ibc-go)'s [`08-wasm`](https://github.com/lfdt-ibc/ibc-go/tree/main/modules/light-clients/08-wasm) client wrapper. It manages IBC client and consensus states, delegating all light client-specific logic to the core module in [`packages/ethereum/light-client`](../../../packages/ethereum/light-client).

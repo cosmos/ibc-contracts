@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+
 # ADR: ICS27 General Message Passing (GMP) Architecture for Solana
 
 **Status**: Implemented

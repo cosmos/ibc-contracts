@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+
 # ICS-02 Precompile Wrapper
 
 This solidity IBC light client contract serves as a wrapper for the [ICS02 Precompile](https://github.com/cosmos/evm/tree/main/precompiles/ics02) in [`cosmos/evm`](https://github.com/cosmos/evm/).

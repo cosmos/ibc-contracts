@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+
 # End to End Testing Suite with Interchaintest
 
 The e2e tests are built using the [interchaintest](https://github.com/cosmos/interchaintest) library. It runs multiple docker container validators, and lets you test IBC enabled smart contracts.

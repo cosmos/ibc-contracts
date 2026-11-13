@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+
 # AGENTS.md
 
 This subtree contains the Go end-to-end test suites that drive local Ethereum, Cosmos, and Solana environments through interchaintest.

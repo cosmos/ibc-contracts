@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+
 # Besu BFT simulation suite
 
 Test-only, in-process simulator of a Besu QBFT or IBFT 2.0 chain. It replaces docker-captured fixtures

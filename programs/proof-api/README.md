@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+
 # IBC Proof API
 
 The proof API is a gRPC service that prepares IBC transactions and proofs for clients. It does not listen for events, sign, or submit transactions. Instead, clients provide transaction hashes and the service returns the corresponding IBC messages and proofs that must be signed and submitted elsewhere.

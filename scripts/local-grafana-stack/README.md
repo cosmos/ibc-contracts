@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+
 # Docker Monitoring with Grafana Alloy
 
 This example demonstrates how to monitor Docker containers using Grafana Alloy.

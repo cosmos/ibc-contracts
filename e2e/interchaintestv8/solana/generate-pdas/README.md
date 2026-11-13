@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+
 # PDA Generator
 
 Generates PDA helper functions from Anchor IDL files.

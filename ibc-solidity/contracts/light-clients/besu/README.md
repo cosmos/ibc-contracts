@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+
 # Besu IBFT 2.0 / QBFT Light Client
 
 This module contains `BesuLightClient.sol`, a Solidity light client for Besu BFT chains originally forked from [yui-ibc-solidity](https://github.com/hyperledger-labs/yui-ibc-solidity). One contract serves both Besu **IBFT 2.0** and **QBFT** counterparties.
