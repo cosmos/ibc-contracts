@@ -451,6 +451,10 @@ func (_Contract *ContractFilterer) WatchInitialized(opts *bind.WatchOpts, sink c
 				// New log arrived, parse the event and forward to the user
 				event := new(ContractInitialized)
 				if err := _Contract.contract.UnpackLog(event, "Initialized", log); err != nil {
+					// If the signature doesn't match, skip this log.
+					if errors.Is(err, bind.ErrEventSignatureMismatch) {
+						continue
+					}
 					return err
 				}
 				event.Raw = log

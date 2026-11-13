@@ -50,7 +50,7 @@ resolver = "2"
 version    = "0.1.0"
 edition    = "2021"
 license    = "Apache-2.0"
-repository = "https://github.com/cosmos/ibc-contracts"
+repository = "https://github.com/lfdt-ibc/ibc-contracts"
 keywords   = ["cosmos", "ibc", "sp1", "tendermint", "ethereum", "bridge", "solidity", "eureka"]
 
 [workspace.dependencies]

@@ -19,11 +19,11 @@ import (
 
 	"github.com/cosmos/cosmos-sdk/codec"
 
-	tmclient "github.com/cosmos/ibc-go/v11/modules/light-clients/07-tendermint"
+	tmclient "github.com/lfdt-ibc/ibc-go/v11/modules/light-clients/07-tendermint"
 
-	"github.com/cosmos/ibc-contracts/packages/go-abigen/sp1ics07tendermint"
+	"github.com/lfdt-ibc/ibc-contracts/packages/go-abigen/sp1ics07tendermint"
 
-	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/testvalues"
 )
 
 type GenesisFixture struct {

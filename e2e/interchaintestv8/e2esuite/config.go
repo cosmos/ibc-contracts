@@ -12,8 +12,8 @@ import (
 
 	"github.com/cosmos/interchaintest/v11/ibc"
 
-	"github.com/cosmos/ibc-contracts/e2e/v8/chainconfig"
-	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/chainconfig"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/testvalues"
 )
 
 func envInt(key string, defaultVal int) int {

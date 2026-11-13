@@ -27,24 +27,24 @@ import (
 
 	abci "github.com/cometbft/cometbft/abci/types"
 
-	ibcclientutils "github.com/cosmos/ibc-go/v11/modules/core/02-client/client/utils"
-	clienttypes "github.com/cosmos/ibc-go/v11/modules/core/02-client/types"
-	ibchostv2 "github.com/cosmos/ibc-go/v11/modules/core/24-host/v2"
-	ibcexported "github.com/cosmos/ibc-go/v11/modules/core/exported"
-	tmclient "github.com/cosmos/ibc-go/v11/modules/light-clients/07-tendermint"
+	ibcclientutils "github.com/lfdt-ibc/ibc-go/v11/modules/core/02-client/client/utils"
+	clienttypes "github.com/lfdt-ibc/ibc-go/v11/modules/core/02-client/types"
+	ibchostv2 "github.com/lfdt-ibc/ibc-go/v11/modules/core/24-host/v2"
+	ibcexported "github.com/lfdt-ibc/ibc-go/v11/modules/core/exported"
+	tmclient "github.com/lfdt-ibc/ibc-go/v11/modules/light-clients/07-tendermint"
 
-	"github.com/cosmos/ibc-contracts/packages/go-abigen/ics26router"
-	"github.com/cosmos/ibc-contracts/packages/go-abigen/sp1ics07tendermint"
+	"github.com/lfdt-ibc/ibc-contracts/packages/go-abigen/ics26router"
+	"github.com/lfdt-ibc/ibc-contracts/packages/go-abigen/sp1ics07tendermint"
 
-	"github.com/cosmos/ibc-contracts/e2e/v8/cosmos"
-	"github.com/cosmos/ibc-contracts/e2e/v8/e2esuite"
-	"github.com/cosmos/ibc-contracts/e2e/v8/ethereum"
-	ibctesting "github.com/cosmos/ibc-contracts/e2e/v8/ibctesting"
-	"github.com/cosmos/ibc-contracts/e2e/v8/operator"
-	proofapi "github.com/cosmos/ibc-contracts/e2e/v8/proofapi"
-	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
-	"github.com/cosmos/ibc-contracts/e2e/v8/types"
-	proofapitypes "github.com/cosmos/ibc-contracts/e2e/v8/types/proofapi"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/cosmos"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/e2esuite"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/ethereum"
+	ibctesting "github.com/lfdt-ibc/ibc-contracts/e2e/v8/ibctesting"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/operator"
+	proofapi "github.com/lfdt-ibc/ibc-contracts/e2e/v8/proofapi"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/testvalues"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/types"
+	proofapitypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/proofapi"
 )
 
 // SP1ICS07TendermintTestSuite is a suite of tests that wraps TestSuite

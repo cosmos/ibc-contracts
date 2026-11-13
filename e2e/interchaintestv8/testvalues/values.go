@@ -16,11 +16,11 @@ import (
 
 	"cosmossdk.io/math"
 
-	ibctm "github.com/cosmos/ibc-go/v11/modules/light-clients/07-tendermint"
+	ibctm "github.com/lfdt-ibc/ibc-go/v11/modules/light-clients/07-tendermint"
 
 	"github.com/cosmos/interchaintest/v11/chain/ethereum"
 
-	"github.com/cosmos/ibc-contracts/packages/go-abigen/ics26router"
+	"github.com/lfdt-ibc/ibc-contracts/packages/go-abigen/ics26router"
 )
 
 const (
@@ -224,7 +224,7 @@ const (
 	// SecondUniversalClientID is the second universal client ID. Used for testing.
 	SecondUniversalClientID = "client-1"
 	// CustomClientID is the custom client ID used for testing.
-	// BUG: https://github.com/cosmos/ibc-go/issues/8145
+	// BUG: https://github.com/lfdt-ibc/ibc-go/issues/8145
 	// We must use a client ID of the form `type-n` due to the issue above.
 	CustomClientID = "cosmoshub-1"
 

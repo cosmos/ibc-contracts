@@ -2,7 +2,7 @@
 
 This directory implements the IBC v2 protocol stack in Solidity. Most entrypoints are upgradeable and deploy per-client/per-user components through beacons so packet handling, tokenization, and message execution can be upgraded independently.
 
-Documentation for IBC solidity lives in [cosmos/ibc](https://github.com/cosmos/ibc/tree/main/docs/ibc/06-ibc-solidity-contracts) and is published at [ibcprotocol.dev](https://ibcprotocol.dev/docs/ibc/06-ibc-solidity-contracts/01-overview). Any new contracts or alterations should be documented in that repo.
+Documentation for IBC solidity lives in [lfdt-ibc/ibc](https://github.com/lfdt-ibc/ibc/tree/main/docs/ibc/06-ibc-solidity-contracts) and is published at [ibcprotocol.dev](https://ibcprotocol.dev/docs/ibc/06-ibc-solidity-contracts/01-overview). Any new contracts or alterations should be documented in that repo.
 
 All contracts are compiled for the **Cancun** EVM (`evm_version = "cancun"` in `foundry.toml`) and several of them depend on EIP-1153 transient storage at runtime: `ICS26Router`, `ICS20Transfer`, and `ICS27GMP` use `ReentrancyGuardTransient`, and the SP1 Tendermint and Besu light clients cache verified proof data in transient slots. Deploy only to chains with Cancun enabled; on older chains these calls revert with an invalid opcode.
 
@@ -48,7 +48,7 @@ All light clients except `ICS02PrecompileWrapper` inherit `light-clients/utils/I
 - Fixture status: `test/besu-bft/fixtures/qbft.json` and `ibft2.json` are captured from live Besu QBFT and IBFT2 networks by the Besu↔Besu e2e suite; only their negative update cases are derived by off-chain header mutation.
 
 ## Interchain Fungible Tokens (IFT)
-- Code reference: find the  `contracts` IFT contract code [here](https://github.com/cosmos/ibc-contracts/tree/mariuszzak/ift/contracts).
+- Code reference: find the  `contracts` IFT contract code [here](https://github.com/lfdt-ibc/ibc-contracts/tree/mariuszzak/ift/contracts).
 - IFT is an issuer-controlled ERC20 that bridges via ICS27-GMP instead of ICS20. The abstract `IFTBase` burns on send, constructs a mint call for the counterparty IFT, and tracks pending transfers keyed by (clientId, sequence).
 - Bridges: `registerIFTBridge` configures a counterparty IFT contract per IBC client along with an `IIFTSendCallConstructor` helper to encode the mint call for that chain.
 - Sending: `iftTransfer` burns locally, builds ICS27 `SendCall` to the remote IFT, records `PendingTransfer`, and emits initiation events; default timeout is 15 minutes if not provided.

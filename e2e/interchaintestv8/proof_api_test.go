@@ -31,23 +31,23 @@ import (
 	txtypes "github.com/cosmos/cosmos-sdk/types/tx"
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 
-	ibcwasmtypes "github.com/cosmos/ibc-go/modules/light-clients/08-wasm/v11/types"
-	transfertypes "github.com/cosmos/ibc-go/v11/modules/apps/transfer/types"
-	clienttypes "github.com/cosmos/ibc-go/v11/modules/core/02-client/types"
-	channeltypesv2 "github.com/cosmos/ibc-go/v11/modules/core/04-channel/v2/types"
-	ibchostv2 "github.com/cosmos/ibc-go/v11/modules/core/24-host/v2"
+	ibcwasmtypes "github.com/lfdt-ibc/ibc-go/modules/light-clients/08-wasm/v11/types"
+	transfertypes "github.com/lfdt-ibc/ibc-go/v11/modules/apps/transfer/types"
+	clienttypes "github.com/lfdt-ibc/ibc-go/v11/modules/core/02-client/types"
+	channeltypesv2 "github.com/lfdt-ibc/ibc-go/v11/modules/core/04-channel/v2/types"
+	ibchostv2 "github.com/lfdt-ibc/ibc-go/v11/modules/core/24-host/v2"
 
 	"github.com/cosmos/interchaintest/v11/testutil"
 
-	"github.com/cosmos/ibc-contracts/packages/go-abigen/ibcerc20"
-	"github.com/cosmos/ibc-contracts/packages/go-abigen/ics20transfer"
+	"github.com/lfdt-ibc/ibc-contracts/packages/go-abigen/ibcerc20"
+	"github.com/lfdt-ibc/ibc-contracts/packages/go-abigen/ics20transfer"
 
-	"github.com/cosmos/ibc-contracts/e2e/v8/e2esuite"
-	proofapi "github.com/cosmos/ibc-contracts/e2e/v8/proofapi"
-	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
-	"github.com/cosmos/ibc-contracts/e2e/v8/types"
-	ethereumtypes "github.com/cosmos/ibc-contracts/e2e/v8/types/ethereum"
-	proofapitypes "github.com/cosmos/ibc-contracts/e2e/v8/types/proofapi"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/e2esuite"
+	proofapi "github.com/lfdt-ibc/ibc-contracts/e2e/v8/proofapi"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/testvalues"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/types"
+	ethereumtypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/ethereum"
+	proofapitypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/proofapi"
 )
 
 // ProofAPITestSuite is a suite of tests that wraps IbcEurekaTestSuite

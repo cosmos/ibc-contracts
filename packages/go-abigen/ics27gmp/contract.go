@@ -872,6 +872,10 @@ func (_Contract *ContractFilterer) WatchAuthorityUpdated(opts *bind.WatchOpts, s
 				// New log arrived, parse the event and forward to the user
 				event := new(ContractAuthorityUpdated)
 				if err := _Contract.contract.UnpackLog(event, "AuthorityUpdated", log); err != nil {
+					// If the signature doesn't match, skip this log.
+					if errors.Is(err, bind.ErrEventSignatureMismatch) {
+						continue
+					}
 					return err
 				}
 				event.Raw = log
@@ -1006,6 +1010,10 @@ func (_Contract *ContractFilterer) WatchInitialized(opts *bind.WatchOpts, sink c
 				// New log arrived, parse the event and forward to the user
 				event := new(ContractInitialized)
 				if err := _Contract.contract.UnpackLog(event, "Initialized", log); err != nil {
+					// If the signature doesn't match, skip this log.
+					if errors.Is(err, bind.ErrEventSignatureMismatch) {
+						continue
+					}
 					return err
 				}
 				event.Raw = log
@@ -1140,6 +1148,10 @@ func (_Contract *ContractFilterer) WatchPaused(opts *bind.WatchOpts, sink chan<-
 				// New log arrived, parse the event and forward to the user
 				event := new(ContractPaused)
 				if err := _Contract.contract.UnpackLog(event, "Paused", log); err != nil {
+					// If the signature doesn't match, skip this log.
+					if errors.Is(err, bind.ErrEventSignatureMismatch) {
+						continue
+					}
 					return err
 				}
 				event.Raw = log
@@ -1274,6 +1286,10 @@ func (_Contract *ContractFilterer) WatchUnpaused(opts *bind.WatchOpts, sink chan
 				// New log arrived, parse the event and forward to the user
 				event := new(ContractUnpaused)
 				if err := _Contract.contract.UnpackLog(event, "Unpaused", log); err != nil {
+					// If the signature doesn't match, skip this log.
+					if errors.Is(err, bind.ErrEventSignatureMismatch) {
+						continue
+					}
 					return err
 				}
 				event.Raw = log
@@ -1418,6 +1434,10 @@ func (_Contract *ContractFilterer) WatchUpgraded(opts *bind.WatchOpts, sink chan
 				// New log arrived, parse the event and forward to the user
 				event := new(ContractUpgraded)
 				if err := _Contract.contract.UnpackLog(event, "Upgraded", log); err != nil {
+					// If the signature doesn't match, skip this log.
+					if errors.Is(err, bind.ErrEventSignatureMismatch) {
+						continue
+					}
 					return err
 				}
 				event.Raw = log

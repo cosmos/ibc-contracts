@@ -1,4 +1,4 @@
-module github.com/cosmos/ibc-contracts/e2e/interchaintestv8/solana/go-anchor
+module github.com/lfdt-ibc/ibc-contracts/e2e/interchaintestv8/solana/go-anchor
 
 go 1.26.5
 

@@ -95,7 +95,18 @@
                 node-modules
               ]
               ++ (with pkgs.sp1."v6.9.0"; [
-                cargo-prove
+                # TODO: remove once vaporif/sp1-overlay handles this upstream.
+                #
+                # nixpkgs' cargo setup hook now exports LIBGIT2_NO_VENDOR=1, but cargo-prove
+                # has no system libgit2 input and its libgit2-sys 0.17 needs libgit2 1.8.x
+                # (nixpkgs ships 1.9.x), so let it build the vendored copy again.
+                (cargo-prove.overrideAttrs (old: {
+                  preBuild =
+                    (old.preBuild or "")
+                    + ''
+                      export LIBGIT2_NO_VENDOR=0
+                    '';
+                }))
                 sp1-rust-toolchain
               ]);
             inherit (rust) NIX_LD_LIBRARY_PATH;

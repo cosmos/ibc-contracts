@@ -6,7 +6,7 @@ set -euxo pipefail
 # This script expects an environment variable SP1_PROGRAM_VERSIONS.
 # SP1_PROGRAMS_REPO (owner/repo) selects the GitHub repository the releases are downloaded from.
 
-SP1_PROGRAMS_REPO="${SP1_PROGRAMS_REPO:-cosmos/ibc-contracts}"
+SP1_PROGRAMS_REPO="${SP1_PROGRAMS_REPO:-lfdt-ibc/ibc-contracts}"
 PROGRAMS="sp1-ics07-tendermint-membership sp1-ics07-tendermint-update-client sp1-ics07-tendermint-uc-and-membership sp1-ics07-tendermint-misbehaviour"
 
 # Check if the environment variable is set

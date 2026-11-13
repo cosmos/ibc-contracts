@@ -14,9 +14,9 @@ import (
 	icfoundry "github.com/cosmos/interchaintest/v11/chain/ethereum/foundry"
 	"github.com/cosmos/interchaintest/v11/ibc"
 
-	"github.com/cosmos/ibc-contracts/e2e/v8/chainconfig"
-	"github.com/cosmos/ibc-contracts/e2e/v8/ethereum"
-	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/chainconfig"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/ethereum"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/testvalues"
 )
 
 const (

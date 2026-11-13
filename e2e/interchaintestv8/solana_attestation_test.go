@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	test_ibc_app "github.com/cosmos/ibc-contracts/e2e/interchaintestv8/solana/go-anchor/testibcapp"
 	bin "github.com/gagliardetto/binary"
+	test_ibc_app "github.com/lfdt-ibc/ibc-contracts/e2e/interchaintestv8/solana/go-anchor/testibcapp"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/protobuf/proto"
 
@@ -26,28 +26,28 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 
-	transfertypes "github.com/cosmos/ibc-go/v11/modules/apps/transfer/types"
-	clienttypesv2 "github.com/cosmos/ibc-go/v11/modules/core/02-client/v2/types"
-	channeltypesv2 "github.com/cosmos/ibc-go/v11/modules/core/04-channel/v2/types"
+	transfertypes "github.com/lfdt-ibc/ibc-go/v11/modules/apps/transfer/types"
+	clienttypesv2 "github.com/lfdt-ibc/ibc-go/v11/modules/core/02-client/v2/types"
+	channeltypesv2 "github.com/lfdt-ibc/ibc-go/v11/modules/core/04-channel/v2/types"
 
 	"github.com/cosmos/interchaintest/v11/testutil"
 
-	ics26router "github.com/cosmos/ibc-contracts/packages/go-abigen/ics26router"
+	ics26router "github.com/lfdt-ibc/ibc-contracts/packages/go-abigen/ics26router"
 
-	access_manager "github.com/cosmos/ibc-contracts/packages/go-anchor/accessmanager"
-	attestation "github.com/cosmos/ibc-contracts/packages/go-anchor/attestation"
-	ics07_tendermint "github.com/cosmos/ibc-contracts/packages/go-anchor/ics07tendermint"
-	ics26_router "github.com/cosmos/ibc-contracts/packages/go-anchor/ics26router"
+	access_manager "github.com/lfdt-ibc/ibc-contracts/packages/go-anchor/accessmanager"
+	attestation "github.com/lfdt-ibc/ibc-contracts/packages/go-anchor/attestation"
+	ics07_tendermint "github.com/lfdt-ibc/ibc-contracts/packages/go-anchor/ics07tendermint"
+	ics26_router "github.com/lfdt-ibc/ibc-contracts/packages/go-anchor/ics26router"
 
-	"github.com/cosmos/ibc-contracts/e2e/v8/attestor"
-	cosmosutils "github.com/cosmos/ibc-contracts/e2e/v8/cosmos"
-	"github.com/cosmos/ibc-contracts/e2e/v8/e2esuite"
-	proofapi "github.com/cosmos/ibc-contracts/e2e/v8/proofapi"
-	"github.com/cosmos/ibc-contracts/e2e/v8/solana"
-	"github.com/cosmos/ibc-contracts/e2e/v8/testvalues"
-	"github.com/cosmos/ibc-contracts/e2e/v8/types"
-	attestortypes "github.com/cosmos/ibc-contracts/e2e/v8/types/attestor"
-	proofapitypes "github.com/cosmos/ibc-contracts/e2e/v8/types/proofapi"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/attestor"
+	cosmosutils "github.com/lfdt-ibc/ibc-contracts/e2e/v8/cosmos"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/e2esuite"
+	proofapi "github.com/lfdt-ibc/ibc-contracts/e2e/v8/proofapi"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/solana"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/testvalues"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/types"
+	attestortypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/attestor"
+	proofapitypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/proofapi"
 )
 
 const (
