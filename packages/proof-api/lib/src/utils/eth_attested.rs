@@ -11,15 +11,14 @@ use crate::utils::attestor::{
     collect_send_and_ack_packets_with_height, collect_timeout_packets, fetch_attestations,
     AttestationData,
 };
-use crate::utils::{eth_eureka, wait_for_condition, RelayEventsParams};
-use alloy::{primitives::Address, primitives::Bytes, sol_types::SolCall, sol_types::SolValue};
+use crate::utils::{
+    eth_eureka::{self, PacketCall},
+    wait_for_condition, RelayEventsParams,
+};
+use alloy::{primitives::Address, primitives::Bytes, sol_types::SolValue};
 use anyhow::Result;
 use ibc_eureka_solidity_types::{
-    ibc_multicall::multicall_calldata,
-    ics26::{
-        router::{routerCalls, updateClientCall},
-        IICS02ClientMsgs::Height as ICS26Height,
-    },
+    ibc_multicall::multicall_calldata, ics26::IICS02ClientMsgs::Height as ICS26Height,
     msgs::IAttestationMsgs::AttestationProof,
 };
 
@@ -101,12 +100,12 @@ pub fn build_eth_attestor_proof(attested_data: Vec<u8>, signatures: Vec<Vec<u8>>
 /// into the appropriate proof fields of each message type.
 ///
 /// # Arguments
-/// - `msgs`: The mutable slice of router calls to inject proofs into.
+/// - `msgs`: The mutable slice of packet calls to inject proofs into.
 /// - `recv_attestation`: Optional attestation for recv packet proofs.
 /// - `ack_attestation`: Optional attestation for ack packet proofs.
 /// - `timeout_attestation`: Optional attestation for timeout packet proofs.
 pub fn inject_eth_attestor_proofs(
-    msgs: &mut [routerCalls],
+    msgs: &mut [PacketCall],
     recv_attestation: Option<AggregatedAttestation>,
     ack_attestation: Option<AggregatedAttestation>,
     timeout_attestation: Option<AggregatedAttestation>,
@@ -120,23 +119,13 @@ pub fn inject_eth_attestor_proofs(
     let timeout_proof = timeout_attestation.map(to_proof);
 
     for msg in msgs.iter_mut() {
-        match msg {
-            routerCalls::recvPacket(call) => {
-                if let Some(ref proof) = recv_proof {
-                    call.msg_.proofCommitment = Bytes::from_iter(proof.clone());
-                }
-            }
-            routerCalls::ackPacket(call) => {
-                if let Some(ref proof) = ack_proof {
-                    call.msg_.proofAcked = Bytes::from_iter(proof.clone());
-                }
-            }
-            routerCalls::timeoutPacket(call) => {
-                if let Some(ref proof) = timeout_proof {
-                    call.msg_.proofTimeout = Bytes::from_iter(proof.clone());
-                }
-            }
-            _ => {}
+        let proof = match msg {
+            PacketCall::Recv(_) => &recv_proof,
+            PacketCall::Ack(_) => &ack_proof,
+            PacketCall::Timeout(_) => &timeout_proof,
+        };
+        if let Some(proof) = proof {
+            msg.set_proof(Bytes::from_iter(proof.clone()));
         }
     }
 }
@@ -179,11 +168,10 @@ pub fn build_eth_multicall(input: MulticallInput) -> Result<Vec<u8>> {
         proof_height
     );
 
-    let msg = build_eth_attestor_proof(state.attested_data, state.signatures);
-    let update_msg = routerCalls::updateClient(updateClientCall {
-        clientId: input.dst_client_id.clone(),
-        updateMsg: Bytes::from_iter(msg),
-    });
+    let update_call = eth_eureka::update_client_calldata(
+        input.dst_client_id.clone(),
+        build_eth_attestor_proof(state.attested_data, state.signatures).into(),
+    );
 
     let now_since_unix = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?;
 
@@ -222,16 +210,8 @@ pub fn build_eth_multicall(input: MulticallInput) -> Result<Vec<u8>> {
         input.attestations.timeout_attestation,
     );
 
-    let all_calls = std::iter::once(update_msg)
-        .chain(all_packet_msgs)
-        .map(|call| match call {
-            routerCalls::updateClient(call) => call.abi_encode(),
-            routerCalls::ackPacket(call) => call.abi_encode(),
-            routerCalls::recvPacket(call) => call.abi_encode(),
-            routerCalls::timeoutPacket(call) => call.abi_encode(),
-            _ => unreachable!("only ack, update client, recv and timeout msgs allowed"),
-        })
-        .map(Into::into);
+    let all_calls = std::iter::once(update_call)
+        .chain(all_packet_msgs.iter().map(|call| call.abi_encode().into()));
 
     Ok(multicall_calldata(input.ics26_address, all_calls, 1))
 }
@@ -354,15 +334,9 @@ pub async fn build_eth_attestor_update_client_calldata(
     let current_height = aggregator.get_latest_height().await?;
     let state = aggregator.get_state_attestation(current_height).await?;
 
-    let proof = build_eth_attestor_proof(state.attested_data, state.signatures);
-    let call = updateClientCall {
-        clientId: dst_client_id,
-        updateMsg: Bytes::from(proof),
-    };
-
-    Ok(multicall_calldata(
+    Ok(eth_eureka::update_client_multicall_calldata(
         ics26_address,
-        [call.abi_encode().into()],
-        1,
+        dst_client_id,
+        build_eth_attestor_proof(state.attested_data, state.signatures).into(),
     ))
 }

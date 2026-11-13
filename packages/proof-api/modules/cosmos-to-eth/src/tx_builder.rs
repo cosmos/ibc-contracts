@@ -9,16 +9,13 @@ use alloy::{
     network::Ethereum,
     primitives::{keccak256, Address},
     providers::Provider,
-    sol_types::{SolCall, SolValue},
+    sol_types::SolValue,
 };
 use anyhow::Result;
 use ibc_core_host_types::identifiers::ChainId;
 use ibc_eureka_solidity_types::{
     ibc_multicall::multicall_calldata,
-    ics26::{
-        router::{routerCalls, routerInstance, updateClientCall},
-        IICS02ClientMsgs::Height,
-    },
+    ics26::{router::routerInstance, IICS02ClientMsgs::Height},
     msgs::{
         IICS07TendermintMsgs::{ClientState, ConsensusState, TrustThreshold},
         ISP1Msgs::SP1Proof,
@@ -198,15 +195,7 @@ where
         )
         .await?;
 
-        let calls = all_msgs
-            .into_iter()
-            .map(|msg| match msg {
-                routerCalls::timeoutPacket(call) => call.abi_encode(),
-                routerCalls::recvPacket(call) => call.abi_encode(),
-                routerCalls::ackPacket(call) => call.abi_encode(),
-                _ => unreachable!(),
-            })
-            .map(Into::into);
+        let calls = all_msgs.iter().map(|msg| msg.abi_encode().into());
 
         // The first message carries the proof that the rest of the batch relies on, so it must
         // succeed. Every other message is allowed to fail.
@@ -340,15 +329,10 @@ where
             ),
         };
 
-        let update_call = updateClientCall {
-            clientId: dst_client_id,
-            updateMsg: update_msg.abi_encode().into(),
-        };
-
-        Ok(multicall_calldata(
+        Ok(eth_eureka::update_client_multicall_calldata(
             *self.ics26_router.address(),
-            [update_call.abi_encode().into()],
-            1,
+            dst_client_id,
+            update_msg.abi_encode().into(),
         ))
     }
 }
