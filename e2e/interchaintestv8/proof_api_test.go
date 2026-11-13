@@ -881,8 +881,10 @@ func (s *ProofAPITestSuite) Test_Gloas_Fork_MidPeriod() {
 	if chainconfig.GetKurtosisPreset() == testvalues.EnvValueEthereumPosPreset_Minimal {
 		gloasForkEpoch = 41
 	} else {
-		// For mainnet, epochs are longer so we set the fork epoch lower to avoid long waits
-		gloasForkEpoch = 7
+		// For mainnet, epochs are longer so we set the fork epoch lower to avoid long waits. The setup
+		// waits for the chain to finalize at epoch 4, and the first packet is finalized at epoch 7, or
+		// 8 if the setup is slow. The release relaying it can't decode Gloas light client updates.
+		gloasForkEpoch = 9
 	}
 
 	s.GloasForkTest(context.Background(), gloasForkEpoch)
