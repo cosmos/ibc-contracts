@@ -99,6 +99,11 @@ Foundry usually manages contract dependencies with git submodules. This reposito
 cd ibc-solidity && bun install
 ```
 
+The [Besu ZK light client](zk-light-clients/besu/README.md) has its own build workflow and a pinned
+SP1 contracts submodule, registered in the root `.gitmodules`. Initialize it and its dependencies
+with `git submodule update --init --recursive` from the repository root. Its setup and Docker
+contract build workflows also initialize it automatically.
+
 Some end-to-end tests need the operator and proof API binaries:
 
 ```sh

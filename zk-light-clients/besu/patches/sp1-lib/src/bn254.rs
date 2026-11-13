@@ -1,0 +1,77 @@
+use crate::{
+    syscall_bn254_add, syscall_bn254_double,
+    utils::{AffinePoint, WeierstrassAffinePoint, WeierstrassPoint},
+};
+
+/// The number of limbs in [Bn254AffinePoint].
+pub const N: usize = 8;
+
+/// A point on the Bn254 curve.
+#[derive(Copy, Clone)]
+#[repr(align(8))]
+pub struct Bn254Point(pub WeierstrassPoint<N>);
+
+impl WeierstrassAffinePoint<N> for Bn254Point {
+    fn infinity() -> Self {
+        Self(WeierstrassPoint::Infinity)
+    }
+
+    fn is_infinity(&self) -> bool {
+        matches!(self.0, WeierstrassPoint::Infinity)
+    }
+}
+
+impl AffinePoint<N> for Bn254Point {
+    const GENERATOR: [u64; N] = [1, 0, 0, 0, 2, 0, 0, 0];
+
+    #[allow(deprecated)]
+    /// The generator has been taken from py_pairing python library by the Ethereum Foundation:
+    ///
+    /// https://github.com/ethereum/py_pairing/blob/5f609da/py_ecc/bn128/bn128_field_elements.py
+    const GENERATOR_T: Self = Self(WeierstrassPoint::Affine(Self::GENERATOR));
+
+    fn new(limbs: [u64; N]) -> Self {
+        Self(WeierstrassPoint::Affine(limbs))
+    }
+
+    fn identity() -> Self {
+        Self::infinity()
+    }
+
+    fn is_identity(&self) -> bool {
+        self.is_infinity()
+    }
+
+    fn limbs_ref(&self) -> &[u64; N] {
+        match &self.0 {
+            WeierstrassPoint::Infinity => panic!("Infinity point has no limbs"),
+            WeierstrassPoint::Affine(limbs) => limbs,
+        }
+    }
+
+    fn limbs_mut(&mut self) -> &mut [u64; N] {
+        match &mut self.0 {
+            WeierstrassPoint::Infinity => panic!("Infinity point has no limbs"),
+            WeierstrassPoint::Affine(limbs) => limbs,
+        }
+    }
+
+    fn add_assign(&mut self, other: &Self) {
+        let a = self.limbs_mut();
+        let b = other.limbs_ref();
+        unsafe {
+            syscall_bn254_add(a, b);
+        }
+    }
+
+    fn complete_add_assign(&mut self, other: &Self) {
+        self.weierstrass_add_assign(other);
+    }
+
+    fn double(&mut self) {
+        let a = self.limbs_mut();
+        unsafe {
+            syscall_bn254_double(a);
+        }
+    }
+}

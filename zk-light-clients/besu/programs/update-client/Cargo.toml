@@ -1,0 +1,21 @@
+[package]
+name = "update-client"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+besu-public-values = { path = "../../crates/public-values" }
+besu-qbft = { path = "../../crates/qbft" }
+besu-zk-types = { path = "../../crates/types" }
+sp1-zkvm.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "update-client"
+path = "src/main.rs"
+test = false
+bench = false

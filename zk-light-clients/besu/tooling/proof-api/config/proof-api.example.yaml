@@ -1,0 +1,48 @@
+# Replace each placeholder with the explicitly approved build's public identity.
+# Copy values from the reviewed vkeys.json; do not use a stale source-code constant.
+# This template deliberately fails validation until the placeholders are replaced.
+schemaVersion: 1
+prover:
+  # Resolved relative to this YAML file, not the working directory.
+  artifactsDir: /workspace/artifacts
+  approvedPrograms:
+    update-client:
+      elfSha256: "REPLACE_WITH_APPROVED_UPDATE_ELF_SHA256"
+      programVKey: "REPLACE_WITH_APPROVED_UPDATE_VKEY"
+    membership:
+      elfSha256: "REPLACE_WITH_APPROVED_MEMBERSHIP_ELF_SHA256"
+      programVKey: "REPLACE_WITH_APPROVED_MEMBERSHIP_VKEY"
+    non-membership:
+      elfSha256: "REPLACE_WITH_APPROVED_NON_MEMBERSHIP_ELF_SHA256"
+      programVKey: "REPLACE_WITH_APPROVED_NON_MEMBERSHIP_VKEY"
+
+# For Docker, listen on all container interfaces and use /workspace/artifacts above.
+server:
+  listen: "0.0.0.0:8085"
+  maxJobDurationSeconds: 3600
+  shutdownTimeoutSeconds: 30
+client:
+  chainId: "41002"
+  clientId: "cli-41001-41002"
+rpc:
+  source:
+    proxyUrl: "http://besu-a:8545"
+  verifier:
+    proxyUrl: "http://besu-b:8745"
+  callTimeout: "30s"
+  maxAttempts: 2
+  retryBackoff: "100ms"
+  maxResponseBytes: 16777216
+  # Optional numeric EVM chain identity pins; client.chainId is the relayer identifier.
+  # expectedSourceChainId: 41001
+  # expectedVerifierChainId: 41002
+contracts:
+  verifierRouter: "REPLACE_WITH_VERIFIER_ROUTER_ADDRESS"
+scheduler:
+  preferredBatchSize: 10
+  maxBatchSize: 32
+  maxBatchWait: "3s"
+  maxPendingIntents: 1024
+  maxActiveJobs: 1
+  allowParallelUpdateAndMembership: true
+  updateJobDeduplication: true

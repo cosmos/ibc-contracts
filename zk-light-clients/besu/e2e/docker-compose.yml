@@ -1,0 +1,107 @@
+name: besu-ibc-zk-e2e
+
+x-besu-common: &besu-common
+  image: hyperledger/besu@sha256:f1dad21871b49bf54fce2a8c547d96cb7835005343af02eebd72da137723c3bc
+  restart: "no"
+  command:
+    - --genesis-file=/config/genesis.json
+    - --data-path=/data
+    - --node-private-key-file=/keys/key
+    # The proof builder must query eth_getProof at stored, non-head consensus
+    # heights even after long SP1 jobs. FOREST retains those historical world
+    # states; BONSAI only loads a bounded recent window even when trie-log
+    # pruning is disabled.
+    - --data-storage-format=FOREST
+    - --sync-min-peers=1
+    - --min-gas-price=0
+    - --p2p-host=0.0.0.0
+    - --p2p-port=30303
+    - --discovery-enabled=false
+    - --rpc-http-enabled=true
+    - --rpc-http-host=0.0.0.0
+    - --rpc-http-api=ETH,NET,WEB3,QBFT
+    - --host-allowlist=*
+    - --rpc-http-cors-origins=*
+
+services:
+  chain-a-1:
+    <<: *besu-common
+    volumes:
+      - ../.e2e-state/chain-a/genesis.json:/config/genesis.json:ro
+      - ../.e2e-state/chain-a/node-1:/keys:ro
+      - ../.e2e-state/chain-a/node-1:/data
+    ports: ["18545:8545"]
+    networks:
+      chain-a: {ipv4_address: 172.30.0.11}
+  chain-a-2:
+    <<: *besu-common
+    profiles: ["four-validator", "chain-a-four-validator"]
+    volumes:
+      - ../.e2e-state/chain-a/genesis.json:/config/genesis.json:ro
+      - ../.e2e-state/chain-a/node-2:/keys:ro
+      - ../.e2e-state/chain-a/node-2:/data
+    networks:
+      chain-a: {ipv4_address: 172.30.0.12}
+  chain-a-3:
+    <<: *besu-common
+    profiles: ["four-validator", "chain-a-four-validator"]
+    volumes:
+      - ../.e2e-state/chain-a/genesis.json:/config/genesis.json:ro
+      - ../.e2e-state/chain-a/node-3:/keys:ro
+      - ../.e2e-state/chain-a/node-3:/data
+    networks:
+      chain-a: {ipv4_address: 172.30.0.13}
+  chain-a-4:
+    <<: *besu-common
+    profiles: ["four-validator", "chain-a-four-validator"]
+    volumes:
+      - ../.e2e-state/chain-a/genesis.json:/config/genesis.json:ro
+      - ../.e2e-state/chain-a/node-4:/keys:ro
+      - ../.e2e-state/chain-a/node-4:/data
+    networks:
+      chain-a: {ipv4_address: 172.30.0.14}
+
+  chain-b-1:
+    <<: *besu-common
+    volumes:
+      - ../.e2e-state/chain-b/genesis.json:/config/genesis.json:ro
+      - ../.e2e-state/chain-b/node-1:/keys:ro
+      - ../.e2e-state/chain-b/node-1:/data
+    ports: ["28545:8545"]
+    networks:
+      chain-b: {ipv4_address: 172.31.0.11}
+  chain-b-2:
+    <<: *besu-common
+    profiles: ["four-validator", "chain-b-four-validator"]
+    volumes:
+      - ../.e2e-state/chain-b/genesis.json:/config/genesis.json:ro
+      - ../.e2e-state/chain-b/node-2:/keys:ro
+      - ../.e2e-state/chain-b/node-2:/data
+    networks:
+      chain-b: {ipv4_address: 172.31.0.12}
+  chain-b-3:
+    <<: *besu-common
+    profiles: ["four-validator", "chain-b-four-validator"]
+    volumes:
+      - ../.e2e-state/chain-b/genesis.json:/config/genesis.json:ro
+      - ../.e2e-state/chain-b/node-3:/keys:ro
+      - ../.e2e-state/chain-b/node-3:/data
+    networks:
+      chain-b: {ipv4_address: 172.31.0.13}
+  chain-b-4:
+    <<: *besu-common
+    profiles: ["four-validator", "chain-b-four-validator"]
+    volumes:
+      - ../.e2e-state/chain-b/genesis.json:/config/genesis.json:ro
+      - ../.e2e-state/chain-b/node-4:/keys:ro
+      - ../.e2e-state/chain-b/node-4:/data
+    networks:
+      chain-b: {ipv4_address: 172.31.0.14}
+
+networks:
+  chain-a:
+    ipam:
+      config: [{subnet: 172.30.0.0/24}]
+  chain-b:
+    ipam:
+      config: [{subnet: 172.31.0.0/24}]

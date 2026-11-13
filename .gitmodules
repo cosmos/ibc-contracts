@@ -1,0 +1,4 @@
+[submodule "zk-light-clients/besu/contracts/lib/sp1-contracts"]
+	path = zk-light-clients/besu/contracts/lib/sp1-contracts
+	url = https://github.com/succinctlabs/sp1-contracts.git
+	branch = v6.1.1

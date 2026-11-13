@@ -1,0 +1,20 @@
+[package]
+name = "ibc-storage"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+alloy-primitives.workspace = true
+alloy-sol-types.workspace = true
+batch-merkle = { path = "../batch-merkle" }
+besu-zk-types = { path = "../types" }
+evm-mpt = { path = "../evm-mpt" }
+
+[dev-dependencies]
+batch-merkle = { path = "../batch-merkle" }
+hex.workspace = true
+
+[lints]
+workspace = true

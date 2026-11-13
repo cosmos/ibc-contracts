@@ -1,0 +1,21 @@
+[package]
+name = "membership"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+besu-public-values = { path = "../../crates/public-values" }
+besu-zk-types = { path = "../../crates/types" }
+ibc-storage = { path = "../../crates/ibc-storage" }
+sp1-zkvm.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "membership"
+path = "src/main.rs"
+test = false
+bench = false

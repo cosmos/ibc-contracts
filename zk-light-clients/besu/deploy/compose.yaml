@@ -1,0 +1,29 @@
+# Keep the project identity stable when invoked from deploy/.
+name: ibc-light-client-besu
+
+services:
+  proof-api:
+    image: ${PROOF_API_IMAGE:-besu-proof-api:local}
+    build:
+      context: .
+    platform: linux/amd64
+    init: true
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    ports:
+      - "127.0.0.1:${BESU_PROOF_API_PORT:-8085}:8085"
+    volumes:
+      - ../target/docker/release:/workspace/target/docker/release:ro
+      - ../artifacts:/workspace/artifacts:ro
+      - ${BESU_PROOF_API_CONFIG:-../tooling/proof-api/config/proof-api.example.yaml}:/etc/proof-api/config.yaml:ro
+    tmpfs:
+      - /tmp:uid=10001,gid=10001,mode=1777
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    environment:
+      SP1_PROVER: network
+      NETWORK_PRIVATE_KEY: ${NETWORK_PRIVATE_KEY:-}
+      NETWORK_RPC_URL: ${NETWORK_RPC_URL:-}
+    stop_grace_period: 40s

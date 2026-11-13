@@ -1,0 +1,31 @@
+[profile.default]
+src = "src"
+test = "test"
+script = "script"
+out = "out"
+libs = ["lib"]
+solc_version = "0.8.28"
+optimizer = true
+optimizer_runs = 200
+evm_version = "cancun"
+bytecode_hash = "none"
+cbor_metadata = false
+fs_permissions = [
+  { access = "read", path = "../artifacts" },
+  { access = "read-write", path = "../.e2e-state" },
+  { access = "read", path = "../config" },
+  { access = "read", path = "../deployments" },
+]
+
+[fmt]
+line_length = 100
+tab_width = 4
+bracket_spacing = true
+
+[lint]
+# Compilation keeps solc diagnostics; run `make lint-contracts` for contract lint.
+lint_on_build = false
+
+[profile.ci]
+fuzz.runs = 1000
+invariant.runs = 256

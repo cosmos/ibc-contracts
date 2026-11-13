@@ -1,0 +1,22 @@
+[package]
+name = "besu-zk-types"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+sha2.workspace = true
+
+[target.'cfg(not(target_os = "zkvm"))'.dependencies]
+tiny-keccak.workspace = true
+
+[target.'cfg(target_os = "zkvm")'.dependencies]
+sp1-zkvm.workspace = true
+
+[dev-dependencies]
+hex.workspace = true
+
+[lints]
+workspace = true

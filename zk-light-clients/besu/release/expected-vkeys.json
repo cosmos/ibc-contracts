@@ -1,0 +1,14 @@
+{
+  "membership": {
+    "elfSha256": "0xa01fe1be617c2c49b13bcab752e359bef750a6553f3422b91a73c116aa17e09e",
+    "programVKey": "0x00f5e56372c146f17e78e3800c5091a106796ac6973f7e752dc16fb6b3ff1305"
+  },
+  "non-membership": {
+    "elfSha256": "0xd2fd57b5a63410bd8fc3dafb09c60af714e3b363250939b089ca81f16c0d5c62",
+    "programVKey": "0x00238ccef041b329ee82e78282289d931b120ed00eec6080a9ac632583e60a03"
+  },
+  "update-client": {
+    "elfSha256": "0xaec9124569ede374b544f39cd2c0d4ee35aebcfccfe7e3dc3ee1617b8f49a52d",
+    "programVKey": "0x00d23cf70cb1407197ed33aeae27a67e36bfa9cb4a5f94caa4807aa720e66c03"
+  }
+}
