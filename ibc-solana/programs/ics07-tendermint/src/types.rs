@@ -35,8 +35,8 @@ pub struct UploadMisbehaviourChunkParams {
 /// Tendermint light client configuration and tracking state.
 ///
 /// Holds the trust parameters (trust level, trusting/unbonding periods,
-/// max clock drift) and the latest verified height. The `update_client`
-/// instruction reads and updates this account when a new header is
+/// max clock drift) and the latest verified height. The
+/// `assemble_and_update_client` instruction reads and updates this account when a new header is
 /// successfully verified. If misbehaviour is detected the client is frozen
 /// by setting `frozen_height`.
 #[account]
@@ -56,8 +56,8 @@ pub struct ClientState {
 /// Global ICS07 Tendermint program configuration.
 ///
 /// Singleton PDA that links the light client program to its access manager
-/// for admin-gated operations (e.g. `access_manager_transfer`) and stores the
-/// chain ID for introspection by off-chain tooling.
+/// for role-gated operations (relayer-only uploads and updates, admin-only
+/// access manager transfers).
 #[account]
 #[derive(InitSpace)]
 pub struct AppState {

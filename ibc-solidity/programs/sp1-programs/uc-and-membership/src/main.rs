@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
-//! A program that verifies the membership or non-membership of a value in a commitment root.
+//! A program that verifies the next block header of a blockchain using an IBC tendermint light
+//! client, and the membership or non-membership of values in the new commitment root.
 
 #![deny(missing_docs, clippy::nursery, clippy::pedantic, warnings)]
 #![allow(clippy::no_mangle_with_rust_abi)]

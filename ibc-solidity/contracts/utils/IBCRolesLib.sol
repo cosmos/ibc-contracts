@@ -18,7 +18,7 @@ library IBCRolesLib {
     /// @notice The admin role as per defined by AccessManager.
     uint64 internal constant ADMIN_ROLE = type(uint64).min;
 
-    /// @notice The relayer role as per defined by AccessManager.
+    /// @notice The public role as per defined by AccessManager.
     uint64 internal constant PUBLIC_ROLE = type(uint64).max;
 
     /// @notice Only addresses with this role may relay packets.

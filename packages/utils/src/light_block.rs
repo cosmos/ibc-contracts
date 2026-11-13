@@ -34,7 +34,7 @@ pub trait LightBlockExt {
     /// Convert the [`LightBlock`] to a new [`Header`].
     ///
     /// # Panics
-    /// Panics if the `trusted_height` is zero.
+    /// Panics if the chain identifier of `trusted_light_block` cannot be parsed.
     #[must_use]
     fn into_header(self, trusted_light_block: &LightBlock) -> Header;
     /// Get the chain identifier from the [`LightBlock`].

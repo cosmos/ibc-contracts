@@ -41,7 +41,7 @@ IFT for Solana uses a **burn-and-mint pattern** with ICS27-GMP for cross-chain m
 | **Burn** | `ift_transfer` | Burn tokens when initiating cross-chain transfer |
 | **Mint** | `ift_mint` | Mint tokens to receiver on incoming transfer |
 | **Mint** | `finalize_transfer` | Refund on failed transfer or timeout (mint back to sender) |
-| **Create Mint** | `create_spl_token` | Create new SPL token mint with IFT PDA as authority |
+| **Create Mint** | `create_and_initialize_spl_token` | Create new SPL token mint with IFT PDA as authority |
 | **Transfer Authority** | `initialize_existing_token` | Transfer existing token's mint authority to IFT PDA |
 | **Mint** | `admin_mint` | Admin mints tokens to any account (respects rate limits and pause) |
 | **Create ATA** | `ift_mint`, `admin_mint` | Create receiver's ATA if needed (relayer/payer pays) |
@@ -51,18 +51,25 @@ IFT for Solana uses a **burn-and-mint pattern** with ICS27-GMP for cross-chain m
 ### Account Structure
 
 ```rust
-// IFT App State - one per token
+// IFT App State - global singleton
 pub struct IFTAppState {
+    pub version: AccountVersion,
+    pub bump: u8,
+    pub admin: Pubkey,
+    pub paused: bool,
+    pub pending_admin: Option<Pubkey>, // two-step admin transfer
+    pub _reserved: [u8; 128],
+}
+
+// IFT App Mint State - one per token
+pub struct IFTAppMintState {
     pub version: AccountVersion,
     pub bump: u8,
     pub mint: Pubkey,
     pub mint_authority_bump: u8,
-    pub admin: Pubkey,
-    pub gmp_program: Pubkey,
     pub daily_mint_limit: u64,    // 0 = no limit
     pub rate_limit_day: u64,      // current day (unix_timestamp / 86400)
     pub rate_limit_daily_usage: u64,
-    pub paused: bool,
     pub _reserved: [u8; 128],
 }
 
@@ -101,8 +108,11 @@ pub struct PendingTransfer {
 ### PDA Derivation
 
 ```rust
-// App State PDA
-seeds = [b"ift_app_state", mint.as_ref()]
+// App State PDA (global)
+seeds = [b"ift_app_state"]
+
+// App Mint State PDA (per token)
+seeds = [b"ift_app_mint_state", mint.as_ref()]
 
 // Bridge PDA
 seeds = [b"ift_bridge", mint.as_ref(), client_id.as_bytes()]
@@ -126,16 +136,21 @@ seeds = [b"pending_transfer", mint.as_ref(), client_id.as_bytes(), &sequence.to_
 
 ### Token Setup Flow
 
+Both options assume the program has already been initialized once per deployment:
+the program's upgrade authority calls `initialize(admin)`, which creates the
+`IFTAppState` singleton and sets the `admin` used below. Until then, every token
+setup instruction fails because `app_state` does not exist.
+
 **Option A: New Token**
 ```
-1. Admin calls create_spl_token(decimals, admin, gmp_program)
+1. Admin calls create_and_initialize_spl_token(params)
    - Creates new SPL token mint with IFT PDA as authority
 2. Admin calls register_ift_bridge(client_id, counterparty_ift_address, chain_options)
 ```
 
 **Option B: Existing Token**
 ```
-1. Current mint authority calls initialize_existing_token(admin, gmp_program)
+1. Current mint authority calls initialize_existing_token()
    - Transfers mint authority to IFT PDA (requires current authority signature)
 2. Admin calls register_ift_bridge(client_id, counterparty_ift_address, chain_options)
 ```
@@ -143,7 +158,7 @@ seeds = [b"pending_transfer", mint.as_ref(), client_id.as_bytes(), &sequence.to_
 ### Outbound Transfer (Solana → Other Chain)
 
 ```
-1. User calls ift_transfer(receiver, amount, client_id, timeout)
+1. User calls ift_transfer(client_id, receiver, amount, timeout_timestamp, sequence)
    - Timeout: default 900s, max 86400s
 2. IFT burns tokens from sender's token account
 3. IFT creates PendingTransfer PDA (tracks for refunds)
@@ -170,7 +185,7 @@ seeds = [b"pending_transfer", mint.as_ref(), client_id.as_bytes(), &sequence.to_
 ```
 Tx 1 - GMP records result:
 1. Relayer calls Router.timeout_packet() or Router.ack_packet()
-2. Router CPIs to GMP.on_timeout() or GMP.on_ack()
+2. Router CPIs to GMP.on_timeout_packet() or GMP.on_acknowledgement_packet()
 3. GMP creates GMPCallResultAccount PDA (no CPI to IFT)
 
 Tx 2 - Anyone claims refund:
@@ -188,15 +203,15 @@ Tx 2 - Anyone claims refund:
 
 | Instruction | Purpose |
 |-------------|---------|
-| `create_spl_token` | Create new SPL token mint with IFT PDA as authority |
+| `create_and_initialize_spl_token` | Create new SPL token mint with IFT PDA as authority |
 | `initialize_existing_token` | Initialize IFT for existing token (transfers mint authority to IFT PDA) |
 | `register_ift_bridge` | Register counterparty IFT contract for a destination chain |
 | `remove_ift_bridge` | Deactivate/remove a registered bridge |
-| `set_admin` | Transfer admin authority to a new pubkey |
-| `set_paused` | Pause or unpause the token (blocks mint and transfer, not refunds) |
+| `propose_admin` / `accept_admin` / `cancel_admin_proposal` | Two-step transfer of admin authority to a new pubkey |
+| `set_paused` | Pause or unpause IFT for all tokens (blocks transfers, mints, admin mints and `finalize_transfer`, including refunds) |
 | `set_mint_rate_limit` | Set daily mint rate limit (0 = no limit) |
 | `admin_mint` | Mint tokens to any account (respects rate limits and pause state) |
-| `revoke_mint_authority` | Reclaim mint authority from IFT PDA (closes app state) |
+| `revoke_mint_authority` | Reclaim mint authority from IFT PDA (closes the token's app mint state) |
 
 ### Access Control
 
@@ -211,7 +226,7 @@ Tx 2 - Anyone claims refund:
 
 1. **Burn Authorization**: Only token owner can burn (standard SPL token semantics)
 
-2. **Mint Authorization**: Only IFT's mint authority PDA can mint, via three paths: incoming GMP calls validated against registered bridge (`ift_mint`), refund operations validated by pending transfer records (`finalize_transfer`), or direct admin mint (`admin_mint`). All mint paths (except refunds) respect daily rate limits and pause state.
+2. **Mint Authorization**: Only IFT's mint authority PDA can mint, via three paths: incoming GMP calls validated against registered bridge (`ift_mint`), refund operations validated by pending transfer records (`finalize_transfer`), or direct admin mint (`admin_mint`). All mint paths, including refunds, respect daily rate limits and pause state.
 
 3. **Empty Salt Requirement**: Salt is hardcoded empty on send and validated empty on receive via GMP account PDA derivation. Prevents unauthorized minting via alternate GMP account PDAs.
 

@@ -19,7 +19,7 @@ interface ILightClient {
 
     /// @notice Querying the non-membership of a key
     /// @dev Notice that this message is not view, as it may update the client state for caching purposes.
-    /// @param msg_ The membership message
+    /// @param msg_ The non-membership message
     /// @return The unix timestamp of the verification height in the counterparty chain in seconds.
     function verifyNonMembership(ILightClientMsgs.MsgVerifyNonMembership calldata msg_) external returns (uint256);
 

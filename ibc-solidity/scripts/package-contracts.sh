@@ -6,8 +6,8 @@
 #
 # Performs a clean build (bun install + forge build), then copies the full
 # forge JSON (ABI + bytecode + metadata) for each shipped contract into
-# release-artifacts/solidity-contracts/bytecode/, stamps a VERSION file and
-# LICENSE, and produces solidity-contracts-<version>.tar.gz at the repo root.
+# release-artifacts/solidity-contracts/bytecode/, stamps a TAG_NAME file and
+# LICENSE, and produces solidity-contracts-<version>.tar.gz in ibc-solidity/.
 #
 # Requires `bun` and `forge` on PATH.
 #

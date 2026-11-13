@@ -235,7 +235,7 @@ contract ICS20Transfer is
         } else {
             // we have a mapped denom, so we need to check if the token is returning to source
             bytes memory prefix = ICS20Lib.getDenomPrefix(ICS20Lib.DEFAULT_PORT_ID, msg_.sourceClient);
-            // if the denom is prefixed by the port and channel on which we are sending
+            // if the denom is prefixed by the port and client on which we are sending
             // the token, then we must be returning the token back to the chain they originated from
             bool returningToSource = ICS20Lib.hasPrefix(bytes(fullDenomPath), prefix);
             if (returningToSource) {
@@ -322,8 +322,8 @@ contract ICS20Transfer is
         // on sender chain IF and only if the token originally came from the
         // receiving chain.
         //
-        // NOTE: We use SourcePort and SourceChannel here, because the counterparty
-        // chain would have prefixed with DestPort and DestChannel when originally
+        // NOTE: We use SourcePort and SourceClient here, because the counterparty
+        // chain would have prefixed with DestPort and DestClient when originally
         // receiving this token.
         bool returningToOrigin = ICS20Lib.hasPrefix(denomBz, prefix);
         address erc20Address;
@@ -414,7 +414,7 @@ contract ICS20Transfer is
         address refundee = ICS20Lib.mustHexStringToAddress(packetData.sender);
         address erc20Address;
 
-        // if the denom is prefixed by the port and channel on which we are sending
+        // if the denom is prefixed by the port and client on which we are sending
         // the token, then we must be returning the token back to the chain they originated from
         bytes memory prefix = ICS20Lib.getDenomPrefix(sourcePort, sourceClient);
         bool isDestSource = ICS20Lib.hasPrefix(bytes(packetData.denom), prefix);
@@ -536,7 +536,7 @@ contract ICS20Transfer is
         return erc20Contract;
     }
 
-    /// @notice Returns the escrow contract for a client
+    /// @notice Returns the escrow contract for a client, creating it if it does not exist yet
     /// @param clientId The client ID
     /// @return The escrow contract address
     function _getOrCreateEscrow(string memory clientId) private returns (IEscrow) {

@@ -688,7 +688,7 @@ mod tests {
 
 /// Integration tests using `ProgramTest` with real BPF runtime.
 ///
-/// These test the CPI detection logic (lines 72-82 of `send_call`) which depends
+/// These test the CPI detection logic (the `reject_cpi` check in `send_call`) which depends
 /// on `get_stack_height()` — a syscall that returns 0 in Mollusk but works
 /// correctly under `ProgramTest`'s BPF execution.
 #[cfg(test)]

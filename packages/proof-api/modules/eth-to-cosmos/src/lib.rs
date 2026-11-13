@@ -40,7 +40,7 @@ use proof_api_core::{
 #[derive(Clone, Copy, Debug)]
 pub struct EthToCosmosProofApiModule;
 
-/// The `EthereumToCosmosProofApiModuleService` defines the proof API service from Ethereum to Cosmos.
+/// The `EthToCosmosProofApiModuleService` defines the proof API service from Ethereum to Cosmos.
 struct EthToCosmosProofApiModuleService {
     /// The chain listener for `EthEureka`.
     pub eth_listener: eth_eureka::ChainListener<RootProvider>,

@@ -137,7 +137,7 @@ pub fn verify_header<V: BlsVerify>(
 /// # Errors
 /// Returns an error if the update cannot be verified.
 /// # Panics
-/// If the minimum sync committee participants is not a valid usize.
+/// If the update has a `next_sync_committee_branch` but no `next_sync_committee`.
 #[allow(clippy::too_many_lines, clippy::needless_pass_by_value)]
 pub fn validate_light_client_update<V: BlsVerify>(
     client_state: &ClientState,

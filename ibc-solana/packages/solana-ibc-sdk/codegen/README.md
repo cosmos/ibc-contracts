@@ -6,7 +6,7 @@ Used as a build dependency — `build.rs` invokes `generate_all` to produce the 
 
 ## Generated modules
 
-Each program IDL produces a directory under `src/generated/{program}/` with up to four files:
+Each program IDL produces a directory under `src/generated/{program}/` with a `mod.rs` and up to four files:
 
 | File | Contents |
 |------|----------|

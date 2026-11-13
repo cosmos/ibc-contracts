@@ -138,7 +138,7 @@ impl From<IICS26RouterMsgs::Payload> for Payload {
 }
 
 impl IICS26RouterMsgs::Payload {
-    /// Returns the commitment path for the payload.
+    /// Returns the commitment hash of the payload.
     #[must_use]
     pub fn commitment_hash(&self) -> Vec<u8> {
         let mut buf = Vec::new();

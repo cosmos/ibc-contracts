@@ -85,7 +85,7 @@ type accountIdentifier struct {
 // gmpAccountPDA derives GMP account PDA using AccountIdentifier hash
 // This is a specialized PDA that uses SHA256 hashing and is not in the IDL.
 // GMP accounts are stateless - no account storage, only PDA validation.
-// See: packages/solana-ibc-types/src/ics27.rs - GMPAccount::new
+// See: ibc-solana/packages/solana-ibc-gmp-types/src/lib.rs - GMPAccount::new
 func gmpAccountPDA(programID solanago.PublicKey, clientID string, sender string, salt []byte) (solanago.PublicKey, uint8) {
 	// Borsh-encode the AccountIdentifier struct to match Rust implementation
 	id := accountIdentifier{
@@ -552,7 +552,7 @@ func (s *IbcEurekaSolanaGMPTestSuite) Test_GMPCounterFromCosmos() {
 	}))
 }
 
-// Test_GMPSPLTokenTransfer tests transferring SPL tokens via GMP from Cosmos to Solana
+// Test_GMPSPLTokenTransferFromCosmos tests transferring SPL tokens via GMP from Cosmos to Solana
 // This demonstrates the SPL token transfer example from the ADR where:
 // 1. A Cosmos user controls an ICS27 Account PDA on Solana
 // 2. The ICS27 PDA owns SPL token accounts
@@ -798,7 +798,7 @@ func (s *IbcEurekaSolanaGMPTestSuite) Test_GMPSendCallFromSolana() {
 	s.Require().True(s.Run("Fund pre-computed ICS27 address on Cosmos", func() {
 		solanaUserAddress := s.SolanaRelayer.PublicKey().String()
 
-		// Use CosmosClientID (08-wasm-0) - the dest_client on Cosmos
+		// Use CosmosClientID (attestations-0) - the dest_client on Cosmos
 		// The GMP keeper creates accounts using NewAccountIdentifier(destClient, sender, salt)
 		res, err := e2esuite.GRPCQuery[gmptypes.QueryAccountAddressResponse](ctx, simd, &gmptypes.QueryAccountAddressRequest{
 			ClientId: CosmosClientID,
@@ -1297,7 +1297,7 @@ func (s *IbcEurekaSolanaGMPTestSuite) Test_GMPRelayLatency_CosmosToSolanaTimeout
 //   - Solana sends IBC packet via send_call instruction
 //   - Packet type: GMP call packet (ICS27 general message passing)
 //   - Payload: Protobuf-encoded MsgSend (bank transfer from ICS27 account to test user)
-//   - Timeout: 35 seconds from current time
+//   - Timeout: SolanaOriginatedTimeoutSeconds from the current Solana clock time
 //   - Packet commitment created on Solana (stores hash of packet data)
 //
 // 3. Retrieve Recv Transaction Before Timeout
@@ -1306,7 +1306,7 @@ func (s *IbcEurekaSolanaGMPTestSuite) Test_GMPRelayLatency_CosmosToSolanaTimeout
 //
 // 4. Timeout Expiry
 //   - Packet expires on Cosmos (not processed in time)
-//   - Wait 40 seconds for timeout to occur
+//   - Wait until the Cosmos block time passes the timeout
 //
 // 5. Update Light Client
 //
@@ -1585,13 +1585,13 @@ func (s *IbcEurekaSolanaGMPTestSuite) Test_GMPTimeoutFromSolana() {
 // 1. Setup Phase
 //   - Create SPL token infrastructure on Solana
 //   - Set up mint, ICS27 account PDA, and token accounts
-//   - Fund source token account with 1M tokens (6 decimals)
+//   - Fund source token account with 1 token (1,000,000 base units, 6 decimals)
 //
 // 2. Send Packet (Cosmos → Solana)
 //   - Cosmos sends IBC packet via MsgSendCall
 //   - Packet type: GMP call packet (ICS27 general message passing)
-//   - Payload: Protobuf-encoded GMPSolanaPayload (SPL token transfer: 1M tokens from ICS27 account to recipient)
-//   - Timeout: 35 seconds from current time
+//   - Payload: Protobuf-encoded GMPSolanaPayload (SPL token transfer: 1 token from ICS27 account to recipient)
+//   - Timeout: 20 seconds from current time
 //   - Packet commitment created on Cosmos (stores hash of packet data)
 //
 // 3. Retrieve Recv Transactions Before Timeout
@@ -1602,7 +1602,7 @@ func (s *IbcEurekaSolanaGMPTestSuite) Test_GMPTimeoutFromSolana() {
 //
 //   - Packet expires on Solana (not relayed/processed in time)
 //
-//   - Wait 40 seconds for timeout to occur
+//   - Wait until the Solana block time passes the timeout
 //
 //     5. Relay Timeout (Solana → Cosmos)
 //     NOTE: This test provides cosmosGMPTxHash via TimeoutTxIds for explicit control.
@@ -1640,7 +1640,7 @@ func (s *IbcEurekaSolanaGMPTestSuite) Test_GMPTimeoutFromSolana() {
 //
 // 7. Verify Timeout Effects
 //   - Packet commitment deleted on Cosmos
-//   - Source SPL token account still has all 1M tokens (transfer never executed)
+//   - Source SPL token account still has all its tokens (transfer never executed)
 //   - Destination SPL token account has 0 tokens (never received)
 //
 // 8. Verify RecvPacket Fails After Timeout
@@ -2991,7 +2991,7 @@ func (s *IbcEurekaSolanaGMPTestSuite) Test_GMPSignerExploit_RelayerPubkey() {
 // System Program Transfer payload that uses the relayer as the funding source
 // (signer + writable). Without the fix, Solana's account merging would make
 // the relayer a valid signer in the CPI, letting the System Program transfer
-// SOL from the proof API to an attacker-controlled wallet.
+// SOL from the relayer to an attacker-controlled wallet.
 func (s *IbcEurekaSolanaGMPTestSuite) Test_GMPSignerExploit_SOLTransfer() {
 	ctx := context.Background()
 

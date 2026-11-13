@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use tree_hash::TreeHash;
 use tree_hash_derive::TreeHash;
 
-/// Type alias Etheruem Version which is a fixed 4 byte array
+/// Type alias Ethereum Version which is a fixed 4 byte array
 pub type Version = B32;
 
 /// The fork data

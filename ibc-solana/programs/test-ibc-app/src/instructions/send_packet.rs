@@ -92,7 +92,6 @@ pub struct SendPacket<'info> {
 }
 
 pub fn send_packet(ctx: Context<SendPacket>, msg: SendPacketMsg) -> Result<()> {
-    // Get clock directly via syscall
     let clock = Clock::get()?;
 
     // Validate timeout

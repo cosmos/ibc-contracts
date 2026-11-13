@@ -368,18 +368,6 @@ mod test {
     use super::*;
     use crate::merkleize_padded;
 
-    // TODO: The new size is 120, not sure if that matters or not 🙈
-    // /// This test is just to ensure that the stack size of the `Context` remains the same. We choose
-    // /// our smallvec size based upon this, so it's good to know if it suddenly changes in size.
-    //#[test]
-    //fn context_size() {
-    //    assert_eq!(
-    //        mem::size_of::<HalfNode>(),
-    //        224,
-    //        "Halfnode size should be as expected"
-    //    );
-    //}
-
     fn compare_with_reference(leaves: &[Hash256], depth: usize) {
         let reference_bytes = leaves
             .iter()

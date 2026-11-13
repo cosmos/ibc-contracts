@@ -8,7 +8,7 @@ use tendermint::merkle::proof::ProofOps;
 /// Convert a Tendermint proof to an ICS Merkle proof.
 ///
 /// # Errors
-/// Returns a decoding error if the prost merge.
+/// Returns a decoding error if a proof op cannot be decoded as a [`CommitmentProof`].
 pub fn convert_tm_to_ics_merkle_proof(
     tm_proof: &ProofOps,
 ) -> Result<MerkleProof, prost::DecodeError> {

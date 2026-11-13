@@ -66,8 +66,8 @@ pub struct AttestationData {
 /// - `send_packets`: Encoded send packets.
 /// - `ack_packets`: Encoded ack packets.
 /// - `timeout_packets`: Encoded timeout packets.
-/// - `event_height`: Height to use for send/ack packets (where commitments exist).
-/// - `timeout_height`: Height to use for timeout packets (where timeout has elapsed).
+/// - `height`: Height at which the packet attestations (or, if there are no packets, the state
+///   attestation) are requested.
 ///
 /// # Errors
 /// Returns an error if any attestation request fails.

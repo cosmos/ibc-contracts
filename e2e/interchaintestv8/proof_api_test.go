@@ -56,7 +56,7 @@ type ProofAPITestSuite struct {
 	IbcEurekaTestSuite
 }
 
-// TestWithIbcEurekaTestSuite is the boilerplate code that allows the test suite to be run
+// TestWithProofAPITestSuite is the boilerplate code that allows the test suite to be run
 func TestWithProofAPITestSuite(t *testing.T) {
 	suite.Run(t, new(ProofAPITestSuite))
 }
@@ -203,7 +203,7 @@ func (s *ProofAPITestSuite) FilteredRecvPacketToEthTest(
 	}))
 }
 
-// TestConcurrentRecvPacketToEth tests the concurrent relaying of 2 packets from Cosmos to Ethereum
+// Test_2_ConcurrentRecvPacketToEth tests the concurrent relaying of 2 packets from Cosmos to Ethereum
 // NOTE: This test is not included in the CI pipeline as it is flaky
 func (s *ProofAPITestSuite) Test_2_ConcurrentRecvPacketToEth() {
 	// I've noticed that the prover network drops the requests when sending too many
@@ -1270,7 +1270,7 @@ func (s *ProofAPITestSuite) Test_UpdateClientToCosmos() {
 // Test_HistoricalUpdateClientToCosmos tests updating the eth light client with updates that are not the latest
 // To do this, we will:
 // 1. Send a transfer on Ethereum
-// 2. Retrieve the relay tx from the relayer
+// 2. Retrieve the relay tx from the proof API
 // 3. Wait until we have a finalized block that is past the update in the relay tx
 // 4. Update the client with the finalized block that is past the update in the relay tx
 // 5. Finally, we will relay the transfer tx, together with the historical update client

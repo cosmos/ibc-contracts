@@ -34,7 +34,7 @@ message AggregatedAttestation {
   repeated bytes signatures = 4;
 }
 
-// GetStateAttestationResponse is a response from the aggregator.
+// GetAttestationsResponse is a response from the aggregator.
 message GetAttestationsResponse {
   // The attestation of the blockchain state
    AggregatedAttestation state_attestation = 1;

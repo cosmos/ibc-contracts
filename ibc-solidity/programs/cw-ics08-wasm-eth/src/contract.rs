@@ -311,8 +311,8 @@ mod tests {
         };
 
         #[test]
-        // This test runs throught the e2e test scenario defined in the interchaintest:
-        // TestICS20TransferERC20TokenfromEthereumToCosmosAndBack_Groth16
+        // This test runs through the e2e test scenario defined in the interchaintest:
+        // TestWithIbcEurekaTestSuite/Test_ICS20TransferERC20TokenfromEthereumToCosmosAndBack (groth16)
         fn test_ics20_transfer_from_ethereum_to_cosmos_flow() {
             let mut deps = mk_deps();
             let creator = deps.api.addr_make("creator");
@@ -388,9 +388,9 @@ mod tests {
             }
 
             // The client has now been updated, and we would submit the packet to the cosmos chain,
-            // along with the proof of th packet commitment. IBC will call verify_membership.
+            // along with the proof of the packet commitment. IBC will call verify_membership.
 
-            // Verify memebership
+            // Verify membership
             let packet = recv_msgs[0].packet.clone().unwrap();
             let storage_proof = recv_msgs[0].proof_commitment.clone();
             let (path, value, _) = get_packet_paths(packet);
@@ -412,7 +412,7 @@ mod tests {
         }
 
         /// This test runs through a scenario where a malicious relayer sends an incorrect sync
-        /// commitee whose aggregate pubkey is the same as the one in the header.
+        /// committee whose aggregate pubkey is the same as the one in the header.
         #[test]
         fn test_aggragate_sync_committee_collision() {
             let mut deps = mk_deps();
@@ -709,9 +709,9 @@ mod tests {
             }
 
             // The client has now been updated, and we would submit the packet to the cosmos chain,
-            // along with the proof of th packet commitment. IBC will call verify_membership.
+            // along with the proof of the packet commitment. IBC will call verify_membership.
 
-            // Verify memebership
+            // Verify membership
             let packet = recv_msgs[0].packet.clone().unwrap();
             let storage_proof = recv_msgs[0].proof_commitment.clone();
             let (path, value, _) = get_packet_paths(packet);

@@ -2009,7 +2009,7 @@ func (s *IbcEurekaSolanaIFTTestSuite) registerSolanaIFTBridge(ctx context.Contex
 		// GMP's `send_call_cpi` uses the calling program ID as the sender.
 		iftProgramAddress := ift.ProgramID.String()
 		res, err := e2esuite.GRPCQuery[gmptypes.QueryAccountAddressResponse](ctx, s.Wfchain, &gmptypes.QueryAccountAddressRequest{
-			ClientId: CosmosClientID, // The wasm client on Cosmos (dest client)
+			ClientId: CosmosClientID, // The attestations client on Cosmos (dest client)
 			Sender:   iftProgramAddress,
 			Salt:     "",
 		})

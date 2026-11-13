@@ -142,9 +142,9 @@ pub struct SetMintRateLimitMsg {
     pub daily_mint_limit: u64,
 }
 
-/// Message for pausing/unpausing an IFT token
+/// Message for pausing/unpausing IFT (global, applies to all mints)
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
 pub struct SetPausedMsg {
-    /// Whether to pause (true) or unpause (false) the token
+    /// Whether to pause (true) or unpause (false) IFT
     pub paused: bool,
 }

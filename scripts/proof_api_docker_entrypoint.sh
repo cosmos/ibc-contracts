@@ -3,7 +3,7 @@
 
 set -euxo pipefail
 
-# This script expects an environment variable SP1_PROGRAM_VERSIONS.
+# SP1_PROGRAM_VERSIONS (space-separated) lists the SP1 program release versions to download; if unset, the download is skipped.
 # SP1_PROGRAMS_REPO (owner/repo) selects the GitHub repository the releases are downloaded from.
 
 SP1_PROGRAMS_REPO="${SP1_PROGRAMS_REPO:-lfdt-ibc/ibc-contracts}"

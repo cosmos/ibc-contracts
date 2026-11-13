@@ -143,7 +143,7 @@ pub mod fixtures {
         pub trust_options: super::TrustOptions,
 
         /// Indicates that the key paths are base64 encoded.
-        /// Module store keys seperated by backslash, '\', eg. 'aWJj\a2V5' for 'ibc/key'.
+        /// Module store keys separated by backslash, '\', eg. 'aWJj\a2V5' for 'ibc/key'.
         #[clap(long)]
         pub base64: bool,
     }

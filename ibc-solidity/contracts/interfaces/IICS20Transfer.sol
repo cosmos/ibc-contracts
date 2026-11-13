@@ -21,7 +21,7 @@ interface IICS20TransferAccessControlled {
         returns (uint64 sequence);
 
     /// @notice Inserts a custom ERC20 contract for a given IBC denom
-    /// @dev This must be called prior to the first transfer of the token so that the is no existing entry for the
+    /// @dev This must be called prior to the first transfer of the token so that there is no existing entry for the
     /// denom.
     /// @dev This function requires the `ERC20_CUSTOMIZER_ROLE`
     /// @param denom The IBC denom
@@ -29,12 +29,12 @@ interface IICS20TransferAccessControlled {
     function setCustomERC20(string calldata denom, address token) external;
 
     /// @notice Upgrades the implementation of the escrow beacon contract
-    /// @dev The caller must be the ICS26Router admin
+    /// @dev This function is restricted by the AccessManager (`ADMIN_ROLE` by default)
     /// @param newEscrowLogic The address of the new escrow logic contract
     function upgradeEscrowTo(address newEscrowLogic) external;
 
     /// @notice Upgrades the implementation of the ibcERC20 beacon contract
-    /// @dev The caller must be the ICS26Router admin
+    /// @dev This function is restricted by the AccessManager (`ADMIN_ROLE` by default)
     /// @param newIbcERC20Logic The address of the new ibcERC20 logic contract
     function upgradeIBCERC20To(address newIbcERC20Logic) external;
 }

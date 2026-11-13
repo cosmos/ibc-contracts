@@ -29,7 +29,7 @@ use sp1_sdk::{
 use std::path::PathBuf;
 use tendermint_rpc::HttpClient;
 
-/// The fixture data to be used in [`SP1ICS07SubmitMisbehaviourFixture`] tests.
+/// The fixture data to be used in misbehaviour tests.
 #[serde_with::serde_as]
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]

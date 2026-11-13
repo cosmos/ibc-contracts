@@ -1,8 +1,7 @@
 {
   "server": {
     "address": "127.0.0.1",
-    "port": 3000,
-    "grpc_web_port": 8081
+    "port": 3000
   },
   "observability": {
     "level": "info",
@@ -21,18 +20,19 @@
         "ibc_multicall_address": "0x2626262626262626262626262626262626262626",
         "eth_rpc_url": "https://ethereum-holesky-rpc.publicnode.com",
         "mode": {
-          "type": "sp1",
-          "sp1_prover": {
-            "type": "network",
-            "network_private_key": "0x4242424242424242424242424242424242424242424242424242424242424242",
-            "network_rpc_url": "https://prover-url.com",
-            "private_cluster": true
-          },
-          "sp1_programs": {
-            "update_client": "./ibc-solidity/programs/sp1-programs/target/elf-compilation/riscv64im-succinct-zkvm-elf/release/sp1-ics07-tendermint-update-client",
-            "membership": "./ibc-solidity/programs/sp1-programs/target/elf-compilation/riscv64im-succinct-zkvm-elf/release/sp1-ics07-tendermint-membership",
-            "update_client_and_membership": "./ibc-solidity/programs/sp1-programs/target/elf-compilation/riscv64im-succinct-zkvm-elf/release/sp1-ics07-tendermint-uc-and-membership",
-            "misbehaviour": "./ibc-solidity/programs/sp1-programs/target/elf-compilation/riscv64im-succinct-zkvm-elf/release/sp1-ics07-tendermint-misbehaviour"
+          "sp1": {
+            "sp1_prover": {
+              "type": "network",
+              "network_private_key": "0x4242424242424242424242424242424242424242424242424242424242424242",
+              "network_rpc_url": "https://prover-url.com",
+              "private_cluster": true
+            },
+            "sp1_programs": {
+              "update_client": "./ibc-solidity/programs/sp1-programs/target/elf-compilation/riscv64im-succinct-zkvm-elf/release/sp1-ics07-tendermint-update-client",
+              "membership": "./ibc-solidity/programs/sp1-programs/target/elf-compilation/riscv64im-succinct-zkvm-elf/release/sp1-ics07-tendermint-membership",
+              "update_client_and_membership": "./ibc-solidity/programs/sp1-programs/target/elf-compilation/riscv64im-succinct-zkvm-elf/release/sp1-ics07-tendermint-uc-and-membership",
+              "misbehaviour": "./ibc-solidity/programs/sp1-programs/target/elf-compilation/riscv64im-succinct-zkvm-elf/release/sp1-ics07-tendermint-misbehaviour"
+            }
           }
         }
       }
@@ -47,15 +47,16 @@
         "ibc_multicall_address": "0x2626262626262626262626262626262626262626",
         "eth_rpc_url": "https://ethereum-holesky-rpc.publicnode.com",
         "mode": {
-          "type": "sp1",
-          "sp1_prover": {
-            "type": "mock"
-          },
-          "sp1_programs": {
-            "update_client": "./ibc-solidity/programs/sp1-programs/target/elf-compilation/riscv64im-succinct-zkvm-elf/release/sp1-ics07-tendermint-update-client",
-            "membership": "./ibc-solidity/programs/sp1-programs/target/elf-compilation/riscv64im-succinct-zkvm-elf/release/sp1-ics07-tendermint-membership",
-            "update_client_and_membership": "./ibc-solidity/programs/sp1-programs/target/elf-compilation/riscv64im-succinct-zkvm-elf/release/sp1-ics07-tendermint-uc-and-membership",
-            "misbehaviour": "./ibc-solidity/programs/sp1-programs/target/elf-compilation/riscv64im-succinct-zkvm-elf/release/sp1-ics07-tendermint-misbehaviour"
+          "sp1": {
+            "sp1_prover": {
+              "type": "mock"
+            },
+            "sp1_programs": {
+              "update_client": "./ibc-solidity/programs/sp1-programs/target/elf-compilation/riscv64im-succinct-zkvm-elf/release/sp1-ics07-tendermint-update-client",
+              "membership": "./ibc-solidity/programs/sp1-programs/target/elf-compilation/riscv64im-succinct-zkvm-elf/release/sp1-ics07-tendermint-membership",
+              "update_client_and_membership": "./ibc-solidity/programs/sp1-programs/target/elf-compilation/riscv64im-succinct-zkvm-elf/release/sp1-ics07-tendermint-uc-and-membership",
+              "misbehaviour": "./ibc-solidity/programs/sp1-programs/target/elf-compilation/riscv64im-succinct-zkvm-elf/release/sp1-ics07-tendermint-misbehaviour"
+            }
           }
         }
       }
@@ -95,17 +96,18 @@
         "eth_rpc_url": "https://ethereum-holesky-rpc.publicnode.com",
         "signer_address": "cosmos1abcdef1234567890abcdef1234567890",
         "mode": {
-          "type": "attested",
-          "attestor": {
-            "attestor_query_timeout_ms": 1500,
-            "quorum_threshold": 1,
-            "attestor_endpoints": [
-              "https://attestor-1.example.com"
-            ]
-          },
-          "cache": {
-            "state_cache_max_entries": 100000,
-            "packet_cache_max_entries": 100000
+          "attested": {
+            "attestor": {
+              "attestor_query_timeout_ms": 1500,
+              "quorum_threshold": 1,
+              "attestor_endpoints": [
+                "https://attestor-1.example.com"
+              ]
+            },
+            "cache": {
+              "state_cache_max_entries": 100000,
+              "packet_cache_max_entries": 100000
+            }
           }
         }
       }
@@ -121,17 +123,18 @@
         "dst_ics26_address": "0x4242424242424242424242424242424242424242",
         "dst_ibc_multicall_address": "0x2626262626262626262626262626262626262626",
         "mode": {
-          "type": "attested",
-          "attestor": {
-            "attestor_query_timeout_ms": 1500,
-            "quorum_threshold": 1,
-            "attestor_endpoints": [
-              "https://attestor-1.example.com"
-            ]
-          },
-          "cache": {
-            "state_cache_max_entries": 100000,
-            "packet_cache_max_entries": 100000
+          "attested": {
+            "attestor": {
+              "attestor_query_timeout_ms": 1500,
+              "quorum_threshold": 1,
+              "attestor_endpoints": [
+                "https://attestor-1.example.com"
+              ]
+            },
+            "cache": {
+              "state_cache_max_entries": 100000,
+              "packet_cache_max_entries": 100000
+            }
           }
         }
       }
@@ -225,7 +228,8 @@
         "src_rpc_url": "https://api.devnet.solana.com",
         "target_rpc_url": "http://public-celestia-mocha4-consensus.numia.xyz/",
         "signer_address": "cosmos1abcdef1234567890abcdef1234567890",
-        "solana_ics26_program_id": "11111111111111111111111111111111"
+        "solana_ics26_program_id": "11111111111111111111111111111111",
+        "mode": "mock"
       }
     }
   ]

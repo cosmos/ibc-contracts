@@ -12,6 +12,9 @@ The core IBC contracts utilize the UUPS proxy pattern, ensuring controlled and e
 | `ICS20Transfer.sol` | [Admins](./README.md#security-assumptions) | [UUPSUpgradeable](https://docs.openzeppelin.com/contracts/5.x/api/proxy#UUPSUpgradeable) | `ICS20Transfer::upgradeToAndCall` |
 | `Escrow.sol` | `ICS20Transfer` | [Beacon](https://docs.openzeppelin.com/contracts/5.x/api/proxy#BeaconProxy) | `ICS20Transfer::upgradeEscrowTo` |
 | `IBCERC20.sol` | `ICS20Transfer` | [Beacon](https://docs.openzeppelin.com/contracts/5.x/api/proxy#BeaconProxy) | `ICS20Transfer::upgradeIBCERC20To` |
+| `ICS27GMP.sol` | [Admins](./README.md#security-assumptions) | [UUPSUpgradeable](https://docs.openzeppelin.com/contracts/5.x/api/proxy#UUPSUpgradeable) | `ICS27GMP::upgradeToAndCall` |
+| `ICS27Account.sol` | `ICS27GMP` | [Beacon](https://docs.openzeppelin.com/contracts/5.x/api/proxy#BeaconProxy) | `ICS27GMP::upgradeAccountTo` |
+| `IBCMulticall.sol` | [Admins](./README.md#security-assumptions) | [UUPSUpgradeable](https://docs.openzeppelin.com/contracts/5.x/api/proxy#UUPSUpgradeable) | `IBCMulticall::upgradeToAndCall` |
 
 ![Light Mode Diagram](./docs/assets/upgradeability-light.svg#gh-light-mode-only)![Dark Mode Diagram](./docs/assets/upgradeability-dark.svg#gh-dark-mode-only)
 
@@ -32,7 +35,7 @@ Transferring upgrade authority away from the Access Manager uses a two-step prop
 1. An admin calls `propose_upgrade_authority_transfer` specifying the target program and new authority
 2. The new authority signs `accept_upgrade_authority_transfer` to execute the BPF Loader `SetAuthority` CPI
 
-Multiple transfers can be proposed concurrently (one per target program, up to 8). A proposal can be cancelled by an admin before acceptance.
+Multiple transfers can be proposed concurrently (one per target program, up to 16). A proposal can be cancelled by an admin before acceptance.
 
 For AM-to-AM migration, the destination Access Manager calls `claim_upgrade_authority` which CPIs into the source AM's accept instruction, signing with its own PDA.
 

@@ -135,7 +135,7 @@ impl Aggregator {
     /// Get attestations
     ///
     /// # Errors
-    /// - Fails if attesations cannot be fetched
+    /// - Fails if attestations cannot be fetched
     /// - Fails if input packets are empty
     pub async fn get_attestations(
         &self,

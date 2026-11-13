@@ -841,7 +841,7 @@ func UnmarshalIcs26RouterInstructionsClientMigrateClientParams(buf []byte) (*Ics
 
 // Client-ID-to-light-client mapping with counterparty chain metadata.
 //
-// Created when an admin registers a new IBC client (e.g. an ICS07
+// Created when an `ID_CUSTOMIZER_ROLE` holder registers a new IBC client (e.g. an ICS07
 // Tendermint or attestation light client). The router reads this
 // account during `send_packet`, `recv_packet`, `ack_packet` and
 // `timeout_packet` to resolve which light client program to call for
@@ -967,8 +967,8 @@ func UnmarshalIcs26RouterStateClient(buf []byte) (*Ics26RouterStateClient, error
 // A generic 32-byte hash PDA used for three purposes depending on its
 // seed prefix:
 // - **Packet commitment** (`PACKET_COMMITMENT_SEED`): written by
-// `send_packet`, stores `sha256(packet)` so the counterparty can
-// prove the packet was sent.
+// `send_packet`, stores the ICS24 packet commitment hash so the
+// counterparty can prove the packet was sent.
 // - **Packet receipt** (`PACKET_RECEIPT_SEED`): written by
 // `recv_packet`, prevents the same packet from being delivered twice.
 // - **Packet acknowledgement** (`PACKET_ACK_SEED`): written by
@@ -1123,9 +1123,9 @@ func UnmarshalIcs26RouterStateIbcApp(buf []byte) (*Ics26RouterStateIbcApp, error
 // multi-transaction upload.
 //
 // Large payloads that exceed the Solana transaction size limit are split
-// into chunks and uploaded separately. The `recv_packet` instruction
-// reassembles all chunks, processes the full payload, then closes these
-// accounts to reclaim rent.
+// into chunks and uploaded separately. The `recv_packet`, `ack_packet` and
+// `timeout_packet` instructions reassemble the chunks and zero their data;
+// rent is reclaimed afterwards via `cleanup_chunks`.
 type Ics26RouterStatePayloadChunk struct {
 	// Client ID this chunk belongs to
 	ClientId string `json:"clientId"`
@@ -1327,9 +1327,9 @@ func UnmarshalIcs26RouterStateProofChunk(buf []byte) (*Ics26RouterStateProofChun
 // Global ICS26 router configuration.
 //
 // Singleton PDA initialized once during program setup. Stores the link
-// to the access manager for admin-gated operations (e.g. registering
-// clients, migrating light clients) and a schema version for future
-// on-chain migrations.
+// to the access manager for role-gated operations (e.g. registering
+// clients and apps, migrating light clients, pausing), the global pause
+// flag, and a schema version for future on-chain migrations.
 type Ics26RouterStateRouterState struct {
 	// Schema version for upgrades
 	Version SolanaIbcTypesRouterAccountVersion `json:"version"`
@@ -1709,7 +1709,8 @@ func UnmarshalSolanaIbcTypesRouterCounterpartyInfo(buf []byte) (*SolanaIbcTypesR
 	return obj, nil
 }
 
-// Payload metadata for chunked operations
+// How payload or proof data is delivered: inline in the instruction, or
+// pre-uploaded as chunk accounts
 // The "isSolanaIbcTypesRouterDelivery" interface for the "SolanaIbcTypesRouterDelivery" complex enum.
 type SolanaIbcTypesRouterDelivery interface {
 	isSolanaIbcTypesRouterDelivery()

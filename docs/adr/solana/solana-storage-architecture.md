@@ -16,7 +16,7 @@ We implement a PDA-based storage architecture with chunked storage for large dat
 
 1. **PDA-Based Storage**: All state stored in Program Derived Addresses
 2. **Chunked Uploads**: Large data (headers, proofs, payloads) split into ~900-byte chunks
-3. **Rent Reclamation**: Temporary accounts (chunks, commitments) closed after use
+3. **Rent Reclamation**: Chunk rent is reclaimed through explicit cleanup instructions; commitment PDAs are zeroed but persist
 4. **Access Control**: Centralized access-manager program for role-based permissions
 
 ## Storage Architecture
@@ -25,7 +25,7 @@ We implement a PDA-based storage architecture with chunked storage for large dat
 
 **Client State PDA:**
 ```
-Seeds: [b"client", chain_id.as_bytes()]
+Seeds: [b"client"]
 ```
 Stores:
 - `chain_id`: String (max 64 bytes)
@@ -35,7 +35,7 @@ Stores:
 
 **Consensus State PDAs:**
 ```
-Seeds: [b"consensus_state", client_state_pubkey.as_ref(), height.to_le_bytes()]
+Seeds: [b"consensus_state", height.to_le_bytes()]
 ```
 Stores:
 - `height`: u64
@@ -49,7 +49,7 @@ Stores:
 Seeds: [b"app_state"]
 ```
 Stores:
-- `access_manager`: Pubkey
+- `am_state`: AccessManagerState { access_manager, pending_access_manager }
 - `_reserved`: [u8; 256]
 
 ### 2. ICS26-Router Storage
@@ -60,7 +60,8 @@ Seeds: [b"router_state"]
 ```
 Stores:
 - `version`: AccountVersion
-- `access_manager`: Pubkey
+- `am_state`: AccessManagerState { access_manager, pending_access_manager }
+- `paused`: bool
 - `_reserved`: [u8; 256]
 
 **Client Registry PDA:**
@@ -69,7 +70,7 @@ Seeds: [b"client", client_id.as_bytes()]
 ```
 Stores:
 - `version`: AccountVersion
-- `client_id`: String (max 64 bytes)
+- `client_id`: String (max 32 bytes)
 - `client_program_id`: Pubkey (light client program)
 - `counterparty_info`: CounterpartyInfo { client_id, merkle_prefix }
 - `active`: bool
@@ -83,7 +84,6 @@ Stores:
 - `version`: AccountVersion
 - `port_id`: String (max 128 bytes)
 - `app_program_id`: Pubkey
-- `authority`: Pubkey
 - `_reserved`: [u8; 256]
 
 ### 3. Packet Commitment Storage
@@ -114,7 +114,7 @@ Large data exceeding transaction limits is split into 900-byte chunks uploaded i
 
 **Header Chunk (for client updates) — ICS07-Tendermint:**
 ```
-Seeds: [b"header_chunk", submitter.as_ref(), chain_id.as_bytes(), target_height.to_le_bytes(), chunk_index]
+Seeds: [b"header_chunk", submitter.as_ref(), target_height.to_le_bytes(), chunk_index]
 ```
 Stores:
 - `submitter`: Pubkey
@@ -143,7 +143,7 @@ Stores:
 
 **Misbehaviour Chunk (for misbehaviour reports) — ICS07-Tendermint:**
 ```
-Seeds: [b"misbehaviour_chunk", submitter.as_ref(), client_id.as_bytes(), chunk_index]
+Seeds: [b"misbehaviour_chunk", submitter.as_ref(), chunk_index]
 ```
 Stores:
 - `chunk_data`: Vec<u8> (max 900 bytes)
@@ -180,8 +180,11 @@ Note: Header and misbehaviour uploads in ICS07-Tendermint are always chunked (Te
    - Triggers verification/processing
 
 3. Cleanup Phase:
-   - Chunk accounts closed after successful assembly
-   - Rent (~0.01 SOL per chunk) reclaimed to payer
+   - Router chunk data is zeroed during assembly; rent stays in the account
+   - Header chunks are left as-is after `assemble_and_update_client`
+   - Rent (~0.01 SOL per chunk) is reclaimed by a separate cleanup instruction
+     (`cleanup_chunks` on the router, `cleanup_incomplete_upload` on ICS07)
+   - Exception: ICS07 misbehaviour chunks are closed and refunded during assembly
 ```
 
 ### 6. Access Control Integration
@@ -230,8 +233,8 @@ Programs reference `access_manager` pubkey in their state to validate permission
 1. Upload header chunks (multiple transactions)
 2. Assemble and verify header (single transaction)
 3. Create/update ConsensusState PDA
-4. Close header chunk accounts
-5. Reclaim rent
+4. Separately, call `cleanup_incomplete_upload` to close header chunk
+   accounts and reclaim rent
 ```
 
 ## Cost Analysis
@@ -253,7 +256,7 @@ Per account rent: ~0.01 SOL (refundable when account closed)
 **Cost Breakdown:**
 - Transaction base fees: 5,000 lamports/tx
 - Priority fees: variable (market-driven)
-- Chunk rent: ~0.01 SOL per chunk (refunded after assembly)
+- Chunk rent: ~0.01 SOL per chunk (refundable via cleanup instructions)
 - Consensus state rent: ~0.01 SOL (permanent)
 
 **Per-Packet Cost:**
@@ -319,7 +322,7 @@ IBC commitment paths (for cross-chain proofs) use **big-endian** per IBC spec:
 ## Configuration Constants
 
 - **CHUNK_DATA_SIZE**: 900 bytes (maximum chunk size for uploads)
-- **MAX_CLIENT_ID_LENGTH**: 64 bytes
+- **MAX_CLIENT_ID_LENGTH**: 32 bytes
 - **MAX_PORT_ID_LENGTH**: 128 bytes
 
 ## Future Considerations

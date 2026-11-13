@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module contains types assosicated with the beacon api and Ethereum consensus.
+//! This module contains types associated with the beacon api and Ethereum consensus.
 
 pub mod beacon_block;
 pub mod bls;

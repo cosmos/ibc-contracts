@@ -363,7 +363,7 @@ func NewAckPacketInstruction(
 		accounts__.Append(solanago.NewAccountMeta(ibcAppStateAccount, true, false))
 		// Account 6 "relayer": Writable, Signer, Required
 		// Relayer submitting the acknowledgement; must hold the `RELAYER_ROLE`.
-		// Receives rent from the closed `packet_commitment` account.
+		// Also passed to the app callback as payer.
 		accounts__.Append(solanago.NewAccountMeta(relayerAccount, true, true))
 		// Account 7 "system_program": Read-only, Non-signer, Required
 		// Solana system program required by Anchor.
@@ -452,7 +452,7 @@ func NewTimeoutPacketInstruction(
 		accounts__.Append(solanago.NewAccountMeta(ibcAppStateAccount, true, false))
 		// Account 6 "relayer": Writable, Signer, Required
 		// Relayer submitting the timeout; must hold the `RELAYER_ROLE`.
-		// Receives rent from the closed `packet_commitment` account.
+		// Also passed to the app callback as payer.
 		accounts__.Append(solanago.NewAccountMeta(relayerAccount, true, true))
 		// Account 7 "system_program": Read-only, Non-signer, Required
 		// Solana system program required by Anchor.

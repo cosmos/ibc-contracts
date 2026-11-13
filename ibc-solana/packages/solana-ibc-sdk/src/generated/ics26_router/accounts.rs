@@ -10,7 +10,7 @@ use anchor_lang::solana_program::pubkey::Pubkey;
 use super::types::*;
 
 /// Client-ID-to-light-client mapping with counterparty chain metadata.
-/// Created when an admin registers a new IBC client (e.g. an ICS07
+/// Created when an `ID_CUSTOMIZER_ROLE` holder registers a new IBC client (e.g. an ICS07
 /// Tendermint or attestation light client). The router reads this
 /// account during `send_packet`, `recv_packet`, `ack_packet` and
 /// `timeout_packet` to resolve which light client program to call for
@@ -40,8 +40,8 @@ impl Client {
 /// A generic 32-byte hash PDA used for three purposes depending on its
 /// seed prefix:
 /// - **Packet commitment** (`PACKET_COMMITMENT_SEED`): written by
-/// `send_packet`, stores `sha256(packet)` so the counterparty can
-/// prove the packet was sent.
+/// `send_packet`, stores the ICS24 packet commitment hash so the
+/// counterparty can prove the packet was sent.
 /// - **Packet receipt** (`PACKET_RECEIPT_SEED`): written by
 /// `recv_packet`, prevents the same packet from being delivered twice.
 /// - **Packet acknowledgement** (`PACKET_ACK_SEED`): written by
@@ -81,9 +81,9 @@ impl IBCApp {
 /// Temporary storage for a single chunk of IBC packet payload data during
 /// multi-transaction upload.
 /// Large payloads that exceed the Solana transaction size limit are split
-/// into chunks and uploaded separately. The `recv_packet` instruction
-/// reassembles all chunks, processes the full payload, then closes these
-/// accounts to reclaim rent.
+/// into chunks and uploaded separately. The `recv_packet`, `ack_packet` and
+/// `timeout_packet` instructions reassemble the chunks and zero their data;
+/// rent is reclaimed afterwards via `cleanup_chunks`.
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
 pub struct PayloadChunk {
     /// Client ID this chunk belongs to
@@ -126,9 +126,9 @@ impl ProofChunk {
 
 /// Global ICS26 router configuration.
 /// Singleton PDA initialized once during program setup. Stores the link
-/// to the access manager for admin-gated operations (e.g. registering
-/// clients, migrating light clients) and a schema version for future
-/// on-chain migrations.
+/// to the access manager for role-gated operations (e.g. registering
+/// clients and apps, migrating light clients, pausing), the global pause
+/// flag, and a schema version for future on-chain migrations.
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
 pub struct RouterState {
     /// Schema version for upgrades

@@ -109,12 +109,9 @@ impl Deployer {
         }
     }
 
-    /// Register an additional client/counterparty pair on the chain.
-    ///
-    /// Initializes the mock light client and calls `add_client` on the
-    /// router. Used for multi-hop tests (e.g. three-chain roundtrip).
     /// Register an additional client/counterparty pair backed by an
-    /// attestation LC instance.
+    /// attestation LC instance. Used for multi-hop tests (e.g. three-chain
+    /// roundtrip).
     ///
     /// Calls `add_client` on the router referencing the given `lc_program_id`.
     /// The attestation LC's `initialize` is already handled by the

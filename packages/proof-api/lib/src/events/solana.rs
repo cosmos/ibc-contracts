@@ -73,7 +73,7 @@ impl From<SolanaEurekaEventWithHeight> for EurekaEventWithHeight {
 /// A Tendermint `MsgTimeout` for processing by IBC
 ///
 /// # Errors
-/// * this function will return error if timeout timestamp is 0 or negative
+/// * This function does not currently return an error; `Result` is kept for API consistency.
 pub fn solana_timeout_packet_to_tm_timeout(
     msg: MsgTimeoutPacket,
     signer: String,

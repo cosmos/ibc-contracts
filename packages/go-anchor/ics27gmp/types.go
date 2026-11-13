@@ -105,7 +105,7 @@ func UnmarshalAccessManagerStateAccessManagerState(buf []byte) (*AccessManagerSt
 
 // Client-ID-to-light-client mapping with counterparty chain metadata.
 //
-// Created when an admin registers a new IBC client (e.g. an ICS07
+// Created when an `ID_CUSTOMIZER_ROLE` holder registers a new IBC client (e.g. an ICS07
 // Tendermint or attestation light client). The router reads this
 // account during `send_packet`, `recv_packet`, `ack_packet` and
 // `timeout_packet` to resolve which light client program to call for
@@ -324,9 +324,9 @@ func UnmarshalIcs26RouterStateIbcApp(buf []byte) (*Ics26RouterStateIbcApp, error
 // Global ICS26 router configuration.
 //
 // Singleton PDA initialized once during program setup. Stores the link
-// to the access manager for admin-gated operations (e.g. registering
-// clients, migrating light clients) and a schema version for future
-// on-chain migrations.
+// to the access manager for role-gated operations (e.g. registering
+// clients and apps, migrating light clients, pausing), the global pause
+// flag, and a schema version for future on-chain migrations.
 type Ics26RouterStateRouterState struct {
 	// Schema version for upgrades
 	Version SolanaIbcTypesRouterAccountVersion `json:"version"`
@@ -623,7 +623,7 @@ func UnmarshalIcs27GmpEventsGmpAppUnpaused(buf []byte) (*Ics27GmpEventsGmpAppUnp
 
 // Event emitted when a GMP call receives an acknowledgement.
 type Ics27GmpEventsGmpCallAcknowledgment struct {
-	// Source client ID (light client on Solana tracking the source chain).
+	// Source client ID (light client on Solana tracking the destination chain).
 	SourceClient string `json:"sourceClient"`
 
 	// IBC packet sequence number.
@@ -855,7 +855,7 @@ func UnmarshalIcs27GmpEventsGmpCallSent(buf []byte) (*Ics27GmpEventsGmpCallSent,
 
 // Event emitted when a GMP call times out.
 type Ics27GmpEventsGmpCallTimeout struct {
-	// Source client ID (light client on Solana tracking the source chain).
+	// Source client ID (light client on Solana tracking the destination chain).
 	SourceClient string `json:"sourceClient"`
 
 	// IBC packet sequence number.

@@ -185,7 +185,7 @@ func SpinUpKurtosisPoS(ctx context.Context) (EthKurtosisChain, error) {
 	}
 	fmt.Println(starlarkResp.RunOutput)
 
-	// exeuctionCtx is the service context (kurtosis concept) for the execution node that allows us to get the public ports
+	// executionCtx is the service context (kurtosis concept) for the execution node that allows us to get the public ports
 	executionCtx, err := enclaveCtx.GetServiceContext(executionService)
 	if err != nil {
 		return EthKurtosisChain{}, err

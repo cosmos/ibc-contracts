@@ -431,7 +431,7 @@ contract IbcImpl is Test, DeployAccessManagerWithRoles {
     function _cheatCommit(bytes32 path, bytes32 value) private {
         bytes32 erc7201Slot = 0x1260944489272988d9df285149b5aa1b0f48f2136d6f416159f840a3e0747600;
         bytes32 commitmentSlot = keccak256(abi.encodePacked(path, erc7201Slot));
-        // This is a cheat code to commit a value to the light client
+        // This is a cheat code to commit a value to the router's IBC store
         // It should only be used for testing purposes
         vm.store(address(ics26Router), commitmentSlot, value);
     }

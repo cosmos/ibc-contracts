@@ -15,7 +15,7 @@ interface IICS07TendermintMsgs {
         uint8 denominator;
     }
 
-    /// @notice Defines the ICS07Tendermint ClientState for ibc-lite
+    /// @notice Defines the ICS07Tendermint ClientState for IBC Eureka
     /// @param chainId Chain ID
     /// @param trustLevel Fraction of validator overlap needed to update header
     /// @param latestHeight Latest height the client was updated to

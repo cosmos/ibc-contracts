@@ -571,7 +571,7 @@ func NewAcceptAccessManagerTransferInstruction(
 	// Add the accounts to the instruction.
 	{
 		// Account 0 "app_state": Writable, Non-signer, Required
-		// PDA holding GMP app settings; the `access_manager` field is updated on success.
+		// PDA holding GMP app settings; the `am_state.access_manager` field is updated on success.
 		accounts__.Append(solanago.NewAccountMeta(appStateAccount, true, false))
 		// Account 1 "new_am_state": Read-only, Non-signer, Required
 		// Proposed access-manager state PDA derived from the pending program ID.

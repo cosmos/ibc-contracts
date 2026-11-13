@@ -26,7 +26,8 @@ library IBCIdentifiers {
 
     /// @notice validateCustomIBCIdentifier checks if a custom identifier is valid
     /**
-     * @dev validateCustomIdentifier validates a custom identifier string
+     * @dev validateCustomIBCIdentifier validates a custom identifier string
+     *     check that the string is between 4 and 128 bytes long
      *     check that the string does not start with "channel-" or "client-"
      *     check if the string consist of characters in one of the following categories only:
      *     - Alphanumeric

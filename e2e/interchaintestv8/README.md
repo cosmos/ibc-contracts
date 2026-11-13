@@ -25,7 +25,7 @@ To run the tests locally, run the following commands from the repo root:
 # Run the following where `$TEST_NAME` is one of the test names of the `$TEST_SUITE_FN`:
 just test-e2e $TEST_SUITE_FN/$TEST_NAME
 
-# For example, to run the `TestDeploy` test, you would run:
+# For example, to run the `Test_Deploy` test, you would run:
 just test-e2e TestWithIbcEurekaTestSuite/Test_Deploy
 
 # Alternatively:
@@ -49,7 +49,7 @@ Validated coverage in this mode:
 
 - Besu chain bring-up and contract deployment
 - Dockerized Ethereum attestors reading Besu RPC
-- relayer startup and client creation
+- proof API startup and client creation
 - full Ethereum ↔ Cosmos ICS20 transfer roundtrip
 
 ### Not supported
@@ -72,9 +72,9 @@ just test-e2e TestWithIbcEurekaTestSuite/Test_ICS20TransferERC20TokenfromEthereu
 
 ## Focused Besu ↔ Besu e2e
 
-This focused suite starts two independent Besu networks, deploys Eureka contracts on both, starts the Rust relayer with `besu_to_eth` in both directions, deploys and registers Besu light clients on both chains, and verifies a one-way A → B ICS20 transfer plus the B → A acknowledgement relay using real Besu proofs.
+This focused suite starts two independent Besu networks, deploys Eureka contracts on both, starts the proof API with the `besu_to_eth` module in both directions, deploys and registers Besu light clients on both chains, and uses real Besu proofs to verify A → B ICS20 transfers (with the B → A acknowledgement relay), timeouts and error acknowledgements, misbehaviour that freezes the client, and validator set changes.
 
-Every test runs once per consensus protocol: the `_QBFT` variant starts QBFT networks and the `_IBFT2` variant starts IBFT 2.0 networks. Each test starts its own networks and relayer.
+Every test runs once per consensus protocol: the `_QBFT` variant starts QBFT networks and the `_IBFT2` variant starts IBFT 2.0 networks. Each test starts its own networks and proof API.
 
 ### Focused local test commands
 

@@ -8,7 +8,7 @@ interface IAttestationLightClientMsgs {
     /// @param attestorAddresses Fixed set of attestor EOAs
     /// @param minRequiredSigs Quorum threshold
     /// @param latestHeight Highest known height
-    /// @param isFrozen Reserved for misbehaviour (not used in this version)
+    /// @param isFrozen Whether the client is frozen after a conflicting update was detected
     struct ClientState {
         address[] attestorAddresses;
         uint8 minRequiredSigs;

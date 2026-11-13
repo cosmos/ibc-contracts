@@ -398,7 +398,7 @@ impl<P: Provider + Clone> AttestedTxBuilder<P> {
     /// Update a client on Ethereum using attestations.
     ///
     /// # Errors
-    /// Returns an error when called (not yet implemented).
+    /// Returns an error if fetching the attestation or building the transaction fails.
     #[allow(clippy::unused_async)]
     pub async fn update_client(&self, dst_client_id: String) -> Result<Vec<u8>> {
         build_eth_attestor_update_client_calldata(

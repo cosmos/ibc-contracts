@@ -72,7 +72,7 @@ interface IICS26RouterMsgs {
 
     /// @notice Message for timing out packets, submitted by relayer
     /// @param packet The packet to be timed out
-    /// @param proofTimeout The proof of the packet commitment
+    /// @param proofTimeout The non-membership proof of the packet receipt
     /// @param proofHeight The proof height
     struct MsgTimeoutPacket {
         Packet packet;

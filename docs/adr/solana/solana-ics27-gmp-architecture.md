@@ -470,7 +470,7 @@ Instead of tracking CPI callers, Router validates that the registered app **sign
 ```rust
 // Router's send_packet validation
 let (expected_app_signer, _) = Pubkey::find_program_address(
-    &[b"ibc_app_state", ibc_app.port_id.as_bytes()],
+    &[b"app_state"],
     &ibc_app.app_program_id,  // e.g., GMP program ID
 );
 require!(
@@ -482,7 +482,7 @@ require!(
 ### How It Works
 
 1. **Registration**: GMP registers as the IBC app for "gmp" port
-2. **PDA Derivation**: GMP's app state PDA is `["ibc_app_state", "gmp"]` + GMP program ID
+2. **PDA Derivation**: GMP's app state PDA is `["app_state"]` + GMP program ID
 3. **CPI Chain**: When IFT calls GMP's `send_call`, GMP signs with its app state PDA via `invoke_signed`
 4. **Validation**: Router verifies the signer matches the expected PDA for the registered app
 
@@ -516,12 +516,12 @@ let (result_pda, bump) = Pubkey::find_program_address(&[
 The account stores:
 - `status` (Acknowledged/TimedOut)
 - `sender` (original sender address)
-- `sequence` (per-sender counter from `ClientSequence` PDA)
+- `sequence` (caller-chosen packet sequence)
 - `source_client` / `dest_client` (client IDs)
 - `ack_commitment` (SHA256 hash of acknowledgement bytes, or zeros for timeout)
 - `result_timestamp` (Unix seconds)
 
-See [Per-Sender Sequence Counter](solana-storage-architecture.md#per-sender-sequence-counter) for details on sequence management.
+See [Caller-Chosen Sequence](solana-storage-architecture.md#caller-chosen-sequence) for details on sequence management.
 
 **Relayer Integration**: The relayer computes and returns `gmp_result_pda` in `SolanaPacketTxs` for each ack/timeout packet, allowing callers to query results after relay.
 

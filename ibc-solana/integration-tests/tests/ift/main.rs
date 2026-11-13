@@ -11,7 +11,8 @@
 //!
 //! - **`initialize_existing_token`**: requires an externally-created mint whose
 //!   authority signs the transfer — complex setup but doable later.
-//! - **Batch relay (single tx with multiple recv/ack)**: tested in e2e only.
+//! - **Batch relay of multiple recvs in a single tx**: tested in e2e only
+//!   (batched acks are covered by `batch_ack_single_tx`).
 
 use anchor_spl::token::spl_token::error::TokenError;
 use integration_tests::{

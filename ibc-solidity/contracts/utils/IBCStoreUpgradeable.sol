@@ -46,7 +46,7 @@ abstract contract IBCStoreUpgradeable is IIBCStore, IICS24HostErrors, Initializa
         return ++_getIBCStoreStorage().prevSequenceSends[clientId];
     }
 
-    /// @notice Commits the packet commitment for a packet if it doesn't already exist
+    /// @notice Commits the packet commitment for a packet, reverting if it already exists
     /// @param packet Packet to commit the commitment for
     function commitPacket(IICS26RouterMsgs.Packet memory packet) internal {
         IBCStoreStorage storage $ = _getIBCStoreStorage();

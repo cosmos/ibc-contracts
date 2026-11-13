@@ -71,7 +71,7 @@ pub struct AckPacket<'info> {
     pub ibc_app_state: AccountInfo<'info>,
 
     /// Relayer submitting the acknowledgement; must hold the `RELAYER_ROLE`.
-    /// Receives rent from the closed `packet_commitment` account.
+    /// Also passed to the app callback as payer.
     #[account(mut)]
     pub relayer: Signer<'info>,
 

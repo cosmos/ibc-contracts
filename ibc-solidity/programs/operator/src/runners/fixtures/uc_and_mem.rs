@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-//! Runner for generating `update_client` fixtures
+//! Runner for generating `update_client_and_membership` fixtures
 
 use crate::{
     cli::command::{fixtures::UpdateClientAndMembershipCmd, OutputPath},
@@ -116,7 +116,7 @@ pub async fn run(args: UpdateClientAndMembershipCmd) -> anyhow::Result<()> {
 
     let kv_len = kv_proofs.len();
     let now_since_unix = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?;
-    // Generate a header update proof for the specified blocks.
+    // Generate an update client and membership proof for the specified blocks.
     let proof_data = uc_mem_prover
         .generate_proof(
             &trusted_client_state,

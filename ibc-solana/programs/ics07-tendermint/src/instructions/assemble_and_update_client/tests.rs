@@ -366,7 +366,7 @@ fn test_assembly_with_corrupted_chunk() {
         &crate::ID,
     );
 
-    // Create metadata // Get chunk PDAs
+    // Get chunk PDAs
     let chunk_pdas = get_chunk_pdas(&submitter, target_height, 2);
 
     // Access manager PDA
@@ -467,7 +467,7 @@ fn test_assembly_wrong_submitter() {
 
     let (_, chunks) = create_test_header_and_chunks(2);
 
-    // Create metadata with original submitter
+    // Derive chunk PDAs for the original submitter
     let chunk_pdas = get_chunk_pdas(&original_submitter, target_height, 2);
 
     // Try to assemble with wrong submitter
@@ -790,7 +790,7 @@ fn test_rent_reclaim_after_assembly() {
             result.program_result
         );
     } else {
-        // Verify metadata and chunks were closed (rent returned)
+        // Chunks are not closed by assembly; see `cleanup_incomplete_upload`
         println!("Assembly succeeded with real fixtures");
     }
 }

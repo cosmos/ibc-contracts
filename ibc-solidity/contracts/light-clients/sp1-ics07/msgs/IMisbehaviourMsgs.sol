@@ -10,7 +10,7 @@ import { IICS02ClientMsgs } from "../../../msgs/IICS02ClientMsgs.sol";
 /// @notice Defines shared types for the misbehaviour program.
 interface IMisbehaviourMsgs {
     /// @notice The message that is submitted to the misbehaviour function.
-    /// @param sp1Proof The SP1 proof for updating the client.
+    /// @param sp1Proof The SP1 proof for the misbehaviour.
     struct MsgSubmitMisbehaviour {
         ISP1Msgs.SP1Proof sp1Proof;
     }

@@ -49,7 +49,7 @@ type solanaConfig struct {
 
 // cosmosConfig holds config for wasm light clients deployed on Cosmos.
 type cosmosConfig struct {
-	lightClientType    string // dummy, full, or attestor
+	lightClientType    string // dummy, full, or attestor-native
 	wasmLightClientTag string // version tag or "local"
 }
 

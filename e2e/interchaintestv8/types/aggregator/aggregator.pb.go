@@ -149,7 +149,7 @@ func (x *AggregatedAttestation) GetSignatures() [][]byte {
 	return nil
 }
 
-// GetStateAttestationResponse is a response from the aggregator.
+// GetAttestationsResponse is a response from the aggregator.
 type GetAttestationsResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The attestation of the blockchain state

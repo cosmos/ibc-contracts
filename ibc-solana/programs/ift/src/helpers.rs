@@ -67,7 +67,7 @@ fn maybe_reset_day(mint_state: &mut IFTAppMintState, clock: &Clock) {
     }
 }
 
-/// Update mint rate limit usage for `ift_mint`.
+/// Update mint rate limit usage before a mint (called by `mint_to_account`).
 /// Resets usage on new day, adds amount, returns error if limit exceeded.
 fn check_and_update_mint_rate_limit(
     mint_state: &mut IFTAppMintState,
@@ -334,7 +334,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mint_transfer_refund_no_usage_change() {
+    fn test_transfer_out_does_not_reduce_mint_usage() {
         let day = 1u64;
         let clock = make_clock(SECONDS_PER_DAY as i64);
         let mut state = make_mint_state(1000, day, 0);
@@ -343,7 +343,6 @@ mod tests {
         assert!(check_and_update_mint_rate_limit(&mut state, 1000, &clock).is_ok());
 
         // Transfer out (no rate limit change at burn time)
-        // Refund (no rate limit change — net zero)
         // Usage stays at limit
         assert_eq!(state.rate_limit_daily_usage, 1000);
 

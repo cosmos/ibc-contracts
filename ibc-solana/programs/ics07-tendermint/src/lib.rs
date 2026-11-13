@@ -82,7 +82,7 @@ pub mod ics07_tendermint {
     }
 
     /// Upload a chunk of header data for multi-transaction updates
-    /// Fails if a chunk already exists at this position (no overwrites allowed)
+    /// Re-uploading to an existing position overwrites the submitter's chunk
     pub fn upload_header_chunk(
         ctx: Context<UploadHeaderChunk>,
         params: UploadChunkParams,
@@ -91,7 +91,7 @@ pub mod ics07_tendermint {
     }
 
     /// Assemble chunks and update the client
-    /// Automatically cleans up all chunks after successful update
+    /// Chunks are not closed; call `cleanup_incomplete_upload` afterwards to reclaim rent
     pub fn assemble_and_update_client<'info>(
         ctx: Context<'_, '_, 'info, 'info, AssembleAndUpdateClient<'info>>,
         target_height: u64,
@@ -106,8 +106,8 @@ pub mod ics07_tendermint {
         )
     }
 
-    /// Clean up incomplete header uploads
-    /// This can be called to reclaim rent from failed or abandoned uploads
+    /// Clean up header uploads
+    /// This can be called to reclaim rent after successful, failed or abandoned uploads
     /// Closes both `HeaderChunk` and `SignatureVerification` PDAs owned by the submitter
     pub fn cleanup_incomplete_upload(ctx: Context<CleanupIncompleteUpload>) -> Result<()> {
         instructions::cleanup_incomplete_upload::cleanup_incomplete_upload(ctx)

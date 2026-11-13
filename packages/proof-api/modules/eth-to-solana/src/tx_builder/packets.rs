@@ -678,10 +678,10 @@ impl super::SolanaTxBuilder {
         Ok((final_tx, alt_create_tx, alt_extend_txs))
     }
 
-    /// Builds IFT `claim_refund` transaction for ack/timeout packets.
+    /// Builds IFT `finalize_transfer` transaction for ack/timeout packets.
     ///
     /// Returns `None` if not applicable (non-IFT packet, no pending transfer).
-    /// Tokens are safe in `PendingTransfer` and user can manually claim later.
+    /// Tokens are safe in `PendingTransfer` and user can manually finalize later.
     fn build_ift_claim_refund_tx(
         &self,
         payloads: &[MsgPayload],

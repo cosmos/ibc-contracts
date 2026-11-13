@@ -288,7 +288,7 @@ contract ICS26Router is
         );
 
         // timeoutPacket will no-op if the packet commitment does not exist
-        // This no-op check must happen after the membership verification for proofs to be cached
+        // This no-op check must happen after the non-membership verification for proofs to be cached
         bool commitmentFound = checkAndDeletePacketCommitment(msg_.packet);
         if (!commitmentFound) {
             emit Noop();

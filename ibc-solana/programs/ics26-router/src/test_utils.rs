@@ -272,8 +272,8 @@ pub fn create_instructions_sysvar_account_with_caller(
     };
 
     // Create minimal mock instructions to simulate CPI validation
-    // For CPI validation, only the program_id matters - send_packet checks that
-    // the calling instruction's program_id matches the authorized IBC app
+    // For CPI validation, only the program_id matters - `reject_cpi` checks that
+    // the top-level instruction's program_id is the router itself
     //
     // Instruction 0: The caller instruction (current when caller executes)
     // During CPI, current_index points to this instruction

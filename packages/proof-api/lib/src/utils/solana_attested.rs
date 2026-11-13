@@ -108,7 +108,7 @@ pub fn build_solana_membership_proof(
 /// * `aggregator` - The aggregator client
 /// * `packets` - ABI-encoded packets to get attestation for
 /// * `height` - The height to fetch attestation at
-/// * `commitment_type` - Type of commitment (Packet or Ack)
+/// * `commitment_type` - Type of commitment (Packet, Ack or Receipt)
 ///
 /// # Errors
 /// Returns an error if fetching attestation fails.

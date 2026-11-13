@@ -44,7 +44,7 @@ pub struct GMPAppUnpaused {
 #[derive(Clone, Debug)]
 #[event]
 pub struct GMPCallAcknowledgment {
-    /// Source client ID (light client on Solana tracking the source chain).
+    /// Source client ID (light client on Solana tracking the destination chain).
     pub source_client: String,
     /// IBC packet sequence number.
     pub sequence: u64,
@@ -80,7 +80,7 @@ pub struct GMPCallSent {
 #[derive(Clone, Debug)]
 #[event]
 pub struct GMPCallTimeout {
-    /// Source client ID (light client on Solana tracking the source chain).
+    /// Source client ID (light client on Solana tracking the destination chain).
     pub source_client: String,
     /// IBC packet sequence number.
     pub sequence: u64,

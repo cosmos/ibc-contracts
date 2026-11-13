@@ -85,10 +85,10 @@ Uses Borsh (~2.5x more compact than JSON). Each signature adds ~69 bytes vs ~165
 
 #### 3. Consensus State Storage: Per-Height PDAs
 
-Each consensus state is stored in a separate PDA derived from (client_id, height):
+Each consensus state is stored in a separate PDA derived from its height:
 
 ```rust
-seeds = [ConsensusStateStore::SEED, client_state.key().as_ref(), &height.to_le_bytes()]
+seeds = [ConsensusStateStore::SEED, &height.to_le_bytes()]
 ```
 
 Account existence serves as implicit "height trusted" check.
@@ -138,7 +138,7 @@ Full parity: initialization, updates, membership/non-membership verification, mi
 | ---------------------- | ------------------------------ | ------------------------------------- |
 | Consensus storage      | `mapping(height => timestamp)` | Per-height PDA accounts               |
 | Signature verification | OpenZeppelin ECDSA             | Native `secp256k1_recover` syscall    |
-| Access control         | OpenZeppelin AccessControl     | Separate `access_manager` program     |
+| Access control         | Router's OpenZeppelin `AccessManager` (`ICS26ManagedLightClient`) | Separate `access_manager` program     |
 | Signature limit        | None (gas scales linearly)     | 11 per transaction                    |
 | Initialize validation  | No height/timestamp validation | Requires height > 0 and timestamp > 0 |
 
@@ -149,4 +149,4 @@ Full parity: initialization, updates, membership/non-membership verification, mi
 
 ## References
 
-- [Solidity Attestation Light Client](../../contracts/light-clients/attestation/)
+- [Solidity Attestation Light Client](../../../ibc-solidity/contracts/light-clients/attestation/)

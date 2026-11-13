@@ -113,10 +113,7 @@ pub struct SendTransfer<'info> {
 }
 
 pub fn send_transfer(ctx: Context<SendTransfer>, msg: SendTransferMsg) -> Result<()> {
-    // Get clock directly via syscall
     let clock = Clock::get()?;
-
-    // No need to validate router_caller since it's a PDA derived by Anchor
 
     // Validate timeout - for this demo we'll just use a simple check
     let current_timestamp =

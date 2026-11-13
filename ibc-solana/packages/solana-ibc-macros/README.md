@@ -4,7 +4,7 @@ Procedural macros for IBC applications on Solana.
 
 ## Overview
 
-This crate provides the `#[ibc_app]` macro which validates that IBC applications implement all required callback functions with correct signatures at compile time.
+This crate provides the `#[ibc_app]` macro, which wraps Anchor's `#[program]` and validates at compile time that IBC applications implement all required callback functions with correct signatures. It also provides the `discriminator!` macro for computing Anchor instruction discriminators at compile time.
 
 ## Usage
 
@@ -44,5 +44,5 @@ pub mod my_ibc_app {
 ## Features
 
 - Compile-time validation of IBC callback function names and signatures
-- Automatic generation of instruction discriminators
+- Compile-time check that the Anchor instruction discriminators for each callback exist
 - Clear error messages for missing or misnamed callbacks

@@ -433,7 +433,7 @@ just solana::set-upgrade-authority ics26_router localnet "$HOME/.config/solana/i
 - The upgrade authority PDA is automatically derived with seeds: `["upgrade_authority", program_id]`
 - The third parameter (current authority keypair) is optional; it defaults to
   `solana-keypairs/<cluster>/deployer_wallet.json`.
-- Use `--skip-new-upgrade-authority-signer-check` is automatically applied since PDAs cannot sign
+- `--skip-new-upgrade-authority-signer-check` is applied automatically since PDAs cannot sign
 
 ### Performing Upgrades
 
@@ -469,7 +469,7 @@ This command automatically:
 - Deployer wallet must have SOL for buffer creation
 - Program must already be deployed with AccessManager as upgrade authority
 
-#### Prepare Buffer Only
+#### Option 1: Prepare Buffer Only
 
 If you only want to prepare the buffer without executing the upgrade:
 

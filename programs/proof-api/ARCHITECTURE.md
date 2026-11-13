@@ -1,6 +1,6 @@
 # IBC Proof API Architecture
 
-**Location**: [`programs/proof-api/`](programs/proof-api/) (entry point) | [`packages/proof-api/`](packages/proof-api/) (implementation) | [`proto/proofapi/`](proto/proofapi/) (API definition)
+**Location**: [`programs/proof-api/`](./) (entry point) | [`packages/proof-api/`](../../packages/proof-api/) (implementation) | [`proto/proofapi/`](../../proto/proofapi/) (API definition)
 
 The IBC Proof API is a stateless gRPC API service that provides Inter-Blockchain Communication (IBC) relaying functionality. It serves as a transaction generation service, creating unsigned transactions for IBC operations while delegating monitoring, submission, and orchestration responsibilities to callers.
 
@@ -30,7 +30,7 @@ The system uses a plugin-based architecture where different modules handle speci
 ## System Architecture
 
 ### Service Layer
-**Location**: [`programs/proof-api/`](programs/proof-api/) - Entry point and CLI interface
+**Location**: [`programs/proof-api/`](./) - Entry point and CLI interface
 
 The top level exposes a standard gRPC service interface with four core operations:
 
@@ -40,20 +40,20 @@ The top level exposes a standard gRPC service interface with four core operation
 4. **Info**: Return chain and module information
 
 ### Routing Layer
-**Location**: [`packages/proof-api/core/`](packages/proof-api/core/) - Core routing and builder logic
+**Location**: [`packages/proof-api/core/`](../../packages/proof-api/core/) - Core routing and builder logic
 
 Requests are routed to appropriate modules based on (source_chain, destination_chain) pairs.
 
 ### Module Layer
-**Location**: [`packages/proof-api/modules/`](packages/proof-api/modules/) - Chain-specific implementations
+**Location**: [`packages/proof-api/modules/`](../../packages/proof-api/modules/) - Chain-specific implementations
 
 Each module implements the same interface but handles different blockchain combinations, some examples include:
-- **Cosmos ↔ Ethereum**: [`cosmos-to-eth/`](packages/proof-api/modules/cosmos-to-eth/) - Handles Tendermint/Ethereum with zero-knowledge proofs
-- **Cosmos ↔ Cosmos**: [`cosmos-to-cosmos/`](packages/proof-api/modules/cosmos-to-cosmos/) - Native IBC between Cosmos SDK chains
-- **Ethereum ↔ Cosmos**: [`eth-to-cosmos/`](packages/proof-api/modules/eth-to-cosmos/) - Ethereum light client verification
+- **Cosmos → Ethereum**: [`cosmos-to-eth/`](../../packages/proof-api/modules/cosmos-to-eth/) - Handles Tendermint/Ethereum with SP1 zero-knowledge proofs or attestations
+- **Cosmos → Cosmos**: [`cosmos-to-cosmos/`](../../packages/proof-api/modules/cosmos-to-cosmos/) - Native IBC between Cosmos SDK chains
+- **Ethereum → Cosmos**: [`eth-to-cosmos/`](../../packages/proof-api/modules/eth-to-cosmos/) - Ethereum light client verification
 
 ### Abstraction Layer
-**Location**: [`packages/proof-api/lib/`](packages/proof-api/lib/) - Common interfaces and utilities
+**Location**: [`packages/proof-api/lib/`](../../packages/proof-api/lib/) - Common interfaces and utilities
 
 The system abstracts blockchain differences through common interfaces:
 - **Chain Abstraction**: Generic interface for different blockchain types

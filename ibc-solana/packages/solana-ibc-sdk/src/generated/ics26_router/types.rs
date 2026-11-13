@@ -53,7 +53,8 @@ pub struct CounterpartyInfo {
     pub merkle_prefix: Vec<Vec<u8>>,
 }
 
-/// Payload metadata for chunked operations
+/// How payload or proof data is delivered: inline in the instruction, or
+/// pre-uploaded as chunk accounts
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
 pub enum Delivery {
     Inline { data: Vec<u8> },

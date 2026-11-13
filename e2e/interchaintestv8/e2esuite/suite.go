@@ -22,7 +22,7 @@ import (
 	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/testvalues"
 )
 
-// TestSuite is a suite of tests that require two chains and a relayer
+// TestSuite is the base suite for tests that run against local Ethereum, Cosmos and/or Solana chains
 type TestSuite struct {
 	suite.Suite
 
@@ -48,7 +48,7 @@ type TestSuite struct {
 	logger       *zap.Logger
 }
 
-// SetupSuite sets up the chains, relayer, user accounts, clients, and connections
+// SetupSuite sets up the chains and the funded Cosmos user accounts
 func (s *TestSuite) SetupSuite(ctx context.Context) {
 	s.config = s.parseConfig()
 	if err := s.config.validate(); err != nil {

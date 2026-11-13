@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-//! IFT `claim_refund` instruction builder for ack/timeout packets.
+//! IFT `finalize_transfer` instruction builder for ack/timeout packets.
 //!
 //! After GMP processes ack/timeout and creates `GMPCallResultAccount`,
 //! the proof API calls IFT's `finalize_transfer` to process refunds.
@@ -22,7 +22,7 @@ use crate::constants::ANCHOR_DISCRIMINATOR_SIZE;
 use crate::gmp::{AbiGmpPacketData, ABI_ENCODING, GMP_PORT_ID, PROTOBUF_ENCODING};
 use crate::proto::{GmpPacketData, Protobuf};
 
-/// Parameters for building IFT `claim_refund` instruction
+/// Parameters for building IFT `finalize_transfer` instruction
 pub struct ClaimRefundParams<'a> {
     pub source_port: &'a str,
     pub encoding: &'a str,
@@ -33,7 +33,7 @@ pub struct ClaimRefundParams<'a> {
     pub fee_payer: Pubkey,
 }
 
-/// Build IFT `claim_refund` instruction if this packet is from IFT.
+/// Build IFT `finalize_transfer` instruction if this packet is from IFT.
 /// Returns None if the packet is not an IFT transfer or no pending transfer exists.
 pub fn build_claim_refund_instruction(params: &ClaimRefundParams<'_>) -> Option<Instruction> {
     if params.source_port != GMP_PORT_ID {

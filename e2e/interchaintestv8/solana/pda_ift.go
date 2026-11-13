@@ -6,7 +6,7 @@ package solana
 // 1. The IFT IDL has non-UTF8 bytes in const seeds that corrupt auto-generation
 // 2. Auto-generated names would have verbose "WithAccountSeed" suffix
 //
-// The type `IftPDAs` and singleton `Ics27Ift` are defined in pda.go (auto-generated).
+// The type `iftPDAs` and singleton `Ift` are defined in pda.go (auto-generated).
 // Only the methods are defined here to avoid corruption from `just solana::generate-pda`.
 
 import (

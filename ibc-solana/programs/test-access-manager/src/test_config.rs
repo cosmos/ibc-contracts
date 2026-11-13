@@ -2,9 +2,9 @@
 
 //! Per-crate test constants for AM-to-AM migration tests.
 //!
-//! This file is NOT shared (hardlinked/symlinked) between `access-manager`
+//! This file is NOT shared (symlinked) between `access-manager`
 //! and `test-access-manager`. Each crate has its own copy with different
-//! values so that shared test code (which IS hardlinked) can reference
+//! values so that shared test code (which IS symlinked) can reference
 //! `crate::test_config::*` and resolve to the correct binary names and
 //! program IDs for each crate.
 

@@ -187,7 +187,7 @@ func (s *TestSuite) PushNewWasmClientProposal(ctx context.Context, chain *cosmos
 	return actualChecksum
 }
 
-// PushMigrateWasmClientProposal submits a new wasm client governance proposal to the chain.
+// PushMigrateWasmClientProposal submits a wasm client migration governance proposal to the chain.
 func (s *TestSuite) PushMigrateWasmClientProposal(ctx context.Context, chain *cosmos.CosmosChain, wallet ibc.Wallet, clientId string, checksum string, migrateMsg []byte) {
 	checksumBz, err := hex.DecodeString(checksum)
 	s.Require().NoError(err)

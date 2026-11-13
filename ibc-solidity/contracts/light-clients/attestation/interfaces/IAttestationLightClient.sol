@@ -4,7 +4,7 @@ pragma solidity ^0.8.28;
 import { ILightClient } from "../../../interfaces/ILightClient.sol";
 
 /// @title IAttestationLightClient
-/// @notice Interface for an attestation-based IBC light client as specified in `IBC_ATTESTATION_DESIGN.md`.
+/// @notice Interface for an attestation-based IBC light client as specified in `IBC_ATTESTOR_DESIGN.md`.
 /// @dev Implementations MUST also implement `ILightClient` behaviors.
 interface IAttestationLightClient is ILightClient {
     /// @notice Returns the attestation set configuration.

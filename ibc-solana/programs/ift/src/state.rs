@@ -123,7 +123,8 @@ pub struct IFTAppState {
     /// Admin authority for IFT
     pub admin: Pubkey,
 
-    /// Whether IFT is paused (blocks mint and transfer, not refunds)
+    /// Whether IFT is paused (blocks transfers, mints, admin mints and
+    /// `finalize_transfer`, including refunds)
     pub paused: bool,
 
     /// Pending admin for two-step transfer
@@ -186,7 +187,8 @@ pub struct IFTBridge {
     #[max_len(MAX_CLIENT_ID_LENGTH)]
     pub client_id: String,
 
-    /// IFT contract address on counterparty chain (EVM address or Cosmos bech32)
+    /// IFT contract address on counterparty chain (EVM address, Cosmos bech32
+    /// or Solana base58 program ID)
     #[max_len(MAX_COUNTERPARTY_ADDRESS_LENGTH)]
     pub counterparty_ift_address: String,
 
@@ -292,10 +294,10 @@ pub struct SetMintRateLimitMsg {
     pub daily_mint_limit: u64,
 }
 
-/// Message for pausing/unpausing an IFT token
+/// Message for pausing/unpausing IFT (global, applies to all mints)
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
 pub struct SetPausedMsg {
-    /// Whether to pause (true) or unpause (false) the token
+    /// Whether to pause (true) or unpause (false) IFT
     pub paused: bool,
 }
 
