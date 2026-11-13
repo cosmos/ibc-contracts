@@ -57,7 +57,13 @@ in_dev_shell() {
   nix "${nix_flags[@]}" develop "$repo_root" --command "$@"
 }
 
-step "cargo fetch" in_dev_shell cargo fetch --locked
+# The root workspace plus the separate workspaces that default-shell recipes build. ibc-solana
+# belongs to the Solana shell, which setup does not prebuild.
+for manifest in Cargo.toml \
+  ibc-solidity/programs/cw-ics08-wasm-eth/Cargo.toml \
+  ibc-solidity/programs/sp1-programs/Cargo.toml; do
+  step "cargo fetch $manifest" in_dev_shell cargo fetch --locked --manifest-path "$manifest"
+done
 
 # shellcheck disable=SC2016
 step "go mod download" in_dev_shell bash -euc '
