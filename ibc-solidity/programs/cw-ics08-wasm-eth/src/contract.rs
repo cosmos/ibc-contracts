@@ -469,7 +469,7 @@ mod tests {
                 if let ActiveSyncCommittee::Current(_x) = sync_committee {
                     panic!("shouldn't happen");
                 } else if let ActiveSyncCommittee::Next(x) = sync_committee {
-                    let mut m = x.clone();
+                    let mut m = x;
 
                     let pk1 = FixedBytes([
                         140, 49, 208, 243, 132, 3, 164, 40, 45, 148, 208, 102, 241, 152, 252, 233,
@@ -511,7 +511,7 @@ mod tests {
 
                 let query_verify_client_msg =
                     QueryMsg::VerifyClientMessage(VerifyClientMessageMsg {
-                        client_message: Binary::from(header_manipulated.clone()),
+                        client_message: Binary::from(header_manipulated),
                     });
                 // NOTE: It should error here if the vuln is patched
                 let err = query(deps.as_ref(), env.clone(), query_verify_client_msg).unwrap_err();
@@ -564,7 +564,7 @@ mod tests {
                 if let ActiveSyncCommittee::Current(_x) = sync_committee {
                     panic!("shouldn't happen");
                 } else if let ActiveSyncCommittee::Next(x) = sync_committee {
-                    let mut m = x.clone();
+                    let mut m = x;
 
                     let pk1 = FixedBytes([
                         140, 49, 208, 243, 132, 3, 164, 40, 45, 148, 208, 102, 241, 152, 252, 233,
@@ -618,7 +618,7 @@ mod tests {
 
                 let query_verify_client_msg =
                     QueryMsg::VerifyClientMessage(VerifyClientMessageMsg {
-                        client_message: Binary::from(header_manipulated.clone()),
+                        client_message: Binary::from(header_manipulated),
                     });
                 // NOTE: It should error here if the vuln is patched
                 let err = query(deps.as_ref(), env.clone(), query_verify_client_msg).unwrap_err();

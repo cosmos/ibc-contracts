@@ -11,7 +11,7 @@ import (
 
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
 
-	gmptypes "github.com/cosmos/ibc-go/v11/modules/apps/27-gmp/types"
+	gmptypes "github.com/lfdt-ibc/ibc-go/v11/modules/apps/27-gmp/types"
 
 	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/testvalues"
 	solanatypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/solana"

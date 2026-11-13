@@ -196,7 +196,7 @@ mod test {
         let mut latest_client_state = initial_state.client_state;
         for header in headers {
             let (_, updated_consensus_state, updated_client_state) =
-                update_consensus_state(latest_consensus_state, latest_client_state, header.clone())
+                update_consensus_state(latest_consensus_state, latest_client_state, header)
                     .unwrap();
 
             latest_consensus_state = updated_consensus_state;
@@ -245,7 +245,7 @@ mod test {
         let mut latest_client_state = initial_state.client_state;
         for header in headers {
             let (_, updated_consensus_state, updated_client_state) =
-                update_consensus_state(latest_consensus_state, latest_client_state, header.clone())
+                update_consensus_state(latest_consensus_state, latest_client_state, header)
                     .unwrap();
 
             latest_consensus_state = updated_consensus_state;

@@ -262,7 +262,7 @@ jobs:
           ls -l out/assets
           git archive --format=tar "$GITHUB_SHA" -- "${sources[@]}" | tar -x -C src
       - name: Attest release assets
-        uses: cosmos/ibc/.github/actions/attest-release-assets@2afbb3363fa654d53ec1d0808732a4743b00afc3 # main
+        uses: lfdt-ibc/ibc/.github/actions/attest-release-assets@59b25e7024a5aa59f2e97bfb76bcd5e754e69063 # main
         with:
           name: ${{ env.NAME }}
           platform: ${{ matrix.platform }}
@@ -336,7 +336,7 @@ jobs:
           provenance: false
       # The platform image gets its provenance and SBOM; the index is signed in publish-manifest.
       - name: Attest image
-        uses: cosmos/ibc/.github/actions/attest-image@2afbb3363fa654d53ec1d0808732a4743b00afc3 # main
+        uses: lfdt-ibc/ibc/.github/actions/attest-image@59b25e7024a5aa59f2e97bfb76bcd5e754e69063 # main
         with:
           image: ${{ env.IMAGE_NAME }}
           digest: ${{ steps.image.outputs.digest }}
@@ -369,7 +369,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Verify release assets
-        uses: cosmos/ibc/.github/actions/publish-draft-release@2afbb3363fa654d53ec1d0808732a4743b00afc3 # main
+        uses: lfdt-ibc/ibc/.github/actions/publish-draft-release@59b25e7024a5aa59f2e97bfb76bcd5e754e69063 # main
         with:
           name: ${{ needs.validate-tag.outputs.name }}
           verify-only: "true"
@@ -431,7 +431,7 @@ jobs:
           docker buildx imagetools inspect "${IMAGE_NAME}@${pushed}"
           echo "digest=${pushed}" >> "$GITHUB_OUTPUT"
       - name: Attest and sign image
-        uses: cosmos/ibc/.github/actions/attest-image@2afbb3363fa654d53ec1d0808732a4743b00afc3 # main
+        uses: lfdt-ibc/ibc/.github/actions/attest-image@59b25e7024a5aa59f2e97bfb76bcd5e754e69063 # main
         with:
           image: ${{ env.IMAGE_NAME }}
           digest: ${{ steps.index.outputs.digest }}
@@ -532,7 +532,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Publish draft release
-        uses: cosmos/ibc/.github/actions/publish-draft-release@2afbb3363fa654d53ec1d0808732a4743b00afc3 # main
+        uses: lfdt-ibc/ibc/.github/actions/publish-draft-release@59b25e7024a5aa59f2e97bfb76bcd5e754e69063 # main
         with:
           name: ${{ needs.validate-tag.outputs.name }}
           title: ${{ needs.validate-tag.outputs.title }}

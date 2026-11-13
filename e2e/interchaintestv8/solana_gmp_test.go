@@ -13,9 +13,9 @@ import (
 	"time"
 
 	"github.com/cosmos/gogoproto/proto"
+	bin "github.com/gagliardetto/binary"
 	test_cpi_proxy "github.com/lfdt-ibc/ibc-contracts/e2e/interchaintestv8/solana/go-anchor/testcpiproxy"
 	test_gmp_app "github.com/lfdt-ibc/ibc-contracts/e2e/interchaintestv8/solana/go-anchor/testgmpapp"
-	bin "github.com/gagliardetto/binary"
 	"github.com/stretchr/testify/suite"
 	googleproto "google.golang.org/protobuf/proto"
 
@@ -29,8 +29,8 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 
-	gmptypes "github.com/cosmos/ibc-go/v11/modules/apps/27-gmp/types"
-	channeltypesv2 "github.com/cosmos/ibc-go/v11/modules/core/04-channel/v2/types"
+	gmptypes "github.com/lfdt-ibc/ibc-go/v11/modules/apps/27-gmp/types"
+	channeltypesv2 "github.com/lfdt-ibc/ibc-go/v11/modules/core/04-channel/v2/types"
 
 	"github.com/cosmos/interchaintest/v11/ibc"
 	"github.com/cosmos/interchaintest/v11/testutil"

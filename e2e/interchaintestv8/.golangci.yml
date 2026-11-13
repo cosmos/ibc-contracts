@@ -79,7 +79,7 @@ formatters:
         - prefix(cosmossdk.io)
         - prefix(github.com/cosmos/cosmos-sdk)
         - prefix(github.com/cometbft/cometbft)
-        - prefix(github.com/cosmos/ibc-go)
+        - prefix(github.com/lfdt-ibc/ibc-go)
         - prefix(github.com/CosmWasm/wasmd)
         - prefix(github.com/cosmos/interchaintest)
         - prefix(github.com/lfdt-ibc/ibc-contracts/packages/go-abigen)

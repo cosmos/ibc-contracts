@@ -18,8 +18,8 @@ import (
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
 	txtypes "github.com/cosmos/cosmos-sdk/types/tx"
 
-	ibcwasmtypes "github.com/cosmos/ibc-go/modules/light-clients/08-wasm/v11/types"
-	clienttypes "github.com/cosmos/ibc-go/v11/modules/core/02-client/types"
+	ibcwasmtypes "github.com/lfdt-ibc/ibc-go/modules/light-clients/08-wasm/v11/types"
+	clienttypes "github.com/lfdt-ibc/ibc-go/v11/modules/core/02-client/types"
 
 	ethereumtypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/ethereum"
 	proofapitypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/proofapi"

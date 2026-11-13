@@ -21,8 +21,8 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 	"github.com/ethereum/go-ethereum/rlp"
 
-	channeltypesv2 "github.com/cosmos/ibc-go/v11/modules/core/04-channel/v2/types"
-	ibchostv2 "github.com/cosmos/ibc-go/v11/modules/core/24-host/v2"
+	channeltypesv2 "github.com/lfdt-ibc/ibc-go/v11/modules/core/04-channel/v2/types"
+	ibchostv2 "github.com/lfdt-ibc/ibc-go/v11/modules/core/24-host/v2"
 
 	"github.com/lfdt-ibc/ibc-contracts/packages/go-abigen/besumsgs"
 	"github.com/lfdt-ibc/ibc-contracts/packages/go-abigen/ics26router"
