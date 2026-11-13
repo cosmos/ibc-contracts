@@ -165,6 +165,7 @@ mod tests {
             test::helpers::mk_deps,
         };
 
+        #[allow(clippy::too_many_lines)]
         #[test]
         fn test_instantiate() {
             let mut deps = mk_deps();
@@ -202,6 +203,10 @@ mod tests {
                         epoch: 0,
                     },
                     fulu: Fork {
+                        version: FixedBytes([0; 4]),
+                        epoch: 0,
+                    },
+                    gloas: Fork {
                         version: FixedBytes([0; 4]),
                         epoch: 0,
                     },
@@ -346,7 +351,7 @@ mod tests {
             // Verify client message
             let relayer_messages: RelayerMessages = fixture.get_data_at_step(1);
             let (update_client_msgs, recv_msgs, _, _) = relayer_messages.get_sdk_msgs();
-            assert_eq!(1, update_client_msgs.len()); // just to make sure
+            assert_ne!(0, update_client_msgs.len()); // just to make sure
             assert_eq!(1, recv_msgs.len()); // just to make sure
             let client_msgs = update_client_msgs
                 .iter()
@@ -362,7 +367,8 @@ mod tests {
             for header_bz in client_msgs {
                 let header: Header = serde_json::from_slice(&header_bz).unwrap();
                 env.block.time = Timestamp::from_seconds(
-                    header.consensus_update.attested_header.execution.timestamp + 1000,
+                    client_state.compute_timestamp_at_slot(header.consensus_update.signature_slot)
+                        + 1000,
                 );
 
                 let query_verify_client_msg =
@@ -382,7 +388,7 @@ mod tests {
                 assert_eq!(1, update_state_result.heights.len());
                 assert_eq!(0, update_state_result.heights[0].revision_number);
                 assert_eq!(
-                    header.consensus_update.finalized_header.beacon.slot,
+                    header.consensus_update.finalized_header.beacon().slot,
                     update_state_result.heights[0].revision_height
                 );
             }
@@ -447,7 +453,7 @@ mod tests {
             // Verify client message
             let relayer_messages: RelayerMessages = fixture.get_data_at_step(1);
             let (update_client_msgs, recv_msgs, _, _) = relayer_messages.get_sdk_msgs();
-            assert_eq!(1, update_client_msgs.len()); // just to make sure
+            assert_ne!(0, update_client_msgs.len()); // just to make sure
             assert_eq!(1, recv_msgs.len()); // just to make sure
             let client_msgs = update_client_msgs
                 .iter()
@@ -455,73 +461,69 @@ mod tests {
                     ClientMessage::decode(msg.client_message.clone().unwrap().value.as_slice())
                         .unwrap()
                 })
-                .map(|msg| msg.data)
-                .collect::<Vec<_>>();
+                .map(|msg| msg.data);
 
             let mut env = mock_env();
 
-            for header_bz in client_msgs {
-                let mut header: Header = serde_json::from_slice(&header_bz).unwrap();
+            // Only an update signed by the next sync committee carries it
+            let mut header = client_msgs
+                .map(|header_bz| serde_json::from_slice::<Header>(&header_bz).unwrap())
+                .find(|header| matches!(header.active_sync_committee, ActiveSyncCommittee::Next(_)))
+                .expect("an update signed by the next sync committee");
 
-                let sync_committee = header.active_sync_committee;
+            let ActiveSyncCommittee::Next(mut m) = header.active_sync_committee.clone() else {
+                unreachable!()
+            };
 
-                header.active_sync_committee = sync_committee.clone();
-                if let ActiveSyncCommittee::Current(_x) = sync_committee {
-                    panic!("shouldn't happen");
-                } else if let ActiveSyncCommittee::Next(x) = sync_committee {
-                    let mut m = x;
+            let pk1 = FixedBytes([
+                140, 49, 208, 243, 132, 3, 164, 40, 45, 148, 208, 102, 241, 152, 252, 233, 211, 98,
+                140, 14, 252, 12, 218, 20, 119, 221, 237, 190, 104, 87, 99, 203, 84, 46, 133, 35,
+                12, 231, 182, 84, 204, 230, 21, 131, 156, 120, 141, 61,
+            ]);
+            let pk2 = FixedBytes([
+                172, 49, 208, 243, 132, 3, 164, 40, 45, 148, 208, 102, 241, 152, 252, 233, 211, 98,
+                140, 14, 252, 12, 218, 20, 119, 221, 237, 190, 104, 87, 99, 203, 84, 46, 133, 35,
+                12, 231, 182, 84, 204, 230, 21, 131, 156, 120, 141, 61,
+            ]);
 
-                    let pk1 = FixedBytes([
-                        140, 49, 208, 243, 132, 3, 164, 40, 45, 148, 208, 102, 241, 152, 252, 233,
-                        211, 98, 140, 14, 252, 12, 218, 20, 119, 221, 237, 190, 104, 87, 99, 203,
-                        84, 46, 133, 35, 12, 231, 182, 84, 204, 230, 21, 131, 156, 120, 141, 61,
-                    ]);
-                    let pk2 = FixedBytes([
-                        172, 49, 208, 243, 132, 3, 164, 40, 45, 148, 208, 102, 241, 152, 252, 233,
-                        211, 98, 140, 14, 252, 12, 218, 20, 119, 221, 237, 190, 104, 87, 99, 203,
-                        84, 46, 133, 35, 12, 231, 182, 84, 204, 230, 21, 131, 156, 120, 141, 61,
-                    ]);
+            m.pubkeys = vec![m.aggregate_pubkey, pk1, pk2];
 
-                    m.pubkeys = vec![m.aggregate_pubkey, pk1, pk2];
+            let mut bits = vec![0xFF; 48];
+            bits[0] = 0b0000_0010;
 
-                    let mut bits = vec![0xFF; 48];
-                    bits[0] = 0b0000_0010;
+            header.consensus_update.sync_aggregate.sync_committee_bits = bits.into();
+            header
+                .consensus_update
+                .sync_aggregate
+                .sync_committee_signature = FixedBytes([
+                141, 213, 40, 198, 216, 4, 232, 6, 81, 233, 68, 218, 77, 6, 86, 182, 237, 151, 157,
+                194, 232, 232, 2, 229, 197, 81, 72, 102, 47, 198, 140, 250, 207, 60, 148, 124, 180,
+                228, 54, 236, 83, 56, 107, 245, 42, 98, 160, 150, 1, 238, 185, 147, 132, 245, 121,
+                184, 114, 109, 240, 147, 152, 17, 155, 245, 103, 165, 20, 131, 198, 158, 174, 20,
+                209, 57, 48, 219, 193, 164, 139, 206, 114, 40, 86, 54, 211, 231, 111, 231, 233,
+                198, 92, 154, 229, 100, 165, 215,
+            ]);
 
-                    header.consensus_update.sync_aggregate.sync_committee_bits = bits.into();
-                    header
-                        .consensus_update
-                        .sync_aggregate
-                        .sync_committee_signature = FixedBytes([
-                        141, 213, 40, 198, 216, 4, 232, 6, 81, 233, 68, 218, 77, 6, 86, 182, 237,
-                        151, 157, 194, 232, 232, 2, 229, 197, 81, 72, 102, 47, 198, 140, 250, 207,
-                        60, 148, 124, 180, 228, 54, 236, 83, 56, 107, 245, 42, 98, 160, 150, 1,
-                        238, 185, 147, 132, 245, 121, 184, 114, 109, 240, 147, 152, 17, 155, 245,
-                        103, 165, 20, 131, 198, 158, 174, 20, 209, 57, 48, 219, 193, 164, 139, 206,
-                        114, 40, 86, 54, 211, 231, 111, 231, 233, 198, 92, 154, 229, 100, 165, 215,
-                    ]);
+            header.active_sync_committee = ActiveSyncCommittee::Next(m);
 
-                    header.active_sync_committee = ActiveSyncCommittee::Next(m);
-                }
+            let header_manipulated = serde_json::to_vec(&header).unwrap();
 
-                let header_manipulated = serde_json::to_vec(&header).unwrap();
+            env.block.time = Timestamp::from_seconds(
+                client_state.compute_timestamp_at_slot(header.consensus_update.signature_slot)
+                    + 1000,
+            );
 
-                env.block.time = Timestamp::from_seconds(
-                    header.consensus_update.attested_header.execution.timestamp + 1000,
-                );
-
-                let query_verify_client_msg =
-                    QueryMsg::VerifyClientMessage(VerifyClientMessageMsg {
-                        client_message: Binary::from(header_manipulated),
-                    });
-                // NOTE: It should error here if the vuln is patched
-                let err = query(deps.as_ref(), env.clone(), query_verify_client_msg).unwrap_err();
-                assert!(matches!(
-                    err,
-                    ContractError::VerifyClientMessageFailed(
-                        EthereumIBCError::NextSyncCommitteeMismatch { .. }
-                    )
-                ));
-            }
+            let query_verify_client_msg = QueryMsg::VerifyClientMessage(VerifyClientMessageMsg {
+                client_message: Binary::from(header_manipulated),
+            });
+            // NOTE: It should error here if the vuln is patched
+            let err = query(deps.as_ref(), env, query_verify_client_msg).unwrap_err();
+            assert!(matches!(
+                err,
+                ContractError::VerifyClientMessageFailed(
+                    EthereumIBCError::NextSyncCommitteeMismatch { .. }
+                )
+            ));
         }
 
         #[test]
@@ -542,7 +544,7 @@ mod tests {
             // Verify client message
             let relayer_messages: RelayerMessages = fixture.get_data_at_step(1);
             let (update_client_msgs, recv_msgs, _, _) = relayer_messages.get_sdk_msgs();
-            assert_eq!(1, update_client_msgs.len()); // just to make sure
+            assert_ne!(0, update_client_msgs.len()); // just to make sure
             assert_eq!(1, recv_msgs.len()); // just to make sure
             let client_msgs = update_client_msgs
                 .iter()
@@ -550,88 +552,84 @@ mod tests {
                     ClientMessage::decode(msg.client_message.clone().unwrap().value.as_slice())
                         .unwrap()
                 })
-                .map(|msg| msg.data)
-                .collect::<Vec<_>>();
+                .map(|msg| msg.data);
 
             let mut env = mock_env();
 
-            for header_bz in client_msgs {
-                let mut header: Header = serde_json::from_slice(&header_bz).unwrap();
+            // Only an update signed by the next sync committee carries it
+            let mut header = client_msgs
+                .map(|header_bz| serde_json::from_slice::<Header>(&header_bz).unwrap())
+                .find(|header| matches!(header.active_sync_committee, ActiveSyncCommittee::Next(_)))
+                .expect("an update signed by the next sync committee");
 
-                let sync_committee = header.active_sync_committee;
+            let ActiveSyncCommittee::Next(mut m) = header.active_sync_committee.clone() else {
+                unreachable!()
+            };
 
-                header.active_sync_committee = sync_committee.clone();
-                if let ActiveSyncCommittee::Current(_x) = sync_committee {
-                    panic!("shouldn't happen");
-                } else if let ActiveSyncCommittee::Next(x) = sync_committee {
-                    let mut m = x;
+            let pk1 = FixedBytes([
+                140, 49, 208, 243, 132, 3, 164, 40, 45, 148, 208, 102, 241, 152, 252, 233, 211, 98,
+                140, 14, 252, 12, 218, 20, 119, 221, 237, 190, 104, 87, 99, 203, 84, 46, 133, 35,
+                12, 231, 182, 84, 204, 230, 21, 131, 156, 120, 141, 61,
+            ]);
+            let pk2 = FixedBytes([
+                172, 49, 208, 243, 132, 3, 164, 40, 45, 148, 208, 102, 241, 152, 252, 233, 211, 98,
+                140, 14, 252, 12, 218, 20, 119, 221, 237, 190, 104, 87, 99, 203, 84, 46, 133, 35,
+                12, 231, 182, 84, 204, 230, 21, 131, 156, 120, 141, 61,
+            ]);
 
-                    let pk1 = FixedBytes([
-                        140, 49, 208, 243, 132, 3, 164, 40, 45, 148, 208, 102, 241, 152, 252, 233,
-                        211, 98, 140, 14, 252, 12, 218, 20, 119, 221, 237, 190, 104, 87, 99, 203,
-                        84, 46, 133, 35, 12, 231, 182, 84, 204, 230, 21, 131, 156, 120, 141, 61,
-                    ]);
-                    let pk2 = FixedBytes([
-                        172, 49, 208, 243, 132, 3, 164, 40, 45, 148, 208, 102, 241, 152, 252, 233,
-                        211, 98, 140, 14, 252, 12, 218, 20, 119, 221, 237, 190, 104, 87, 99, 203,
-                        84, 46, 133, 35, 12, 231, 182, 84, 204, 230, 21, 131, 156, 120, 141, 61,
-                    ]);
+            m.pubkeys = vec![m.aggregate_pubkey, pk1, pk2];
 
-                    m.pubkeys = vec![m.aggregate_pubkey, pk1, pk2];
+            let mut bits = vec![0xFF; 48];
+            bits[0] = 0b0000_0010;
 
-                    let mut bits = vec![0xFF; 48];
-                    bits[0] = 0b0000_0010;
+            header.consensus_update.sync_aggregate.sync_committee_bits = bits.into();
+            header
+                .consensus_update
+                .sync_aggregate
+                .sync_committee_signature = FixedBytes([
+                141, 213, 40, 198, 216, 4, 232, 6, 81, 233, 68, 218, 77, 6, 86, 182, 237, 151, 157,
+                194, 232, 232, 2, 229, 197, 81, 72, 102, 47, 198, 140, 250, 207, 60, 148, 124, 180,
+                228, 54, 236, 83, 56, 107, 245, 42, 98, 160, 150, 1, 238, 185, 147, 132, 245, 121,
+                184, 114, 109, 240, 147, 152, 17, 155, 245, 103, 165, 20, 131, 198, 158, 174, 20,
+                209, 57, 48, 219, 193, 164, 139, 206, 114, 40, 86, 54, 211, 231, 111, 231, 233,
+                198, 92, 154, 229, 100, 165, 215,
+            ]);
 
-                    header.consensus_update.sync_aggregate.sync_committee_bits = bits.into();
-                    header
-                        .consensus_update
-                        .sync_aggregate
-                        .sync_committee_signature = FixedBytes([
-                        141, 213, 40, 198, 216, 4, 232, 6, 81, 233, 68, 218, 77, 6, 86, 182, 237,
-                        151, 157, 194, 232, 232, 2, 229, 197, 81, 72, 102, 47, 198, 140, 250, 207,
-                        60, 148, 124, 180, 228, 54, 236, 83, 56, 107, 245, 42, 98, 160, 150, 1,
-                        238, 185, 147, 132, 245, 121, 184, 114, 109, 240, 147, 152, 17, 155, 245,
-                        103, 165, 20, 131, 198, 158, 174, 20, 209, 57, 48, 219, 193, 164, 139, 206,
-                        114, 40, 86, 54, 211, 231, 111, 231, 233, 198, 92, 154, 229, 100, 165, 215,
-                    ]);
+            consensus_state.next_sync_committee = Some(m.to_summarized_sync_committee());
+            header.active_sync_committee = ActiveSyncCommittee::Next(m);
 
-                    consensus_state.next_sync_committee = Some(m.to_summarized_sync_committee());
-                    header.active_sync_committee = ActiveSyncCommittee::Next(m);
-                }
+            let client_state_bz: Vec<u8> = serde_json::to_vec(&client_state).unwrap();
+            let consensus_state_bz: Vec<u8> = serde_json::to_vec(&consensus_state).unwrap();
 
-                let client_state_bz: Vec<u8> = serde_json::to_vec(&client_state).unwrap();
-                let consensus_state_bz: Vec<u8> = serde_json::to_vec(&consensus_state).unwrap();
+            let msg = InstantiateMsg {
+                client_state: Binary::from(client_state_bz),
+                consensus_state: Binary::from(consensus_state_bz),
+                checksum: b"checksum".into(),
+            };
 
-                let msg = InstantiateMsg {
-                    client_state: Binary::from(client_state_bz),
-                    consensus_state: Binary::from(consensus_state_bz),
-                    checksum: b"checksum".into(),
-                };
+            instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
 
-                instantiate(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+            let header_manipulated = serde_json::to_vec(&header).unwrap();
 
-                let header_manipulated = serde_json::to_vec(&header).unwrap();
+            env.block.time = Timestamp::from_seconds(
+                client_state.compute_timestamp_at_slot(header.consensus_update.signature_slot)
+                    + 1000,
+            );
 
-                env.block.time = Timestamp::from_seconds(
-                    header.consensus_update.attested_header.execution.timestamp + 1000,
-                );
-
-                let query_verify_client_msg =
-                    QueryMsg::VerifyClientMessage(VerifyClientMessageMsg {
-                        client_message: Binary::from(header_manipulated),
-                    });
-                // NOTE: It should error here if the vuln is patched
-                let err = query(deps.as_ref(), env.clone(), query_verify_client_msg).unwrap_err();
-                assert!(matches!(
-                    err,
-                    ContractError::VerifyClientMessageFailed(
-                        EthereumIBCError::InsufficientSyncCommitteeLength {
-                            expected: 32,
-                            found: 3
-                        }
-                    )
-                ));
-            }
+            let query_verify_client_msg = QueryMsg::VerifyClientMessage(VerifyClientMessageMsg {
+                client_message: Binary::from(header_manipulated),
+            });
+            // NOTE: It should error here if the vuln is patched
+            let err = query(deps.as_ref(), env, query_verify_client_msg).unwrap_err();
+            assert!(matches!(
+                err,
+                ContractError::VerifyClientMessageFailed(
+                    EthereumIBCError::InsufficientSyncCommitteeLength {
+                        expected: 32,
+                        found: 3
+                    }
+                )
+            ));
         }
 
         #[test]
@@ -683,7 +681,8 @@ mod tests {
             for header_bz in client_msgs {
                 let header: Header = serde_json::from_slice(&header_bz).unwrap();
                 env.block.time = Timestamp::from_seconds(
-                    header.consensus_update.attested_header.execution.timestamp + 1000,
+                    client_state.compute_timestamp_at_slot(header.consensus_update.signature_slot)
+                        + 1000,
                 );
 
                 let query_verify_client_msg =
@@ -703,7 +702,7 @@ mod tests {
                 assert_eq!(1, update_state_result.heights.len());
                 assert_eq!(0, update_state_result.heights[0].revision_number);
                 assert_eq!(
-                    header.consensus_update.finalized_header.beacon.slot,
+                    header.consensus_update.finalized_header.beacon().slot,
                     update_state_result.heights[0].revision_height
                 );
             }
@@ -805,6 +804,10 @@ mod tests {
                         epoch: 0,
                     },
                     fulu: Fork {
+                        version: FixedBytes([0; 4]),
+                        epoch: 0,
+                    },
+                    gloas: Fork {
                         version: FixedBytes([0; 4]),
                         epoch: 0,
                     },
@@ -920,6 +923,10 @@ mod tests {
                         version: FixedBytes([0; 4]),
                         epoch: 0,
                     },
+                    gloas: Fork {
+                        version: FixedBytes([0; 4]),
+                        epoch: 0,
+                    },
                 },
                 sync_committee_size: 512,
                 seconds_per_slot: 10,
@@ -977,6 +984,10 @@ mod tests {
                         epoch: 5000,
                     },
                     fulu: Fork {
+                        version: FixedBytes([0; 4]),
+                        epoch: 0,
+                    },
+                    gloas: Fork {
                         version: FixedBytes([0; 4]),
                         epoch: 0,
                     },

@@ -21,6 +21,18 @@ pub struct Fork {
     pub epoch: u64,
 }
 
+impl Fork {
+    /// Returns a fork that isn't scheduled, which activates at the far future epoch of the
+    /// consensus specs
+    #[must_use]
+    pub const fn unscheduled() -> Self {
+        Self {
+            version: Version::ZERO,
+            epoch: u64::MAX,
+        }
+    }
+}
+
 /// The fork data
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug, Default, TreeHash)]
 struct ForkData {
@@ -51,6 +63,12 @@ pub struct ForkParameters {
     pub electra: Fork,
     /// The fulu fork
     pub fulu: Fork,
+    /// The gloas fork
+    // Client states stored before this fork was known don't have this field. It defaults to an
+    // unscheduled fork, so they keep verifying pre-Gloas updates until it is set with
+    // `Migration::UpdateForkParameters`.
+    #[serde(default = "Fork::unscheduled")]
+    pub gloas: Fork,
 }
 
 impl ForkParameters {
@@ -59,6 +77,7 @@ impl ForkParameters {
     #[must_use]
     pub const fn compute_fork_version(&self, epoch: u64) -> Version {
         match epoch {
+            _ if epoch >= self.gloas.epoch => self.gloas.version,
             _ if epoch >= self.fulu.epoch => self.fulu.version,
             _ if epoch >= self.electra.epoch => self.electra.version,
             _ if epoch >= self.deneb.epoch => self.deneb.version,
@@ -82,4 +101,49 @@ pub fn compute_fork_data_root(current_version: Version, genesis_validators_root:
     };
 
     fork_data.tree_hash_root()
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    fn fork(version: u8, epoch: u64) -> Fork {
+        Fork {
+            version: Version::from([version, 0, 0, 0]),
+            epoch,
+        }
+    }
+
+    #[test]
+    fn test_compute_fork_version_at_gloas() {
+        let fork_parameters = ForkParameters {
+            fulu: fork(6, 10),
+            gloas: fork(7, 20),
+            ..Default::default()
+        };
+
+        assert_eq!(
+            fork_parameters.compute_fork_version(19),
+            fork(6, 10).version
+        );
+        assert_eq!(
+            fork_parameters.compute_fork_version(20),
+            fork(7, 20).version
+        );
+    }
+
+    #[test]
+    fn test_decode_stored_state_without_gloas() {
+        let mut stored = serde_json::to_value(ForkParameters {
+            fulu: fork(6, 10),
+            ..Default::default()
+        })
+        .unwrap();
+        stored.as_object_mut().unwrap().remove("gloas").unwrap();
+
+        let fork_parameters: ForkParameters = serde_json::from_value(stored).unwrap();
+
+        assert_eq!(fork_parameters.fulu, fork(6, 10));
+        assert_eq!(fork_parameters.gloas.epoch, u64::MAX);
+    }
 }

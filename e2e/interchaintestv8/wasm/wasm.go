@@ -32,6 +32,10 @@ func DownloadWasmLightClientRelease(release Release) (*os.File, error) {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to download %s: %s", downloadUrl, resp.Status)
+	}
+
 	downloadFile, err := os.CreateTemp("", "eth-light-client-download")
 	if err != nil {
 		return nil, err

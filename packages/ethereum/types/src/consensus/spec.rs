@@ -62,6 +62,11 @@ pub struct Spec {
     /// The fulu fork epoch.
     #[serde_as(as = "DisplayFromStr")]
     pub fulu_fork_epoch: u64,
+    /// The gloas fork version.
+    pub gloas_fork_version: Version,
+    /// The gloas fork epoch.
+    #[serde_as(as = "DisplayFromStr")]
+    pub gloas_fork_epoch: u64,
 }
 
 impl Spec {
@@ -100,6 +105,10 @@ impl Spec {
             fulu: Fork {
                 version: self.fulu_fork_version,
                 epoch: self.fulu_fork_epoch,
+            },
+            gloas: Fork {
+                version: self.gloas_fork_version,
+                epoch: self.gloas_fork_epoch,
             },
         }
     }

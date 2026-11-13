@@ -42,8 +42,14 @@ pub struct BeaconBlockMessage {
 pub struct Body {
     /// The sync aggregate of the beacon block
     pub sync_aggregate: SyncAggregate,
-    /// The execution payload for the beacon block
-    pub execution_payload: ExecutionPayload,
+    /// The execution payload for the beacon block (removed in Gloas)
+    // TODO: Remove this field once mainnet has forked to Gloas (#1252)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub execution_payload: Option<ExecutionPayload>,
+    /// The signed execution payload bid for the beacon block (new in Gloas)
+    // TODO: Remove the optionality once mainnet has forked to Gloas (#1252)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signed_execution_payload_bid: Option<SignedExecutionPayloadBid>,
     // Values not represented in this type:
     // - randao_reveal
     // - eth1_data
@@ -56,6 +62,53 @@ pub struct Body {
     // - bls_to_execution_changes
     // - blob_kzg_commitments
     // - execution_requests
+    // - payload_attestations
+    // - parent_execution_requests
+}
+
+impl Body {
+    /// Returns the hash of the execution block whose state this beacon block commits to.
+    /// From Gloas onwards this is the parent of the block bid on, since the execution payload of
+    /// the bid is only revealed after the beacon block.
+    #[must_use]
+    pub fn execution_block_hash(&self) -> Option<B256> {
+        self.execution_payload
+            .as_ref()
+            .map(|payload| payload.block_hash)
+            .or_else(|| {
+                self.signed_execution_payload_bid
+                    .as_ref()
+                    .map(|bid| bid.message.parent_block_hash)
+            })
+    }
+}
+
+/// A signed execution payload bid
+#[derive(Default, Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct SignedExecutionPayloadBid {
+    /// The execution payload bid
+    pub message: ExecutionPayloadBid,
+    // Values not represented in this type:
+    // - signature
+}
+
+/// An execution payload bid
+#[derive(Default, Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ExecutionPayloadBid {
+    /// The hash of the execution block the bid builds on
+    pub parent_block_hash: B256,
+    // Values not represented in this type:
+    // - parent_block_root
+    // - block_hash
+    // - prev_randao
+    // - fee_recipient
+    // - gas_limit
+    // - builder_index
+    // - slot
+    // - value
+    // - execution_payment
+    // - blob_kzg_commitments
+    // - execution_requests_root
 }
 
 /// Execution payload for a beacon block
