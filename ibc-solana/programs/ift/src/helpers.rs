@@ -334,7 +334,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mint_transfer_refund_no_usage_change() {
+    fn test_transfer_out_does_not_reduce_mint_usage() {
         let day = 1u64;
         let clock = make_clock(SECONDS_PER_DAY as i64);
         let mut state = make_mint_state(1000, day, 0);

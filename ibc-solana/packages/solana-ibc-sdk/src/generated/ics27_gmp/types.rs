@@ -29,7 +29,7 @@ pub enum CallResultStatus {
 }
 
 /// Client-ID-to-light-client mapping with counterparty chain metadata.
-/// Created when an admin registers a new IBC client (e.g. an ICS07
+/// Created when an `ID_CUSTOMIZER_ROLE` holder registers a new IBC client (e.g. an ICS07
 /// Tendermint or attestation light client). The router reads this
 /// account during `send_packet`, `recv_packet`, `ack_packet` and
 /// `timeout_packet` to resolve which light client program to call for
@@ -129,9 +129,9 @@ pub struct Payload {
 
 /// Global ICS26 router configuration.
 /// Singleton PDA initialized once during program setup. Stores the link
-/// to the access manager for admin-gated operations (e.g. registering
-/// clients, migrating light clients) and a schema version for future
-/// on-chain migrations.
+/// to the access manager for role-gated operations (e.g. registering
+/// clients and apps, migrating light clients, pausing), the global pause
+/// flag, and a schema version for future on-chain migrations.
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
 pub struct RouterState {
     /// Schema version for upgrades

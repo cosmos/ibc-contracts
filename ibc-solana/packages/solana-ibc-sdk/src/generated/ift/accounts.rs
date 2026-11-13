@@ -42,7 +42,8 @@ pub struct IFTAppState {
     pub bump: u8,
     /// Admin authority for IFT
     pub admin: Pubkey,
-    /// Whether IFT is paused (blocks mint and transfer, not refunds)
+    /// Whether IFT is paused (blocks transfers, mints, admin mints and
+    /// `finalize_transfer`, including refunds)
     pub paused: bool,
     /// Pending admin for two-step transfer
     pub pending_admin: Option<Pubkey>,
@@ -62,7 +63,8 @@ pub struct IFTBridge {
     pub mint: Pubkey,
     /// IBC client identifier for this bridge
     pub client_id: String,
-    /// IFT contract address on counterparty chain (EVM address or Cosmos bech32)
+    /// IFT contract address on counterparty chain (EVM address, Cosmos bech32
+    /// or Solana base58 program ID)
     pub counterparty_ift_address: String,
     /// Chain-specific options for constructing mint calls
     pub chain_options: ChainOptions,

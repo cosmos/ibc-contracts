@@ -2207,7 +2207,8 @@ type IftStateIftAppState struct {
 	// Admin authority for IFT
 	Admin solanago.PublicKey `json:"admin"`
 
-	// Whether IFT is paused (blocks mint and transfer, not refunds)
+	// Whether IFT is paused (blocks transfers, mints, admin mints and
+	// `finalize_transfer`, including refunds)
 	Paused bool `json:"paused"`
 
 	// Pending admin for two-step transfer
@@ -2342,7 +2343,8 @@ type IftStateIftBridge struct {
 	// IBC client identifier for this bridge
 	ClientId string `json:"clientId"`
 
-	// IFT contract address on counterparty chain (EVM address or Cosmos bech32)
+	// IFT contract address on counterparty chain (EVM address, Cosmos bech32
+	// or Solana base58 program ID)
 	CounterpartyIftAddress string `json:"counterpartyIftAddress"`
 
 	// Chain-specific options for constructing mint calls
@@ -2923,9 +2925,9 @@ func UnmarshalIftStateSetMintRateLimitMsg(buf []byte) (*IftStateSetMintRateLimit
 	return obj, nil
 }
 
-// Message for pausing/unpausing an IFT token
+// Message for pausing/unpausing IFT (global, applies to all mints)
 type IftStateSetPausedMsg struct {
-	// Whether to pause (true) or unpause (false) the token
+	// Whether to pause (true) or unpause (false) IFT
 	Paused bool `json:"paused"`
 }
 

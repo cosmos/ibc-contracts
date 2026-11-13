@@ -16,7 +16,7 @@ We implement a PDA-based storage architecture with chunked storage for large dat
 
 1. **PDA-Based Storage**: All state stored in Program Derived Addresses
 2. **Chunked Uploads**: Large data (headers, proofs, payloads) split into ~900-byte chunks
-3. **Rent Reclamation**: Temporary accounts (chunks, commitments) closed after use
+3. **Rent Reclamation**: Chunk rent is reclaimed through explicit cleanup instructions; commitment PDAs are zeroed but persist
 4. **Access Control**: Centralized access-manager program for role-based permissions
 
 ## Storage Architecture
@@ -180,8 +180,11 @@ Note: Header and misbehaviour uploads in ICS07-Tendermint are always chunked (Te
    - Triggers verification/processing
 
 3. Cleanup Phase:
-   - Chunk accounts closed after successful assembly
-   - Rent (~0.01 SOL per chunk) reclaimed to payer
+   - Router chunk data is zeroed during assembly; rent stays in the account
+   - Header chunks are left as-is after `assemble_and_update_client`
+   - Rent (~0.01 SOL per chunk) is reclaimed by a separate cleanup instruction
+     (`cleanup_chunks` on the router, `cleanup_incomplete_upload` on ICS07)
+   - Exception: ICS07 misbehaviour chunks are closed and refunded during assembly
 ```
 
 ### 6. Access Control Integration
@@ -230,8 +233,8 @@ Programs reference `access_manager` pubkey in their state to validate permission
 1. Upload header chunks (multiple transactions)
 2. Assemble and verify header (single transaction)
 3. Create/update ConsensusState PDA
-4. Close header chunk accounts
-5. Reclaim rent
+4. Separately, call `cleanup_incomplete_upload` to close header chunk
+   accounts and reclaim rent
 ```
 
 ## Cost Analysis
@@ -253,7 +256,7 @@ Per account rent: ~0.01 SOL (refundable when account closed)
 **Cost Breakdown:**
 - Transaction base fees: 5,000 lamports/tx
 - Priority fees: variable (market-driven)
-- Chunk rent: ~0.01 SOL per chunk (refunded after assembly)
+- Chunk rent: ~0.01 SOL per chunk (refundable via cleanup instructions)
 - Consensus state rent: ~0.01 SOL (permanent)
 
 **Per-Packet Cost:**

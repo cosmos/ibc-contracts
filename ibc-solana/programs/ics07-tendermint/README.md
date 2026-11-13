@@ -481,71 +481,30 @@ The update client process is split into two phases:
 
 ### Why On-Chain Signature Verification Instead of Ed25519Program?
 
-> **Note:** This section records the rationale for keeping `brine-ed25519` as the in-program verifier. The program now also supports optional pre-verification through `pre_verify_signature`, where the relayer extracts signatures from the header off-chain and submits them as `Ed25519Program` instructions in parallel transactions (see above). `brine-ed25519` remains the fallback for any signature without a pre-verification PDA.
+`brine-ed25519` is the in-program Ed25519 verifier (~30k CU per signature). It verifies every signature in `assemble_and_update_client` that does not already have a pre-verification PDA. The relayer can avoid that cost by pre-verifying signatures through `pre_verify_signature`: it extracts the signatures from the header off-chain and submits them as `Ed25519Program` instructions in parallel transactions (see "Update Client Performance Optimizations" above).
 
-This implementation uses `brine-ed25519` for on-chain Ed25519 signature verification (~30k CU per signature) instead of Solana's native Ed25519Program (FREE). This is a **fundamental architectural constraint**, not an optimization choice.
+**Why keep an in-program verifier?**
 
-**Why Ed25519Program Doesn't Work for IBC:**
+Ed25519Program only verifies signatures included as instructions in the current transaction, so on its own it cannot check signatures embedded in uploaded header data. Pre-verification bridges that gap by having the relayer re-submit each signature as an Ed25519Program instruction and recording the result in a PDA. Keeping `brine-ed25519` as the fallback means:
 
-Solana's Ed25519Program is a precompile that verifies signatures included as Ed25519Program instructions in the current transaction. However, IBC light clients verify signatures from **external blockchain data** (Tendermint headers from Cosmos chains). These signatures:
+- Pre-verification stays optional: a relayer can submit a header without it, at the cost of more compute units in the assembly transaction
+- Any signature that was not pre-verified is still checked on-chain, so correctness never depends on the relayer having pre-verified all of them
+- Small validator sets can update in a single assembly transaction without extra prep transactions
 
-- Come from Tendermint validators signing blocks on another chain
-- Are embedded in header data uploaded via `upload_header_chunk`
-- Cannot be reformulated as Ed25519Program instructions in the Solana transaction
+For large validator sets (50+ validators), verifying every signature with `brine-ed25519` would exceed Solana's 1.4M CU transaction limit, so pre-verification is required in practice. Pre-verification transactions run in parallel, not sequentially; see the benchmarks above for measured latency.
 
-**Why Transaction Chunking Doesn't Help:**
+**Options:**
 
-This implementation already uses multi-transaction chunking to upload large headers (see "Chunked Upload System" above). You might wonder: "If we're already coordinating multiple transactions for chunks, why not use Ed25519Program with multiple transactions?"
+1. **Ed25519Program pre-verification (`pre_verify_signature`)** - ~10k CU per signature, in separate parallel transactions
 
-The key insight: **chunking is for DATA TRANSPORT, not signature verification**. The signatures are embedded INSIDE the serialized header data and can only be verified AFTER the header is fully assembled and deserialized in `assemble_and_update_client`.
+   - Needed for large validator sets
+   - Stores results in pre-verification PDAs (rent reclaimed by `cleanup_incomplete_upload`)
 
-Using Ed25519Program would require:
+2. **brine-ed25519 (on-chain library)** - ~30k CU per signature, fallback ✅
 
-```
-Current approach (brine-ed25519):
-  1. Upload header chunks in PARALLEL (N transactions, ~2 block times)
-  2. Assemble + verify all signatures (1 transaction, ~200k CU)
-  Total latency: ~3 block times (~1.2 seconds)
-Hypothetical Ed25519Program approach:
-  1. Upload header chunks in PARALLEL (N transactions, ~2 block times)
-  2. Assemble header, store in temp state (1 transaction)
-  3. Extract signatures, create Ed25519Program verification txs (M transactions, SEQUENTIAL)
-  4. Store verification results on-chain (additional rent costs)
-  5. Final assembly to verify all passed (1 transaction)
-  Total latency: ~(3 + M) block times (~1.2s + M*0.4s, where M ≈ 10-20)
-```
-
-This would create **double multi-transaction coordination** (chunks + signature verifications), with:
-
-- **Significantly slower updates**: Current system uses parallel chunk upload (~2 blocks). Ed25519Program would add M sequential signature verification transactions, increasing latency by 4-8 seconds per update
-- Additional state storage for verification results (rent costs likely exceed CU savings)
-- More complex atomicity concerns (chunks AND signature verifications must all succeed)
-- Risk of griefing (partial signature verifications succeed, final tx fails, relayer wasted resources)
-
-The existing chunking system actually **strengthens** the case for brine-ed25519, as one layer of multi-tx complexity is manageable, but two would be exponentially harder and make updates much slower for relayers and users.
-
-**Alternatives Considered:**
-
-1. **Ed25519Program (native precompile)** - FREE compute units
-
-   - ❌ Incompatible with external signature verification
-   - Only works for signatures that are part of the transaction instruction set
-
-2. **brine-ed25519 (on-chain library)** - ~30k CU per signature ✅ **CHOSEN**
-
-   - ✅ Can verify any signature from external data
+   - Can verify any signature from the assembled header
    - Uses optimized curve operations for efficiency
-   - Typical update: ~200k CU total (10-20 signatures for 2/3 trust threshold)
-   - Cost: ~$0.00001 USD per update
    - **Security**: Pulled from code-vm (MIT-licensed), audited by OtterSec, peer-reviewed by @stegaBOB and @deanmlittle
-
-3. **Multi-transaction batching with Ed25519Program**
-   - ❌ Impractical due to:
-     - **Significantly slower**: Would add 4-8 seconds latency per update (10-20 sequential signature verification transactions)
-     - Complex state management across transactions
-     - Atomicity concerns (partial verification failures)
-     - Coordination overhead
-     - No cost benefit if verification state must be maintained on-chain
 
 **Update Client Performance Across Different Tendermint Chains:**
 

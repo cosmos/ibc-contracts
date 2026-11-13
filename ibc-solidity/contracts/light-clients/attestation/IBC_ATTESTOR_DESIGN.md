@@ -190,7 +190,7 @@ Recommended future hardening (non-breaking if added to the signed payload defini
   - `misbehaviour` reverts as described above.
 
 ## Open TODOs / Future Work
-- Implement misbehaviour detection and freezing (conflicting attestations for the same height, etc.).
+- Implement misbehaviour evidence submission through `misbehaviour` (today it always reverts; conflicting `updateClient` attestations already freeze the client).
 - Consider adding chain/client domain separation to the signed payload.
 - Consider restricting out-of-order updates (`latestHeight` itself never decreases).
 - Consider attestor set rotation and quorum changes.

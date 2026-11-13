@@ -34,8 +34,8 @@ import (
 // This is a patched version that correctly includes the instruction discriminator.
 // The auto-generated version in ics07tendermint incorrectly omits it.
 //
-// Clean up incomplete header uploads.
-// This can be called to reclaim rent from failed or abandoned uploads.
+// Clean up header uploads.
+// This can be called to reclaim rent after successful, failed or abandoned uploads.
 // Closes both `HeaderChunk` and `SignatureVerification` PDAs owned by the submitter.
 func NewCleanupIncompleteUploadInstruction(
 	submitterAccount solanago.PublicKey,

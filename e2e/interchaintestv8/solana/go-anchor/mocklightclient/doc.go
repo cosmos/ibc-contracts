@@ -4,8 +4,9 @@
 package mock_light_client
 
 // Documentation from the IDL:
-// Mock light client that always succeeds.
+// Mock light client that always succeeds (except `verify_membership` with a
+// proof starting with `REJECT_PROOF`).
 //
 // Implements the `ics25_handler` light-client interface with no-op logic so
 // the ICS26 router can be tested end-to-end without deploying a real
-// Tendermint or SP1 light client.
+// Tendermint or attestation light client.

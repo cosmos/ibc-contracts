@@ -11,8 +11,8 @@ use super::types::*;
 
 /// Global ICS07 Tendermint program configuration.
 /// Singleton PDA that links the light client program to its access manager
-/// for admin-gated operations (e.g. `access_manager_transfer`) and stores the
-/// chain ID for introspection by off-chain tooling.
+/// for role-gated operations (relayer-only uploads and updates, admin-only
+/// access manager transfers).
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
 pub struct AppState {
     /// Access manager transfer state for two-step propose/accept
@@ -27,8 +27,8 @@ impl AppState {
 
 /// Tendermint light client configuration and tracking state.
 /// Holds the trust parameters (trust level, trusting/unbonding periods,
-/// max clock drift) and the latest verified height. The `update_client`
-/// instruction reads and updates this account when a new header is
+/// max clock drift) and the latest verified height. The
+/// `assemble_and_update_client` instruction reads and updates this account when a new header is
 /// successfully verified. If misbehaviour is detected the client is frozen
 /// by setting `frozen_height`.
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
@@ -49,8 +49,9 @@ impl ClientState {
 
 /// On-chain PDA storing a Tendermint consensus state for a specific block height.
 /// Contains the block timestamp, Merkle root and next-validators hash.
-/// The ICS26 router reads these accounts to verify IBC packet commitment
-/// proofs against the confirmed Tendermint state. One account exists per
+/// The ICS26 router passes these accounts to `verify_membership` /
+/// `verify_non_membership` to check IBC packet commitment proofs against
+/// the confirmed Tendermint state. One account exists per
 /// verified height, derived from `["consensus_state", height_le_bytes]`.
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
 pub struct ConsensusStateStore {
@@ -66,8 +67,9 @@ impl ConsensusStateStore {
 /// multi-transaction upload.
 /// Tendermint headers can exceed the Solana transaction size limit, so
 /// they are uploaded in chunks across multiple transactions. Once all
-/// chunks are present the `update_client` instruction reassembles and
-/// verifies the full header, then closes these accounts to reclaim rent.
+/// chunks are present the `assemble_and_update_client` instruction
+/// reassembles and verifies the full header. These accounts are not closed
+/// automatically; `cleanup_incomplete_upload` reclaims their rent.
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
 pub struct HeaderChunk {
     /// The submitter who created this chunk
@@ -84,7 +86,8 @@ impl HeaderChunk {
 /// multi-transaction upload.
 /// Similar to [`HeaderChunk`] but used for misbehaviour reports that prove
 /// a validator set signed conflicting blocks. Once fully assembled, the
-/// `misbehaviour` instruction verifies the evidence and freezes the client.
+/// `assemble_and_submit_misbehaviour` instruction verifies the evidence,
+/// freezes the client and closes these accounts.
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
 pub struct MisbehaviourChunk {
     /// The chunk data
@@ -96,10 +99,10 @@ impl MisbehaviourChunk {
 }
 
 /// Stores the result of an Ed25519 signature verification.
-/// Because Solana's Ed25519 precompile writes results to a separate account
-/// rather than returning them inline, this account acts as a bridge:
-/// the precompile writes the verification outcome here, and the
-/// `update_client` instruction reads it to confirm header signatures.
+/// Written by `pre_verify_signature`, which introspects an `Ed25519Program`
+/// precompile instruction in the same transaction and records the outcome
+/// here. `assemble_and_update_client` and `assemble_and_submit_misbehaviour`
+/// accept these accounts to skip on-chain verification of those signatures.
 /// IMPORTANT: Field order matters — the verifier reads `data[8]` for `is_valid`.
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
 pub struct SignatureVerification {

@@ -377,7 +377,7 @@ func NewIftTransferInstruction(
 	// Add the accounts to the instruction.
 	{
 		// Account 0 "app_state": Read-only, Non-signer, Required
-		// Global IFT app state (read-only, for GMP program reference and pause check)
+		// Global IFT app state (read-only, for pause check)
 		accounts__.Append(solanago.NewAccountMeta(appStateAccount, false, false))
 		// Account 1 "app_mint_state": Read-only, Non-signer, Required
 		// Per-mint IFT app state (read-only, for mint and bridge references)
@@ -510,7 +510,8 @@ func NewIftMintInstruction(
 		// GMP account PDA - validated to match counterparty bridge
 		accounts__.Append(solanago.NewAccountMeta(gmpAccountAccount, false, true))
 		// Account 8 "payer": Writable, Signer, Required
-		// Pays for ATA creation (if needed) and transaction fees
+		// Pays for ATA creation (if needed). In the GMP flow this is the GMP
+		// account PDA, pre-funded by the relayer.
 		accounts__.Append(solanago.NewAccountMeta(payerAccount, true, true))
 		// Account 9 "token_program": Read-only, Non-signer, Required
 		// SPL Token or Token 2022 program for the mint CPI
@@ -860,7 +861,7 @@ func NewSetMintRateLimitInstruction(
 }
 
 // Builds a "set_paused" instruction.
-// Pause or unpause an IFT token (admin only)
+// Pause or unpause IFT for all mints (admin only)
 func NewSetPausedInstruction(
 	// Params:
 	msgParam IftStateSetPausedMsg,

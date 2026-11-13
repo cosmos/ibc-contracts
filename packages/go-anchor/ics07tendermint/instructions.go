@@ -63,7 +63,7 @@ func NewInitializeInstruction(
 		// PDA storing the verified consensus state at the initial height.
 		accounts__.Append(solanago.NewAccountMeta(consensusStateStoreAccount, true, false))
 		// Account 2 "app_state": Writable, Non-signer, Required
-		// PDA holding program-level settings such as the `access_manager` address and `chain_id`.
+		// PDA holding program-level settings such as the `access_manager` address.
 		accounts__.Append(solanago.NewAccountMeta(appStateAccount, true, false))
 		// Account 3 "payer": Writable, Signer, Required
 		// Signer that pays for PDA account creation.
@@ -311,7 +311,7 @@ func NewVerifyNonMembershipInstruction(
 }
 
 // Builds a "upload_header_chunk" instruction.
-// Upload a chunk of header data for multi-transaction updates // Fails if a chunk already exists at this position (no overwrites allowed)
+// Upload a chunk of header data for multi-transaction updates // Re-uploading to an existing position overwrites the submitter's chunk
 func NewUploadHeaderChunkInstruction(
 	// Params:
 	paramsParam Ics07TendermintTypesUploadChunkParams,
@@ -376,7 +376,7 @@ func NewUploadHeaderChunkInstruction(
 }
 
 // Builds a "assemble_and_update_client" instruction.
-// Assemble chunks and update the client // Automatically cleans up all chunks after successful update
+// Assemble chunks and update the client // Chunks are not closed; call `cleanup_incomplete_upload` afterwards to reclaim rent
 func NewAssembleAndUpdateClientInstruction(
 	// Params:
 	targetHeightParam uint64,
@@ -438,7 +438,7 @@ func NewAssembleAndUpdateClientInstruction(
 		// Destination PDA for the newly derived consensus state; created if it does not already exist.
 		accounts__.Append(solanago.NewAccountMeta(newConsensusStateStoreAccount, true, false))
 		// Account 5 "submitter": Writable, Signer, Required
-		// Relayer that uploaded the chunks, signs the assembly transaction and receives rent refunds.
+		// Relayer that uploaded the chunks, signs the assembly transaction and pays for the new consensus state.
 		accounts__.Append(solanago.NewAccountMeta(submitterAccount, true, true))
 		// Account 6 "system_program": Read-only, Non-signer, Required
 		// Required by Anchor for creating the new consensus-state PDA.
@@ -457,7 +457,7 @@ func NewAssembleAndUpdateClientInstruction(
 }
 
 // Builds a "cleanup_incomplete_upload" instruction.
-// Clean up incomplete header uploads // This can be called to reclaim rent from failed or abandoned uploads // Closes both `HeaderChunk` and `SignatureVerification` PDAs owned by the submitter
+// Clean up header uploads // This can be called to reclaim rent after successful, failed or abandoned uploads // Closes both `HeaderChunk` and `SignatureVerification` PDAs owned by the submitter
 func NewCleanupIncompleteUploadInstruction(
 	submitterAccount solanago.PublicKey,
 ) (solanago.Instruction, error) {

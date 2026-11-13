@@ -136,6 +136,11 @@ seeds = [b"pending_transfer", mint.as_ref(), client_id.as_bytes(), &sequence.to_
 
 ### Token Setup Flow
 
+Both options assume the program has already been initialized once per deployment:
+the program's upgrade authority calls `initialize(admin)`, which creates the
+`IFTAppState` singleton and sets the `admin` used below. Until then, every token
+setup instruction fails because `app_state` does not exist.
+
 **Option A: New Token**
 ```
 1. Admin calls create_and_initialize_spl_token(params)
