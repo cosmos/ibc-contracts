@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+#
+# Prepares an Amp orb: builds the flake's default Nix dev shell, makes it the environment of
+# login shells started in this repository, and prefetches Cargo and Go dependencies.
+# Must stay non-interactive and idempotent; it reruns on stale snapshots.
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$repo_root"
+
+step() {
+  local name="$1"
+  shift
+  local start=$SECONDS
+  echo "==> $name"
+  "$@"
+  echo "<== $name ($((SECONDS - start))s)"
+}
+
+install_nix() {
+  if [ -x "$HOME/.nix-profile/bin/nix" ]; then
+    return
+  fi
+  curl --proto '=https' --tlsv1.2 -sSfL https://nixos.org/nix/install | sh -s -- --no-daemon --yes
+}
+step "install nix" install_nix
+
+# The installer cannot update this running script's environment.
+# shellcheck disable=SC1091
+source "$HOME/.nix-profile/etc/profile.d/nix.sh"
+
+nix_flags=(--extra-experimental-features "nix-command flakes" --option max-jobs auto)
+gc_root_dir="$HOME/.local/state/ibc-contracts"
+mkdir -p "$gc_root_dir"
+
+# `--profile` registers a GC root so `nix-collect-garbage` does not delete the shell.
+build_dev_shell() {
+  nix "${nix_flags[@]}" print-dev-env --profile "$gc_root_dir/dev-shell" "$repo_root" >/dev/null
+}
+step "build nix dev shell" build_dev_shell
+
+profile_marker="# ibc-contracts Nix development shell"
+if ! grep -Fqx "$profile_marker" "$HOME/.bash_profile" 2>/dev/null; then
+  cat >>"$HOME/.bash_profile" <<EOF
+
+$profile_marker
+if [[ -z "\${IN_NIX_SHELL:-}" && ( "\$PWD" == "$repo_root" || "\$PWD" == "$repo_root"/* ) ]]; then
+  # shellcheck disable=SC1091
+  source "\$HOME/.nix-profile/etc/profile.d/nix.sh"
+  eval "\$(nix --extra-experimental-features 'nix-command flakes' --option warn-dirty false print-dev-env "$repo_root")"
+fi
+EOF
+fi
+
+in_dev_shell() {
+  nix "${nix_flags[@]}" develop "$repo_root" --command "$@"
+}
+
+# The root workspace plus the separate workspaces that default-shell recipes build. ibc-solana
+# belongs to the Solana shell, which setup does not prebuild.
+for manifest in Cargo.toml \
+  ibc-solidity/programs/cw-ics08-wasm-eth/Cargo.toml \
+  ibc-solidity/programs/sp1-programs/Cargo.toml; do
+  step "cargo fetch $manifest" in_dev_shell cargo fetch --locked --manifest-path "$manifest"
+done
+
+# shellcheck disable=SC2016
+step "go mod download" in_dev_shell bash -euc '
+  git ls-files "*go.mod" | while IFS= read -r mod; do
+    (cd "$(dirname "$mod")" && go mod download)
+  done
+'
