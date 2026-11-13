@@ -2,9 +2,12 @@
 
 //! Generic utilities for attestor-based relays (chain-agnostic).
 
+use std::time::Duration;
+
 use crate::aggregator::rpc::{AggregatedAttestation, CommitmentType};
 use crate::aggregator::{Aggregator, AttestationResult};
 use crate::events::{EurekaEvent, EurekaEventWithHeight};
+use crate::utils::{wait_for_condition, RelayEventsParams};
 use alloy::sol_types::SolValue;
 use anyhow::Result;
 use ibc_eureka_solidity_types::ics26::IICS26RouterMsgs::Packet;
@@ -102,6 +105,62 @@ pub async fn fetch_attestations(
         ack_attestation: ack_data.map(|r| r.packet),
         timeout_attestation: timeout_data.map(|r| r.packet),
     })
+}
+
+/// Fetches the attestations needed to relay the packets in `params`.
+///
+/// Collects the send, ack and timeout packets to relay, waits up to 15 minutes for the aggregator
+/// to finalize their relay height (the highest among them) and fetches their attestations at that
+/// height.
+///
+/// # Errors
+/// Returns an error if no packets are collected, timeout packets are collected without a
+/// `timeout_relay_height`, the relay height is not finalized in time, or an attestation request
+/// fails.
+pub async fn fetch_relay_attestations(
+    aggregator: &Aggregator,
+    params: &RelayEventsParams,
+) -> Result<AttestationData> {
+    let (send_packets, ack_packets, mut relay_height) = collect_send_and_ack_packets_with_height(
+        &params.src_events,
+        &params.src_client_id,
+        &params.dst_client_id,
+        &params.src_packet_seqs,
+        &params.dst_packet_seqs,
+    );
+
+    let timeout_packets = collect_timeout_packets(
+        &params.target_events,
+        &params.src_client_id,
+        &params.dst_client_id,
+        &params.dst_packet_seqs,
+    );
+
+    if timeout_packets.is_empty() {
+        tracing::debug!("No timeout packets collected");
+    } else {
+        let timeout_height = params
+            .timeout_relay_height
+            .ok_or_else(|| anyhow::anyhow!("timeout_relay_height required for timeout packets"))?;
+        // Use max of src_events height and timeout height
+        relay_height = Some(relay_height.map_or(timeout_height, |h| h.max(timeout_height)));
+    }
+
+    let relay_height = relay_height.ok_or_else(|| anyhow::anyhow!("No packets collected"))?;
+    wait_for_condition(Duration::from_mins(15), Duration::from_secs(1), || async {
+        let finalized_height = aggregator.get_latest_height().await?;
+        Ok(finalized_height >= relay_height)
+    })
+    .await?;
+
+    fetch_attestations(
+        aggregator,
+        send_packets,
+        ack_packets,
+        timeout_packets,
+        relay_height,
+    )
+    .await
 }
 
 /// Checks if a packet should be included based on client IDs and sequence filters.
