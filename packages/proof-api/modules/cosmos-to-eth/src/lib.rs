@@ -26,7 +26,7 @@ use proof_api_lib::{
     listener::{cosmos_sdk, eth_eureka, ChainListenerService},
     service_utils::{parse_cosmos_tx_hashes, to_tonic_status},
     tx_builder::TxBuilderService,
-    utils::RelayEventsParams,
+    utils::{eth_attested::EthAttestedTxBuilder, RelayEventsParams},
 };
 use sp1_ics07_tendermint_prover::programs::{
     MembershipProgram, MisbehaviourProgram, SP1ICS07TendermintPrograms,
@@ -58,13 +58,15 @@ struct CosmosToEthProofApiModuleService {
     eth_listener: eth_eureka::ChainListener<RootProvider>,
     /// The transaction builder for `EthEureka`.
     tx_builder: CosmosToEthTxBuilder,
+    /// The ICS26 router address.
+    ics26_address: Address,
     /// The `IBCMulticall` address that relay and update client transactions are submitted to.
     ibc_multicall_address: Address,
 }
 
 enum CosmosToEthTxBuilder {
     SP1(Box<TxBuilder<RootProvider>>),
-    Attested(Box<tx_builder::AttestedTxBuilder<RootProvider>>),
+    Attested(Box<EthAttestedTxBuilder<RootProvider>>),
 }
 
 /// The configuration for the Cosmos to Ethereum proof API module.
@@ -233,7 +235,7 @@ impl CosmosToEthProofApiModuleService {
                 let aggregator = Aggregator::from_config(aggregator_config)
                     .await
                     .map_err(|e| anyhow::anyhow!("failed to create aggregator: {e}"))?;
-                CosmosToEthTxBuilder::Attested(Box::new(tx_builder::AttestedTxBuilder::new(
+                CosmosToEthTxBuilder::Attested(Box::new(EthAttestedTxBuilder::new(
                     aggregator,
                     config.ics26_address,
                     provider,
@@ -245,6 +247,7 @@ impl CosmosToEthProofApiModuleService {
             tm_listener,
             eth_listener,
             tx_builder,
+            ics26_address: config.ics26_address,
             ibc_multicall_address: config.ibc_multicall_address,
         })
     }
@@ -266,7 +269,7 @@ impl ProofApiService for CosmosToEthProofApiModuleService {
                     .await
                     .map_err(to_tonic_status)?,
                 ibc_version: "2".to_string(),
-                ibc_contract: self.tx_builder.ics26_router_address().to_string(),
+                ibc_contract: self.ics26_address.to_string(),
             }),
             source_chain: Some(api::Chain {
                 chain_id: self.tm_listener.chain_id().await.map_err(to_tonic_status)?,
@@ -446,15 +449,8 @@ impl CosmosToEthTxBuilder {
 
     async fn update_client(&self, dst_client_id: String) -> anyhow::Result<Vec<u8>> {
         match self {
-            Self::SP1(tb) => tb.update_client(dst_client_id.clone()).await,
-            Self::Attested(tb) => tb.update_client(dst_client_id).await,
-        }
-    }
-
-    const fn ics26_router_address(&self) -> &Address {
-        match self {
-            Self::SP1(tb) => tb.ics26_router.address(),
-            Self::Attested(tb) => tb.ics26_address(),
+            Self::SP1(tb) => tb.update_client(dst_client_id).await,
+            Self::Attested(tb) => tb.update_client(&dst_client_id).await,
         }
     }
 
