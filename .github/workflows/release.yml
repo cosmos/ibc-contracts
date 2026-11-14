@@ -439,7 +439,7 @@ jobs:
           sign: "true"
           # Also signs the platform manifests referenced by the index.
           recursive: "true"
-      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
       # Verified before the tag moves, with the identity checks RELEASES.md gives users, so the tag
       # only ever points at an image that passes them.
       - name: Verify image
@@ -537,7 +537,7 @@ jobs:
           name: ${{ needs.validate-tag.outputs.name }}
           title: ${{ needs.validate-tag.outputs.title }}
           prerelease: ${{ needs.validate-tag.outputs.prerelease }}
-      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
       # Checks what the release now holds, as RELEASES.md tells users to, so a file that went wrong
       # in the upload, or one attached outside this run, fails the run. The action verified every
       # file against its attestations before signing, and sha256sum ties the files to that list.
