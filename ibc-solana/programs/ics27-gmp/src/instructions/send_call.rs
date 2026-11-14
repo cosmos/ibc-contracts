@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::constants::*;
+use crate::encoding::GmpEncoding;
 use crate::errors::GMPError;
 use crate::events::GMPCallSent;
 use crate::state::{GMPAppState, SendCallMsg};
@@ -164,7 +165,8 @@ pub(crate) fn send_call_inner<'info>(
         GMPError::InvalidPacketData
     })?;
 
-    let packet_data_bytes = crate::encoding::encode_gmp_packet(packet_data, &msg.encoding)?;
+    let encoding = GmpEncoding::try_from(msg.encoding.as_str())?;
+    let packet_data_bytes = crate::encoding::encode_gmp_packet(packet_data, encoding);
 
     let ibc_payload = Payload {
         source_port: GMP_PORT_ID.to_string(),
@@ -220,7 +222,7 @@ pub(crate) fn send_call_inner<'info>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::constants::{ICS27_ENCODING_ABI, ICS27_ENCODING_PROTOBUF};
+    use crate::constants::ICS27_ENCODING_PROTOBUF;
     use crate::encoding::{decode_gmp_packet, encode_gmp_packet};
     use crate::state::GMPAppState;
     use crate::test_utils::*;
@@ -669,10 +671,9 @@ mod tests {
         };
         let packet_data = GmpPacketData::try_from(raw).unwrap();
 
-        let encoded =
-            encode_gmp_packet(packet_data, ICS27_ENCODING_ABI).expect("ABI encoding should work");
+        let encoded = encode_gmp_packet(packet_data, GmpEncoding::Abi);
         let raw_decoded =
-            decode_gmp_packet(&encoded, ICS27_ENCODING_ABI).expect("ABI decoding should succeed");
+            decode_gmp_packet(&encoded, GmpEncoding::Abi).expect("ABI decoding should succeed");
         let decoded = GmpPacketData::try_from(raw_decoded).unwrap();
 
         assert_eq!(decoded.sender.as_ref(), "solana_sender_pubkey");

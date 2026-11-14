@@ -5,24 +5,27 @@
 use anchor_lang::prelude::*;
 use solana_ibc_proto::ProstMessage;
 
+use crate::encoding::GmpEncoding;
 use crate::errors::GMPError;
 
 /// Decode raw (unvalidated) `RawGmpSolanaPayload` from either protobuf or ABI encoding.
 ///
 /// Callers should validate the result into `GmpSolanaPayload` via `try_into()`.
-pub fn decode_raw(value: &[u8], encoding: &str) -> Result<solana_ibc_proto::RawGmpSolanaPayload> {
+pub fn decode_raw(
+    value: &[u8],
+    encoding: GmpEncoding,
+) -> Result<solana_ibc_proto::RawGmpSolanaPayload> {
     match encoding {
-        crate::constants::ICS27_ENCODING_ABI => crate::abi::decode_abi_to_raw(value).map_err(|e| {
+        GmpEncoding::Abi => crate::abi::decode_abi_to_raw(value).map_err(|e| {
             msg!("GMP ABI Solana payload decode failed: {}", e);
             error!(GMPError::InvalidSolanaPayload)
         }),
-        crate::constants::ICS27_ENCODING_PROTOBUF => {
+        GmpEncoding::Protobuf => {
             <solana_ibc_proto::RawGmpSolanaPayload as ProstMessage>::decode(value).map_err(|e| {
                 msg!("GMP Solana payload decode failed: {}", e);
                 error!(GMPError::InvalidSolanaPayload)
             })
         }
-        _ => Err(error!(GMPError::InvalidEncoding)),
     }
 }
 
@@ -47,11 +50,10 @@ mod tests {
         };
         let encoded = raw.encode_to_vec();
 
-        let decoded: GmpSolanaPayload =
-            decode_raw(&encoded, crate::constants::ICS27_ENCODING_PROTOBUF)
-                .expect("protobuf decode_raw should succeed")
-                .try_into()
-                .expect("protobuf validation should succeed");
+        let decoded: GmpSolanaPayload = decode_raw(&encoded, GmpEncoding::Protobuf)
+            .expect("protobuf decode_raw should succeed")
+            .try_into()
+            .expect("protobuf validation should succeed");
 
         assert_eq!(decoded.accounts.len(), 1);
         assert_eq!(decoded.accounts[0].pubkey, pubkey);
@@ -78,7 +80,7 @@ mod tests {
         }
         .abi_encode();
 
-        let decoded: GmpSolanaPayload = decode_raw(&encoded, crate::constants::ICS27_ENCODING_ABI)
+        let decoded: GmpSolanaPayload = decode_raw(&encoded, GmpEncoding::Abi)
             .expect("ABI decode_raw should succeed")
             .try_into()
             .expect("ABI validation should succeed");
@@ -92,14 +94,8 @@ mod tests {
     }
 
     #[test]
-    fn test_decode_raw_invalid_encoding() {
-        let result = decode_raw(&[1, 2, 3], "application/json");
-        assert!(result.is_err());
-    }
-
-    #[test]
     fn test_decode_raw_abi_invalid_bytes() {
-        let result = decode_raw(&[0xFF; 10], crate::constants::ICS27_ENCODING_ABI);
+        let result = decode_raw(&[0xFF; 10], GmpEncoding::Abi);
         assert!(result.is_err());
     }
 
@@ -113,7 +109,7 @@ mod tests {
         let encoded = raw.encode_to_vec();
 
         // decode_raw succeeds, but validation rejects empty data
-        let raw_decoded = decode_raw(&encoded, crate::constants::ICS27_ENCODING_PROTOBUF)
+        let raw_decoded = decode_raw(&encoded, GmpEncoding::Protobuf)
             .expect("protobuf decode_raw should succeed");
         let result: std::result::Result<GmpSolanaPayload, _> = raw_decoded.try_into();
         assert!(result.is_err());
@@ -131,8 +127,8 @@ mod tests {
         .abi_encode();
 
         // decode_raw succeeds, but validation rejects empty data
-        let raw_decoded = decode_raw(&encoded, crate::constants::ICS27_ENCODING_ABI)
-            .expect("ABI decode_raw should succeed");
+        let raw_decoded =
+            decode_raw(&encoded, GmpEncoding::Abi).expect("ABI decode_raw should succeed");
         let result: std::result::Result<GmpSolanaPayload, _> = raw_decoded.try_into();
         assert!(result.is_err());
     }
@@ -159,8 +155,8 @@ mod tests {
         .abi_encode();
 
         // decode_raw succeeds, but validation rejects too many accounts
-        let raw_decoded = decode_raw(&encoded, crate::constants::ICS27_ENCODING_ABI)
-            .expect("ABI decode_raw should succeed");
+        let raw_decoded =
+            decode_raw(&encoded, GmpEncoding::Abi).expect("ABI decode_raw should succeed");
         let result: std::result::Result<GmpSolanaPayload, _> = raw_decoded.try_into();
         assert!(result.is_err());
     }

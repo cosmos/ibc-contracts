@@ -4,6 +4,7 @@ use alloy_sol_types::SolCall;
 use anchor_lang::prelude::*;
 use anchor_lang::InstructionData;
 use anchor_spl::token_interface::{self, Burn, Mint, TokenAccount, TokenInterface};
+use ics27_gmp::encoding::GmpEncoding;
 use serde::Serialize;
 use solana_ibc_proto::ProstMessage;
 
@@ -181,7 +182,7 @@ pub fn ift_transfer(ctx: Context<IFTTransfer>, msg: IFTTransferMsg) -> Result<u6
     ctx.accounts.mint.reload()?;
     ctx.accounts.sender_token_account.reload()?;
 
-    let mint_call_payload = construct_mint_call(
+    let (encoding, mint_call_payload) = construct_mint_call(
         &ctx.accounts.ift_bridge.chain_options,
         &msg.receiver,
         msg.amount,
@@ -203,19 +204,12 @@ pub fn ift_transfer(ctx: Context<IFTTransfer>, msg: IFTTransferMsg) -> Result<u6
         system_program: ctx.accounts.system_program.to_account_info(),
     };
 
-    let encoding = match &ctx.accounts.ift_bridge.chain_options {
-        ChainOptions::Evm => ics27_gmp::constants::ICS27_ENCODING_ABI,
-        ChainOptions::Cosmos { .. } | ChainOptions::Solana { .. } => {
-            ics27_gmp::constants::ICS27_ENCODING_PROTOBUF
-        }
-    };
-
     let gmp_msg = SendGmpCallMsg {
         source_client: msg.client_id.clone(),
         timeout_timestamp: timeout,
         receiver: ctx.accounts.ift_bridge.counterparty_ift_address.clone(),
         payload: mint_call_payload,
-        encoding: encoding.to_string(),
+        encoding: encoding.as_str().to_string(),
         sequence: msg.sequence,
     };
 
@@ -245,36 +239,37 @@ pub fn ift_transfer(ctx: Context<IFTTransfer>, msg: IFTTransferMsg) -> Result<u6
     Ok(sequence)
 }
 
-/// Construct chain-specific mint call payload for the counterparty.
+/// Construct chain-specific mint call payload for the counterparty, together
+/// with the GMP packet encoding that chain expects.
 fn construct_mint_call(
     chain_options: &ChainOptions,
     receiver: &str,
     amount: u64,
-) -> Result<Vec<u8>> {
+) -> Result<(GmpEncoding, Vec<u8>)> {
     match chain_options {
-        ChainOptions::Evm => construct_evm_mint_call(receiver, amount),
+        ChainOptions::Evm => Ok((GmpEncoding::Abi, construct_evm_mint_call(receiver, amount)?)),
         ChainOptions::Cosmos {
             denom,
             type_url,
             ica_address,
-        } => Ok(construct_cosmos_mint_call(
-            type_url,
-            ica_address,
-            denom,
-            receiver,
-            amount,
+        } => Ok((
+            GmpEncoding::Protobuf,
+            construct_cosmos_mint_call(type_url, ica_address, denom, receiver, amount),
         )),
         ChainOptions::Solana {
             ift_program_id,
             counterparty_mint,
             counterparty_client_id,
-        } => construct_solana_mint_call(
-            ift_program_id,
-            counterparty_mint,
-            counterparty_client_id,
-            receiver,
-            amount,
-        ),
+        } => Ok((
+            GmpEncoding::Protobuf,
+            construct_solana_mint_call(
+                ift_program_id,
+                counterparty_mint,
+                counterparty_client_id,
+                receiver,
+                amount,
+            )?,
+        )),
     }
 }
 
@@ -439,6 +434,7 @@ mod tests {
     struct MintCallTestCase {
         chain_options: ChainOptions,
         receiver: &'static str,
+        expected_encoding: GmpEncoding,
         expected_len: Option<usize>,
         expected_content: Vec<&'static str>,
     }
@@ -447,6 +443,7 @@ mod tests {
         MintCallTestCase {
             chain_options: ChainOptions::Evm,
             receiver: "0x1234567890abcdef1234567890abcdef12345678",
+            expected_encoding: GmpEncoding::Abi,
             expected_len: Some(68),
             expected_content: vec![],
         }
@@ -460,6 +457,7 @@ mod tests {
                 ica_address: "cosmos1icaaddress".to_string(),
             },
             receiver: "cosmos1receiver",
+            expected_encoding: GmpEncoding::Protobuf,
             expected_len: None,
             expected_content: vec!["/cosmos.ift.v1.MsgIFTMint", "uatom", "cosmos1icaaddress"],
         }
@@ -479,6 +477,7 @@ mod tests {
                 counterparty_client_id: SOLANA_TEST_CLIENT_ID.to_string(),
             },
             receiver: SOLANA_RECEIVER,
+            expected_encoding: GmpEncoding::Protobuf,
             expected_len: None,
             expected_content: vec![],
         }
@@ -491,7 +490,8 @@ mod tests {
     fn test_construct_mint_call(#[case] test_case: MintCallTestCase) {
         let result = construct_mint_call(&test_case.chain_options, test_case.receiver, 100);
         assert!(result.is_ok());
-        let payload = result.unwrap();
+        let (encoding, payload) = result.unwrap();
+        assert_eq!(encoding, test_case.expected_encoding);
 
         if let Some(expected_len) = test_case.expected_len {
             assert_eq!(payload.len(), expected_len);

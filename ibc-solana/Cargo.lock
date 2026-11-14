@@ -3442,6 +3442,7 @@ dependencies = [
  "mollusk-svm",
  "mollusk-svm-bencher",
  "rstest",
+ "solana-ibc-constants",
  "solana-ibc-macros",
  "solana-ibc-proto",
  "solana-ibc-types",

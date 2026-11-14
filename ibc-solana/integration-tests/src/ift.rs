@@ -23,8 +23,7 @@ use solana_sdk::{
     pubkey::Pubkey,
 };
 
-/// ABI content-type used for IFT payload encoding towards EVM chains.
-pub const ICS27_ENCODING_ABI: &str = "application/x-solidity-abi";
+pub use solana_ibc_constants::ICS27_ENCODING_ABI;
 /// Dummy EVM address for the counterparty IFT contract in tests.
 pub const COUNTERPARTY_IFT_ADDRESS: &str = "0x1234567890abcdef1234567890abcdef12345678";
 /// Dummy EVM receiver address used in IFT transfer tests.
@@ -534,9 +533,8 @@ pub fn encode_ift_gmp_packet(counterparty_addr: &str, mint_call_payload: Vec<u8>
 
     ics27_gmp::encoding::encode_gmp_packet(
         solana_ibc_gmp_types::GmpPacketData::try_from(raw_packet).expect("valid GMP packet data"),
-        ICS27_ENCODING_ABI,
+        ics27_gmp::encoding::GmpEncoding::Abi,
     )
-    .expect("GMP packet encoding should succeed")
 }
 
 // ── Solana-target payload encoding ──────────────────────────────────────
@@ -623,9 +621,8 @@ pub fn encode_ift_solana_gmp_packet(
 
     ics27_gmp::encoding::encode_gmp_packet(
         solana_ibc_gmp_types::GmpPacketData::try_from(raw_packet).expect("valid GMP packet data"),
-        crate::gmp::ICS27_ENCODING_PROTOBUF,
+        ics27_gmp::encoding::GmpEncoding::Protobuf,
     )
-    .expect("GMP packet encoding should succeed")
 }
 
 // ── Account state readers ───────────────────────────────────────────────

@@ -25,8 +25,7 @@ use solana_sdk::{
 pub const GMP_PORT_ID: &str = "gmpport";
 /// ICS27 application version string.
 pub const ICS27_VERSION: &str = "ics27-2";
-/// Protobuf content-type used for GMP payload encoding.
-pub const ICS27_ENCODING_PROTOBUF: &str = "application/x-protobuf";
+pub use solana_ibc_constants::ICS27_ENCODING_PROTOBUF;
 
 // ── Send Call ───────────────────────────────────────────────────────────
 
@@ -299,9 +298,8 @@ pub fn encode_gmp_packet(
 
     ics27_gmp::encoding::encode_gmp_packet(
         solana_ibc_gmp_types::GmpPacketData::try_from(raw_packet).expect("valid GMP packet data"),
-        ICS27_ENCODING_PROTOBUF,
+        ics27_gmp::encoding::GmpEncoding::Protobuf,
     )
-    .expect("GMP packet encoding should succeed")
 }
 
 /// Build `remaining_accounts` entries for GMP `recv_packet` targeting

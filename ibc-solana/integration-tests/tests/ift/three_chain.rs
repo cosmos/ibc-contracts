@@ -620,8 +620,8 @@ async fn run_ift_leg(
         .expect("gmp_recv_packet failed");
 
     // ── Build ack proof (source attestors prove dest ack) ──
-    let raw_ack = ics27_gmp::encoding::encode_gmp_ack(&[], gmp::ICS27_ENCODING_PROTOBUF)
-        .expect("encode GMP ack");
+    let raw_ack =
+        ics27_gmp::encoding::encode_gmp_ack(&[], ics27_gmp::encoding::GmpEncoding::Protobuf);
 
     let ack_proof_bytes = attestation::build_ack_proof_bytes(
         dest,

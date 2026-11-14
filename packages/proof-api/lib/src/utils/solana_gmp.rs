@@ -17,11 +17,9 @@ use solana_ibc_proto::{GmpPacketData, GmpSolanaPayload, Protobuf};
 /// GMP (General Message Passing) port identifier.
 pub const GMP_PORT_ID: &str = "gmpport";
 
-/// Protobuf encoding type for GMP packets.
-pub const PROTOBUF_ENCODING: &str = "application/x-protobuf";
-
-/// ABI encoding identifier used by Ethereum ICS27 GMP.
-pub const ABI_ENCODING: &str = "application/x-solidity-abi";
+pub use solana_ibc_constants::{
+    ICS27_ENCODING_ABI as ABI_ENCODING, ICS27_ENCODING_PROTOBUF as PROTOBUF_ENCODING,
+};
 
 /// Maximum lamports the proof API will pre-fund per GMP packet (~0.05 SOL).
 /// Caps the sender-specified `prefund_lamports` to prevent griefing.
