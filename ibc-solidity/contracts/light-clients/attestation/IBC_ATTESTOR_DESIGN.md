@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+
 ## Solidity IBC Attestor Light Client — Design
 
 This document specifies how the Solidity light client for IBC Attestations works. It mirrors the high-level semantics of the CosmWasm 08-wasm attestor client while adapting details to EVM constraints and `ILightClient` in this repository. It focuses on behavior and interfaces, not implementation.

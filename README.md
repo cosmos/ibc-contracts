@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+
 # IBC Contracts
 
 [![Full Actions](https://github.com/lfdt-ibc/ibc-contracts/actions/workflows/e2e-full.yml/badge.svg)](https://github.com/lfdt-ibc/ibc-contracts/actions)

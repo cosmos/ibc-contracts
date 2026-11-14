@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+
 # solana-ibc-sdk-codegen
 
 Generates Rust types, accounts, events and instruction builders from Anchor IDL files for the `solana-ibc-sdk` crate.

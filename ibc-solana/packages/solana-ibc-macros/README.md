@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+
 # solana-ibc-macros
 
 Procedural macros for IBC applications on Solana.

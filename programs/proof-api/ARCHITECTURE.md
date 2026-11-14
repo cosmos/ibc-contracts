@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+
 # IBC Proof API Architecture
 
 **Location**: [`programs/proof-api/`](programs/proof-api/) (entry point) | [`packages/proof-api/`](packages/proof-api/) (implementation) | [`proto/proofapi/`](proto/proofapi/) (API definition)

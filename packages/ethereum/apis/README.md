@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+
 # `ethereum-apis`
 
 This package contains api clients and helpers to interact with Ethereum APIs (such as rpc and beacon api).

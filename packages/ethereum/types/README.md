@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+
 # `ethereum-types`
 
 This crate contains ethereum types that are compatible with standard API endpoints such as the beacon API and the exeuction API. 

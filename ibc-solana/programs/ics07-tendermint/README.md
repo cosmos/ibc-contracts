@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+
 # ICS07 Tendermint Light Client for Solana
 
 This is a Solana implementation of the ICS07 Tendermint light client, enabling IBC (Inter-Blockchain Communication) between Solana and Tendermint-based chains.

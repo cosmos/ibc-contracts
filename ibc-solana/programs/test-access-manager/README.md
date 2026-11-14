@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+
 # Test Access Manager
 
 A second access-manager instance with a different `declare_id!` for testing AM-to-AM migration.

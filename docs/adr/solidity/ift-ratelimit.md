@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+
 # ADR: Rate Limiting in IFT in Solidity
 
 **Status**: Accepted

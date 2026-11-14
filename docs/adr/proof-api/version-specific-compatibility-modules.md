@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+
 # ADR: Version-Specific Proof API Compatibility Modules
 
 **Status**: Implemented

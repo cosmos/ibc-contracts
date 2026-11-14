@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+
 # AGENTS.md
 
 This subtree contains the Anchor-based Solana IBC programs and their ProgramTest integration harness.

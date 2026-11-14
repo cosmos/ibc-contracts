@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+
 # Tracing and Distributed Observability
 
 Tracing is a framework for instrumenting Rust programs to collect structured, event-based diagnostic information across distributed systems. It enables developers to understand request flows and failure patterns in microservice architectures.

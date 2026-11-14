@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+
 # ADR: Pausing and Freezing in IBC-Solidity
 
 **Status**: Accepted

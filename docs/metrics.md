@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+
 # Metrics and best practices
 
 The goal of metric collection is to provide data-driven insights into the inner workings of your services. 

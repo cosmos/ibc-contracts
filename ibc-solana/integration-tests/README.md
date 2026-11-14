@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+
 # Solana IBC Integration Tests
 
 Solana-to-Solana IBC integration tests using `ProgramTest` (BanksClient).

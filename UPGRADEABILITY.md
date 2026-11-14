@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+
 # Upgradeability
 
 This repository houses both Solidity contracts and Solana programs for IBC v2, designed with upgradeability in mind.

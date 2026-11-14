@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+
 # go-test-matrix
 
 This tool scans Go test files under `e2e/interchaintestv8` to discover testify suites and their test methods, then outputs a JSON matrix suitable for GitHub Actions.
