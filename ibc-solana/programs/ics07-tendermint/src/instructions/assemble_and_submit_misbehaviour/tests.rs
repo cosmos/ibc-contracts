@@ -146,8 +146,7 @@ fn setup_test_accounts(config: TestSetupConfig) -> TestAccounts {
             submitter,
             vec![submitter],
         );
-    let (access_manager_pda, _) =
-        solana_ibc_types::access_manager::AccessManager::pda(access_manager::ID);
+    let access_manager_pda = access_manager::state::AccessManager::pda();
     accounts.push((access_manager_pda, access_manager_account));
 
     if with_valid_consensus_states {
@@ -317,8 +316,7 @@ fn create_assemble_instruction(test_accounts: &TestAccounts) -> Instruction {
         trusted_height_2: test_accounts.height_2,
     };
 
-    let (access_manager_pda, _) =
-        solana_ibc_types::access_manager::AccessManager::pda(access_manager::ID);
+    let access_manager_pda = access_manager::state::AccessManager::pda();
 
     let mut account_metas = vec![
         AccountMeta::new(test_accounts.client_state_pda, false),

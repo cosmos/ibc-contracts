@@ -108,6 +108,16 @@ pub enum RouterError {
     UnauthorizedDeployer,
 }
 
+/// Convert chunk account validation errors to Router errors
+impl From<solana_ibc_types::ChunkAccountError> for RouterError {
+    fn from(err: solana_ibc_types::ChunkAccountError) -> Self {
+        match err {
+            solana_ibc_types::ChunkAccountError::InvalidChunkAccount => Self::InvalidChunkAccount,
+            solana_ibc_types::ChunkAccountError::InvalidAccountOwner => Self::InvalidAccountOwner,
+        }
+    }
+}
+
 /// Convert CPI validation errors to Router errors
 impl From<solana_ibc_types::CpiValidationError> for RouterError {
     fn from(err: solana_ibc_types::CpiValidationError) -> Self {

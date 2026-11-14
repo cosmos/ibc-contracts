@@ -1306,8 +1306,7 @@ mod tests {
         proof_chunk_pda: Pubkey,
     ) -> (Instruction, Pubkey, Pubkey) {
         let (router_state_pda, _) = Pubkey::find_program_address(&[RouterState::SEED], &crate::ID);
-        let (access_manager_pda, _) =
-            solana_ibc_types::access_manager::AccessManager::pda(access_manager::ID);
+        let access_manager_pda = access_manager::state::AccessManager::pda();
         let (ibc_app_pda, _) =
             Pubkey::find_program_address(&[IBCApp::SEED, RECV_TEST_PORT.as_bytes()], &crate::ID);
         let (client_pda, _) =

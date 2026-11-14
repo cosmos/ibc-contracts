@@ -134,10 +134,7 @@ mod tests {
     ) -> solana_sdk::instruction::Instruction {
         let (router_state_pda, _) =
             Pubkey::find_program_address(&[crate::state::RouterState::SEED], &crate::ID);
-        let (access_manager_pda, _) = Pubkey::find_program_address(
-            &[access_manager::state::AccessManager::SEED],
-            &access_manager::ID,
-        );
+        let access_manager_pda = access_manager::state::AccessManager::pda();
 
         build_instruction(
             crate::instruction::ProposeAccessManagerTransfer { new_access_manager },
@@ -153,10 +150,7 @@ mod tests {
     fn build_cancel_instruction(admin: Pubkey) -> solana_sdk::instruction::Instruction {
         let (router_state_pda, _) =
             Pubkey::find_program_address(&[crate::state::RouterState::SEED], &crate::ID);
-        let (access_manager_pda, _) = Pubkey::find_program_address(
-            &[access_manager::state::AccessManager::SEED],
-            &access_manager::ID,
-        );
+        let access_manager_pda = access_manager::state::AccessManager::pda();
 
         build_instruction(
             crate::instruction::CancelAccessManagerTransfer {},
@@ -480,10 +474,7 @@ mod integration_tests {
     fn build_propose_ix(admin: Pubkey, new_access_manager: Pubkey) -> Instruction {
         let (router_state_pda, _) =
             Pubkey::find_program_address(&[crate::state::RouterState::SEED], &crate::ID);
-        let (access_manager_pda, _) = Pubkey::find_program_address(
-            &[access_manager::state::AccessManager::SEED],
-            &access_manager::ID,
-        );
+        let access_manager_pda = access_manager::state::AccessManager::pda();
 
         Instruction {
             program_id: crate::ID,
@@ -500,10 +491,7 @@ mod integration_tests {
     fn build_cancel_ix(admin: Pubkey) -> Instruction {
         let (router_state_pda, _) =
             Pubkey::find_program_address(&[crate::state::RouterState::SEED], &crate::ID);
-        let (access_manager_pda, _) = Pubkey::find_program_address(
-            &[access_manager::state::AccessManager::SEED],
-            &access_manager::ID,
-        );
+        let access_manager_pda = access_manager::state::AccessManager::pda();
 
         Instruction {
             program_id: crate::ID,

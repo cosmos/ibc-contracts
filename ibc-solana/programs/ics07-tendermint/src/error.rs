@@ -106,3 +106,12 @@ impl From<crate::conversions::ConversionError> for ErrorCode {
         Self::ConversionError
     }
 }
+
+impl From<solana_ibc_types::ChunkAccountError> for ErrorCode {
+    fn from(err: solana_ibc_types::ChunkAccountError) -> Self {
+        match err {
+            solana_ibc_types::ChunkAccountError::InvalidChunkAccount => Self::InvalidChunkAccount,
+            solana_ibc_types::ChunkAccountError::InvalidAccountOwner => Self::InvalidAccountOwner,
+        }
+    }
+}

@@ -138,10 +138,7 @@ mod tests {
 
     fn build_propose_instruction(admin: Pubkey, new_access_manager: Pubkey) -> Instruction {
         let app_state_pda = AppState::pda();
-        let (access_manager_pda, _) = Pubkey::find_program_address(
-            &[access_manager::state::AccessManager::SEED],
-            &access_manager::ID,
-        );
+        let access_manager_pda = access_manager::state::AccessManager::pda();
 
         let instruction_data =
             crate::instruction::ProposeAccessManagerTransfer { new_access_manager };
@@ -240,10 +237,7 @@ mod integration_tests {
 
     fn build_propose_ix(admin: Pubkey, new_access_manager: Pubkey) -> Instruction {
         let app_state_pda = crate::types::AppState::pda();
-        let (access_manager_pda, _) = Pubkey::find_program_address(
-            &[access_manager::state::AccessManager::SEED],
-            &access_manager::ID,
-        );
+        let access_manager_pda = access_manager::state::AccessManager::pda();
 
         Instruction {
             program_id: crate::ID,
