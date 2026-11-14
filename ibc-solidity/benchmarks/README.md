@@ -45,10 +45,10 @@ These isolated transactions use the live Besu QBFT header and proof fixture in `
 
 | Operation | Gas | ABI calldata bytes |
 | --- | ---: | ---: |
-| Adjacent client update | 152,255 | 1,764 |
-| Non-adjacent client update | 152,293 | 1,764 |
-| Membership verification | 156,835 | 2,500 |
-| Non-membership verification | 169,150 | 2,404 |
+| Adjacent client update | 152,114 | 1,764 |
+| Non-adjacent client update | 152,152 | 1,764 |
+| Membership verification | 157,027 | 2,500 |
+| Non-membership verification | 169,340 | 2,404 |
 
 ## Besu QBFT light-client scaling benchmarks
 
@@ -56,12 +56,12 @@ These isolated transactions use headers and proofs produced in-process by the `Q
 
 | Validators | Client update gas | ABI calldata bytes |
 | ---: | ---: | ---: |
-| 4 | 157,689 | 1,924 |
-| 7 | 189,138 | 2,564 |
-| 16 | 283,302 | 4,484 |
-| 32 | 450,995 | 7,908 |
-| 64 | 786,772 | 14,724 |
-| 100 | 1,165,709 | 22,372 |
+| 4 | 157,533 | 1,924 |
+| 7 | 188,937 | 2,564 |
+| 16 | 282,966 | 4,484 |
+| 32 | 450,419 | 7,908 |
+| 64 | 785,716 | 14,724 |
+| 100 | 1,164,113 | 22,372 |
 
 Membership verification against a world state trie with the given number of accounts (router included) and a router storage trie with the given number of commitments plus the ERC-1967 implementation slot.
 
@@ -69,10 +69,10 @@ Gas:
 
 | Accounts | 1 commitments | 16 commitments | 128 commitments | 1024 commitments |
 | ---: | ---: | ---: | ---: | ---: |
-| 1 | 97,933 | 102,676 | 132,986 | 163,772 |
-| 16 | 126,978 | 131,734 | 162,032 | 192,831 |
-| 128 | 157,836 | 162,592 | 192,891 | 223,704 |
-| 1024 | 189,195 | 193,928 | 224,229 | 255,079 |
+| 1 | 98,125 | 102,869 | 133,178 | 163,965 |
+| 16 | 127,170 | 131,926 | 162,224 | 193,024 |
+| 128 | 158,028 | 162,785 | 193,084 | 223,897 |
+| 1024 | 189,388 | 194,122 | 224,422 | 255,272 |
 
 ABI calldata bytes:
 

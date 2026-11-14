@@ -11,7 +11,6 @@ import { SlotDerivation } from "@openzeppelin-contracts/utils/SlotDerivation.sol
 
 import { ILightClient } from "../../interfaces/ILightClient.sol";
 import { ILightClientMsgs } from "../../msgs/ILightClientMsgs.sol";
-import { IICS02ClientMsgs } from "../../msgs/IICS02ClientMsgs.sol";
 import { IBesuLightClientMsgs } from "./msgs/IBesuLightClientMsgs.sol";
 import { IBesuLightClientErrors } from "./errors/IBesuLightClientErrors.sol";
 import { IBesuLightClient } from "./interfaces/IBesuLightClient.sol";
@@ -55,14 +54,14 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
     )
         ICS26ManagedLightClient(ics26Router)
     {
-        IICS02ClientMsgs.Height memory latestHeight = initialClientState.latestHeight;
         IBesuLightClientMsgs.TrustThreshold memory trustLevel = initialClientState.trustLevel;
         uint64 trustingPeriod = initialClientState.trustingPeriod;
-        uint64 timestamp = initialConsensusState.timestamp;
 
         require(initialClientState.ibcRouter != address(0), InvalidIbcRouter());
-        require(latestHeight.revisionNumber == 0, InvalidRevisionNumber(latestHeight.revisionNumber));
-        require(latestHeight.revisionHeight != 0, InvalidHeaderHeight());
+        uint64 latestHeight = _revisionHeight(
+            initialClientState.latestHeight.revisionNumber, initialClientState.latestHeight.revisionHeight
+        );
+        require(latestHeight != 0, InvalidHeaderHeight());
         require(!initialClientState.isFrozen, FrozenClientState());
         require(trustingPeriod != 0 && trustingPeriod <= MAX_TRUSTING_PERIOD, InvalidTrustingPeriod(trustingPeriod));
         require(
@@ -74,24 +73,12 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
             InvalidTrustLevel(trustLevel.numerator, trustLevel.denominator)
         );
 
-        require(timestamp != 0, InvalidHeaderTimestamp());
-        require(
-            initialConsensusState.stateRoot != bytes32(0)
-                && initialConsensusState.stateRoot != TrieProof.EMPTY_ROOT_HASH,
-            InvalidStateRoot(initialConsensusState.stateRoot)
-        );
-        _validateValidators(initialConsensusState.validators);
-        require(
-            uint256(timestamp) + trustingPeriod > block.timestamp,
-            ConsensusStateExpired(timestamp, block.timestamp, trustingPeriod)
-        );
-        require(
-            block.timestamp + initialClientState.maxClockDrift >= timestamp,
-            HeaderFromFuture(block.timestamp, timestamp, initialClientState.maxClockDrift)
-        );
+        _validateConsensusState(initialConsensusState);
+        _requireNotExpired(initialConsensusState.timestamp, trustingPeriod);
+        _requireNotFromFuture(initialConsensusState.timestamp, initialClientState.maxClockDrift);
 
         clientState = initialClientState;
-        consensusStateHashes[latestHeight.revisionHeight] = keccak256(abi.encode(initialConsensusState));
+        consensusStateHashes[latestHeight] = keccak256(abi.encode(initialConsensusState));
     }
 
     /// @inheritdoc ILightClient
@@ -118,27 +105,14 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
         (uint64 height, IBesuLightClientMsgs.ConsensusState memory newConsensusState, bool sameValidators) =
             _verifyHeader(msg_);
         // Checked here rather than in `_verifyHeader` so `misbehaviour` can still use future headers as evidence.
-        require(
-            block.timestamp + clientState.maxClockDrift >= newConsensusState.timestamp,
-            HeaderFromFuture(block.timestamp, newConsensusState.timestamp, clientState.maxClockDrift)
-        );
+        _requireNotFromFuture(newConsensusState.timestamp, clientState.maxClockDrift);
 
-        if (_freezeOnConflict(
-                msg_.trustedHeight.revisionHeight,
-                msg_.consensusStatePreimage,
-                height,
-                newConsensusState,
-                sameValidators
-            )) {
+        (bool frozen, bytes32 newHash) = _freezeOnHeaderConflict(msg_, height, newConsensusState, sameValidators);
+        if (frozen) {
             return ILightClientMsgs.UpdateResult.Misbehaviour;
         }
-
-        bytes32 newHash = keccak256(abi.encode(newConsensusState));
         if (consensusStateHashes[height] == newHash) {
             return ILightClientMsgs.UpdateResult.NoOp;
-        }
-        if (_freezeOnStoredConflict(height, newHash)) {
-            return ILightClientMsgs.UpdateResult.Misbehaviour;
         }
 
         consensusStateHashes[height] = newHash;
@@ -158,21 +132,11 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
         onlyICS26Router
         returns (uint256)
     {
-        require(msg_.proofHeight.revisionNumber == 0, InvalidRevisionNumber(msg_.proofHeight.revisionNumber));
+        uint64 revisionHeight = _revisionHeight(msg_.proofHeight.revisionNumber, msg_.proofHeight.revisionHeight);
         require(msg_.value.length == 32, InvalidValueLength(32, msg_.value.length));
 
-        (address counterpartyRouter, bytes memory storageKey) = _parseMerklePath(msg_.path);
-
-        IBesuLightClientMsgs.MembershipProof memory proof =
-            abi.decode(msg_.proof, (IBesuLightClientMsgs.MembershipProof));
-        _requireTrustedConsensusState(msg_.proofHeight.revisionHeight, proof.consensusStatePreimage);
-
-        bytes32 storageRoot = _verifiedStorageRoot(
-            msg_.proofHeight.revisionHeight,
-            counterpartyRouter,
-            proof.consensusStatePreimage.stateRoot,
-            proof.accountProofNodes
-        );
+        (bytes32 storageRoot, bytes memory storageKey, IBesuLightClientMsgs.MembershipProof memory proof) =
+            _verifiedCommitmentProof(revisionHeight, msg_.path, msg_.proof);
 
         bytes memory traversedValue = TrieProof.traverse(storageRoot, storageKey, proof.proofNodes);
 
@@ -191,20 +155,10 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
         onlyICS26Router
         returns (uint256)
     {
-        require(msg_.proofHeight.revisionNumber == 0, InvalidRevisionNumber(msg_.proofHeight.revisionNumber));
+        uint64 revisionHeight = _revisionHeight(msg_.proofHeight.revisionNumber, msg_.proofHeight.revisionHeight);
 
-        (address counterpartyRouter, bytes memory storageKey) = _parseMerklePath(msg_.path);
-
-        IBesuLightClientMsgs.MembershipProof memory proof =
-            abi.decode(msg_.proof, (IBesuLightClientMsgs.MembershipProof));
-        _requireTrustedConsensusState(msg_.proofHeight.revisionHeight, proof.consensusStatePreimage);
-
-        bytes32 storageRoot = _verifiedStorageRoot(
-            msg_.proofHeight.revisionHeight,
-            counterpartyRouter,
-            proof.consensusStatePreimage.stateRoot,
-            proof.accountProofNodes
-        );
+        (bytes32 storageRoot, bytes memory storageKey, IBesuLightClientMsgs.MembershipProof memory proof) =
+            _verifiedCommitmentProof(revisionHeight, msg_.path, msg_.proof);
 
         require(TrieProof.verifyExclusion(storageRoot, storageKey, proof.proofNodes), InvalidExclusionProof());
 
@@ -229,12 +183,36 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
         }
     }
 
+    /// @notice Checks a commitment proof's path and consensus state, and returns the verified router storage root.
+    /// @param revisionHeight The proof height.
+    /// @param path The Merkle path, see `_parseMerklePath`.
+    /// @param rawProof The ABI-encoded `MembershipProof`.
+    /// @return storageRoot The verified counterparty router storage root at `revisionHeight`.
+    /// @return storageKey The commitment's key in the router storage trie.
+    /// @return proof The decoded proof.
+    function _verifiedCommitmentProof(
+        uint64 revisionHeight,
+        bytes[] calldata path,
+        bytes calldata rawProof
+    )
+        private
+        returns (bytes32 storageRoot, bytes memory storageKey, IBesuLightClientMsgs.MembershipProof memory proof)
+    {
+        storageKey = _parseMerklePath(path);
+
+        proof = abi.decode(rawProof, (IBesuLightClientMsgs.MembershipProof));
+        _requireTrustedConsensusState(revisionHeight, proof.consensusStatePreimage);
+
+        storageRoot =
+            _verifiedStorageRoot(revisionHeight, proof.consensusStatePreimage.stateRoot, proof.accountProofNodes);
+    }
+
     /// @notice Parses the Merkle path for a commitment proof.
     /// @param path The Merkle path, which must be of [counterpartyRouter, storageSlot, commitmentPath] form, where
-    /// `counterpartyRouter` is the raw 20-byte router address and `storageSlot` is `IBCSTORE_STORAGE_SLOT`.
-    /// @return counterpartyRouter The counterparty router address, must match the client state's `ibcRouter`.
-    /// @return storageKey The key used in the contract storage trie.
-    function _parseMerklePath(bytes[] calldata path) private view returns (address, bytes memory) {
+    /// `counterpartyRouter` is the raw 20-byte router address, which must match the client state's `ibcRouter`, and
+    /// `storageSlot` is `IBCSTORE_STORAGE_SLOT`.
+    /// @return The key used in the contract storage trie.
+    function _parseMerklePath(bytes[] calldata path) private view returns (bytes memory) {
         require(path.length == 3, InvalidPathLength(3, path.length));
         require(path[0].length == 20, InvalidPathElementLength(20, path[0].length));
         require(path[1].length == 32, InvalidPathElementLength(32, path[1].length));
@@ -247,9 +225,7 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
         require(counterpartyRouter == ibcRouter, CounterpartyRouterMismatch(ibcRouter, counterpartyRouter));
 
         bytes32 storageSlot = _commitmentStorageSlot(path[2]);
-        bytes memory storageKey = abi.encodePacked(keccak256(abi.encodePacked(storageSlot)));
-
-        return (counterpartyRouter, storageKey);
+        return abi.encodePacked(keccak256(abi.encodePacked(storageSlot)));
     }
 
     /// @notice Freezes the client if two stored consensus states violate time monotonicity or change the validator set
@@ -260,19 +236,22 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
     )
         private
     {
-        require(msg_.height1.revisionNumber == 0, InvalidRevisionNumber(msg_.height1.revisionNumber));
-        require(msg_.height2.revisionNumber == 0, InvalidRevisionNumber(msg_.height2.revisionNumber));
+        uint64 height1 = _revisionHeight(msg_.height1.revisionNumber, msg_.height1.revisionHeight);
+        uint64 height2 = _revisionHeight(msg_.height2.revisionNumber, msg_.height2.revisionHeight);
 
         // Stored consensus states remain valid evidence after their trusting period.
-        _requireStoredConsensusState(msg_.height1.revisionHeight, msg_.consensusStatePreimage1);
-        _requireStoredConsensusState(msg_.height2.revisionHeight, msg_.consensusStatePreimage2);
+        _requireStoredConsensusState(height1, msg_.consensusStatePreimage1);
+        _requireStoredConsensusState(height2, msg_.consensusStatePreimage2);
 
+        IBesuLightClientMsgs.ConsensusState memory consensusState1 = msg_.consensusStatePreimage1;
+        IBesuLightClientMsgs.ConsensusState memory consensusState2 = msg_.consensusStatePreimage2;
         require(
             _freezeOnConflict(
-                msg_.height1.revisionHeight,
-                msg_.consensusStatePreimage1,
-                msg_.height2.revisionHeight,
-                msg_.consensusStatePreimage2
+                height1,
+                consensusState1,
+                height2,
+                consensusState2,
+                _sameValidatorSet(consensusState1.validators, consensusState2.validators)
             ),
             NoMisbehaviourDetected()
         );
@@ -289,84 +268,72 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
     {
         (uint64 height1, IBesuLightClientMsgs.ConsensusState memory consensusState1, bool sameValidators1) =
             _verifyHeader(msg_.update1);
-        if (_freezeOnConflict(
-                msg_.update1.trustedHeight.revisionHeight,
-                msg_.update1.consensusStatePreimage,
-                height1,
-                consensusState1,
-                sameValidators1
-            )) {
-            return;
-        }
-        if (_freezeOnStoredConflict(height1, keccak256(abi.encode(consensusState1)))) {
+        (bool frozen,) = _freezeOnHeaderConflict(msg_.update1, height1, consensusState1, sameValidators1);
+        if (frozen) {
             return;
         }
 
         (uint64 height2, IBesuLightClientMsgs.ConsensusState memory consensusState2, bool sameValidators2) =
             _verifyHeader(msg_.update2);
-        if (_freezeOnConflict(
-                msg_.update2.trustedHeight.revisionHeight,
-                msg_.update2.consensusStatePreimage,
+        (frozen,) = _freezeOnHeaderConflict(msg_.update2, height2, consensusState2, sameValidators2);
+        if (frozen) {
+            return;
+        }
+
+        require(
+            _freezeOnConflict(
+                height1,
+                consensusState1,
                 height2,
                 consensusState2,
-                sameValidators2
-            )) {
-            return;
-        }
-        if (_freezeOnStoredConflict(height2, keccak256(abi.encode(consensusState2)))) {
-            return;
-        }
-
-        require(_freezeOnConflict(height1, consensusState1, height2, consensusState2), NoMisbehaviourDetected());
+                _sameValidatorSet(consensusState1.validators, consensusState2.validators)
+            ),
+            NoMisbehaviourDetected()
+        );
     }
 
-    /// @notice Freezes the client if a different consensus state is already stored at `height`.
-    /// @param height The height of the consensus state.
-    /// @param hash The keccak256 hash of the consensus state.
-    /// @return frozen True if a different consensus state is stored at `height` and the client was frozen.
-    function _freezeOnStoredConflict(uint64 height, bytes32 hash) private returns (bool frozen) {
-        bytes32 existingHash = consensusStateHashes[height];
-        if (existingHash != bytes32(0) && existingHash != hash) {
-            clientState.isFrozen = true;
-            emit DoubleSign(height, existingHash, hash);
-            return true;
-        }
-
-        return false;
-    }
-
-    /// @notice Freezes the client if two consensus states conflict, comparing their validator sets itself.
-    /// @param heightA The height of the first consensus state.
-    /// @param a The first consensus state.
-    /// @param heightB The height of the second consensus state.
-    /// @param b The second consensus state.
-    /// @return frozen True if the consensus states conflict and the client was frozen.
-    function _freezeOnConflict(
-        uint64 heightA,
-        IBesuLightClientMsgs.ConsensusState memory a,
-        uint64 heightB,
-        IBesuLightClientMsgs.ConsensusState memory b
+    /// @notice Freezes the client if a verified header conflicts with its trusted consensus state, or with the
+    /// consensus state already stored at its height.
+    /// @param msg_ The header, already verified by `_verifyHeader`, with its trusted height and consensus state.
+    /// @param height The header height.
+    /// @param consensusState The consensus state derived from the header.
+    /// @param sameValidators Whether the header and its trusted consensus state have the same validator set, as
+    /// returned by `_verifyHeader`.
+    /// @return frozen True if the header conflicts and the client was frozen.
+    /// @return consensusStateHash The keccak256 hash of `consensusState`.
+    function _freezeOnHeaderConflict(
+        IBesuLightClientMsgs.MsgUpdateClient memory msg_,
+        uint64 height,
+        IBesuLightClientMsgs.ConsensusState memory consensusState,
+        bool sameValidators
     )
         private
-        returns (bool frozen)
+        returns (bool frozen, bytes32 consensusStateHash)
     {
-        return _freezeOnConflict(heightA, a, heightB, b, _sameValidatorSet(a.validators, b.validators));
+        consensusStateHash = keccak256(abi.encode(consensusState));
+        if (_freezeOnConflict(
+                msg_.trustedHeight.revisionHeight, msg_.consensusStatePreimage, height, consensusState, sameValidators
+            )) {
+            return (true, consensusStateHash);
+        }
+
+        bytes32 storedHash = consensusStateHashes[height];
+        frozen = storedHash != bytes32(0) && _freezeOnDoubleSign(height, storedHash, consensusStateHash);
     }
 
     /// @notice Freezes the client if two consensus states conflict.
     /// @dev At the same height, differing consensus states are a double sign. At different heights, a lower consensus
     /// state whose timestamp is not less than the higher one's is time non-monotonicity, timestamps that increase by
     /// less than the height difference are a sub-second block time, since sub-second block periods are not supported,
-    /// and
-    /// validator sets that differ by more validators than the height difference are an invalid validator set change,
-    /// since a header-validator vote adds or removes at most one validator per block.
+    /// and validator sets that differ by more validators than the height difference are an invalid validator set
+    /// change, since a header-validator vote adds or removes at most one validator per block.
     /// @param heightA The height of the first consensus state.
     /// @param a The first consensus state.
     /// @param heightB The height of the second consensus state.
     /// @param b The second consensus state.
-    /// @param sameValidators Whether `a` and `b` have identical validator sets, from `_sameValidatorSet`. Passed in so
-    /// that `_verifyHeader` callers do not compare them again. A wrong `true` disables the validator set change check,
-    /// so callers without a computed value must use the overload without this parameter.
+    /// @param sameValidators Whether `a` and `b` have the same validator set, as computed by `_sameValidatorSet`.
+    /// Passed in so that `_verifyHeader` callers do not compare them again. A wrong `true` disables the validator set
+    /// change check, so callers without a computed value must pass `_sameValidatorSet(a.validators, b.validators)`.
     /// @return frozen True if the consensus states conflict and the client was frozen.
     function _freezeOnConflict(
         uint64 heightA,
@@ -379,44 +346,48 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
         returns (bool frozen)
     {
         if (heightA == heightB) {
-            bytes32 hashA = keccak256(abi.encode(a));
-            bytes32 hashB = keccak256(abi.encode(b));
-            if (hashA != hashB) {
-                clientState.isFrozen = true;
-                emit DoubleSign(heightA, hashA, hashB);
-                return true;
-            }
-        } else {
-            // Order by height so that heightA < heightB.
-            if (heightA > heightB) {
-                (heightA, a, heightB, b) = (heightB, b, heightA, a);
-            }
-            if (a.timestamp >= b.timestamp) {
-                clientState.isFrozen = true;
-                emit TimeNonMonotonicity(heightB, heightA, b.timestamp, a.timestamp);
-                return true;
-            }
-
-            uint256 heightDiff = heightB - heightA;
-            // Blocks are at least one second apart, so `b.timestamp - a.timestamp >= heightDiff`.
-            if (b.timestamp - a.timestamp < heightDiff) {
-                clientState.isFrozen = true;
-                emit SubSecondBlockTime(heightB, heightA, b.timestamp, a.timestamp);
-                return true;
-            }
-
-            // Sets cannot differ by more validators than they hold in total, so only count when they could.
-            if (!sameValidators && heightDiff < a.validators.length + b.validators.length) {
-                uint256 changes = _deltaValidators(a.validators, b.validators);
-                if (changes > heightDiff) {
-                    clientState.isFrozen = true;
-                    emit InvalidValidatorSetChange(heightB, heightA, changes);
-                    return true;
-                }
-            }
+            return _freezeOnDoubleSign(heightA, keccak256(abi.encode(a)), keccak256(abi.encode(b)));
         }
 
-        return false;
+        // Order by height so that heightA < heightB.
+        if (heightA > heightB) {
+            (heightA, a, heightB, b) = (heightB, b, heightA, a);
+        }
+        uint256 heightDiff = heightB - heightA;
+        if (a.timestamp >= b.timestamp) {
+            emit TimeNonMonotonicity(heightB, heightA, b.timestamp, a.timestamp);
+        } else if (b.timestamp - a.timestamp < heightDiff) {
+            // Blocks are at least one second apart, so `b.timestamp - a.timestamp >= heightDiff`.
+            emit SubSecondBlockTime(heightB, heightA, b.timestamp, a.timestamp);
+        } else {
+            // Sets cannot differ by more validators than they hold in total, so only count when they could.
+            if (sameValidators || heightDiff >= a.validators.length + b.validators.length) {
+                return false;
+            }
+            uint256 changes = _deltaValidators(a.validators, b.validators);
+            if (changes <= heightDiff) {
+                return false;
+            }
+            emit InvalidValidatorSetChange(heightB, heightA, changes);
+        }
+
+        clientState.isFrozen = true;
+        return true;
+    }
+
+    /// @notice Freezes the client if two consensus states at the same height differ, which is a double sign.
+    /// @param height The height of both consensus states.
+    /// @param hashA The keccak256 hash of the first consensus state.
+    /// @param hashB The keccak256 hash of the second consensus state.
+    /// @return frozen True if the consensus states differ and the client was frozen.
+    function _freezeOnDoubleSign(uint64 height, bytes32 hashA, bytes32 hashB) private returns (bool frozen) {
+        if (hashA == hashB) {
+            return false;
+        }
+
+        clientState.isFrozen = true;
+        emit DoubleSign(height, hashA, hashB);
+        return true;
     }
 
     /// @notice Counts the validators that are in exactly one of two validator sets.
@@ -457,28 +428,24 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
     /// @param msg_ The header with its trusted height and trusted consensus state preimage.
     /// @return height The header height.
     /// @return consensusState The consensus state derived from the header.
-    /// @return sameValidators Whether the trusted and header validator sets are identical.
+    /// @return sameValidators Whether the header and its trusted consensus state have the same validator set.
     function _verifyHeader(IBesuLightClientMsgs.MsgUpdateClient memory msg_)
         private
         view
         returns (uint64 height, IBesuLightClientMsgs.ConsensusState memory consensusState, bool sameValidators)
     {
-        require(msg_.trustedHeight.revisionNumber == 0, InvalidRevisionNumber(msg_.trustedHeight.revisionNumber));
+        uint64 trustedHeight = _revisionHeight(msg_.trustedHeight.revisionNumber, msg_.trustedHeight.revisionHeight);
 
         Header.Data memory header = Header.decodeRlp(msg_.headerRlp);
-        require(header.height != 0, InvalidHeaderHeight());
-        require(header.timestamp != 0, InvalidHeaderTimestamp());
-        require(
-            header.stateRoot != bytes32(0) && header.stateRoot != TrieProof.EMPTY_ROOT_HASH,
-            InvalidStateRoot(header.stateRoot)
-        );
-        _validateValidators(header.validators);
-        require(
-            header.height > msg_.trustedHeight.revisionHeight,
-            InvalidTrustedHeight(msg_.trustedHeight.revisionHeight, header.height)
-        );
+        height = header.height;
+        require(height != 0, InvalidHeaderHeight());
+        consensusState = IBesuLightClientMsgs.ConsensusState({
+            timestamp: header.timestamp, stateRoot: header.stateRoot, validators: header.validators
+        });
+        _validateConsensusState(consensusState);
+        require(height > trustedHeight, InvalidTrustedHeight(trustedHeight, height));
 
-        _requireTrustedConsensusState(msg_.trustedHeight.revisionHeight, msg_.consensusStatePreimage);
+        _requireTrustedConsensusState(trustedHeight, msg_.consensusStatePreimage);
 
         address[] memory signers = _recoverSigners(keccak256(msg_.headerRlp), msg_.commitSeals);
         address[] memory trustedValidators = msg_.consensusStatePreimage.validators;
@@ -491,27 +458,17 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
             _requireTrustLevel(_commonValidators(signers, trustedValidators), trustedValidators.length);
         }
         _checkValidatorQuorum(signers, header.validators);
-
-        return (
-            header.height,
-            IBesuLightClientMsgs.ConsensusState({
-                timestamp: header.timestamp, stateRoot: header.stateRoot, validators: header.validators
-            }),
-            sameValidators
-        );
     }
 
     /// @notice Returns the storage root for a revision height, verifying the account proof if provided.
     /// @dev If the account proof is empty, the storage root is retrieved from a transient cache
     /// which can only be populated by a previous call to this function with a non-empty account proof.
     /// @param revisionHeight The revision height for the storage root.
-    /// @param counterpartyRouter The counterparty router address.
     /// @param stateRoot The header state root.
     /// @param accountProofNodes The ordered, RLP-encoded MPT nodes from the state trie proving the account.
-    /// @return The storage root for the revision height.
+    /// @return The counterparty router storage root for the revision height.
     function _verifiedStorageRoot(
         uint64 revisionHeight,
-        address counterpartyRouter,
         bytes32 stateRoot,
         bytes[] memory accountProofNodes
     )
@@ -519,12 +476,12 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
         returns (bytes32)
     {
         if (accountProofNodes.length == 0) {
-            return _getCachedStorageRoot(counterpartyRouter, revisionHeight);
+            return _getCachedStorageRoot(revisionHeight);
         }
 
-        bytes32 storageRoot = _verifyAccountProof(counterpartyRouter, stateRoot, accountProofNodes);
-        require(storageRoot != bytes32(0) && storageRoot != TrieProof.EMPTY_ROOT_HASH, InvalidStorageRoot(storageRoot));
-        _cacheStorageRoot(counterpartyRouter, revisionHeight, storageRoot);
+        bytes32 storageRoot = _verifyAccountProof(clientState.ibcRouter, stateRoot, accountProofNodes);
+        require(_isNonEmptyRoot(storageRoot), InvalidStorageRoot(storageRoot));
+        _cacheStorageRoot(revisionHeight, storageRoot);
         return storageRoot;
     }
 
@@ -639,6 +596,21 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
         return Math.ceilDiv(2 * n, 3);
     }
 
+    /// @notice Validates the fields of a consensus state before it is trusted.
+    /// @param consensusState The consensus state to validate.
+    function _validateConsensusState(IBesuLightClientMsgs.ConsensusState memory consensusState) private pure {
+        require(consensusState.timestamp != 0, InvalidHeaderTimestamp());
+        require(_isNonEmptyRoot(consensusState.stateRoot), InvalidStateRoot(consensusState.stateRoot));
+        _validateValidators(consensusState.validators);
+    }
+
+    /// @notice Returns whether a trie root can hold the proven account or commitments.
+    /// @param root The state or storage trie root.
+    /// @return True if `root` is neither zero nor the empty trie root.
+    function _isNonEmptyRoot(bytes32 root) private pure returns (bool) {
+        return root != bytes32(0) && root != TrieProof.EMPTY_ROOT_HASH;
+    }
+
     /// @notice Validates that a validator set is non-empty, unique, and sorted.
     /// @param validators The validator set to validate.
     function _validateValidators(address[] memory validators) private pure {
@@ -660,10 +632,7 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
         view
     {
         _requireStoredConsensusState(revisionHeight, preimage);
-        require(
-            uint256(preimage.timestamp) + clientState.trustingPeriod > block.timestamp,
-            ConsensusStateExpired(preimage.timestamp, block.timestamp, clientState.trustingPeriod)
-        );
+        _requireNotExpired(preimage.timestamp, clientState.trustingPeriod);
     }
 
     /// @notice Reverts unless the given consensus state matches the stored hash at the height.
@@ -683,30 +652,58 @@ contract BesuLightClient is IBesuLightClient, IBesuLightClientErrors, ICS26Manag
         require(consensusStateHash == preimageHash, ConsensusStatePreimageMismatch(consensusStateHash, preimageHash));
     }
 
-    /// @notice Caches a storage root for a revision height in a transient slot.
-    /// @param ibcRouter The ICS26 router address whose storageRoot was proven.
-    /// @param revisionHeight The revision height for the storage root.
-    /// @param storageRoot The storage root to cache.
-    function _cacheStorageRoot(address ibcRouter, uint64 revisionHeight, bytes32 storageRoot) private {
-        _cacheKey(ibcRouter, revisionHeight).tstore(storageRoot);
+    /// @notice Reverts if a consensus state is outside the trusting period.
+    /// @param timestamp The consensus state timestamp.
+    /// @param trustingPeriod The trusting period.
+    function _requireNotExpired(uint64 timestamp, uint64 trustingPeriod) private view {
+        require(
+            uint256(timestamp) + trustingPeriod > block.timestamp,
+            ConsensusStateExpired(timestamp, block.timestamp, trustingPeriod)
+        );
     }
 
-    /// @notice Retrieves a cached storage root for a revision height from a transient slot.
-    /// @param ibcRouter The ICS26 router address whose storageRoot was proven.
+    /// @notice Reverts if a consensus state is further in the future than the allowed clock drift.
+    /// @param timestamp The consensus state timestamp.
+    /// @param maxClockDrift The maximum allowed clock drift.
+    function _requireNotFromFuture(uint64 timestamp, uint64 maxClockDrift) private view {
+        require(
+            block.timestamp + maxClockDrift >= timestamp, HeaderFromFuture(block.timestamp, timestamp, maxClockDrift)
+        );
+    }
+
+    /// @notice Returns the revision height of a height, which must use revision number `0`.
+    /// @dev Takes the fields rather than the `Height` struct so that calldata heights are not copied to memory.
+    /// @param revisionNumber The revision number of the height.
+    /// @param revisionHeight The revision height of the height.
+    /// @return The revision height.
+    function _revisionHeight(uint64 revisionNumber, uint64 revisionHeight) private pure returns (uint64) {
+        require(revisionNumber == 0, InvalidRevisionNumber(revisionNumber));
+        return revisionHeight;
+    }
+
+    /// @notice Caches the router storage root for a revision height in a transient slot.
+    /// @param revisionHeight The revision height for the storage root.
+    /// @param storageRoot The storage root to cache.
+    function _cacheStorageRoot(uint64 revisionHeight, bytes32 storageRoot) private {
+        _cacheKey(revisionHeight).tstore(storageRoot);
+    }
+
+    /// @notice Retrieves the cached router storage root for a revision height from a transient slot.
     /// @param revisionHeight The revision height for the storage root.
     /// @return The cached storage root, reverting if not found.
-    function _getCachedStorageRoot(address ibcRouter, uint64 revisionHeight) private view returns (bytes32) {
-        bytes32 storageRoot = _cacheKey(ibcRouter, revisionHeight).tload();
+    function _getCachedStorageRoot(uint64 revisionHeight) private view returns (bytes32) {
+        bytes32 storageRoot = _cacheKey(revisionHeight).tload();
         require(storageRoot != bytes32(0), StorageRootNotInCache(revisionHeight));
         return storageRoot;
     }
 
     /// @notice Computes a transient slot cache key for a revision height.
-    /// @param ibcRouter The ICS26 router address whose storageRoot was proven.
+    /// @dev Only `clientState.ibcRouter`, which is fixed at construction, is ever proven, so the height alone is
+    /// unique.
     /// @param revisionHeight The revision height for the cache key.
     /// @return The cache key.
-    function _cacheKey(address ibcRouter, uint64 revisionHeight) private pure returns (TransientSlot.Bytes32Slot) {
-        return TransientSlot.asBytes32(keccak256(abi.encode(ibcRouter, revisionHeight)));
+    function _cacheKey(uint64 revisionHeight) private pure returns (TransientSlot.Bytes32Slot) {
+        return TransientSlot.asBytes32(keccak256(abi.encode(revisionHeight)));
     }
 
     /// @notice Reverts if the client is frozen. A frozen client can never be unfrozen.
