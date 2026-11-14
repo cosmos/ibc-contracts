@@ -15,15 +15,18 @@ pub mod tx_builder;
 use std::collections::HashMap;
 
 use ibc_eureka_utils::rpc::TendermintRpcExt;
-use proof_api_lib::aggregator::Config as AggregatorConfig;
-use proof_api_lib::events::SolanaEurekaEvent;
+use proof_api_lib::aggregator::{Aggregator, Config as AggregatorConfig};
+use proof_api_lib::events::SolanaEurekaEventWithHeight;
 use proof_api_lib::listener::cosmos_sdk;
 use proof_api_lib::listener::solana;
 use proof_api_lib::listener::ChainListenerService;
 use proof_api_lib::service_utils::parse_cosmos_tx_hashes;
 use proof_api_lib::service_utils::parse_solana_tx_hashes;
 use proof_api_lib::service_utils::to_tonic_status;
-use proof_api_lib::utils::wait_for_condition;
+use proof_api_lib::utils::{
+    solana::max_timeout_timestamp, solana_attested::SolanaAttestedTxBuilder, wait_for_condition,
+    RelayEventsParams,
+};
 use tendermint_rpc::HttpClient;
 use tonic::{Request, Response};
 
@@ -53,7 +56,7 @@ enum CosmosToSolanaTxBuilder {
     /// ICS07 Tendermint light client mode.
     Ics07Tendermint(tx_builder::TxBuilder),
     /// Attestation light client mode.
-    Attested(tx_builder::AttestedTxBuilder),
+    Attested(SolanaAttestedTxBuilder<tx_builder::TxBuilder>),
 }
 
 /// The configuration for the Cosmos to Solana proof API module.
@@ -160,13 +163,13 @@ impl CosmosToSolanaProofApiModuleService {
                     config.skip_pre_verify_threshold,
                     ift_program_ids,
                 )?;
-                let attested_builder =
-                    tx_builder::AttestedTxBuilder::new(aggregator_config.clone(), base_builder)
-                        .await
-                        .map_err(|e| {
-                            anyhow::anyhow!("Failed to create attested tx builder: {e}")
-                        })?;
-                CosmosToSolanaTxBuilder::Attested(attested_builder)
+                let aggregator = Aggregator::from_config(aggregator_config.clone())
+                    .await
+                    .map_err(|e| anyhow::anyhow!("Failed to create attested tx builder: {e}"))?;
+                CosmosToSolanaTxBuilder::Attested(SolanaAttestedTxBuilder::new(
+                    aggregator,
+                    base_builder,
+                ))
             }
         };
 
@@ -241,15 +244,7 @@ impl ProofApiService for CosmosToSolanaProofApiModuleService {
         // block time is past the packet timeout. ICS07 Tendermint does not
         // use this value.
         let timeout_relay_height = if self.tx_builder.is_attested() {
-            let max_timeout = target_events
-                .iter()
-                .filter_map(|e| match &e.event {
-                    SolanaEurekaEvent::SendPacket(event) => Some(event.timeout_timestamp),
-                    SolanaEurekaEvent::WriteAcknowledgement(_) => None,
-                })
-                .max();
-
-            if let Some(max_timeout) = max_timeout {
+            if let Some(max_timeout) = max_timeout_timestamp(&target_events) {
                 let now = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .expect("system clock before UNIX epoch")
@@ -288,15 +283,15 @@ impl ProofApiService for CosmosToSolanaProofApiModuleService {
 
         let (packet_txs, update_client) = self
             .tx_builder
-            .relay_events(
+            .relay_events(RelayEventsParams {
                 src_events,
                 target_events,
-                &inner_req.src_client_id,
-                &inner_req.dst_client_id,
-                &inner_req.src_packet_sequences,
-                &inner_req.dst_packet_sequences,
                 timeout_relay_height,
-            )
+                src_client_id: inner_req.src_client_id,
+                dst_client_id: inner_req.dst_client_id,
+                src_packet_seqs: inner_req.src_packet_sequences,
+                dst_packet_seqs: inner_req.dst_packet_sequences,
+            })
             .await
             .map_err(to_tonic_status)?;
 
@@ -386,44 +381,15 @@ impl ProofApiModule for CosmosToSolanaProofApiModule {
 
 // Implement dispatch methods on the enum
 impl CosmosToSolanaTxBuilder {
-    #[allow(clippy::too_many_arguments)]
     async fn relay_events(
         &self,
-        src_events: Vec<proof_api_lib::events::EurekaEventWithHeight>,
-        target_events: Vec<proof_api_lib::events::SolanaEurekaEventWithHeight>,
-        src_client_id: &str,
-        dst_client_id: &str,
-        src_packet_seqs: &[u64],
-        dst_packet_seqs: &[u64],
-        timeout_relay_height: Option<u64>,
-    ) -> anyhow::Result<(
-        Vec<proof_api_core::api::SolanaPacketTxs>,
-        Option<proof_api_core::api::SolanaUpdateClient>,
-    )> {
+        params: RelayEventsParams<SolanaEurekaEventWithHeight>,
+    ) -> anyhow::Result<(Vec<api::SolanaPacketTxs>, Option<api::SolanaUpdateClient>)> {
         match self {
-            Self::Ics07Tendermint(tb) => {
-                tb.relay_events_with_update(tx_builder::RelayParams {
-                    src_events,
-                    dest_events: target_events,
-                    src_client_id: src_client_id.to_string(),
-                    dst_client_id: dst_client_id.to_string(),
-                    src_packet_seqs: src_packet_seqs.to_vec(),
-                    dst_packet_seqs: dst_packet_seqs.to_vec(),
-                    timeout_relay_height,
-                })
-                .await
-            }
+            Self::Ics07Tendermint(tb) => tb.relay_events_with_update(params).await,
             Self::Attested(tb) => {
-                tb.relay_events(tx_builder::RelayParams {
-                    src_events,
-                    dest_events: target_events,
-                    src_client_id: src_client_id.to_string(),
-                    dst_client_id: dst_client_id.to_string(),
-                    src_packet_seqs: src_packet_seqs.to_vec(),
-                    dst_packet_seqs: dst_packet_seqs.to_vec(),
-                    timeout_relay_height,
-                })
-                .await
+                let (packets, update_client) = tb.relay_events(params).await?;
+                Ok((packets, update_client.map(Into::into)))
             }
         }
     }
@@ -435,13 +401,10 @@ impl CosmosToSolanaTxBuilder {
         }
     }
 
-    async fn update_client(
-        &self,
-        dst_client_id: &str,
-    ) -> anyhow::Result<proof_api_core::api::SolanaUpdateClient> {
+    async fn update_client(&self, dst_client_id: &str) -> anyhow::Result<api::SolanaUpdateClient> {
         match self {
             Self::Ics07Tendermint(tb) => tb.update_client(dst_client_id).await,
-            Self::Attested(tb) => tb.update_client(dst_client_id).await,
+            Self::Attested(tb) => Ok(tb.update_client(dst_client_id).await?.into()),
         }
     }
 

@@ -8,7 +8,6 @@
 #![deny(clippy::nursery, clippy::pedantic, warnings)]
 #![allow(missing_docs, unused_crate_dependencies)]
 
-pub mod constants;
 pub mod gmp;
 pub mod ift;
 pub mod proto;
@@ -20,9 +19,11 @@ use alloy::{
     primitives::{Address, TxHash},
     providers::{Provider, RootProvider},
 };
-use proof_api_lib::aggregator::Config as AggregatorConfig;
+use proof_api_lib::aggregator::{Aggregator, Config as AggregatorConfig};
+use proof_api_lib::events::SolanaEurekaEventWithHeight;
 use proof_api_lib::listener::{eth_eureka, solana, ChainListenerService};
 use proof_api_lib::service_utils::{parse_eth_tx_hashes, parse_solana_tx_hashes, to_tonic_status};
+use proof_api_lib::utils::{solana_attested::SolanaAttestedTxBuilder, RelayEventsParams};
 use tonic::{Request, Response};
 
 use proof_api_core::{
@@ -38,6 +39,8 @@ pub struct EthToSolanaProofApiModule;
 struct EthToSolanaProofApiModuleService {
     /// Source chain listener for Ethereum.
     eth_listener: eth_eureka::ChainListener<RootProvider>,
+    /// The ICS26 contract address on Ethereum.
+    ics26_eth_address: Address,
     /// Target chain listener for Solana.
     target_listener: solana::ChainListener,
     /// Transaction builder.
@@ -47,7 +50,7 @@ struct EthToSolanaProofApiModuleService {
 /// Enum wrapping transaction builders for different modes.
 enum EthToSolanaTxBuilder {
     /// Attestation light client mode.
-    Attested(tx_builder::AttestedTxBuilder),
+    Attested(SolanaAttestedTxBuilder<tx_builder::SolanaTxBuilder>),
 }
 
 /// Configuration for the Ethereum to Solana proof API module.
@@ -127,19 +130,19 @@ impl EthToSolanaProofApiModuleService {
                     alt_address,
                     ift_program_ids,
                 )?;
-                let attested_builder = tx_builder::AttestedTxBuilder::new(
-                    aggregator_config,
+                let aggregator = Aggregator::from_config(aggregator_config)
+                    .await
+                    .map_err(|e| anyhow::anyhow!("Failed to create attested tx builder: {e}"))?;
+                EthToSolanaTxBuilder::Attested(SolanaAttestedTxBuilder::new(
+                    aggregator,
                     base_builder,
-                    config.ics26_address,
-                )
-                .await
-                .map_err(|e| anyhow::anyhow!("Failed to create attested tx builder: {e}"))?;
-                EthToSolanaTxBuilder::Attested(attested_builder)
+                ))
             }
         };
 
         Ok(Self {
             eth_listener,
+            ics26_eth_address: config.ics26_address,
             target_listener,
             tx_builder,
         })
@@ -162,7 +165,7 @@ impl ProofApiService for EthToSolanaProofApiModuleService {
                     .await
                     .map_err(to_tonic_status)?,
                 ibc_version: "2".to_string(),
-                ibc_contract: self.tx_builder.ics26_eth_address().to_string(),
+                ibc_contract: self.ics26_eth_address.to_string(),
             }),
             target_chain: Some(api::Chain {
                 chain_id: "solana-localnet".to_string(),
@@ -219,15 +222,15 @@ impl ProofApiService for EthToSolanaProofApiModuleService {
 
         let (packet_txs, update_client) = self
             .tx_builder
-            .relay_events(
+            .relay_events(RelayEventsParams {
                 src_events,
                 target_events,
-                &inner_req.src_client_id,
-                &inner_req.dst_client_id,
-                &inner_req.src_packet_sequences,
-                &inner_req.dst_packet_sequences,
                 timeout_relay_height,
-            )
+                src_client_id: inner_req.src_client_id,
+                dst_client_id: inner_req.dst_client_id,
+                src_packet_seqs: inner_req.src_packet_sequences,
+                dst_packet_seqs: inner_req.dst_packet_sequences,
+            })
             .await
             .map_err(to_tonic_status)?;
 
@@ -311,32 +314,14 @@ impl ProofApiModule for EthToSolanaProofApiModule {
 }
 
 impl EthToSolanaTxBuilder {
-    #[allow(clippy::too_many_arguments)]
     async fn relay_events(
         &self,
-        src_events: Vec<proof_api_lib::events::EurekaEventWithHeight>,
-        target_events: Vec<proof_api_lib::events::SolanaEurekaEventWithHeight>,
-        src_client_id: &str,
-        dst_client_id: &str,
-        src_packet_seqs: &[u64],
-        dst_packet_seqs: &[u64],
-        timeout_relay_height: Option<u64>,
-    ) -> anyhow::Result<(
-        Vec<proof_api_core::api::SolanaPacketTxs>,
-        Option<proof_api_core::api::SolanaUpdateClient>,
-    )> {
+        params: RelayEventsParams<SolanaEurekaEventWithHeight>,
+    ) -> anyhow::Result<(Vec<api::SolanaPacketTxs>, Option<api::SolanaUpdateClient>)> {
         match self {
             Self::Attested(tb) => {
-                tb.relay_events(tx_builder::RelayParams {
-                    src_events,
-                    dest_events: target_events,
-                    src_client_id: src_client_id.to_string(),
-                    dst_client_id: dst_client_id.to_string(),
-                    src_packet_seqs: src_packet_seqs.to_vec(),
-                    dst_packet_seqs: dst_packet_seqs.to_vec(),
-                    timeout_relay_height,
-                })
-                .await
+                let (packets, update_client) = tb.relay_events(params).await?;
+                Ok((packets, update_client.map(Into::into)))
             }
         }
     }
@@ -347,18 +332,9 @@ impl EthToSolanaTxBuilder {
         }
     }
 
-    async fn update_client(
-        &self,
-        dst_client_id: &str,
-    ) -> anyhow::Result<proof_api_core::api::SolanaUpdateClient> {
+    async fn update_client(&self, dst_client_id: &str) -> anyhow::Result<api::SolanaUpdateClient> {
         match self {
-            Self::Attested(tb) => tb.update_client(dst_client_id).await,
-        }
-    }
-
-    const fn ics26_eth_address(&self) -> &Address {
-        match self {
-            Self::Attested(tb) => tb.ics26_eth_address(),
+            Self::Attested(tb) => Ok(tb.update_client(dst_client_id).await?.into()),
         }
     }
 }

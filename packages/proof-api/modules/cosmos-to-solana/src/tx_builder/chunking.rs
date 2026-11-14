@@ -12,6 +12,7 @@ use solana_sdk::{
 };
 
 use proof_api_core::api::SolanaPacketTxs;
+use solana_client::rpc_client::RpcClient;
 use solana_ibc_constants::CHUNK_DATA_SIZE;
 use solana_ibc_sdk::access_manager::instructions as access_manager_instructions;
 use solana_ibc_sdk::ics26_router::instructions::{
@@ -24,7 +25,10 @@ use solana_ibc_sdk::ics26_router::types::{
 };
 use solana_ibc_sdk::pda::ics26_router::{payload_chunk_pda, proof_chunk_pda};
 
-use proof_api_lib::utils::solana_v0_tx::{derive_alt_address, extend_compute_ix};
+use proof_api_lib::utils::{
+    solana_attested::SolanaAttestationTxBuilder,
+    solana_v0_tx::{derive_alt_address, extend_compute_ix},
+};
 
 use crate::{gmp, gmp::MAX_PREFUND_LAMPORTS, ift};
 
@@ -325,8 +329,28 @@ impl super::TxBuilder {
 
         Ok(remaining_account_pubkeys)
     }
+}
 
-    pub(crate) fn build_recv_packet_chunked(
+impl SolanaAttestationTxBuilder for super::TxBuilder {
+    type PacketTxs = SolanaPacketTxs;
+
+    fn solana_client(&self) -> &RpcClient {
+        &self.target_solana_client
+    }
+
+    fn solana_ics26_program_id(&self) -> Pubkey {
+        self.solana_ics26_program_id
+    }
+
+    fn fee_payer(&self) -> Pubkey {
+        self.fee_payer
+    }
+
+    fn alt_address(&self) -> Option<Pubkey> {
+        self.alt_address
+    }
+
+    fn build_recv_packet_chunked(
         &self,
         msg: &MsgRecvPacket,
         payload_data: &[Vec<u8>],
@@ -380,7 +404,7 @@ impl super::TxBuilder {
         })
     }
 
-    pub(crate) fn build_ack_packet_chunked(
+    fn build_ack_packet_chunked(
         &self,
         msg: &MsgAckPacket,
         payload_data: &[Vec<u8>],
@@ -465,6 +489,74 @@ impl super::TxBuilder {
         })
     }
 
+    fn build_timeout_packet_chunked(
+        &self,
+        msg: &MsgTimeoutPacket,
+        payload_data: &[Vec<u8>],
+        proof_data: &[u8],
+    ) -> Result<SolanaPacketTxs> {
+        let proof_total_chunks = delivery_total_chunks(&msg.proof.data);
+
+        let chunk_txs = self.build_packet_chunk_txs(
+            &msg.packet.source_client,
+            msg.packet.sequence,
+            &msg.packet.payloads,
+            payload_data,
+            proof_total_chunks,
+            proof_data,
+        )?;
+
+        let remaining_account_pubkeys = self.build_chunk_remaining_accounts(
+            &msg.packet.source_client,
+            msg.packet.sequence,
+            &msg.packet.payloads,
+            payload_data,
+            proof_total_chunks,
+        )?;
+
+        let timeout_instruction =
+            self.build_timeout_packet_instruction(msg, remaining_account_pubkeys)?;
+
+        let mut instructions = extend_compute_ix();
+        instructions.push(timeout_instruction);
+
+        let timeout_tx = self.create_tx_bytes(&instructions)?;
+
+        let cleanup_tx = self.build_packet_cleanup_tx(
+            &msg.packet.source_client,
+            msg.packet.sequence,
+            &msg.packet.payloads,
+            proof_total_chunks,
+        )?;
+
+        let gmp_result_pda = self.derive_gmp_result_pda_bytes(
+            &msg.packet.payloads,
+            &msg.packet.source_client,
+            msg.packet.sequence,
+        )?;
+
+        let ift_finalize_transfer_tx = self
+            .build_ift_finalize_transfer_tx(
+                &msg.packet.payloads,
+                payload_data,
+                &msg.packet.source_client,
+                msg.packet.sequence,
+            )
+            .unwrap_or_default();
+
+        Ok(SolanaPacketTxs {
+            chunks: chunk_txs,
+            final_tx: timeout_tx,
+            cleanup_tx,
+            alt_create_tx: vec![],
+            alt_extend_txs: vec![],
+            gmp_result_pda,
+            ift_finalize_transfer_tx,
+        })
+    }
+}
+
+impl super::TxBuilder {
     /// Build a `system_program::transfer` to pre-fund the GMP PDA when the
     /// packet carries a non-zero `prefund_lamports` value.
     ///
@@ -575,72 +667,6 @@ impl super::TxBuilder {
         let final_tx = self.create_tx_bytes_with_alt(instructions, alt_address, alt_accounts)?;
 
         Ok((final_tx, alt_create_tx, alt_extend_txs))
-    }
-
-    pub(crate) fn build_timeout_packet_chunked(
-        &self,
-        msg: &MsgTimeoutPacket,
-        payload_data: &[Vec<u8>],
-        proof_data: &[u8],
-    ) -> Result<SolanaPacketTxs> {
-        let proof_total_chunks = delivery_total_chunks(&msg.proof.data);
-
-        let chunk_txs = self.build_packet_chunk_txs(
-            &msg.packet.source_client,
-            msg.packet.sequence,
-            &msg.packet.payloads,
-            payload_data,
-            proof_total_chunks,
-            proof_data,
-        )?;
-
-        let remaining_account_pubkeys = self.build_chunk_remaining_accounts(
-            &msg.packet.source_client,
-            msg.packet.sequence,
-            &msg.packet.payloads,
-            payload_data,
-            proof_total_chunks,
-        )?;
-
-        let timeout_instruction =
-            self.build_timeout_packet_instruction(msg, remaining_account_pubkeys)?;
-
-        let mut instructions = extend_compute_ix();
-        instructions.push(timeout_instruction);
-
-        let timeout_tx = self.create_tx_bytes(&instructions)?;
-
-        let cleanup_tx = self.build_packet_cleanup_tx(
-            &msg.packet.source_client,
-            msg.packet.sequence,
-            &msg.packet.payloads,
-            proof_total_chunks,
-        )?;
-
-        let gmp_result_pda = self.derive_gmp_result_pda_bytes(
-            &msg.packet.payloads,
-            &msg.packet.source_client,
-            msg.packet.sequence,
-        )?;
-
-        let ift_finalize_transfer_tx = self
-            .build_ift_finalize_transfer_tx(
-                &msg.packet.payloads,
-                payload_data,
-                &msg.packet.source_client,
-                msg.packet.sequence,
-            )
-            .unwrap_or_default();
-
-        Ok(SolanaPacketTxs {
-            chunks: chunk_txs,
-            final_tx: timeout_tx,
-            cleanup_tx,
-            alt_create_tx: vec![],
-            alt_extend_txs: vec![],
-            gmp_result_pda,
-            ift_finalize_transfer_tx,
-        })
     }
 
     pub(crate) fn build_packet_cleanup_tx(

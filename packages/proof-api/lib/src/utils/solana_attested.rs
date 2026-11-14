@@ -2,59 +2,317 @@
 
 //! Utilities for attested relays targeting Solana chains.
 
+use std::time::Duration;
+
 use crate::aggregator::rpc::{AggregatedAttestation, CommitmentType};
 use crate::aggregator::Aggregator;
+use crate::events::SolanaEurekaEventWithHeight;
 use crate::utils::attestor::get_packet_attestation;
-use crate::utils::solana::TimeoutPacketWithChunks;
+use crate::utils::solana::{
+    deserialize_anchor_account, ibc_to_solana_ack_packet, ibc_to_solana_recv_packet,
+    max_timeout_timestamp, target_events_to_timeout_msgs, TimeoutPacketWithChunks,
+};
+use crate::utils::{cosmos, solana_v0_tx, wait_for_condition, RelayEventsParams};
 use alloy::sol_types::SolValue;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use borsh::BorshSerialize;
 use ibc_eureka_solidity_types::ics26::IICS26RouterMsgs::{Packet, Payload};
 use ibc_proto_eureka::ibc::core::{
     channel::v2::{MsgAcknowledgement, MsgRecvPacket},
     client::v1::Height,
 };
+use solana_client::rpc_client::RpcClient;
 use solana_ibc_constants::CHUNK_DATA_SIZE;
-use solana_ibc_sdk::attestation::accounts::ClientState as AttestationClientState;
-use solana_ibc_sdk::ics26_router::types::Delivery;
-use solana_sdk::{
-    compute_budget::ComputeBudgetInstruction, instruction::Instruction, pubkey::Pubkey,
+use solana_ibc_sdk::attestation::{
+    accounts::{ClientState as AttestationClientState, ConsensusStateStore},
+    instructions as attestation_instructions,
 };
+use solana_ibc_sdk::ics26_router::{
+    accounts::{IBCApp, RouterState},
+    instructions as router_instructions,
+    types::{
+        ClientAccount, Delivery, MsgAckPacket as SolanaMsgAckPacket,
+        MsgRecvPacket as SolanaMsgRecvPacket, MsgTimeoutPacket as SolanaMsgTimeoutPacket,
+    },
+};
+use solana_sdk::{commitment_config::CommitmentConfig, instruction::Instruction, pubkey::Pubkey};
 
-/// Maximum compute units allowed per Solana transaction.
-const MAX_COMPUTE_UNIT_LIMIT: u32 = 1_400_000;
-
-/// Priority fee in micro-lamports per compute unit.
-const DEFAULT_PRIORITY_FEE: u64 = 1000;
-
-/// Trait abstracting the Solana tx builder methods needed for attestation
-/// `update_client` transactions.
+/// A Solana transaction builder targeting the ICS26 router program.
 ///
-/// Implemented by both eth-to-solana `SolanaTxBuilder` and cosmos-to-solana
-/// `TxBuilder` to allow shared attestation logic.
+/// Implementors provide the Solana RPC and program configuration and build the packet
+/// transactions. The router, light client and transaction primitives that every relay to Solana
+/// needs are provided on top of those, and [`SolanaAttestedTxBuilder`] builds attested relays
+/// with them.
 pub trait SolanaAttestationTxBuilder: Sync {
-    /// Resolves the light client program ID for the given client ID.
+    /// The transactions that deliver one packet.
+    type PacketTxs;
+
+    /// The Solana RPC client.
+    fn solana_client(&self) -> &RpcClient;
+    /// The ICS26 router program ID.
+    fn solana_ics26_program_id(&self) -> Pubkey;
+    /// The fee payer of the built transactions.
+    fn fee_payer(&self) -> Pubkey;
+    /// The Address Lookup Table used to reduce transaction size, if any.
+    fn alt_address(&self) -> Option<Pubkey>;
+
+    /// Builds the transactions that deliver a recv packet, chunking payloads and proof.
     ///
     /// # Errors
-    /// Returns an error if the client ID cannot be resolved.
-    fn resolve_client_program_id(&self, client_id: &str) -> Result<Pubkey>;
-    /// Fetches the attestation light client state from Solana.
+    /// Returns an error if transaction construction fails.
+    fn build_recv_packet_chunked(
+        &self,
+        msg: &SolanaMsgRecvPacket,
+        payload_data: &[Vec<u8>],
+        proof_data: &[u8],
+    ) -> Result<Self::PacketTxs>;
+    /// Builds the transactions that deliver an ack packet, chunking payloads and proof.
     ///
     /// # Errors
-    /// Returns an error if the account cannot be fetched or deserialized.
-    fn attestation_client_state(&self, program_id: Pubkey) -> Result<AttestationClientState>;
+    /// Returns an error if transaction construction fails.
+    fn build_ack_packet_chunked(
+        &self,
+        msg: &SolanaMsgAckPacket,
+        payload_data: &[Vec<u8>],
+        proof_data: &[u8],
+    ) -> Result<Self::PacketTxs>;
+    /// Builds the transactions that deliver a timeout packet, chunking payloads and proof.
+    ///
+    /// # Errors
+    /// Returns an error if transaction construction fails.
+    fn build_timeout_packet_chunked(
+        &self,
+        msg: &SolanaMsgTimeoutPacket,
+        payload_data: &[Vec<u8>],
+        proof_data: &[u8],
+    ) -> Result<Self::PacketTxs>;
+
     /// Resolves the access manager program ID from the router state.
     ///
     /// # Errors
     /// Returns an error if the router state cannot be read.
-    fn resolve_access_manager_program_id(&self) -> Result<Pubkey>;
-    /// Returns the fee payer public key.
-    fn fee_payer(&self) -> Pubkey;
-    /// Serializes instructions into a Solana versioned transaction (v0) with optional ALT.
+    fn resolve_access_manager_program_id(&self) -> Result<Pubkey> {
+        let (router_state_pda, _) =
+            router_instructions::Initialize::router_state_pda(&self.solana_ics26_program_id());
+
+        let account = self
+            .solana_client()
+            .get_account_with_commitment(&router_state_pda, CommitmentConfig::confirmed())
+            .map_err(|e| anyhow::anyhow!("Failed to fetch RouterState account: {e}"))?
+            .value
+            .ok_or_else(|| anyhow::anyhow!("Router state account not found"))?;
+
+        let router_state: RouterState =
+            deserialize_anchor_account(&account.data, "RouterState account")?;
+
+        Ok(router_state.am_state.access_manager)
+    }
+
+    /// Resolves the IBC app program ID registered for `port_id`.
+    ///
+    /// # Errors
+    /// Returns an error if the IBC app account cannot be read.
+    fn resolve_port_program_id(&self, port_id: &str) -> Result<Pubkey> {
+        let (ibc_app_account, _) =
+            router_instructions::AddIbcApp::ibc_app_pda(port_id, &self.solana_ics26_program_id());
+
+        let account = self
+            .solana_client()
+            .get_account_with_commitment(&ibc_app_account, CommitmentConfig::confirmed())
+            .map_err(|e| {
+                anyhow::anyhow!("Failed to fetch IBCApp account for port '{port_id}': {e}")
+            })?
+            .value
+            .ok_or_else(|| anyhow::anyhow!("IBCApp account not found for port '{port_id}'"))?;
+
+        let ibc_app: IBCApp = deserialize_anchor_account(&account.data, "IBCApp account")?;
+
+        tracing::debug!("Resolved port '{}' → {}", port_id, ibc_app.app_program_id);
+
+        Ok(ibc_app.app_program_id)
+    }
+
+    /// Resolves the light client program ID of `client_id`.
+    ///
+    /// # Errors
+    /// Returns an error if the client account cannot be read.
+    fn resolve_client_program_id(&self, client_id: &str) -> Result<Pubkey> {
+        let (client_account, _) =
+            router_instructions::SendPacket::client_pda(client_id, &self.solana_ics26_program_id());
+
+        let account = self
+            .solana_client()
+            .get_account_with_commitment(&client_account, CommitmentConfig::confirmed())
+            .map_err(|e| {
+                anyhow::anyhow!("Failed to fetch Client account for client '{client_id}': {e}")
+            })?
+            .value
+            .ok_or_else(|| anyhow::anyhow!("Client account not found for client '{client_id}'"))?;
+
+        let client: ClientAccount = deserialize_anchor_account(&account.data, "Client account")?;
+
+        tracing::debug!(
+            "Resolved client '{}' → {}",
+            client_id,
+            client.client_program_id
+        );
+
+        Ok(client.client_program_id)
+    }
+
+    /// Fetches the attestation light client state.
+    ///
+    /// # Errors
+    /// Returns an error if the account cannot be fetched or deserialized.
+    fn attestation_client_state(
+        &self,
+        light_client_program_id: Pubkey,
+    ) -> Result<AttestationClientState> {
+        let (client_state_pda, _) =
+            attestation_instructions::Initialize::client_state_pda(&light_client_program_id);
+
+        let account = self
+            .solana_client()
+            .get_account_with_commitment(&client_state_pda, CommitmentConfig::confirmed())
+            .context("Failed to fetch attestation client state account")?
+            .value
+            .ok_or_else(|| anyhow::anyhow!("Attestation client state account not found"))?;
+
+        deserialize_anchor_account(&account.data, "attestation client state")
+    }
+
+    /// Fetches the timestamp (in seconds) of the attestation consensus state at `height`.
+    ///
+    /// # Errors
+    /// Returns an error if the account cannot be fetched or deserialized.
+    fn attestation_consensus_state_timestamp_secs(
+        &self,
+        height: u64,
+        light_client_program_id: Pubkey,
+    ) -> Result<u64> {
+        let (consensus_state_pda, _) =
+            attestation_instructions::VerifyMembership::consensus_state_at_height_pda(
+                height,
+                &light_client_program_id,
+            );
+
+        let account = self
+            .solana_client()
+            .get_account_with_commitment(&consensus_state_pda, CommitmentConfig::confirmed())
+            .context("Failed to fetch attestation consensus state account")?
+            .value
+            .ok_or_else(|| anyhow::anyhow!("Attestation consensus state account not found"))?;
+
+        let consensus_state: ConsensusStateStore =
+            deserialize_anchor_account(&account.data, "attestation consensus state")?;
+
+        // Attestation consensus state stores timestamp in seconds (not nanoseconds)
+        Ok(consensus_state.timestamp)
+    }
+
+    /// Serializes instructions into a v0 transaction, resolving the ALT if present.
     ///
     /// # Errors
     /// Returns an error if transaction construction fails.
-    fn create_tx_bytes(&self, instructions: &[Instruction]) -> Result<Vec<u8>>;
+    fn create_tx_bytes(&self, instructions: &[Instruction]) -> Result<Vec<u8>> {
+        solana_v0_tx::create_tx_bytes(
+            self.solana_client(),
+            self.fee_payer(),
+            self.alt_address(),
+            instructions,
+        )
+    }
+
+    /// Serializes instructions into a v0 transaction using an explicit ALT and its entries.
+    ///
+    /// # Errors
+    /// Returns an error if transaction construction fails.
+    fn create_tx_bytes_with_alt(
+        &self,
+        instructions: &[Instruction],
+        alt_address: Pubkey,
+        alt_addresses: Vec<Pubkey>,
+    ) -> Result<Vec<u8>> {
+        solana_v0_tx::create_tx_bytes_with_alt(
+            self.solana_client(),
+            self.fee_payer(),
+            instructions,
+            alt_address,
+            alt_addresses,
+        )
+    }
+
+    /// Builds a transaction that creates a new Address Lookup Table.
+    ///
+    /// # Errors
+    /// Returns an error if transaction construction fails.
+    fn build_create_alt_tx(&self, slot: u64) -> Result<Vec<u8>> {
+        solana_v0_tx::build_create_alt_tx(
+            self.solana_client(),
+            self.fee_payer(),
+            self.alt_address(),
+            slot,
+        )
+    }
+
+    /// Builds a transaction that extends an Address Lookup Table with `accounts`.
+    ///
+    /// # Errors
+    /// Returns an error if transaction construction fails.
+    fn build_extend_alt_tx(&self, slot: u64, accounts: Vec<Pubkey>) -> Result<Vec<u8>> {
+        solana_v0_tx::build_extend_alt_tx(
+            self.solana_client(),
+            self.fee_payer(),
+            self.alt_address(),
+            slot,
+            accounts,
+        )
+    }
+
+    /// Builds the transactions of every recv, ack and timeout packet, in that order.
+    ///
+    /// # Errors
+    /// Returns an error if a message cannot be converted or its transactions cannot be built.
+    fn build_packet_transactions(
+        &self,
+        recv_msgs: Vec<MsgRecvPacket>,
+        ack_msgs: Vec<MsgAcknowledgement>,
+        timeout_msgs: Vec<TimeoutPacketWithChunks>,
+    ) -> Result<Vec<Self::PacketTxs>> {
+        let mut results = Vec::new();
+
+        for msg in recv_msgs {
+            let recv = ibc_to_solana_recv_packet(msg)?;
+            results.push(self.build_recv_packet_chunked(
+                &recv.msg,
+                &recv.payload_chunks,
+                &recv.proof_chunks,
+            )?);
+        }
+
+        for msg in ack_msgs {
+            let ack = ibc_to_solana_ack_packet(msg)?;
+            results.push(self.build_ack_packet_chunked(
+                &ack.msg,
+                &ack.payload_chunks,
+                &ack.proof_chunks,
+            )?);
+        }
+
+        for timeout in timeout_msgs {
+            tracing::info!(
+                "Building timeout packet for sequence {}",
+                timeout.msg.packet.sequence
+            );
+            results.push(self.build_timeout_packet_chunked(
+                &timeout.msg,
+                &timeout.payload_chunks,
+                &timeout.proof_chunks,
+            )?);
+        }
+
+        Ok(results)
+    }
 }
 
 /// Result of building an attestation `update_client` transaction.
@@ -290,109 +548,272 @@ pub async fn inject_solana_attestor_proofs(
     Ok(())
 }
 
-/// Builds an attestation `update_client` transaction for the given height.
-///
-/// Fetches the state attestation from the aggregator, builds a membership
-/// proof and assembles the Solana transaction.
-///
-/// # Errors
-/// Returns an error if fetching the attestation or building the transaction fails.
-pub async fn build_attestation_update_client_tx(
-    aggregator: &Aggregator,
-    tx_builder: &impl SolanaAttestationTxBuilder,
-    dst_client_id: &str,
-    target_height: u64,
-) -> Result<AttestationUpdateClientResult> {
-    tracing::info!(
-        "Building attestation update_client for height {}",
-        target_height
-    );
-
-    let light_client_program_id = tx_builder.resolve_client_program_id(dst_client_id)?;
-    let client_state = tx_builder.attestation_client_state(light_client_program_id)?;
-    let min_sigs = client_state.min_required_sigs as usize;
-
-    let state_attestation = aggregator.get_state_attestation(target_height).await?;
-
-    tracing::info!(
-        "Aggregator returned {} signatures, attestation_data size: {} bytes",
-        state_attestation.signatures.len(),
-        state_attestation.attested_data.len()
-    );
-
-    let proof_bytes = build_solana_membership_proof(
-        state_attestation.attested_data,
-        state_attestation.signatures,
-        min_sigs,
-    );
-
-    let assembly_tx = build_update_client_instruction_tx(
-        tx_builder,
-        target_height,
-        proof_bytes,
-        light_client_program_id,
-    )?;
-
-    Ok(AttestationUpdateClientResult {
-        assembly_tx,
-        target_height,
-    })
+/// Builds attested relay transactions to Solana with the transaction builder `B`.
+pub struct SolanaAttestedTxBuilder<B> {
+    aggregator: Aggregator,
+    tx_builder: B,
 }
 
-/// Updates the attestation light client to the aggregator's latest finalized
-/// height.
-///
-/// # Errors
-/// Returns an error if fetching the latest height or building the transaction fails.
-pub async fn update_attestation_client_tx(
-    aggregator: &Aggregator,
-    tx_builder: &impl SolanaAttestationTxBuilder,
-    dst_client_id: &str,
-) -> Result<AttestationUpdateClientResult> {
-    let latest_height = aggregator.get_latest_height().await?;
-    tracing::info!(
-        "Updating attestation client {} to latest height {}",
-        dst_client_id,
-        latest_height
-    );
-    build_attestation_update_client_tx(aggregator, tx_builder, dst_client_id, latest_height).await
-}
+impl<B: SolanaAttestationTxBuilder> SolanaAttestedTxBuilder<B> {
+    /// Creates an attested builder that builds its transactions with `tx_builder`.
+    pub const fn new(aggregator: Aggregator, tx_builder: B) -> Self {
+        Self {
+            aggregator,
+            tx_builder,
+        }
+    }
 
-/// Builds the raw Solana instruction and transaction bytes for an attestation
-/// `update_client` call.
-fn build_update_client_instruction_tx(
-    tx_builder: &impl SolanaAttestationTxBuilder,
-    new_height: u64,
-    proof: Vec<u8>,
-    light_client_program_id: Pubkey,
-) -> Result<Vec<u8>> {
-    use solana_ibc_sdk::access_manager::instructions as access_manager_instructions;
-    use solana_ibc_sdk::attestation::{
-        instructions::{UpdateClient, UpdateClientAccounts, UpdateClientArgs},
-        types::UpdateClientParams,
-    };
+    /// The transaction builder.
+    pub const fn tx_builder(&self) -> &B {
+        &self.tx_builder
+    }
 
-    let access_manager_program_id = tx_builder.resolve_access_manager_program_id()?;
-    let (access_manager, _) =
-        access_manager_instructions::Initialize::access_manager_pda(&access_manager_program_id);
+    /// Builds the packet transactions for `params`, and the `update_client` transaction when the
+    /// attestation client is behind the events or the timeouts.
+    ///
+    /// # Errors
+    /// Returns an error if attestation retrieval or transaction building fails.
+    #[allow(clippy::too_many_lines)]
+    pub async fn relay_events(
+        &self,
+        params: RelayEventsParams<SolanaEurekaEventWithHeight>,
+    ) -> Result<(Vec<B::PacketTxs>, Option<AttestationUpdateClientResult>)> {
+        tracing::info!(
+            "Building attested relay transaction for {} source events, {} target events",
+            params.src_events.len(),
+            params.target_events.len()
+        );
 
-    let instruction = UpdateClient::builder(&light_client_program_id)
-        .accounts(UpdateClientAccounts {
-            access_manager,
-            submitter: tx_builder.fee_payer(),
-            new_height,
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_secs();
+
+        let (mut recv_msgs, mut ack_msgs) = cosmos::src_events_to_recv_and_ack_msgs(
+            params.src_events.clone(),
+            &params.src_client_id,
+            &params.dst_client_id,
+            &params.src_packet_seqs,
+            &params.dst_packet_seqs,
+            "",
+            now,
+        );
+
+        // Get Solana slot for timeout packet handling
+        let slot = self
+            .tx_builder
+            .solana_client()
+            .get_slot_with_commitment(CommitmentConfig::finalized())
+            .map_err(|e| anyhow::anyhow!("Failed to get Solana slot: {e}"))?;
+
+        // Extract max timeout timestamp before consuming target_events
+        let max_timeout_ts = max_timeout_timestamp(&params.target_events);
+
+        // Build timeout messages from destination events
+        let mut timeout_msgs = target_events_to_timeout_msgs(
+            params.target_events,
+            &params.src_client_id,
+            &params.dst_client_id,
+            &params.dst_packet_seqs,
+            slot,
+            now,
+        );
+
+        if recv_msgs.is_empty() && ack_msgs.is_empty() && timeout_msgs.is_empty() {
+            tracing::info!("No packets to relay");
+            return Ok((vec![], None));
+        }
+
+        // Resolve light client program ID for the destination client
+        let light_client_program_id = self
+            .tx_builder
+            .resolve_client_program_id(&params.dst_client_id)?;
+
+        // Get current attestation client state to check if update is needed
+        let client_state = self
+            .tx_builder
+            .attestation_client_state(light_client_program_id)?;
+        let current_height = client_state.latest_height;
+
+        let max_height = params
+            .src_events
+            .iter()
+            .map(|e| e.height)
+            .max()
+            .unwrap_or(0);
+        let required_height = max_height.saturating_add(1);
+
+        // Check if height update is needed for proofs
+        let needs_height_update = current_height < required_height;
+
+        // Check if timestamp update is needed for timeouts
+        let consensus_ts = max_timeout_ts.and_then(|_| {
+            self.tx_builder
+                .attestation_consensus_state_timestamp_secs(current_height, light_client_program_id)
+                .ok()
+        });
+
+        let needs_timestamp_update = matches!(
+            (consensus_ts, max_timeout_ts),
+            (Some(cs_ts), Some(timeout_ts)) if cs_ts < timeout_ts
+        );
+
+        if needs_timestamp_update {
+            tracing::info!(
+                "Client update needed for timeout: consensus_ts={:?} < timeout_ts={:?}",
+                consensus_ts,
+                max_timeout_ts
+            );
+        }
+
+        let needs_update = needs_height_update || needs_timestamp_update;
+
+        // For timeouts, use the source chain height (where non-membership is proven).
+        // This ensures the consensus state timestamp is past the packet's timeout.
+        let proof_height = if needs_update {
+            let min_height = required_height.max(current_height.saturating_add(1));
+            let target = params
+                .timeout_relay_height
+                .map_or(min_height, |h| h.max(min_height));
+
+            tracing::info!(
+                "Attestation client at height {}, waiting for aggregator to finalize height {} \
+                 (needs_height: {}, needs_timestamp: {})",
+                current_height,
+                target,
+                needs_height_update,
+                needs_timestamp_update
+            );
+
+            wait_for_condition(Duration::from_mins(15), Duration::from_secs(1), || async {
+                let finalized_height = self.aggregator.get_latest_height().await?;
+                Ok(finalized_height >= target)
+            })
+            .await
+            .context("Timeout waiting for aggregator to finalize height")?;
+
+            tracing::info!("Aggregator has finalized height {}", target);
+            target
+        } else {
+            current_height
+        };
+
+        let min_sigs = client_state.min_required_sigs as usize;
+        tracing::info!("Attestation client requires {} signatures", min_sigs);
+
+        let target_height = Height {
+            revision_number: 0,
+            revision_height: proof_height,
+        };
+
+        inject_solana_attestor_proofs(
+            &self.aggregator,
+            &mut recv_msgs,
+            &mut ack_msgs,
+            &mut timeout_msgs,
+            &target_height,
+            min_sigs,
+        )
+        .await?;
+
+        // Build update_client transaction only if needed
+        let update_client = if needs_update {
+            Some(
+                self.update_client_at(&params.dst_client_id, proof_height)
+                    .await?,
+            )
+        } else {
+            tracing::info!(
+                "Client already at sufficient height {}, skipping update",
+                current_height
+            );
+            None
+        };
+
+        let packets =
+            self.tx_builder
+                .build_packet_transactions(recv_msgs, ack_msgs, timeout_msgs)?;
+
+        Ok((packets, update_client))
+    }
+
+    /// Builds the `update_client` transaction to the aggregator's latest finalized height.
+    ///
+    /// # Errors
+    /// Returns an error if fetching the latest height or building the transaction fails.
+    pub async fn update_client(
+        &self,
+        dst_client_id: &str,
+    ) -> Result<AttestationUpdateClientResult> {
+        let latest_height = self.aggregator.get_latest_height().await?;
+        tracing::info!(
+            "Updating attestation client {} to latest height {}",
+            dst_client_id,
+            latest_height
+        );
+        self.update_client_at(dst_client_id, latest_height).await
+    }
+
+    /// Builds the `update_client` transaction to `target_height` from the aggregator's state
+    /// attestation.
+    async fn update_client_at(
+        &self,
+        dst_client_id: &str,
+        target_height: u64,
+    ) -> Result<AttestationUpdateClientResult> {
+        use solana_ibc_sdk::access_manager::instructions as access_manager_instructions;
+        use solana_ibc_sdk::attestation::{
+            instructions::{UpdateClient, UpdateClientAccounts, UpdateClientArgs},
+            types::UpdateClientParams,
+        };
+
+        tracing::info!(
+            "Building attestation update_client for height {}",
+            target_height
+        );
+
+        let light_client_program_id = self.tx_builder.resolve_client_program_id(dst_client_id)?;
+        let client_state = self
+            .tx_builder
+            .attestation_client_state(light_client_program_id)?;
+        let min_sigs = client_state.min_required_sigs as usize;
+
+        let state_attestation = self.aggregator.get_state_attestation(target_height).await?;
+
+        tracing::info!(
+            "Aggregator returned {} signatures, attestation_data size: {} bytes",
+            state_attestation.signatures.len(),
+            state_attestation.attested_data.len()
+        );
+
+        let proof = build_solana_membership_proof(
+            state_attestation.attested_data,
+            state_attestation.signatures,
+            min_sigs,
+        );
+
+        let access_manager_program_id = self.tx_builder.resolve_access_manager_program_id()?;
+        let (access_manager, _) =
+            access_manager_instructions::Initialize::access_manager_pda(&access_manager_program_id);
+
+        let instruction = UpdateClient::builder(&light_client_program_id)
+            .accounts(UpdateClientAccounts {
+                access_manager,
+                submitter: self.tx_builder.fee_payer(),
+                new_height: target_height,
+            })
+            .args(&UpdateClientArgs {
+                new_height: target_height,
+                params: UpdateClientParams { proof },
+            })
+            .build();
+
+        let mut instructions = solana_v0_tx::extend_compute_ix();
+        instructions.push(instruction);
+        let assembly_tx = self.tx_builder.create_tx_bytes(&instructions)?;
+
+        Ok(AttestationUpdateClientResult {
+            assembly_tx,
+            target_height,
         })
-        .args(&UpdateClientArgs {
-            new_height,
-            params: UpdateClientParams { proof },
-        })
-        .build();
-
-    let instructions = vec![
-        ComputeBudgetInstruction::set_compute_unit_limit(MAX_COMPUTE_UNIT_LIMIT),
-        ComputeBudgetInstruction::set_compute_unit_price(DEFAULT_PRIORITY_FEE),
-        instruction,
-    ];
-
-    tx_builder.create_tx_bytes(&instructions)
+    }
 }

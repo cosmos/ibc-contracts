@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Proof API utilities for `solana-eureka` chains.
+use anchor_lang::AnchorDeserialize;
 use anyhow::Context;
-use solana_ibc_constants::CHUNK_DATA_SIZE;
+use solana_ibc_constants::{ANCHOR_DISCRIMINATOR_LEN, CHUNK_DATA_SIZE};
 use solana_ibc_sdk::ics07_tendermint::accounts::ClientState;
 use solana_ibc_sdk::ics07_tendermint::types::{ConsensusState, IbcHeight};
 use solana_ibc_sdk::ics26_router::types::{
@@ -16,6 +17,22 @@ use ibc_proto_eureka::ibc::core::channel::v2::{
 };
 
 use crate::events::{SolanaEurekaEvent, SolanaEurekaEventWithHeight};
+
+/// Deserializes the data of an Anchor account, skipping its discriminator.
+///
+/// `account` names the account in the errors.
+///
+/// # Errors
+/// Returns an error if `data` is shorter than the discriminator or does not deserialize as `T`.
+pub fn deserialize_anchor_account<T: AnchorDeserialize>(
+    data: &[u8],
+    account: &str,
+) -> anyhow::Result<T> {
+    let mut body = data
+        .get(ANCHOR_DISCRIMINATOR_LEN..)
+        .ok_or_else(|| anyhow::anyhow!("Account data too short for {account}"))?;
+    T::deserialize(&mut body).map_err(|e| anyhow::anyhow!("Failed to deserialize {account}: {e}"))
+}
 
 /// Threshold for inlining payloads vs chunking (combined size)
 const INLINE_THRESHOLD: usize = 300;
@@ -233,6 +250,20 @@ pub fn convert_client_state_to_ibc(
             allow_update_after_misbehaviour: true, // Deprecated but required field
         },
     )
+}
+
+/// Returns the latest timeout timestamp of the packets sent in `target_events`.
+///
+/// This is the latest timeout that a relay to the source chain may need to prove.
+#[must_use]
+pub fn max_timeout_timestamp(target_events: &[SolanaEurekaEventWithHeight]) -> Option<u64> {
+    target_events
+        .iter()
+        .filter_map(|e| match &e.event {
+            SolanaEurekaEvent::SendPacket(event) => Some(event.timeout_timestamp),
+            SolanaEurekaEvent::WriteAcknowledgement(_) => None,
+        })
+        .max()
 }
 
 /// Converts a list of [`SolanaEurekaEvent`]s to a list of timeout packets with chunk data.
@@ -529,4 +560,36 @@ pub fn ibc_to_solana_ack_packet(
         payload_chunks,
         proof_chunks,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn deserialize_anchor_account_skips_the_discriminator() {
+        let mut data = vec![0xAA; ANCHOR_DISCRIMINATOR_LEN];
+        data.extend_from_slice(&42u64.to_le_bytes());
+
+        let value: u64 = deserialize_anchor_account(&data, "test account").unwrap();
+        assert_eq!(value, 42);
+    }
+
+    #[test]
+    fn deserialize_anchor_account_rejects_short_data() {
+        let err =
+            deserialize_anchor_account::<u64>(&[0; ANCHOR_DISCRIMINATOR_LEN - 1], "test account")
+                .unwrap_err();
+        assert_eq!(err.to_string(), "Account data too short for test account");
+    }
+
+    #[test]
+    fn deserialize_anchor_account_rejects_bad_body() {
+        let err =
+            deserialize_anchor_account::<u64>(&[0; ANCHOR_DISCRIMINATOR_LEN + 1], "test account")
+                .unwrap_err();
+        assert!(err
+            .to_string()
+            .starts_with("Failed to deserialize test account: "));
+    }
 }
