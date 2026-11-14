@@ -17,10 +17,7 @@ use futures::future::join_all;
 use moka::future::Cache;
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
-use tokio::{
-    sync::Mutex,
-    time::{timeout, Duration},
-};
+use tokio::time::{timeout, Duration};
 use tonic::{transport::Channel, Request, Status};
 use tracing::error as tracing_error;
 use {
@@ -49,7 +46,8 @@ enum AttestationQuery {
     State(u64),
 }
 
-type AttestorClient = (Arc<String>, Mutex<AttestationServiceClient<Channel>>);
+type AttestorClient = (String, AttestationServiceClient<Channel>);
+type PacketCacheKey = ([u8; 32], u64, rpc::CommitmentType);
 
 /// Signature aggregator service that collects and aggregates attestations from multiple attestors.
 /// # Architecture
@@ -60,14 +58,14 @@ type AttestorClient = (Arc<String>, Mutex<AttestationServiceClient<Channel>>);
 /// Both phases require a quorum of valid attestations before proceeding. Results are cached
 /// using the following cache keys:
 /// - State cache: `height -> aggregated attestation`
-/// - Packet cache: `(packets_hash, height) -> aggregated attestation`
+/// - Packet cache: `(packets_hash, height, commitment_type) -> aggregated attestation`
 #[derive(Debug)]
 pub struct Aggregator {
     quorum_threshold: usize,
     attestor_timeout_duration: Duration,
     attestor_clients: Vec<AttestorClient>,
     state_cache: Cache<u64, AggregatedAttestation>,
-    packet_cache: Cache<([u8; 32], u64), AggregatedAttestation>,
+    packet_cache: Cache<PacketCacheKey, AggregatedAttestation>,
 }
 
 impl Aggregator {
@@ -93,7 +91,7 @@ impl Aggregator {
         let futures = config.attestor_endpoints.iter().map(|endpoint| async move {
             AttestationServiceClient::connect(endpoint.clone())
                 .await
-                .map(|client| (Arc::new(endpoint.clone()), Mutex::new(client)))
+                .map(|client| (endpoint.clone(), client))
         });
 
         join_all(futures)
@@ -151,19 +149,14 @@ impl Aggregator {
             return Err(anyhow::anyhow!("Packet cannot be empty"));
         }
 
-        let mut sorted_packets = packets;
-        sorted_packets.sort();
-        let packet_cache_key = Self::make_packet_cache_key(&sorted_packets, height);
+        let mut packets = packets;
+        let packet_cache_key = Self::make_packet_cache_key(&mut packets, height, commitment_type);
 
         let packet_attestation = self
             .packet_cache
             .try_get_with(packet_cache_key, async {
                 let packet_attestations = self
-                    .query_attestations(AttestationQuery::Packet(
-                        sorted_packets,
-                        height,
-                        commitment_type,
-                    ))
+                    .query_attestations(AttestationQuery::Packet(packets, height, commitment_type))
                     .await;
 
                 let quorumed_aggregation =
@@ -176,20 +169,8 @@ impl Aggregator {
             .map_err(|e: Arc<Status>| (*e).clone())?;
 
         let state_attestation = self
-            .state_cache
-            .try_get_with(packet_attestation.height, async {
-                let state_attestations = self
-                    .query_attestations(AttestationQuery::State(packet_attestation.height))
-                    .await;
-
-                let quorumed_aggregation =
-                    agg_quorumed_attestations(self.quorum_threshold, state_attestations)
-                        .map_err(|e| Status::failed_precondition(e.to_string()))?;
-
-                Ok(quorumed_aggregation)
-            })
-            .await
-            .map_err(|e: Arc<Status>| (*e).clone())?;
+            .get_state_attestation(packet_attestation.height)
+            .await?;
 
         Ok(AttestationResult {
             state: state_attestation,
@@ -201,9 +182,8 @@ impl Aggregator {
         let timeout_duration = self.attestor_timeout_duration;
         let query_futures = self.attestor_clients.iter().map(|(endpoint, client)| {
             let query = query.clone();
+            let mut client = client.clone();
             async move {
-                let mut client = client.lock().await;
-
                 let response = timeout(timeout_duration, async {
                     match query {
                         AttestationQuery::Packet(packets, height, commitment_type) => {
@@ -257,12 +237,20 @@ impl Aggregator {
         successful_responses
     }
 
-    fn make_packet_cache_key(packets: &[Vec<u8>], height: u64) -> ([u8; 32], u64) {
+    fn make_packet_cache_key(
+        packets: &mut [Vec<u8>],
+        height: u64,
+        commitment_type: rpc::CommitmentType,
+    ) -> PacketCacheKey {
+        packets.sort();
+
         let mut hasher = Sha256::new();
-        for p in packets {
-            hasher.update(p);
+        for packet in packets {
+            hasher.update(packet.len().to_be_bytes());
+            hasher.update(packet);
         }
-        (hasher.finalize().into(), height)
+
+        (hasher.finalize().into(), height, commitment_type)
     }
 
     /// Get the latest height from the attested chain.
@@ -274,7 +262,7 @@ impl Aggregator {
         let query_futures = self
             .attestor_clients
             .iter()
-            .map(|(endpoint, client)| self.query_attestor_height(endpoint.clone(), client));
+            .map(|(endpoint, client)| self.query_attestor_height(endpoint, client.clone()));
 
         let heights: Vec<u64> = join_all(query_futures)
             .await
@@ -288,10 +276,9 @@ impl Aggregator {
 
     async fn query_attestor_height(
         &self,
-        endpoint: Arc<String>,
-        client: &Mutex<AttestationServiceClient<Channel>>,
+        endpoint: &str,
+        mut client: AttestationServiceClient<Channel>,
     ) -> Option<u64> {
-        let mut client = client.lock().await;
         let request = Request::new(LatestHeightRequest {});
 
         match timeout(
@@ -332,4 +319,29 @@ fn agg_quorumed_attestations(
     attestator_data
         .agg_quorumed_attestations(quorum_threshold)
         .ok_or_else(|| anyhow::anyhow!("Quorum not met"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{rpc::CommitmentType, Aggregator};
+
+    #[test]
+    fn packet_cache_key_has_complete_canonical_identity() {
+        let key = |mut packets: Vec<Vec<u8>>, commitment_type| {
+            Aggregator::make_packet_cache_key(&mut packets, 7, commitment_type)
+        };
+
+        assert_eq!(
+            key(vec![vec![2], vec![1]], CommitmentType::Packet),
+            key(vec![vec![1], vec![2]], CommitmentType::Packet)
+        );
+        assert_ne!(
+            key(vec![vec![1], vec![2]], CommitmentType::Packet),
+            key(vec![vec![1, 2]], CommitmentType::Packet)
+        );
+        assert_ne!(
+            key(vec![vec![1], vec![2]], CommitmentType::Packet),
+            key(vec![vec![1], vec![2]], CommitmentType::Ack)
+        );
+    }
 }
