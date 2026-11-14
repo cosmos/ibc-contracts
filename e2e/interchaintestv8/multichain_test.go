@@ -152,20 +152,15 @@ func (s *MultichainTestSuite) SetupSuite(ctx context.Context, proofType types.Su
 		s.Require().NoError(err)
 	}))
 
-	var proofApiProcess *os.Process
-	s.Require().True(s.Run("Start Proof API", func() {
+	var proofApiConfig proofapi.Config
+	s.Require().True(s.Run("Configure Proof API", func() {
 		beaconAPI := ""
 		// The BeaconAPIClient is nil when the testnet is `pow`
 		if eth.BeaconAPIClient != nil {
 			beaconAPI = eth.BeaconAPIClient.GetBeaconAPIURL()
 		}
 
-		sp1Config := proofapi.SP1ProverConfig{
-			Type: prover,
-		}
-		if prover == testvalues.EnvValueSp1Prover_Network {
-			sp1Config.PrivateCluster = os.Getenv(testvalues.EnvKeyNetworkPrivateCluster) == testvalues.EnvValueSp1Prover_PrivateCluster
-		}
+		sp1Config := proofapi.SP1Prover(prover)
 
 		mockClient := s.GetEthTestnetType() == testvalues.EthTestnetTypeAnvil
 
@@ -228,21 +223,12 @@ func (s *MultichainTestSuite) SetupSuite(ctx context.Context, proofType types.Su
 			}).
 			Build()
 
-		proofApiProcess = s.StartProofAPI(config)
+		proofApiConfig = config
 	}))
 
-	s.T().Cleanup(func() {
-		if proofApiProcess != nil {
-			err := proofApiProcess.Kill()
-			if err != nil {
-				s.T().Logf("Failed to kill the proof API process: %v", err)
-			}
-		}
-	})
+	s.StartProofAPI(proofApiConfig)
 
 	s.Require().True(s.Run("Create Proof API Client", func() {
-		time.Sleep(5 * time.Second) // wait for the proof API to start
-
 		var err error
 		s.ProofApiClient, err = proofapi.GetGRPCClient(proofapi.DefaultProofAPIGRPCAddress())
 		s.Require().NoError(err)
@@ -621,8 +607,6 @@ func (s *MultichainTestSuite) Test_Deploy() {
 		s.Require().NoError(err)
 		s.Require().Equal(simdB.Config().ChainID, clientState.ChainId)
 	}))
-
-	time.Sleep(5 * time.Second) // wait for the proof API to start
 
 	s.Require().True(s.Run("Verify SimdA to Eth Proof API Info", func() {
 		info, err := s.ProofApiClient.Info(context.Background(), &proofapitypes.InfoRequest{

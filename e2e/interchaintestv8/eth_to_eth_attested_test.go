@@ -215,8 +215,8 @@ func (s *EthToEthAttestedTestSuite) SetupSuite(ctx context.Context) {
 	}))
 
 	// Start proof API with eth-to-eth-attested modules
-	var proofApiProcess *os.Process
-	s.Require().True(s.Run("Start Proof API", func() {
+	var proofApiConfig proofapi.Config
+	s.Require().True(s.Run("Configure Proof API", func() {
 		// Log the exact endpoints being used
 		s.T().Logf("[proofapi-config] Attestor A endpoint: %s", attestorAEndpoint)
 		s.T().Logf("[proofapi-config] Attestor B endpoint: %s", attestorBEndpoint)
@@ -248,32 +248,10 @@ func (s *EthToEthAttestedTestSuite) SetupSuite(ctx context.Context) {
 			Build()
 
 		s.T().Logf("Proof API config: %+v", config)
-
-		err := config.GenerateConfigFile(testvalues.ProofAPIConfigFilePath)
-		s.Require().NoError(err)
-
-		// Log the generated config file for debugging
-		configContent, readErr := os.ReadFile(testvalues.ProofAPIConfigFilePath)
-		if readErr == nil {
-			s.T().Logf("[proofapi-config] Generated config file:\n%s", string(configContent))
-		}
-
-		proofApiProcess, err = proofapi.StartProofAPI(testvalues.ProofAPIConfigFilePath)
-		s.Require().NoError(err)
-
-		s.T().Logf("[proof-api] Process started with PID: %d", proofApiProcess.Pid)
-
-		s.T().Cleanup(func() {
-			os.Remove(testvalues.ProofAPIConfigFilePath)
-		})
+		proofApiConfig = config
 	}))
 
-	// Move proof API cleanup outside the subtest so it doesn't run immediately after subtest completion
-	s.T().Cleanup(func() {
-		if proofApiProcess != nil {
-			_ = proofApiProcess.Kill()
-		}
-	})
+	s.StartProofAPI(proofApiConfig)
 
 	s.Require().True(s.Run("Create Proof API Client", func() {
 		grpcAddr := proofapi.DefaultProofAPIGRPCAddress()

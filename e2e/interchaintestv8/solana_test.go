@@ -82,7 +82,6 @@ type IbcEurekaSolanaTestSuite struct {
 
 	// ALT configuration - if set, will be used when starting the proof API
 	SolanaAltAddress string
-	ProofApiProcess  *os.Process
 
 	// Signature threshold for skipping pre-verification (nil = use default 50)
 	SkipPreVerifyThreshold *int
@@ -90,17 +89,6 @@ type IbcEurekaSolanaTestSuite struct {
 
 func TestWithIbcEurekaSolanaTestSuite(t *testing.T) {
 	suite.Run(t, new(IbcEurekaSolanaTestSuite))
-}
-
-func (s *IbcEurekaSolanaTestSuite) TearDownSuite() {
-	// Clean up proof API process if it's running
-	if s.ProofApiProcess != nil {
-		s.T().Logf("Cleaning up proof API process (PID: %d)", s.ProofApiProcess.Pid)
-		err := s.ProofApiProcess.Kill()
-		if err != nil {
-			s.T().Logf("Failed to kill proof API process: %v", err)
-		}
-	}
 }
 
 func (s *IbcEurekaSolanaTestSuite) SetupSuite(ctx context.Context) {
@@ -285,8 +273,8 @@ func (s *IbcEurekaSolanaTestSuite) SetupSuite(ctx context.Context) {
 		s.Require().NoError(err)
 	}
 
-	var proofApiProcess *os.Process
-	s.Require().True(s.Run("Start Proof API", func() {
+	var proofApiConfig proofapi.Config
+	s.Require().True(s.Run("Configure Proof API", func() {
 		config := proofapi.NewConfigBuilder().
 			SolanaToCosmosAttested(proofapi.SolanaToCosmosAttestedParams{
 				SolanaChainID:     testvalues.SolanaChainID,
@@ -313,21 +301,14 @@ func (s *IbcEurekaSolanaTestSuite) SetupSuite(ctx context.Context) {
 			}).
 			Build()
 
-		proofApiProcess = s.StartProofAPI(config)
+		proofApiConfig = config
 
 		if s.SolanaAltAddress != "" {
-			s.T().Logf("Started proof API with ALT address: %s", s.SolanaAltAddress)
+			s.T().Logf("Proof API uses ALT address: %s", s.SolanaAltAddress)
 		}
 	}))
 
-	s.T().Cleanup(func() {
-		if proofApiProcess != nil {
-			err := proofApiProcess.Kill()
-			if err != nil {
-				s.T().Logf("Failed to kill the proof API process: %v", err)
-			}
-		}
-	})
+	s.StartProofAPI(proofApiConfig)
 
 	// Wait for proof API to be ready and create client
 	s.Require().True(s.Run("Wait for Proof API and Create Client", func() {

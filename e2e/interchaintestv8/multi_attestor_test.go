@@ -223,8 +223,8 @@ func (s *MultiAttestorTestSuite) SetupSuite(ctx context.Context) {
 	// Note: Docker containers cleanup automatically via t.Cleanup() registered in SetupAttestors
 
 	// Start proof API with multi-attestor config
-	var proofApiProcess *os.Process
-	s.Require().True(s.Run("Start Proof API with multi-attestor config", func() {
+	var proofApiConfig proofapi.Config
+	s.Require().True(s.Run("Configure Proof API with multi-attestor config", func() {
 		config := proofapi.NewConfigBuilder().
 			// Eth → Cosmos direction (uses Eth attestors)
 			EthToCosmosAttested(proofapi.EthToCosmosAttestedParams{
@@ -254,14 +254,10 @@ func (s *MultiAttestorTestSuite) SetupSuite(ctx context.Context) {
 
 		s.T().Logf("Proof API config with quorum threshold %d", s.quorumThreshold)
 
-		proofApiProcess = s.StartProofAPI(config)
+		proofApiConfig = config
 	}))
 
-	s.T().Cleanup(func() {
-		if proofApiProcess != nil {
-			_ = proofApiProcess.Kill()
-		}
-	})
+	s.StartProofAPI(proofApiConfig)
 
 	s.Require().True(s.Run("Create Proof API Client", func() {
 		grpcAddr := proofapi.DefaultProofAPIGRPCAddress()
@@ -325,7 +321,7 @@ func (s *MultiAttestorTestSuite) SetupSuite(ctx context.Context) {
 				len(s.allCosmosAttestorAddresses), s.activeAttestors, s.quorumThreshold)
 
 			counterpartyInfo := ics26router.IICS02ClientMsgsCounterpartyInfo{
-				ClientId:     s.GetEthLcClientIDOnCosmos(),
+				ClientId:     testvalues.FirstAttestationsClientID,
 				MerklePrefix: [][]byte{[]byte("")},
 			}
 			tx, err := s.ics26Contract.AddClient(s.GetTransactOpts(s.deployer, eth), MultiAttestorClientOnEth, counterpartyInfo, lightClientAddress)
@@ -338,12 +334,6 @@ func (s *MultiAttestorTestSuite) SetupSuite(ctx context.Context) {
 
 	// Deploy Ethereum attestor light client on Cosmos (for Eth→Cosmos direction)
 	s.Require().True(s.Run("Deploy attestor light client on Cosmos for Ethereum", func() {
-		// Store wasm binary if needed (not needed for native attestor)
-		checksumHex := s.StoreLightClient(ctx, simd, s.SimdRelayerSubmitter)
-		if !s.IsEthLcOnCosmosAttestor() {
-			s.Require().NotEmpty(checksumHex)
-		}
-
 		// Get current Ethereum block
 		currentBlockHeader, err := eth.RPCClient.HeaderByNumber(ctx, nil)
 		s.Require().NoError(err)
@@ -362,7 +352,6 @@ func (s *MultiAttestorTestSuite) SetupSuite(ctx context.Context) {
 		var createClientTxBodyBz []byte
 		s.Require().True(s.Run("Retrieve create client tx", func() {
 			parameters := map[string]string{
-				testvalues.ParameterKey_ChecksumHex:       checksumHex,
 				testvalues.ParameterKey_AttestorAddresses: allAttestorAddresses,
 				testvalues.ParameterKey_MinRequiredSigs:   strconv.Itoa(s.quorumThreshold),
 				testvalues.ParameterKey_height:            strconv.FormatInt(clientHeight, 10),
@@ -384,7 +373,7 @@ func (s *MultiAttestorTestSuite) SetupSuite(ctx context.Context) {
 			resp := s.MustBroadcastSdkTxBody(ctx, simd, s.SimdRelayerSubmitter, 20_000_000, createClientTxBodyBz)
 			clientId, err := cosmoshelper.GetEventValue(resp.Events, clienttypes.EventTypeCreateClient, clienttypes.AttributeKeyClientID)
 			s.Require().NoError(err)
-			s.Require().Equal(s.GetEthLcClientIDOnCosmos(), clientId)
+			s.Require().Equal(testvalues.FirstAttestationsClientID, clientId)
 
 			s.T().Logf("Attestor light client for Ethereum deployed on Cosmos: %s", clientId)
 			s.T().Logf("Registered %d attestors (only %d active) with quorum %d",
@@ -397,7 +386,7 @@ func (s *MultiAttestorTestSuite) SetupSuite(ctx context.Context) {
 		merklePathPrefix := [][]byte{[]byte("")}
 
 		_, err := s.BroadcastMessages(ctx, simd, s.SimdRelayerSubmitter, 200_000, &clienttypesv2.MsgRegisterCounterparty{
-			ClientId:                 s.GetEthLcClientIDOnCosmos(),
+			ClientId:                 testvalues.FirstAttestationsClientID,
 			CounterpartyMerklePrefix: merklePathPrefix,
 			CounterpartyClientId:     MultiAttestorClientOnEth,
 			Signer:                   s.SimdRelayerSubmitter.FormattedAddress(),
@@ -501,7 +490,7 @@ func (s *MultiAttestorTestSuite) Test_MultiAttestorTransferWithAggregation() {
 				DstChain:    simd.Config().ChainID,
 				SourceTxIds: [][]byte{sendTxHashEthToCosmos},
 				SrcClientId: MultiAttestorClientOnEth,
-				DstClientId: s.GetEthLcClientIDOnCosmos(),
+				DstClientId: testvalues.FirstAttestationsClientID,
 			})
 			s.Require().NoError(err, "Multi-attestor aggregation should succeed with %d of %d attestors",
 				s.activeAttestors, s.quorumThreshold)
@@ -527,7 +516,7 @@ func (s *MultiAttestorTestSuite) Test_MultiAttestorTransferWithAggregation() {
 
 			// Get the IBC denom on Cosmos
 			destPort := "transfer"
-			destClient := s.GetEthLcClientIDOnCosmos()
+			destClient := testvalues.FirstAttestationsClientID
 			baseDenom := strings.ToLower(erc20AddressEth.Hex())
 			ibcDenomOnCosmos = transfertypes.NewDenom(baseDenom, transfertypes.NewHop(destPort, destClient))
 		}))
@@ -559,7 +548,7 @@ func (s *MultiAttestorTestSuite) Test_MultiAttestorTransferWithAggregation() {
 				SrcChain:    simd.Config().ChainID,
 				DstChain:    eth.ChainID.String(),
 				SourceTxIds: [][]byte{recvTxHashOnCosmos},
-				SrcClientId: s.GetEthLcClientIDOnCosmos(),
+				SrcClientId: testvalues.FirstAttestationsClientID,
 				DstClientId: MultiAttestorClientOnEth,
 			})
 			s.Require().NoError(err)
@@ -607,7 +596,7 @@ func (s *MultiAttestorTestSuite) Test_MultiAttestorTransferWithAggregation() {
 		}
 
 		msgSendPacket := channeltypesv2.MsgSendPacket{
-			SourceClient:     s.GetEthLcClientIDOnCosmos(),
+			SourceClient:     testvalues.FirstAttestationsClientID,
 			TimeoutTimestamp: timeout,
 			Signer:           s.cosmosUser.FormattedAddress(),
 			Payloads: []channeltypesv2.Payload{
@@ -648,7 +637,7 @@ func (s *MultiAttestorTestSuite) Test_MultiAttestorTransferWithAggregation() {
 				SrcChain:    simd.Config().ChainID,
 				DstChain:    eth.ChainID.String(),
 				SourceTxIds: [][]byte{cosmosSendTxHash},
-				SrcClientId: s.GetEthLcClientIDOnCosmos(),
+				SrcClientId: testvalues.FirstAttestationsClientID,
 				DstClientId: MultiAttestorClientOnEth,
 			})
 			s.Require().NoError(err)
@@ -689,7 +678,7 @@ func (s *MultiAttestorTestSuite) Test_MultiAttestorTransferWithAggregation() {
 
 	s.Require().True(s.Run("(Cosmos -> Eth): Verify commitment exists before ack", func() {
 		resp, err := e2esuite.GRPCQuery[channeltypesv2.QueryPacketCommitmentResponse](ctx, simd, &channeltypesv2.QueryPacketCommitmentRequest{
-			ClientId: s.GetEthLcClientIDOnCosmos(),
+			ClientId: testvalues.FirstAttestationsClientID,
 			Sequence: 1,
 		})
 		s.Require().NoError(err)
@@ -703,7 +692,7 @@ func (s *MultiAttestorTestSuite) Test_MultiAttestorTransferWithAggregation() {
 				SrcChain:    eth.ChainID.String(),
 				DstChain:    simd.Config().ChainID,
 				SrcClientId: MultiAttestorClientOnEth,
-				DstClientId: s.GetEthLcClientIDOnCosmos(),
+				DstClientId: testvalues.FirstAttestationsClientID,
 				SourceTxIds: [][]byte{recvTxHashOnEth},
 			})
 			s.Require().NoError(err)
@@ -723,7 +712,7 @@ func (s *MultiAttestorTestSuite) Test_MultiAttestorTransferWithAggregation() {
 
 	s.Require().True(s.Run("(Cosmos -> Eth): Verify commitment removed after ack", func() {
 		_, err := e2esuite.GRPCQuery[channeltypesv2.QueryPacketCommitmentResponse](ctx, simd, &channeltypesv2.QueryPacketCommitmentRequest{
-			ClientId: s.GetEthLcClientIDOnCosmos(),
+			ClientId: testvalues.FirstAttestationsClientID,
 			Sequence: 1,
 		})
 		s.Require().ErrorContains(err, "packet commitment hash not found", "Commitment should be removed after ack")

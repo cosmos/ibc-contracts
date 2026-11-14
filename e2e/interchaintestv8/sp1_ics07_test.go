@@ -130,8 +130,8 @@ func (s *SP1ICS07TendermintTestSuite) SetupSuite(ctx context.Context, proofType 
 		s.Require().NoError(err)
 	}))
 
-	var proofApiProcess *os.Process
-	s.Require().True(s.Run("Start Proof API", func() {
+	var proofApiConfig proofapi.Config
+	s.Require().True(s.Run("Configure Proof API", func() {
 		beaconAPI := ""
 		if eth.BeaconAPIClient != nil {
 			beaconAPI = eth.BeaconAPIClient.GetBeaconAPIURL()
@@ -153,24 +153,14 @@ func (s *SP1ICS07TendermintTestSuite) SetupSuite(ctx context.Context, proofType 
 				ICS26Address:        s.ics26Address.Hex(),
 				IBCMulticallAddress: s.ibcMulticallAddress.Hex(),
 				EthRPC:              eth.RPC,
-				Prover: proofapi.SP1ProverConfig{
-					Type:           prover,
-					PrivateCluster: os.Getenv(testvalues.EnvKeyNetworkPrivateCluster) == testvalues.EnvValueSp1Prover_PrivateCluster,
-				},
+				Prover:              proofapi.SP1Prover(prover),
 			}).
 			Build()
 
-		proofApiProcess = s.StartProofAPI(config)
+		proofApiConfig = config
 	}))
 
-	s.T().Cleanup(func() {
-		if proofApiProcess != nil {
-			err := proofApiProcess.Kill()
-			if err != nil {
-				s.T().Logf("Failed to kill the proof API process: %v", err)
-			}
-		}
-	})
+	s.StartProofAPI(proofApiConfig)
 
 	s.Require().True(s.Run("Create Proof API Client", func() {
 		var err error

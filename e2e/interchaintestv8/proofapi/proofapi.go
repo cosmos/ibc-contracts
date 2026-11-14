@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"strconv"
@@ -39,28 +40,66 @@ func binaryPath() string {
 	return "proof-api"
 }
 
-// StartProofAPI starts the proof API with the given config file.
+// startupTimeout bounds how long StartProofAPI waits for the proof API to accept gRPC connections.
+const startupTimeout = 2 * time.Minute
+
+// StartProofAPI starts the proof API with the given config file and waits until its gRPC server accepts connections.
+// The proof API builds every module before it binds the gRPC port, so an accepted connection means it is ready.
 func StartProofAPI(configPath string) (*os.Process, error) {
-	config, err := os.ReadFile(configPath)
+	configBz, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("Starting proof API with config:\n%s\n", config)
+	fmt.Printf("Starting proof API with config:\n%s\n", configBz)
+
+	var config Config
+	if err := json.Unmarshal(configBz, &config); err != nil {
+		return nil, fmt.Errorf("failed to parse proof API config %s: %w", configPath, err)
+	}
+	grpcAddr := net.JoinHostPort(config.Server.Address, strconv.Itoa(config.Server.Port))
 
 	cmd := exec.Command(binaryPath(), "start", "--config", configPath)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
 	// run this command in the background
-	err = cmd.Start()
-	if err != nil {
+	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
 
-	// wait for the proof API to start
-	time.Sleep(9 * time.Second)
+	// Reap the process so that an exit during startup is reported at once instead of after startupTimeout.
+	exited := make(chan error, 1)
+	go func() { exited <- cmd.Wait() }()
+
+	if err := waitForTCP(grpcAddr, startupTimeout, exited); err != nil {
+		_ = cmd.Process.Kill()
+		return nil, fmt.Errorf("proof API did not start: %w", err)
+	}
 
 	return cmd.Process, nil
+}
+
+// waitForTCP polls addr until it accepts a TCP connection, the process reports its exit on exited, or timeout elapses.
+func waitForTCP(addr string, timeout time.Duration, exited <-chan error) error {
+	deadline := time.Now().Add(timeout)
+	for {
+		conn, err := net.DialTimeout("tcp", addr, time.Second)
+		if err == nil {
+			return conn.Close()
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("%s not accepting connections after %s: %w", addr, timeout, err)
+		}
+
+		select {
+		case exitErr := <-exited:
+			if exitErr == nil {
+				return errors.New("process exited before accepting connections")
+			}
+			return fmt.Errorf("process exited before accepting connections: %w", exitErr)
+		case <-time.After(200 * time.Millisecond):
+		}
+	}
 }
 
 // GetGRPCClient returns a gRPC client for the proof API.

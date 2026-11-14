@@ -199,8 +199,8 @@ func (s *IbcEurekaTestSuite) SetupSuite(ctx context.Context, proofType types.Sup
 
 	// Note: Docker containers cleanup automatically via t.Cleanup() registered in SetupAttestors
 
-	var proofApiProcess *os.Process
-	s.Require().True(s.Run("Start Proof API", func() {
+	var proofApiConfig proofapi.Config
+	s.Require().True(s.Run("Configure Proof API", func() {
 		builder := proofapi.NewConfigBuilder()
 
 		// Eth → Cosmos direction
@@ -250,25 +250,15 @@ func (s *IbcEurekaTestSuite) SetupSuite(ctx context.Context, proofType types.Sup
 				ICS26Address:        s.contractAddresses.Ics26Router,
 				IBCMulticallAddress: s.contractAddresses.IbcMulticall,
 				EthRPC:              eth.RPC,
-				Prover: proofapi.SP1ProverConfig{
-					Type:           prover,
-					PrivateCluster: os.Getenv(testvalues.EnvKeyNetworkPrivateCluster) == testvalues.EnvValueSp1Prover_PrivateCluster,
-				},
+				Prover:              proofapi.SP1Prover(prover),
 			})
 		}
 
 		config := builder.Build()
-		proofApiProcess = s.StartProofAPI(config)
+		proofApiConfig = config
 	}))
 
-	s.T().Cleanup(func() {
-		if proofApiProcess != nil {
-			err := proofApiProcess.Kill()
-			if err != nil {
-				s.T().Logf("Failed to kill the proof API process: %v", err)
-			}
-		}
-	})
+	s.StartProofAPI(proofApiConfig)
 
 	s.Require().True(s.Run("Create Proof API Client", func() {
 		var err error
@@ -359,11 +349,8 @@ func (s *IbcEurekaTestSuite) SetupSuite(ctx context.Context, proofType types.Sup
 
 	// Create Ethereum light client on Cosmos for Eth→Cosmos direction
 	s.Require().True(s.Run("Create ethereum light client on Cosmos chain", func() {
-		checksumHex := s.StoreLightClient(ctx, simd, s.SimdRelayerSubmitter)
 		// checksumHex is empty for native attestor (no wasm needed)
-		if !s.IsEthLcOnCosmosAttestor() {
-			s.Require().NotEmpty(checksumHex)
-		}
+		checksumHex := s.StoreLightClient(ctx, simd, s.SimdRelayerSubmitter)
 
 		var createClientTxBodyBz []byte
 

@@ -18,7 +18,6 @@ import (
 
 	sdkmath "cosmossdk.io/math"
 
-	sdk "github.com/cosmos/cosmos-sdk/types"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
 
@@ -121,12 +120,13 @@ func (s *IbcEurekaSolanaIFTTestSuite) Test_IFT_ExistingToken_SolanaToCosmosRound
 
 	var cosmosDenom string
 	s.Require().True(s.Run("Create tokenfactory denom on Cosmos", func() {
-		cosmosDenom = s.CreateTokenFactoryDenom(ctx, s.Wfchain, s.CosmosSubmitter, testvalues.IFTTestDenom)
+		s.CreateTokenFactoryDenom(ctx, s.Wfchain, s.CosmosSubmitter, testvalues.IFTTestDenom)
+		cosmosDenom = testvalues.IFTTestDenom
 	}))
 
 	s.Require().True(s.Run("Register IFT Bridges", func() {
 		s.registerCosmosIFTBridge(ctx, cosmosDenom, testvalues.FirstAttestationsClientID, ift.ProgramID.String(), SolanaClientID, ics27_gmp.ProgramID, mint)
-		iftModuleAddr := s.getCosmosIFTModuleAddress()
+		iftModuleAddr := s.GetIFTModuleAddress(s.Wfchain)
 		s.registerSolanaIFTBridge(ctx, SolanaClientID, iftModuleAddr, cosmosDenom)
 	}))
 
@@ -301,7 +301,8 @@ func (s *IbcEurekaSolanaIFTTestSuite) Test_IFT_NewToken_CosmosToSolanaRoundtrip(
 
 	var cosmosDenom string
 	s.Require().True(s.Run("Create and mint tokenfactory denom", func() {
-		cosmosDenom = s.CreateTokenFactoryDenom(ctx, s.Wfchain, s.CosmosSubmitter, testvalues.IFTTestDenom)
+		s.CreateTokenFactoryDenom(ctx, s.Wfchain, s.CosmosSubmitter, testvalues.IFTTestDenom)
+		cosmosDenom = testvalues.IFTTestDenom
 		s.MintTokenFactory(ctx, s.Wfchain, s.CosmosSubmitter, cosmosDenom, sdkmath.NewInt(int64(IFTMintAmount)), s.CosmosUser.FormattedAddress())
 
 		balance, err := s.Wfchain.GetBalance(ctx, s.CosmosUser.FormattedAddress(), cosmosDenom)
@@ -330,7 +331,7 @@ func (s *IbcEurekaSolanaIFTTestSuite) Test_IFT_NewToken_CosmosToSolanaRoundtrip(
 
 	s.Require().True(s.Run("Register IFT Bridges", func() {
 		s.registerCosmosIFTBridge(ctx, cosmosDenom, testvalues.FirstAttestationsClientID, ift.ProgramID.String(), SolanaClientID, ics27_gmp.ProgramID, mint)
-		iftModuleAddr := s.getCosmosIFTModuleAddress()
+		iftModuleAddr := s.GetIFTModuleAddress(s.Wfchain)
 		s.registerSolanaIFTBridge(ctx, SolanaClientID, iftModuleAddr, cosmosDenom)
 	}))
 
@@ -547,12 +548,13 @@ func (s *IbcEurekaSolanaIFTTestSuite) Test_IFT_NewToken2022_SolanaToCosmos() {
 
 	var cosmosDenom string
 	s.Require().True(s.Run("Create tokenfactory denom on Cosmos", func() {
-		cosmosDenom = s.CreateTokenFactoryDenom(ctx, s.Wfchain, s.CosmosSubmitter, testvalues.IFTTestDenom)
+		s.CreateTokenFactoryDenom(ctx, s.Wfchain, s.CosmosSubmitter, testvalues.IFTTestDenom)
+		cosmosDenom = testvalues.IFTTestDenom
 	}))
 
 	s.Require().True(s.Run("Register IFT Bridges", func() {
 		s.registerCosmosIFTBridge(ctx, cosmosDenom, testvalues.FirstAttestationsClientID, ift.ProgramID.String(), SolanaClientID, ics27_gmp.ProgramID, mint)
-		iftModuleAddr := s.getCosmosIFTModuleAddress()
+		iftModuleAddr := s.GetIFTModuleAddress(s.Wfchain)
 		s.registerSolanaIFTBridge(ctx, SolanaClientID, iftModuleAddr, cosmosDenom)
 	}))
 
@@ -661,12 +663,13 @@ func (s *IbcEurekaSolanaIFTTestSuite) Test_IFT_TwoConsecutiveTransfersWithBatchR
 
 	var cosmosDenom string
 	s.Require().True(s.Run("Create tokenfactory denom on Cosmos", func() {
-		cosmosDenom = s.CreateTokenFactoryDenom(ctx, s.Wfchain, s.CosmosSubmitter, testvalues.IFTTestDenom)
+		s.CreateTokenFactoryDenom(ctx, s.Wfchain, s.CosmosSubmitter, testvalues.IFTTestDenom)
+		cosmosDenom = testvalues.IFTTestDenom
 	}))
 
 	s.Require().True(s.Run("Register IFT Bridges", func() {
 		s.registerCosmosIFTBridge(ctx, cosmosDenom, testvalues.FirstAttestationsClientID, ift.ProgramID.String(), SolanaClientID, ics27_gmp.ProgramID, mint)
-		iftModuleAddr := s.getCosmosIFTModuleAddress()
+		iftModuleAddr := s.GetIFTModuleAddress(s.Wfchain)
 		s.registerSolanaIFTBridge(ctx, SolanaClientID, iftModuleAddr, cosmosDenom)
 	}))
 
@@ -791,7 +794,8 @@ func (s *IbcEurekaSolanaIFTTestSuite) Test_IFT_CosmosToSolanaRoundtrip() {
 	// Create and mint tokens on Cosmos
 	var cosmosDenom string
 	s.Require().True(s.Run("Create and mint tokenfactory denom", func() {
-		cosmosDenom = s.CreateTokenFactoryDenom(ctx, s.Wfchain, s.CosmosSubmitter, testvalues.IFTTestDenom)
+		s.CreateTokenFactoryDenom(ctx, s.Wfchain, s.CosmosSubmitter, testvalues.IFTTestDenom)
+		cosmosDenom = testvalues.IFTTestDenom
 		s.MintTokenFactory(ctx, s.Wfchain, s.CosmosSubmitter, cosmosDenom, sdkmath.NewInt(int64(IFTMintAmount)), s.CosmosUser.FormattedAddress())
 
 		balance, err := s.Wfchain.GetBalance(ctx, s.CosmosUser.FormattedAddress(), cosmosDenom)
@@ -820,7 +824,7 @@ func (s *IbcEurekaSolanaIFTTestSuite) Test_IFT_CosmosToSolanaRoundtrip() {
 	mint := s.IFTMintWallet.PublicKey()
 	s.Require().True(s.Run("Register IFT Bridges", func() {
 		s.registerCosmosIFTBridge(ctx, cosmosDenom, testvalues.FirstAttestationsClientID, ift.ProgramID.String(), SolanaClientID, ics27_gmp.ProgramID, mint)
-		iftModuleAddr := s.getCosmosIFTModuleAddress()
+		iftModuleAddr := s.GetIFTModuleAddress(s.Wfchain)
 		s.registerSolanaIFTBridge(ctx, SolanaClientID, iftModuleAddr, cosmosDenom)
 	}))
 
@@ -993,12 +997,13 @@ func (s *IbcEurekaSolanaIFTTestSuite) Test_IFT_ExistingToken2022_SolanaToCosmos(
 
 	var cosmosDenom string
 	s.Require().True(s.Run("Create tokenfactory denom on Cosmos", func() {
-		cosmosDenom = s.CreateTokenFactoryDenom(ctx, s.Wfchain, s.CosmosSubmitter, testvalues.IFTTestDenom)
+		s.CreateTokenFactoryDenom(ctx, s.Wfchain, s.CosmosSubmitter, testvalues.IFTTestDenom)
+		cosmosDenom = testvalues.IFTTestDenom
 	}))
 
 	s.Require().True(s.Run("Register IFT Bridges", func() {
 		s.registerCosmosIFTBridge(ctx, cosmosDenom, testvalues.FirstAttestationsClientID, ift.ProgramID.String(), SolanaClientID, ics27_gmp.ProgramID, mint)
-		iftModuleAddr := s.getCosmosIFTModuleAddress()
+		iftModuleAddr := s.GetIFTModuleAddress(s.Wfchain)
 		s.registerSolanaIFTBridge(ctx, SolanaClientID, iftModuleAddr, cosmosDenom)
 	}))
 
@@ -1228,12 +1233,13 @@ func (s *IbcEurekaSolanaIFTTestSuite) Test_IFT_ExistingToken_TimeoutRefund() {
 
 	var cosmosDenom string
 	s.Require().True(s.Run("Create tokenfactory denom on Cosmos", func() {
-		cosmosDenom = s.CreateTokenFactoryDenom(ctx, s.Wfchain, s.CosmosSubmitter, testvalues.IFTTestDenom)
+		s.CreateTokenFactoryDenom(ctx, s.Wfchain, s.CosmosSubmitter, testvalues.IFTTestDenom)
+		cosmosDenom = testvalues.IFTTestDenom
 	}))
 
 	s.Require().True(s.Run("Register IFT Bridges", func() {
 		s.registerCosmosIFTBridge(ctx, cosmosDenom, testvalues.FirstAttestationsClientID, ift.ProgramID.String(), SolanaClientID, ics27_gmp.ProgramID, mint)
-		iftModuleAddr := s.getCosmosIFTModuleAddress()
+		iftModuleAddr := s.GetIFTModuleAddress(s.Wfchain)
 		s.registerSolanaIFTBridge(ctx, SolanaClientID, iftModuleAddr, cosmosDenom)
 	}))
 
@@ -1362,12 +1368,13 @@ func (s *IbcEurekaSolanaIFTTestSuite) Test_IFT_ExistingToken_AckFailureRefund() 
 
 	var cosmosDenom string
 	s.Require().True(s.Run("Create tokenfactory denom on Cosmos", func() {
-		cosmosDenom = s.CreateTokenFactoryDenom(ctx, s.Wfchain, s.CosmosSubmitter, testvalues.IFTTestDenom)
+		s.CreateTokenFactoryDenom(ctx, s.Wfchain, s.CosmosSubmitter, testvalues.IFTTestDenom)
+		cosmosDenom = testvalues.IFTTestDenom
 	}))
 
 	s.Require().True(s.Run("Register IFT Bridges", func() {
 		s.registerCosmosIFTBridge(ctx, cosmosDenom, testvalues.FirstAttestationsClientID, ift.ProgramID.String(), SolanaClientID, ics27_gmp.ProgramID, mint)
-		iftModuleAddr := s.getCosmosIFTModuleAddress()
+		iftModuleAddr := s.GetIFTModuleAddress(s.Wfchain)
 		s.registerSolanaIFTBridge(ctx, SolanaClientID, iftModuleAddr, cosmosDenom)
 	}))
 
@@ -1892,12 +1899,13 @@ func (s *IbcEurekaSolanaIFTTestSuite) Test_IFT_ExistingToken_InvalidPendingTrans
 
 	var cosmosDenom string
 	s.Require().True(s.Run("Create tokenfactory denom on Cosmos", func() {
-		cosmosDenom = s.CreateTokenFactoryDenom(ctx, s.Wfchain, s.CosmosSubmitter, testvalues.IFTTestDenom)
+		s.CreateTokenFactoryDenom(ctx, s.Wfchain, s.CosmosSubmitter, testvalues.IFTTestDenom)
+		cosmosDenom = testvalues.IFTTestDenom
 	}))
 
 	s.Require().True(s.Run("Register IFT Bridges", func() {
 		s.registerCosmosIFTBridge(ctx, cosmosDenom, testvalues.FirstAttestationsClientID, ift.ProgramID.String(), SolanaClientID, ics27_gmp.ProgramID, mint)
-		iftModuleAddr := s.getCosmosIFTModuleAddress()
+		iftModuleAddr := s.GetIFTModuleAddress(s.Wfchain)
 		s.registerSolanaIFTBridge(ctx, SolanaClientID, iftModuleAddr, cosmosDenom)
 	}))
 
@@ -2023,13 +2031,6 @@ func (s *IbcEurekaSolanaIFTTestSuite) registerSolanaIFTBridge(ctx context.Contex
 		s.T().Logf("  Counterparty Denom: %s", counterpartyDenom)
 		s.T().Logf("  Cosmos ICA Address: %s", cosmosIcaAddress)
 	}))
-}
-
-func (s *IbcEurekaSolanaIFTTestSuite) getCosmosIFTModuleAddress() string {
-	iftAddr := authtypes.NewModuleAddress(testvalues.IFTModuleName)
-	bech32Addr, err := sdk.Bech32ifyAddressBytes(s.Wfchain.Config().Bech32Prefix, iftAddr)
-	s.Require().NoError(err)
-	return bech32Addr
 }
 
 // createIFTSplToken creates a new SPL token for IFT

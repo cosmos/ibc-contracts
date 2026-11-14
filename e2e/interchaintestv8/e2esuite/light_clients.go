@@ -23,9 +23,6 @@ func (s *TestSuite) StoreLightClient(ctx context.Context, cosmosChain *cosmos.Co
 	}
 
 	wasmBinary := s.getWasmLightClientBinary()
-	if wasmBinary == nil {
-		return ""
-	}
 	checksum := s.PushNewWasmClientProposal(ctx, cosmosChain, simdRelayerUser, wasmBinary)
 	s.Require().NotEmpty(checksum, "checksum was empty but should not have been")
 
