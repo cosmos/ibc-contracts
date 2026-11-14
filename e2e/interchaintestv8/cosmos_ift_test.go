@@ -14,8 +14,6 @@ import (
 
 	sdkmath "cosmossdk.io/math"
 
-	sdk "github.com/cosmos/cosmos-sdk/types"
-	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
 
 	gmptypes "github.com/lfdt-ibc/ibc-go/v11/modules/apps/27-gmp/types"
@@ -35,7 +33,6 @@ import (
 	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/testvalues"
 	proofapitypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/proofapi"
 	ifttypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/wfchain/ift"
-	tokenfactorytypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/wfchain/tokenfactory"
 )
 
 // CosmosIFTTestSuite tests IFT transfers between two wfchain instances
@@ -93,15 +90,7 @@ func (s *CosmosIFTTestSuite) SetupSuite(ctx context.Context) {
 			}).
 			Build()
 
-		err = config.GenerateConfigFile(testvalues.ProofAPIConfigFilePath)
-		s.Require().NoError(err)
-
-		proofApiProcess, err = proofapi.StartProofAPI(testvalues.ProofAPIConfigFilePath)
-		s.Require().NoError(err)
-
-		s.T().Cleanup(func() {
-			os.Remove(testvalues.ProofAPIConfigFilePath)
-		})
+		proofApiProcess = s.StartProofAPI(config)
 	}))
 
 	s.T().Cleanup(func() {
@@ -269,19 +258,19 @@ func (s *CosmosIFTTestSuite) Test_IFTTransfer() {
 	var denomA, denomB string
 
 	s.Require().True(s.Run("Create denom on Chain A", func() {
-		denomA = s.createTokenFactoryDenom(ctx, s.ChainA, s.ChainASubmitter, subdenom)
+		denomA = s.CreateTokenFactoryDenom(ctx, s.ChainA, s.ChainASubmitter, subdenom)
 		s.T().Logf("Created denom on Chain A: %s", denomA)
 	}))
 
 	s.Require().True(s.Run("Create denom on Chain B", func() {
-		denomB = s.createTokenFactoryDenom(ctx, s.ChainB, s.ChainBSubmitter, subdenom)
+		denomB = s.CreateTokenFactoryDenom(ctx, s.ChainB, s.ChainBSubmitter, subdenom)
 		s.T().Logf("Created denom on Chain B: %s", denomB)
 	}))
 
 	var iftModuleAddrA, iftModuleAddrB string
 	s.Require().True(s.Run("Get IFT module addresses", func() {
-		iftModuleAddrA = s.getIFTModuleAddress(ctx, s.ChainA)
-		iftModuleAddrB = s.getIFTModuleAddress(ctx, s.ChainB)
+		iftModuleAddrA = s.GetIFTModuleAddress(s.ChainA)
+		iftModuleAddrB = s.GetIFTModuleAddress(s.ChainB)
 		s.T().Logf("IFT module address on Chain A: %s", iftModuleAddrA)
 		s.T().Logf("IFT module address on Chain B: %s", iftModuleAddrB)
 	}))
@@ -295,7 +284,7 @@ func (s *CosmosIFTTestSuite) Test_IFTTransfer() {
 	}))
 
 	s.Require().True(s.Run("Mint tokens to user on Chain A", func() {
-		s.mintTokens(ctx, s.ChainA, s.ChainASubmitter, denomA, transferAmount, userA.FormattedAddress())
+		s.MintTokenFactory(ctx, s.ChainA, s.ChainASubmitter, denomA, transferAmount, userA.FormattedAddress())
 	}))
 
 	s.Require().True(s.Run("Verify initial balance on Chain A", func() {
@@ -485,19 +474,19 @@ func (s *CosmosIFTTestSuite) Test_IFTTransferTimeout() {
 	var denomA, denomB string
 
 	s.Require().True(s.Run("Create denom on Chain A", func() {
-		denomA = s.createTokenFactoryDenom(ctx, s.ChainA, s.ChainASubmitter, subdenom)
+		denomA = s.CreateTokenFactoryDenom(ctx, s.ChainA, s.ChainASubmitter, subdenom)
 		s.T().Logf("Created denom on Chain A: %s", denomA)
 	}))
 
 	s.Require().True(s.Run("Create denom on Chain B", func() {
-		denomB = s.createTokenFactoryDenom(ctx, s.ChainB, s.ChainBSubmitter, subdenom)
+		denomB = s.CreateTokenFactoryDenom(ctx, s.ChainB, s.ChainBSubmitter, subdenom)
 		s.T().Logf("Created denom on Chain B: %s", denomB)
 	}))
 
 	var iftModuleAddrA, iftModuleAddrB string
 	s.Require().True(s.Run("Get IFT module addresses", func() {
-		iftModuleAddrA = s.getIFTModuleAddress(ctx, s.ChainA)
-		iftModuleAddrB = s.getIFTModuleAddress(ctx, s.ChainB)
+		iftModuleAddrA = s.GetIFTModuleAddress(s.ChainA)
+		iftModuleAddrB = s.GetIFTModuleAddress(s.ChainB)
 		s.T().Logf("IFT module address on Chain A: %s", iftModuleAddrA)
 		s.T().Logf("IFT module address on Chain B: %s", iftModuleAddrB)
 	}))
@@ -511,7 +500,7 @@ func (s *CosmosIFTTestSuite) Test_IFTTransferTimeout() {
 	}))
 
 	s.Require().True(s.Run("Mint tokens to user on Chain A", func() {
-		s.mintTokens(ctx, s.ChainA, s.ChainASubmitter, denomA, transferAmount, userA.FormattedAddress())
+		s.MintTokenFactory(ctx, s.ChainA, s.ChainASubmitter, denomA, transferAmount, userA.FormattedAddress())
 	}))
 
 	s.Require().True(s.Run("Verify initial balance on Chain A", func() {
@@ -646,7 +635,7 @@ func (s *CosmosIFTTestSuite) Test_IFTTransferFailedReceive() {
 	var denomA string
 
 	s.Require().True(s.Run("Create denom on Chain A", func() {
-		denomA = s.createTokenFactoryDenom(ctx, s.ChainA, s.ChainASubmitter, subdenom)
+		denomA = s.CreateTokenFactoryDenom(ctx, s.ChainA, s.ChainASubmitter, subdenom)
 	}))
 
 	// NOTE: We intentionally do NOT create denom or register bridge on Chain B
@@ -654,7 +643,7 @@ func (s *CosmosIFTTestSuite) Test_IFTTransferFailedReceive() {
 
 	var iftModuleAddrB string
 	s.Require().True(s.Run("Get IFT module address on Chain B", func() {
-		iftModuleAddrB = s.getIFTModuleAddress(ctx, s.ChainB)
+		iftModuleAddrB = s.GetIFTModuleAddress(s.ChainB)
 	}))
 
 	s.Require().True(s.Run("Register IFT bridge on Chain A only", func() {
@@ -664,7 +653,7 @@ func (s *CosmosIFTTestSuite) Test_IFTTransferFailedReceive() {
 	// NOTE: Intentionally NOT registering the IFT bridge on Chain B
 
 	s.Require().True(s.Run("Mint tokens to user on Chain A", func() {
-		s.mintTokens(ctx, s.ChainA, s.ChainASubmitter, denomA, transferAmount, userA.FormattedAddress())
+		s.MintTokenFactory(ctx, s.ChainA, s.ChainASubmitter, denomA, transferAmount, userA.FormattedAddress())
 		balance, err := s.ChainA.GetBalance(ctx, userA.FormattedAddress(), denomA)
 		s.Require().NoError(err)
 		s.Require().True(balance.Equal(transferAmount))
@@ -756,17 +745,17 @@ func (s *CosmosIFTTestSuite) Test_IFTTransferMultipleSequential() {
 	var denomA, denomB string
 
 	s.Require().True(s.Run("Create denom on Chain A", func() {
-		denomA = s.createTokenFactoryDenom(ctx, s.ChainA, s.ChainASubmitter, subdenom)
+		denomA = s.CreateTokenFactoryDenom(ctx, s.ChainA, s.ChainASubmitter, subdenom)
 	}))
 
 	s.Require().True(s.Run("Create denom on Chain B", func() {
-		denomB = s.createTokenFactoryDenom(ctx, s.ChainB, s.ChainBSubmitter, subdenom)
+		denomB = s.CreateTokenFactoryDenom(ctx, s.ChainB, s.ChainBSubmitter, subdenom)
 	}))
 
 	var iftModuleAddrA, iftModuleAddrB string
 	s.Require().True(s.Run("Get IFT module addresses", func() {
-		iftModuleAddrA = s.getIFTModuleAddress(ctx, s.ChainA)
-		iftModuleAddrB = s.getIFTModuleAddress(ctx, s.ChainB)
+		iftModuleAddrA = s.GetIFTModuleAddress(s.ChainA)
+		iftModuleAddrB = s.GetIFTModuleAddress(s.ChainB)
 	}))
 
 	s.Require().True(s.Run("Register IFT bridges", func() {
@@ -775,7 +764,7 @@ func (s *CosmosIFTTestSuite) Test_IFTTransferMultipleSequential() {
 	}))
 
 	s.Require().True(s.Run("Mint tokens to user on Chain A", func() {
-		s.mintTokens(ctx, s.ChainA, s.ChainASubmitter, denomA, totalAmount, userA.FormattedAddress())
+		s.MintTokenFactory(ctx, s.ChainA, s.ChainASubmitter, denomA, totalAmount, userA.FormattedAddress())
 		balance, err := s.ChainA.GetBalance(ctx, userA.FormattedAddress(), denomA)
 		s.Require().NoError(err)
 		s.Require().True(balance.Equal(totalAmount))
@@ -1057,29 +1046,6 @@ func (s *CosmosIFTTestSuite) Test_GMPPacketNotBlockedByIFT() {
 
 // Helper functions
 
-func (s *CosmosIFTTestSuite) createTokenFactoryDenom(ctx context.Context, chain *cosmos.CosmosChain, user ibc.Wallet, denom string) string {
-	msg := &tokenfactorytypes.MsgCreateDenom{
-		Sender: user.FormattedAddress(),
-		Denom:  denom,
-	}
-
-	_, err := s.BroadcastMessages(ctx, chain, user, 200_000, msg)
-	s.Require().NoError(err)
-
-	return denom
-}
-
-func (s *CosmosIFTTestSuite) mintTokens(ctx context.Context, chain *cosmos.CosmosChain, user ibc.Wallet, denom string, amount sdkmath.Int, recipient string) {
-	msg := &tokenfactorytypes.MsgMint{
-		From:    user.FormattedAddress(),
-		Address: recipient,
-		Amount:  sdk.Coin{Denom: denom, Amount: amount},
-	}
-
-	_, err := s.BroadcastMessages(ctx, chain, user, 200_000, msg)
-	s.Require().NoError(err)
-}
-
 func (s *CosmosIFTTestSuite) registerIFTBridge(ctx context.Context, chain *cosmos.CosmosChain, user ibc.Wallet, denom, clientId, counterpartyIftAddr, constructor string) {
 	govModuleAddr, err := chain.AuthQueryModuleAddress(ctx, govtypes.ModuleName)
 	s.Require().NoError(err)
@@ -1118,12 +1084,4 @@ func (s *CosmosIFTTestSuite) queryPendingTransfer(ctx context.Context, chain *co
 		ClientId: clientID,
 		Sequence: sequence,
 	})
-}
-
-func (s *CosmosIFTTestSuite) getIFTModuleAddress(ctx context.Context, chain *cosmos.CosmosChain) string {
-	iftAddr := authtypes.NewModuleAddress(testvalues.IFTModuleName)
-	bech32Addr, err := sdk.Bech32ifyAddressBytes(chain.Config().Bech32Prefix, iftAddr)
-	s.Require().NoError(err)
-
-	return bech32Addr
 }

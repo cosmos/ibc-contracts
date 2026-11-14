@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -58,8 +59,10 @@ import (
 
 	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/ethereum"
 	ibctesting "github.com/lfdt-ibc/ibc-contracts/e2e/v8/ibctesting"
+	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/proofapi"
 	"github.com/lfdt-ibc/ibc-contracts/e2e/v8/testvalues"
 	ethereumtypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/ethereum"
+	tokenfactorytypes "github.com/lfdt-ibc/ibc-contracts/e2e/v8/types/wfchain/tokenfactory"
 )
 
 // broadcastMessages is the shared broadcast path. Pass waitBlocks=0 to skip the post-inclusion wait.
@@ -109,6 +112,40 @@ func (s *TestSuite) BroadcastMessages(ctx context.Context, chain *cosmos.CosmosC
 // BroadcastMessagesNoWait is like BroadcastMessages but skips the 2-block wait after inclusion.
 func (s *TestSuite) BroadcastMessagesNoWait(ctx context.Context, chain *cosmos.CosmosChain, user ibc.Wallet, gas uint64, msgs ...sdk.Msg) (*sdk.TxResponse, error) {
 	return s.broadcastMessages(ctx, chain, user, gas, 0, msgs...)
+}
+
+// CreateTokenFactoryDenom creates a tokenfactory denom owned by user and returns the denom.
+func (s *TestSuite) CreateTokenFactoryDenom(ctx context.Context, chain *cosmos.CosmosChain, user ibc.Wallet, denom string) string {
+	msg := &tokenfactorytypes.MsgCreateDenom{
+		Sender: user.FormattedAddress(),
+		Denom:  denom,
+	}
+
+	_, err := s.BroadcastMessages(ctx, chain, user, 200_000, msg)
+	s.Require().NoError(err)
+
+	return denom
+}
+
+// MintTokenFactory mints tokenfactory tokens of denom from user to recipient.
+func (s *TestSuite) MintTokenFactory(ctx context.Context, chain *cosmos.CosmosChain, user ibc.Wallet, denom string, amount sdkmath.Int, recipient string) {
+	msg := &tokenfactorytypes.MsgMint{
+		From:    user.FormattedAddress(),
+		Address: recipient,
+		Amount:  sdk.Coin{Denom: denom, Amount: amount},
+	}
+
+	_, err := s.BroadcastMessages(ctx, chain, user, 200_000, msg)
+	s.Require().NoError(err)
+}
+
+// GetIFTModuleAddress returns the bech32 address of the IFT module account on chain.
+func (s *TestSuite) GetIFTModuleAddress(chain *cosmos.CosmosChain) string {
+	iftAddr := authtypes.NewModuleAddress(testvalues.IFTModuleName)
+	bech32Addr, err := sdk.Bech32ifyAddressBytes(chain.Config().Bech32Prefix, iftAddr)
+	s.Require().NoError(err)
+
+	return bech32Addr
 }
 
 // CreateAndFundCosmosUser returns a new cosmos user with the initial balance and funds it with the native chain denom.
@@ -507,6 +544,22 @@ func StripHTTPPrefix(endpoint string) string {
 	endpoint = strings.TrimPrefix(endpoint, "https://")
 	endpoint = strings.TrimPrefix(endpoint, "http://")
 	return endpoint
+}
+
+// StartProofAPI writes config to the proof API config file and starts the proof API with it.
+// The config file is removed when the current (sub)test finishes; stopping the process is up to the caller.
+func (s *TestSuite) StartProofAPI(config proofapi.Config) *os.Process {
+	err := config.GenerateConfigFile(testvalues.ProofAPIConfigFilePath)
+	s.Require().NoError(err)
+
+	process, err := proofapi.StartProofAPI(testvalues.ProofAPIConfigFilePath)
+	s.Require().NoError(err)
+
+	s.T().Cleanup(func() {
+		os.Remove(testvalues.ProofAPIConfigFilePath)
+	})
+
+	return process
 }
 
 // RequireMulticallRejected requires that the `IBCMulticall` relay tx delivered no packet. Either the batch reverted, or

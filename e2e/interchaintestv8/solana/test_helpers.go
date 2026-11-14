@@ -18,6 +18,7 @@ import (
 	"github.com/gagliardetto/solana-go/rpc"
 
 	access_manager "github.com/lfdt-ibc/ibc-contracts/packages/go-anchor/accessmanager"
+	attestation_light_client "github.com/lfdt-ibc/ibc-contracts/packages/go-anchor/attestation"
 	ics07_tendermint "github.com/lfdt-ibc/ibc-contracts/packages/go-anchor/ics07tendermint"
 	ics26_router "github.com/lfdt-ibc/ibc-contracts/packages/go-anchor/ics26router"
 
@@ -962,6 +963,29 @@ func (s *Solana) VerifyIftAppStateExists(
 	require.True(accountInfo.Value.Lamports > 0, "IFT app state PDA should have lamports")
 
 	t.Logf("✓ IFT app state exists: %s", appStatePDA.String())
+}
+
+// AttestationConsensusStatePDA fetches the attestation client state to get the latest height,
+// then derives the consensus state PDA.
+func (s *Solana) AttestationConsensusStatePDA(ctx context.Context, t *testing.T, require *require.Assertions, clientStatePDA solana.PublicKey) solana.PublicKey {
+	t.Helper()
+
+	accountInfo, err := s.RPCClient.GetAccountInfoWithOpts(ctx, clientStatePDA, &rpc.GetAccountInfoOpts{
+		Commitment: rpc.CommitmentConfirmed,
+	})
+	require.NoError(err)
+
+	clientState, err := attestation_light_client.ParseAccount_AttestationTypesClientState(accountInfo.Value.Data.GetBinary())
+	require.NoError(err)
+
+	heightBytes := make([]byte, 8)
+	binary.LittleEndian.PutUint64(heightBytes, clientState.LatestHeight)
+
+	consensusStatePDA, _ := Attestation.ConsensusStateWithArgSeedPDA(
+		attestation_light_client.ProgramID,
+		heightBytes,
+	)
+	return consensusStatePDA
 }
 
 func (s *Solana) CreateIBCAddressLookupTable(ctx context.Context, t *testing.T, require *require.Assertions, user *solana.Wallet, cosmosChainID string, gmpPortID string, clientID string) solana.PublicKey {

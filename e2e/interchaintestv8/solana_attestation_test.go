@@ -347,15 +347,7 @@ func (s *IbcSolanaAttestationTestSuite) SetupSuite(ctx context.Context) {
 		}).
 		Build()
 
-	err = config.GenerateConfigFile(testvalues.ProofAPIConfigFilePath)
-	s.Require().NoError(err)
-
-	s.ProofApiProcess, err = proofapi.StartProofAPI(testvalues.ProofAPIConfigFilePath)
-	s.Require().NoError(err)
-
-	s.T().Cleanup(func() {
-		os.Remove(testvalues.ProofAPIConfigFilePath)
-	})
+	s.ProofApiProcess = s.StartProofAPI(config)
 
 	s.ProofApiClient, err = proofapi.GetGRPCClient(proofapi.DefaultProofAPIGRPCAddress())
 	s.Require().NoError(err)
@@ -623,7 +615,7 @@ func (s *IbcSolanaAttestationTestSuite) Test_Attestation_SolanaAttestorVerifyPac
 		}
 
 		attestationClientStatePDA, _ := solana.Attestation.ClientPDA(attestation.ProgramID)
-		attestationConsensusStatePDA := s.deriveAttestationConsensusStatePDA(ctx, attestationClientStatePDA)
+		attestationConsensusStatePDA := s.Solana.Chain.AttestationConsensusStatePDA(ctx, s.T(), s.Require(), attestationClientStatePDA)
 		sendPacketInstruction, err := test_ibc_app.NewSendPacketInstruction(
 			packetMsg,
 			appState,
@@ -1125,7 +1117,7 @@ func (s *IbcSolanaAttestationTestSuite) Test_Attestation_Roundtrip() {
 			}
 
 			attestationClientStatePDA, _ := solana.Attestation.ClientPDA(attestation.ProgramID)
-			attestationConsensusStatePDA := s.deriveAttestationConsensusStatePDA(ctx, attestationClientStatePDA)
+			attestationConsensusStatePDA := s.Solana.Chain.AttestationConsensusStatePDA(ctx, s.T(), s.Require(), attestationClientStatePDA)
 			sendPacketInstruction, err := test_ibc_app.NewSendPacketInstruction(
 				packetMsg,
 				appState,
@@ -1329,7 +1321,7 @@ func (s *IbcSolanaAttestationTestSuite) Test_Attestation_TimeoutFromSolana() {
 		packetCommitmentPDA, _ := solana.Ics26Router.PacketCommitmentWithArgSeedPDA(ics26_router.ProgramID, []byte(s.AttestationClientID), sequenceBytes)
 
 		attestationClientStatePDA, _ := solana.Attestation.ClientPDA(attestation.ProgramID)
-		attestationConsensusStatePDA := s.deriveAttestationConsensusStatePDA(ctx, attestationClientStatePDA)
+		attestationConsensusStatePDA := s.Solana.Chain.AttestationConsensusStatePDA(ctx, s.T(), s.Require(), attestationClientStatePDA)
 
 		// Query clock as late as possible to minimize drift between query and execution
 		solanaClockTime, err := s.Solana.Chain.GetSolanaClockTime(ctx)
@@ -1709,25 +1701,4 @@ func (s *IbcSolanaAttestationTestSuite) Test_Attestation_AccessManagerTransfer()
 		s.Require().Equal(amBProgramID, state.AmState.AccessManager, "AM should still be AM-B")
 		s.Require().Nil(state.AmState.PendingAccessManager, "Pending should be cleared after cancel")
 	}))
-}
-
-// deriveAttestationConsensusStatePDA fetches the attestation client state to get the latest height,
-// then derives the consensus state PDA.
-func (s *IbcSolanaAttestationTestSuite) deriveAttestationConsensusStatePDA(ctx context.Context, clientStatePDA solanago.PublicKey) solanago.PublicKey {
-	accountInfo, err := s.Solana.Chain.RPCClient.GetAccountInfoWithOpts(ctx, clientStatePDA, &rpc.GetAccountInfoOpts{
-		Commitment: rpc.CommitmentConfirmed,
-	})
-	s.Require().NoError(err)
-
-	clientState, err := attestation.ParseAccount_AttestationTypesClientState(accountInfo.Value.Data.GetBinary())
-	s.Require().NoError(err)
-
-	heightBytes := make([]byte, 8)
-	binary.LittleEndian.PutUint64(heightBytes, clientState.LatestHeight)
-
-	consensusStatePDA, _ := solana.Attestation.ConsensusStateWithArgSeedPDA(
-		attestation.ProgramID,
-		heightBytes,
-	)
-	return consensusStatePDA
 }

@@ -17,7 +17,7 @@ import (
 // For native attestor (attestor-native), returns empty string as no wasm binary is needed.
 func (s *TestSuite) StoreLightClient(ctx context.Context, cosmosChain *cosmos.CosmosChain, simdRelayerUser ibc.Wallet) string {
 	// Native attestor doesn't need a wasm binary
-	if s.config.cosmos.lightClientType == testvalues.EthLCOnCosmosTypeAttestorNative {
+	if s.IsEthLcOnCosmosAttestor() {
 		s.T().Log("Using native attestor - no wasm storage needed")
 		return ""
 	}
@@ -52,12 +52,6 @@ func (s *TestSuite) StoreSolanaLightClient(ctx context.Context, cosmosChain *cos
 func (s *TestSuite) getWasmLightClientBinary() *os.File {
 	lightClientType := s.config.cosmos.lightClientType
 	wasmTag := s.config.cosmos.wasmLightClientTag
-
-	// Native attestor doesn't need a wasm binary
-	if lightClientType == testvalues.EthLCOnCosmosTypeAttestorNative {
-		s.T().Log("Using native attestor - no wasm binary needed")
-		return nil
-	}
 
 	// Dummy light client (only valid for Anvil testnets)
 	if lightClientType == testvalues.EthLCOnCosmosTypeDummyWasm {
