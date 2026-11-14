@@ -125,9 +125,6 @@ func (s *IbcEurekaGmpTestSuite) SetupSuite(ctx context.Context, proofType types.
 			s.Require().Fail("invalid prover type: %s", prover)
 		}
 
-		if os.Getenv(testvalues.EnvKeyRustLog) == "" {
-			os.Setenv(testvalues.EnvKeyRustLog, testvalues.EnvValueRustLog_Info)
-		}
 		os.Setenv(testvalues.EnvKeyEthRPC, eth.RPC)
 		os.Setenv(testvalues.EnvKeyTendermintRPC, simd.GetHostRPCAddress())
 		os.Setenv(testvalues.EnvKeySp1Prover, prover)

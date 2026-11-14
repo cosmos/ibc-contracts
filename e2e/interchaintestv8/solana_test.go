@@ -109,8 +109,10 @@ func (s *IbcEurekaSolanaTestSuite) SetupSuite(ctx context.Context) {
 	err = os.Chdir("../..")
 	s.Require().NoError(err)
 
-	os.Setenv(testvalues.EnvKeyEthTestnetType, testvalues.EthTestnetType_None)
-	os.Setenv(testvalues.EnvKeySolanaTestnetType, testvalues.SolanaTestnetType_Localnet)
+	s.SetupOverrides = e2esuite.SetupOverrides{
+		EthTestnetType:    testvalues.EthTestnetType_None,
+		SolanaTestnetType: testvalues.SolanaTestnetType_Localnet,
+	}
 	s.TestSuite.SetupSuite(ctx)
 
 	s.T().Log("Waiting for Solana cluster to be ready...")

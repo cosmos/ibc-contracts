@@ -5,7 +5,6 @@ package testvalues
 import (
 	"encoding/json"
 	"math/big"
-	"os"
 	"time"
 
 	"github.com/holiman/uint256"
@@ -323,17 +322,6 @@ var (
 		return role
 	}()
 )
-
-// EnvEnsure returns the value of key, first setting it to defaultValue if it is unset or empty.
-func EnvEnsure(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-
-	os.Setenv(key, defaultValue)
-
-	return defaultValue
-}
 
 type SolanaOptions struct {
 	GMPProgramID string `json:"gmp_program_id"`

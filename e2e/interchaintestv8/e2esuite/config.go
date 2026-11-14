@@ -48,9 +48,9 @@ type solanaConfig struct {
 	testnetType string
 }
 
-// cosmosConfig holds config for wasm light clients deployed on Cosmos.
+// cosmosConfig holds configuration for the Ethereum light client deployed on Cosmos.
 type cosmosConfig struct {
-	lightClientType    string // dummy, full, or attestor
+	lightClientType    string // dummy, full, or attestor-native
 	wasmLightClientTag string // version tag or "local"
 }
 
@@ -63,6 +63,12 @@ type setupConfig struct {
 
 // validate checks for invalid environment variable combinations and returns an error if found.
 func (c *setupConfig) validate() error {
+	switch c.ethereum.lightClientType {
+	case "", testvalues.CosmosLcTypeSp1, testvalues.CosmosLcTypeAttestor:
+	default:
+		return fmt.Errorf("invalid config: unsupported COSMOS_LC_ON_ETH=%s", c.ethereum.lightClientType)
+	}
+
 	ethTestnetType := c.ethereum.testnetType
 	ethLcOnCosmos := c.cosmos.lightClientType
 

@@ -119,20 +119,12 @@ func (s *MultiAttestorTestSuite) SetupSuite(ctx context.Context) {
 	s.T().Logf("Multi-attestor config: total=%d, active=%d, quorum=%d",
 		s.totalAttestors, s.activeAttestors, s.quorumThreshold)
 
-	if os.Getenv(testvalues.EnvKeyRustLog) == "" {
-		os.Setenv(testvalues.EnvKeyRustLog, testvalues.EnvValueRustLog_Info)
+	// A single Anvil chain and Cosmos, with attestor light clients in both directions
+	s.SetupOverrides = e2esuite.SetupOverrides{
+		EthTestnetType: testvalues.EthTestnetTypeAnvil,
+		EthLcOnCosmos:  testvalues.EthLCOnCosmosTypeAttestorNative,
+		CosmosLcOnEth:  testvalues.CosmosLcTypeAttestor,
 	}
-
-	// Configure for single Anvil chain (PoW) + Cosmos
-	os.Setenv(testvalues.EnvKeyEthTestnetType, testvalues.EthTestnetTypeAnvil)
-
-	// Set ETH_LC_ON_COSMOS to use native attestor
-	ethLcType := os.Getenv(testvalues.EnvKeyEthLcOnCosmos)
-	s.Require().Equalf(testvalues.EthLCOnCosmosTypeAttestorNative, ethLcType, "For multi-attestor tests, ETH_LC_ON_COSMOS must be set to '%s'", testvalues.EthLCOnCosmosTypeAttestorNative)
-	s.T().Logf("ETH_LC_ON_COSMOS: %s", ethLcType)
-
-	// Force COSMOS_LC_ON_ETH to attestor for this test
-	os.Setenv(testvalues.EnvKeyCosmosLcOnEth, testvalues.CosmosLcTypeAttestor)
 
 	s.TestSuite.SetupSuite(ctx)
 

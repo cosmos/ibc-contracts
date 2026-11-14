@@ -166,8 +166,10 @@ func (s *EthereumSolanaIFTTestSuite) SetupSuite(ctx context.Context) {
 	err = os.Chdir("../..")
 	s.Require().NoError(err)
 
-	os.Setenv(testvalues.EnvKeyEthTestnetType, testvalues.EthTestnetTypeAnvil)
-	os.Setenv(testvalues.EnvKeySolanaTestnetType, testvalues.SolanaTestnetType_Localnet)
+	s.SetupOverrides = e2esuite.SetupOverrides{
+		EthTestnetType:    testvalues.EthTestnetTypeAnvil,
+		SolanaTestnetType: testvalues.SolanaTestnetType_Localnet,
+	}
 	s.TestSuite.SetupSuite(ctx)
 
 	s.T().Log("Waiting for Solana cluster to be ready...")
@@ -193,9 +195,6 @@ func (s *EthereumSolanaIFTTestSuite) SetupSuite(ctx context.Context) {
 		os.Setenv(testvalues.EnvKeySp1Prover, prover)
 		os.Setenv(testvalues.EnvKeyVerifier, testvalues.EnvValueVerifier_Mock)
 
-		if os.Getenv(testvalues.EnvKeyRustLog) == "" {
-			os.Setenv(testvalues.EnvKeyRustLog, testvalues.EnvValueRustLog_Info)
-		}
 		os.Setenv(testvalues.EnvKeyEthRPC, eth.RPC)
 		os.Setenv(testvalues.EnvKeyOperatorPrivateKey, hex.EncodeToString(crypto.FromECDSA(operatorKey)))
 	}))

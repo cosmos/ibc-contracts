@@ -133,7 +133,6 @@ func (s *MultichainTestSuite) SetupSuite(ctx context.Context, proofType types.Su
 			s.Require().Fail("invalid prover type: %s", prover)
 		}
 
-		os.Setenv(testvalues.EnvKeyRustLog, testvalues.EnvValueRustLog_Info)
 		os.Setenv(testvalues.EnvKeyEthRPC, eth.RPC)
 		os.Setenv(testvalues.EnvKeySp1Prover, prover)
 		os.Setenv(testvalues.EnvKeyOperatorPrivateKey, hex.EncodeToString(crypto.FromECDSA(operatorKey)))

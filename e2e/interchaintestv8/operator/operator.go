@@ -385,6 +385,11 @@ func marshalMisbehaviour(cdc codec.Codec, misbehaviour tmclient.Misbehaviour) ([
 }
 
 func execOperatorCommand(c *exec.Cmd) ([]byte, error) {
+	// The operator logs through SP1's logger, which reads RUST_LOG and logs nothing if it is unset.
+	if os.Getenv(testvalues.EnvKeyRustLog) == "" {
+		c.Env = append(os.Environ(), testvalues.EnvKeyRustLog+"="+testvalues.EnvValueRustLog_Info)
+	}
+
 	var outBuf bytes.Buffer
 
 	// Create a MultiWriter to write to both os.Stdout and the buffer
