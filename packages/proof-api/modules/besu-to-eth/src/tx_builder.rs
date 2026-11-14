@@ -11,7 +11,7 @@ use alloy::{
     primitives::{hex, keccak256, Address, Bytes, Signature, B256, U256},
     providers::{Provider, RootProvider},
     rpc::types::{EIP1186AccountProofResponse, EIP1186StorageProof},
-    sol_types::{SolCall, SolValue},
+    sol_types::SolValue,
 };
 use anyhow::{anyhow, bail, ensure, Context, Result};
 use ethereum_apis::eth_api::client::EthApiClient;
@@ -20,14 +20,15 @@ use ibc_eureka_solidity_types::{
     besu::besu_light_client,
     ibc_multicall::multicall_calldata,
     ics26::{
-        router::{routerCalls, routerInstance, updateClientCall},
-        IICS02ClientMsgs::Height as RouterHeight,
-        ICS26_IBC_STORAGE_SLOT,
+        router::routerInstance, IICS02ClientMsgs::Height as RouterHeight, ICS26_IBC_STORAGE_SLOT,
     },
     msgs::{IBesuLightClientMsgs, IICS02ClientMsgs::Height as MsgHeight},
 };
 use proof_api_lib::utils::{
-    eth_eureka::{src_events_to_recv_and_ack_msgs, target_events_to_timeout_msgs},
+    eth_eureka::{
+        src_events_to_recv_and_ack_msgs, target_events_to_timeout_msgs, update_client_calldata,
+        update_client_multicall_calldata, PacketCall,
+    },
     RelayEventsParams,
 };
 use rlp::{Rlp, RlpStream};
@@ -133,18 +134,17 @@ impl TxBuilder {
         let trusted_state = consensus_state(&self.fetch_source_header(trusted_height).await?)?;
         let target_header = self.fetch_source_header(target_height).await?;
 
-        let update_call = Self::build_update_client_calldata(
-            dst_client_id,
+        let update_msg = Self::build_update_client_msg(
             trusted_height,
             trusted_state,
             &target_header,
             self.consensus_type,
         )?;
 
-        Ok(multicall_calldata(
+        Ok(update_client_multicall_calldata(
             *self.dst_ics26_router.address(),
-            [update_call.into()],
-            1,
+            dst_client_id.to_string(),
+            update_msg,
         ))
     }
 
@@ -234,20 +234,13 @@ impl TxBuilder {
 
         let update_call = self
             .update_client_calldata_if_needed(&params.dst_client_id, &header)
-            .await?
-            .map(Bytes::from);
+            .await?;
         // The update and the first packet call, which carries the account proof that the
         // remaining calls rely on, must succeed. Every other packet call is allowed to fail.
         let strict_calls = usize::from(update_call.is_some()) + 1;
-        let all_calls =
-            update_call
-                .into_iter()
-                .chain(packet_calls.into_iter().map(|call| match call {
-                    routerCalls::ackPacket(call) => call.abi_encode().into(),
-                    routerCalls::recvPacket(call) => call.abi_encode().into(),
-                    routerCalls::timeoutPacket(call) => call.abi_encode().into(),
-                    _ => unreachable!("only recv, ack, and timeout calls are constructed"),
-                }));
+        let all_calls = update_call
+            .into_iter()
+            .chain(packet_calls.iter().map(|call| call.abi_encode().into()));
 
         Ok(multicall_calldata(
             *self.dst_ics26_router.address(),
@@ -262,7 +255,7 @@ impl TxBuilder {
         &self,
         dst_client_id: &str,
         target_header: &Header,
-    ) -> Result<Option<Vec<u8>>> {
+    ) -> Result<Option<Bytes>> {
         let trusted_height = self.fetch_destination_trusted_height(dst_client_id).await?;
         if !needs_update(trusted_height, target_header.number)? {
             tracing::info!("Client already at height {trusted_height}, skipping update");
@@ -270,23 +263,25 @@ impl TxBuilder {
         }
 
         let trusted_state = consensus_state(&self.fetch_source_header(trusted_height).await?)?;
-        Self::build_update_client_calldata(
-            dst_client_id,
+        let update_msg = Self::build_update_client_msg(
             trusted_height,
             trusted_state,
             target_header,
             self.consensus_type,
-        )
-        .map(Some)
+        )?;
+        Ok(Some(update_client_calldata(
+            dst_client_id.to_string(),
+            update_msg,
+        )))
     }
 
-    fn build_update_client_calldata(
-        dst_client_id: &str,
+    /// Builds the ABI-encoded `MsgUpdateClient` from `trusted_height` to `target_header`.
+    fn build_update_client_msg(
         trusted_height: u64,
         trusted_state: IBesuLightClientMsgs::ConsensusState,
         target_header: &Header,
         consensus_type: BesuConsensusType,
-    ) -> Result<Vec<u8>> {
+    ) -> Result<Bytes> {
         let (header_rlp, commit_seals) = split_commit_seals(target_header, consensus_type)
             .with_context(|| {
                 format!(
@@ -304,11 +299,7 @@ impl TxBuilder {
             consensusStatePreimage: trusted_state,
         };
 
-        Ok(updateClientCall {
-            clientId: dst_client_id.to_string(),
-            updateMsg: update_msg.abi_encode().into(),
-        }
-        .abi_encode())
+        Ok(update_msg.abi_encode().into())
     }
 
     async fn fetch_source_header(&self, block_height: u64) -> Result<Header> {
@@ -394,14 +385,12 @@ fn consensus_state(header: &Header) -> Result<IBesuLightClientMsgs::ConsensusSta
     })
 }
 
-fn packet_storage_key(call: &routerCalls) -> B256 {
-    let path = match call {
-        routerCalls::recvPacket(call) => call.msg_.packet.commitment_path(),
-        routerCalls::ackPacket(call) => call.msg_.packet.ack_commitment_path(),
-        routerCalls::timeoutPacket(call) => call.msg_.packet.receipt_commitment_path(),
-        _ => unreachable!("only recv, ack, and timeout calls are constructed"),
-    };
-    evm_ics26_commitment_path(&path, U256::from_be_slice(&ICS26_IBC_STORAGE_SLOT)).into()
+fn packet_storage_key(call: &PacketCall) -> B256 {
+    evm_ics26_commitment_path(
+        &call.commitment_path(),
+        U256::from_be_slice(&ICS26_IBC_STORAGE_SLOT),
+    )
+    .into()
 }
 
 /// The `eth_getProof` result for a single storage slot of the source router.
@@ -420,7 +409,7 @@ struct StorageSlotProof {
 /// `ICS26Router` verifies the proof before its no-op checks, so such a call would revert the whole
 /// multicall instead of no-op'ing. Each dropped call is logged.
 fn retain_provable_packet_calls(
-    packet_calls: &mut Vec<routerCalls>,
+    packet_calls: &mut Vec<PacketCall>,
     storage_proofs: &HashMap<B256, StorageSlotProof>,
 ) -> Result<()> {
     let mut error = None;
@@ -431,27 +420,22 @@ fn retain_provable_packet_calls(
             return false;
         };
         let slot_is_set = !slot.value.is_zero();
-        let (kind, packet, reason) = match call {
-            routerCalls::recvPacket(call) if !slot_is_set => (
+        let (kind, reason) = match call {
+            PacketCall::Recv(_) if !slot_is_set => (
                 "recvPacket",
-                &call.msg_.packet,
                 "packet commitment is absent from the source router; the packet was already acknowledged or timed out",
             ),
-            routerCalls::ackPacket(call) if !slot_is_set => (
+            PacketCall::Ack(_) if !slot_is_set => (
                 "ackPacket",
-                &call.msg_.packet,
                 "acknowledgement commitment is absent from the source router",
             ),
-            routerCalls::timeoutPacket(call) if slot_is_set => (
+            PacketCall::Timeout(_) if slot_is_set => (
                 "timeoutPacket",
-                &call.msg_.packet,
                 "packet receipt exists on the source router; the packet was received before it could time out",
             ),
-            routerCalls::recvPacket(_) | routerCalls::ackPacket(_) | routerCalls::timeoutPacket(_) => {
-                return true;
-            }
-            _ => unreachable!("only recv, ack, and timeout calls are constructed"),
+            PacketCall::Recv(_) | PacketCall::Ack(_) | PacketCall::Timeout(_) => return true,
         };
+        let packet = call.packet();
         tracing::warn!(
             kind,
             source_client = %packet.sourceClient,
@@ -473,7 +457,7 @@ fn retain_provable_packet_calls(
 /// when their `accountProofNodes` are empty. The first call is not allowed to fail, so the cache is
 /// always set before the remaining calls run.
 fn attach_packet_proofs(
-    packet_calls: &mut [routerCalls],
+    packet_calls: &mut [PacketCall],
     account_proof: &[Bytes],
     storage_proofs: &HashMap<B256, StorageSlotProof>,
     proven_state: &IBesuLightClientMsgs::ConsensusState,
@@ -493,12 +477,7 @@ fn attach_packet_proofs(
         .abi_encode()
         .into();
 
-        match call {
-            routerCalls::recvPacket(call) => call.msg_.proofCommitment = proof,
-            routerCalls::ackPacket(call) => call.msg_.proofAcked = proof,
-            routerCalls::timeoutPacket(call) => call.msg_.proofTimeout = proof,
-            _ => unreachable!("only recv, ack, and timeout calls are constructed"),
-        }
+        call.set_proof(proof);
         Ok(())
     })
 }
@@ -715,12 +694,13 @@ mod tests {
     };
     use ibc_eureka_solidity_types::{
         ics26::{
-            router::{ackPacketCall, recvPacketCall, routerCalls, timeoutPacketCall},
+            router::{ackPacketCall, recvPacketCall, timeoutPacketCall},
             IICS02ClientMsgs::Height,
             IICS26RouterMsgs::{MsgAckPacket, MsgRecvPacket, MsgTimeoutPacket, Packet},
         },
         msgs::IBesuLightClientMsgs,
     };
+    use proof_api_lib::utils::eth_eureka::PacketCall;
     use rlp::{Rlp, RlpStream};
 
     fn packet(sequence: u64) -> Packet {
@@ -740,8 +720,8 @@ mod tests {
         }
     }
 
-    fn recv_packet_call(sequence: u64) -> routerCalls {
-        routerCalls::recvPacket(recvPacketCall {
+    fn recv_packet_call(sequence: u64) -> PacketCall {
+        PacketCall::Recv(recvPacketCall {
             msg_: MsgRecvPacket {
                 packet: packet(sequence),
                 proofHeight: proof_height(),
@@ -750,8 +730,8 @@ mod tests {
         })
     }
 
-    fn ack_packet_call(sequence: u64) -> routerCalls {
-        routerCalls::ackPacket(ackPacketCall {
+    fn ack_packet_call(sequence: u64) -> PacketCall {
+        PacketCall::Ack(ackPacketCall {
             msg_: MsgAckPacket {
                 packet: packet(sequence),
                 acknowledgement: Bytes::from(vec![0x01]),
@@ -761,8 +741,8 @@ mod tests {
         })
     }
 
-    fn timeout_packet_call(sequence: u64) -> routerCalls {
-        routerCalls::timeoutPacket(timeoutPacketCall {
+    fn timeout_packet_call(sequence: u64) -> PacketCall {
+        PacketCall::Timeout(timeoutPacketCall {
             msg_: MsgTimeoutPacket {
                 packet: packet(sequence),
                 proofTimeout: Bytes::default(),
@@ -771,17 +751,12 @@ mod tests {
         })
     }
 
-    fn sequence_of(call: &routerCalls) -> u64 {
-        match call {
-            routerCalls::recvPacket(call) => call.msg_.packet.sequence,
-            routerCalls::ackPacket(call) => call.msg_.packet.sequence,
-            routerCalls::timeoutPacket(call) => call.msg_.packet.sequence,
-            _ => unreachable!("only recv, ack, and timeout calls are constructed"),
-        }
+    fn sequence_of(call: &PacketCall) -> u64 {
+        call.packet().sequence
     }
 
-    fn decode_recv_proof(call: &routerCalls) -> IBesuLightClientMsgs::MembershipProof {
-        let routerCalls::recvPacket(call) = call else {
+    fn decode_recv_proof(call: &PacketCall) -> IBesuLightClientMsgs::MembershipProof {
+        let PacketCall::Recv(call) = call else {
             unreachable!("call kind is preserved");
         };
         IBesuLightClientMsgs::MembershipProof::abi_decode(&call.msg_.proofCommitment)
@@ -799,7 +774,7 @@ mod tests {
     /// Builds one slot proof per call with a distinct single node, using `value` to pick the
     /// proven slot value from the call's index.
     fn slot_proofs(
-        calls: &[routerCalls],
+        calls: &[PacketCall],
         value: impl Fn(usize) -> U256,
     ) -> HashMap<B256, StorageSlotProof> {
         calls
@@ -871,8 +846,8 @@ mod tests {
             calls.iter().map(sequence_of).collect::<Vec<_>>(),
             vec![1, 3]
         );
-        assert!(matches!(calls[0], routerCalls::recvPacket(_)));
-        assert!(matches!(calls[1], routerCalls::ackPacket(_)));
+        assert!(matches!(calls[0], PacketCall::Recv(_)));
+        assert!(matches!(calls[1], PacketCall::Ack(_)));
     }
 
     #[test]
